@@ -85,6 +85,7 @@ class Chunk(object):
                 char_unigram_counts[character] = 1
         return char_unigram_counts
 
+
 class Doc2VecChunkVectorizer(object):
     def __init__(self,
                  lang,
@@ -217,7 +218,7 @@ class FeatureExtractor(object):
         
     def __get_chunks(self):
         if self.sentences_per_chunk is None:
-            return [Chunk(self.sentences, self.sbert_sentence_embeddings)]
+            return [Chunk(self.sentences, self.sbert_sentence_embeddings, self.sbert_sentence_embeddings)]
         chunks = []
         chunk_id_counter = 0
         for i in range(0, len(self.sentences), self.sentences_per_chunk):
