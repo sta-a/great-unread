@@ -2,19 +2,29 @@ import os
 import spacy
 from process import SentenceTokenizer
 from sentence_transformers import SentenceTransformer
+from transformers import BertTokenizer
 from unidecode import unidecode
+from multiprocessing import cpu_count
+from gensim.models import Doc2Vec
+from gensim.models.doc2vec import TaggedDocument
+from sklearn.utils import shuffle
+from tqdm import tqdm
 from scipy.stats import entropy, kurtosis, skew
 import numpy as np
 import textstat
 import string
 import pickle
 import re
+import logging
+logging.basicConfig(level=logging.DEBUG)
 
 
 class Chunk(object):
-    def __init__(self, sentences):
+    def __init__(self, sentences, sbert_sentence_embeddings, doc2vec_chunk_embedding):
         self.sentences = sentences
+        self.sbert_sentence_embeddings = sbert_sentence_embeddings
         self.raw_text = " ".join(sentences)
+        self.doc2vec_chunk_embedding = doc2vec_chunk_embedding
         self.unidecoded_raw_text = unidecode(self.raw_text)
         self.processed_sentences = self.__preprocess_sentences()
         self.word_unigram_counts = self.__find_word_unigram_counts()
@@ -75,6 +85,80 @@ class Chunk(object):
                 char_unigram_counts[character] = 1
         return char_unigram_counts
 
+class Doc2VecChunkVectorizer(object):
+    def __init__(self,
+                 lang,
+                 sentences_per_chunk=500,
+                 dm=1,
+                 dm_mean=1,
+                 seed=42,
+                 n_cores=-1):
+        if lang == "eng":
+            self.tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
+        elif lang == "ger":
+            self.tokenizer = BertTokenizer.from_pretrained('bert-base-german-cased')
+        else:
+            raise Exception(f"Not a valid language {lang}")
+        self.sentences_per_chunk = sentences_per_chunk
+        self.dm = dm
+        self.dm_mean = dm_mean
+        self.seed = seed
+        if n_cores == -1 or n_cores is None:
+            self.n_cores = cpu_count()
+        else:
+            self.n_cores = n_cores
+    
+    def fit_transform(self, doc_paths):
+        tagged_chunks = []
+        chunk_id_counter = 0
+        doc_path_to_chunk_ids = {}
+        logging.info("Preparing data for Doc2VecChunkVectorizer...")
+        for doc_id, doc_path in tqdm(list(enumerate(doc_paths))):
+            sentences_path = doc_path[:-4].replace("/raw_docs", f"/processed_sentences") + ".pickle"
+            if os.path.exists(sentences_path):
+                self.sentences = pickle.load(open(sentences_path, "rb"))
+            else:
+                self.sentence_tokenizer = SentenceTokenizer(self.lang)
+                self.sentences = self.sentence_tokenizer.tokenize(self.raw_text)
+                os.makedirs("/".join(sentences_path.split("/")[:-1]), exist_ok=True)
+                pickle.dump(self.sentences, open(sentences_path, "wb"))
+
+            if self.sentences_per_chunk is None:
+                words = self.tokenizer.tokenize(" ".join(self.sentences))
+                tagged_chunks.append(TaggedDocument(words=words, tags=[f'chunk_{chunk_id_counter}', f'doc_{doc_id}']))
+                if doc_path in doc_path_to_chunk_ids.keys():
+                    doc_path_to_chunk_ids[doc_path].append(chunk_id_counter)
+                else:
+                    doc_path_to_chunk_ids[doc_path] = [chunk_id_counter]
+                chunk_id_counter += 1
+            else:
+                for i in range(0, len(self.sentences), self.sentences_per_chunk):
+                    current_sentences = self.sentences[i:i+self.sentences_per_chunk]
+                    if (len(current_sentences) == self.sentences_per_chunk) or (i == 0):
+                        words = self.tokenizer.tokenize(" ".join(current_sentences))
+                        tagged_chunks.append(TaggedDocument(words=words, tags=[f'chunk_{chunk_id_counter}', f'doc_{doc_id}']))
+                        if doc_path in doc_path_to_chunk_ids.keys():
+                            doc_path_to_chunk_ids[doc_path].append(chunk_id_counter)
+                        else:
+                            doc_path_to_chunk_ids[doc_path] = [chunk_id_counter]
+                        chunk_id_counter += 1
+        logging.info("Prepared data for Doc2VecChunkVectorizer.")
+        
+        logging.info("Fitting Doc2VecChunkVectorizer...")
+        self.d2v_model = Doc2Vec(shuffle(tagged_chunks),
+                                 dm=self.dm,
+                                 dm_mean=self.dm_mean,
+                                 workers=self.n_cores,
+                                 seed=self.seed)
+        logging.info("Fitted Doc2VecChunkVectorizer.")
+        
+        logging.info("Saving chunk vectors...")
+        os.makedirs("/".join(doc_paths[0].split("/")[:-1]).replace("/raw_docs", f"/processed_doc2vec_chunk_embeddings_spc_{self.sentences_per_chunk}"), exist_ok=True)
+        for doc_path in doc_paths:
+            chunk_vectors = [self.d2v_model.dv[f'chunk_{chunk_id}'] for chunk_id in doc_path_to_chunk_ids[doc_path]]
+            pickle.dump(chunk_vectors, open(doc_path[:-4].replace("/raw_docs", f"/processed_doc2vec_chunk_embeddings_spc_{self.sentences_per_chunk}") + ".pickle", "wb"))
+        logging.info("Saved chunk vectors.")
+
 
 class FeatureExtractor(object):
     def __init__(self, lang, doc_path, sentences_per_chunk=500):
@@ -84,10 +168,8 @@ class FeatureExtractor(object):
 
         if self.lang == "eng":
             self.model_name = 'en_core_web_sm'
-            self.sentence_encoder = SentenceTransformer('stsb-mpnet-base-v2')
         elif self.lang == "ger":
             self.model_name = 'de_core_news_sm'
-            self.sentence_encoder = SentenceTransformer('paraphrase-xlm-r-multilingual-v1')
         else:
             raise Exception(f"Not a valid language {self.lang}")
         
@@ -101,25 +183,50 @@ class FeatureExtractor(object):
         
         self.stopwords = self.nlp.Defaults.stop_words
         
-        if os.path.exists(doc_path[:-4].replace("/raw_docs", f"/processed_sentences") + ".pickle"):
-            self.sentences = pickle.load(open(doc_path[:-4].replace("/raw_docs", f"/processed_sentences") + ".pickle", "rb"))
+        ## load sentences
+        sentences_path = doc_path[:-4].replace("/raw_docs", f"/processed_sentences") + ".pickle"
+        if os.path.exists(sentences_path):
+            self.sentences = pickle.load(open(sentences_path, "rb"))
         else:
             self.sentence_tokenizer = SentenceTokenizer(self.lang)
             self.sentences = self.sentence_tokenizer.tokenize(self.raw_text)
-            os.makedirs("/".join(doc_path[:-4].split("/")[:-1]).replace("/raw_docs", f"/processed_sentences"), exist_ok=True)
-            pickle.dump(self.sentences, open(doc_path[:-4].replace("/raw_docs", f"/processed_sentences") + ".pickle", "wb"))
+            os.makedirs("/".join(sentences_path.split("/")[:-1]), exist_ok=True)
+            pickle.dump(self.sentences, open(sentences_path, "wb"))
+        
+        ## load sbert sentence embeddings
+        sbert_sentence_embeddings_path = doc_path[:-4].replace("/raw_docs", f"/processed_sbert_sentence_embeddings") + ".pickle"
+        if os.path.exists(sbert_sentence_embeddings_path):
+            self.sbert_sentence_embeddings = pickle.load(open(sbert_sentence_embeddings_path, "rb"))
+        else:
+            if self.lang == "eng":
+                self.sentence_encoder = SentenceTransformer('stsb-mpnet-base-v2')
+            elif self.lang == "ger":
+                self.sentence_encoder = SentenceTransformer('paraphrase-xlm-r-multilingual-v1')
+            self.sbert_sentence_embeddings = list(self.sentence_encoder.encode(self.sentences))
+            os.makedirs("/".join(sbert_sentence_embeddings_path.split("/")[:-1]), exist_ok=True)
+            pickle.dump(self.sbert_sentence_embeddings, open(sbert_sentence_embeddings_path, "wb"))
+        
+        ## load doc2vec chunk embeddings
+        doc2vec_chunk_embeddings_path = doc_path[:-4].replace("/raw_docs", f"/processed_doc2vec_chunk_embeddings_spc_{sentences_per_chunk}") + ".pickle"
+        if os.path.exists(doc2vec_chunk_embeddings_path):
+            self.doc2vec_chunk_embeddings = pickle.load(open(doc2vec_chunk_embeddings_path, "rb"))
+        else:
+            raise Exception(f"Could not find Doc2Vec chunk embeddings for chunk size {self.sentences_per_chunk}.")
         
         self.chunks = self.__get_chunks()
         
     def __get_chunks(self):
         if self.sentences_per_chunk is None:
-            return [Chunk(self.sentences)]
-        sentence_chunks = []
+            return [Chunk(self.sentences, self.sbert_sentence_embeddings)]
+        chunks = []
+        chunk_id_counter = 0
         for i in range(0, len(self.sentences), self.sentences_per_chunk):
             current_sentences = self.sentences[i:i+self.sentences_per_chunk]
-            if len(current_sentences) == self.sentences_per_chunk:
-                sentence_chunks.append(Chunk(current_sentences))
-        return sentence_chunks
+            current_sentence_embeddings = self.sbert_sentence_embeddings[i:i+self.sentences_per_chunk]
+            if (len(current_sentences) == self.sentences_per_chunk) or (i == 0):
+                chunks.append(Chunk(current_sentences, current_sentence_embeddings, self.doc2vec_chunk_embeddings[chunk_id_counter]))
+                chunk_id_counter += 1
+        return chunks
     
     # def get_statistics_of_list_features(self, list_of_features, feature_name):
     #     statistics = {
@@ -146,8 +253,8 @@ class FeatureExtractor(object):
             "ratio_of_question_marks": self.get_ratio_of_question_marks,
             "ratio_of_commas": self.get_ratio_of_commas,
             "ratio_of_uppercase_letters": self.get_ratio_of_uppercase_letters,
-            "get_average_number_of_words_in_sentence": self.get_average_number_of_words_in_sentence,
-            "get_maximum_number_of_words_in_sentence": self.get_maximum_number_of_words_in_sentence,
+            "average_number_of_words_in_sentence": self.get_average_number_of_words_in_sentence,
+            "maximum_number_of_words_in_sentence": self.get_maximum_number_of_words_in_sentence,
             "ratio_of_unique_word_unigrams": self.get_ratio_of_unique_word_unigrams,
             "ratio_of_unique_word_bigrams": self.get_ratio_of_unique_word_bigrams,
             "ratio_of_unique_word_trigrams": self.get_ratio_of_unique_word_trigrams,
@@ -163,7 +270,8 @@ class FeatureExtractor(object):
             "unigram_entropy": self.get_word_unigram_entropy, # second order redundancy
             "average_paragraph_length": self.get_average_paragraph_length, # structural features
             "number_of_indentations": self.get_number_of_indentations, # structural features
-            "average_sentence_embedding": self.get_average_sentence_embedding, # instead of using word2vec/doc2vec, topic modeling, content specific features used this.
+            0: self.get_average_sbert_sentence_embedding,
+            1: self.get_doc2vec_chunk_embedding,
             # skipped greetings since this is not e-mail(structural features)
             # skipped types of signature since this is not e-mail(structural features)
             # skipped content specific features. added BERT average sentence embedding instead.
@@ -174,7 +282,10 @@ class FeatureExtractor(object):
         for chunk in self.chunks:
             current_features = {"book_name": self.doc_path.split("/")[-1][:-4]}
             for feature_name, feature_function in features.items():
-                current_features[feature_name] = feature_function(chunk)
+                if isinstance(feature_name, int):
+                    current_features.update(feature_function(chunk))
+                else:
+                    current_features[feature_name] = feature_function(chunk)
             data.append(current_features)
         return data
     
@@ -222,9 +333,14 @@ class FeatureExtractor(object):
     def get_number_of_indentations(self, chunk):
         return chunk.raw_text.count("\t")
     
-    def get_average_sentence_embedding(self, chunk):
-        embeddings = self.sentence_encoder.encode(chunk.sentences)
-        return embeddings.mean(axis=0)
+    def get_average_sbert_sentence_embedding(self, chunk):
+        average_sentence_embedding = np.array(chunk.sbert_sentence_embeddings).mean(axis=0)
+        average_sentence_embedding_features = dict((f"average_sentence_embedding_{index+1}", embedding_part) for index, embedding_part in enumerate(average_sentence_embedding))
+        return average_sentence_embedding_features
+    
+    def get_doc2vec_chunk_embedding(self, chunk):
+        doc2vec_chunk_embedding_features = dict((f"doc2vec_chunk_embedding_{index+1}", embedding_part) for index, embedding_part in enumerate(chunk.doc2vec_chunk_embedding))
+        return doc2vec_chunk_embedding_features
     
     def get_average_number_of_words_in_sentence(self, chunk):
         sentence_lengths = []
