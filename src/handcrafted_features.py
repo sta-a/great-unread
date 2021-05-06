@@ -13,9 +13,9 @@ from scipy.stats import entropy, kurtosis, skew
 import numpy as np
 import textstat
 import string
-import pickle
 import re
 import logging
+from utils import load_list_of_lines, save_list_of_lines
 logging.basicConfig(level=logging.DEBUG)
 
 
@@ -94,6 +94,7 @@ class Doc2VecChunkVectorizer(object):
                  dm_mean=1,
                  seed=42,
                  n_cores=-1):
+        self.lang = lang
         if lang == "eng":
             self.tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
         elif lang == "ger":
@@ -115,14 +116,13 @@ class Doc2VecChunkVectorizer(object):
         doc_path_to_chunk_ids = {}
         logging.info("Preparing data for Doc2VecChunkVectorizer...")
         for doc_id, doc_path in tqdm(list(enumerate(doc_paths))):
-            sentences_path = doc_path[:-4].replace("/raw_docs", f"/processed_sentences") + ".pickle"
+            sentences_path = doc_path.replace("/raw_docs", f"/processed_sentences")
             if os.path.exists(sentences_path):
-                self.sentences = pickle.load(open(sentences_path, "rb"))
+                self.sentences = load_list_of_lines(sentences_path, "str")
             else:
                 self.sentence_tokenizer = SentenceTokenizer(self.lang)
-                self.sentences = self.sentence_tokenizer.tokenize(self.raw_text)
-                os.makedirs("/".join(sentences_path.split("/")[:-1]), exist_ok=True)
-                pickle.dump(self.sentences, open(sentences_path, "wb"))
+                self.sentences = self.sentence_tokenizer.tokenize(doc_path)
+                save_list_of_lines(self.sentences, sentences_path)
 
             if self.sentences_per_chunk is None:
                 words = self.tokenizer.tokenize(" ".join(self.sentences))
@@ -154,10 +154,9 @@ class Doc2VecChunkVectorizer(object):
         logging.info("Fitted Doc2VecChunkVectorizer.")
         
         logging.info("Saving chunk vectors...")
-        os.makedirs("/".join(doc_paths[0].split("/")[:-1]).replace("/raw_docs", f"/processed_doc2vec_chunk_embeddings_spc_{self.sentences_per_chunk}"), exist_ok=True)
         for doc_path in doc_paths:
             chunk_vectors = [self.d2v_model.dv[f'chunk_{chunk_id}'] for chunk_id in doc_path_to_chunk_ids[doc_path]]
-            pickle.dump(chunk_vectors, open(doc_path[:-4].replace("/raw_docs", f"/processed_doc2vec_chunk_embeddings_spc_{self.sentences_per_chunk}") + ".pickle", "wb"))
+            save_list_of_lines(chunk_vectors, doc_path.replace("/raw_docs", f"/processed_doc2vec_chunk_embeddings_spc_{self.sentences_per_chunk}"))
         logging.info("Saved chunk vectors.")
 
 
@@ -185,32 +184,30 @@ class FeatureExtractor(object):
         self.stopwords = self.nlp.Defaults.stop_words
         
         ## load sentences
-        sentences_path = doc_path[:-4].replace("/raw_docs", f"/processed_sentences") + ".pickle"
+        sentences_path = doc_path.replace("/raw_docs", f"/processed_sentences")
         if os.path.exists(sentences_path):
-            self.sentences = pickle.load(open(sentences_path, "rb"))
+            self.sentences = load_list_of_lines(sentences_path, "str")
         else:
             self.sentence_tokenizer = SentenceTokenizer(self.lang)
-            self.sentences = self.sentence_tokenizer.tokenize(self.raw_text)
-            os.makedirs("/".join(sentences_path.split("/")[:-1]), exist_ok=True)
-            pickle.dump(self.sentences, open(sentences_path, "wb"))
+            self.sentences = self.sentence_tokenizer.tokenize(doc_path)
+            save_list_of_lines(self.sentences, sentences_path)
         
         ## load sbert sentence embeddings
-        sbert_sentence_embeddings_path = doc_path[:-4].replace("/raw_docs", f"/processed_sbert_sentence_embeddings") + ".pickle"
+        sbert_sentence_embeddings_path = doc_path.replace("/raw_docs", f"/processed_sbert_sentence_embeddings")
         if os.path.exists(sbert_sentence_embeddings_path):
-            self.sbert_sentence_embeddings = pickle.load(open(sbert_sentence_embeddings_path, "rb"))
+            self.sbert_sentence_embeddings = load_list_of_lines(sbert_sentence_embeddings_path, "np")
         else:
             if self.lang == "eng":
                 self.sentence_encoder = SentenceTransformer('stsb-mpnet-base-v2')
             elif self.lang == "ger":
                 self.sentence_encoder = SentenceTransformer('paraphrase-xlm-r-multilingual-v1')
             self.sbert_sentence_embeddings = list(self.sentence_encoder.encode(self.sentences))
-            os.makedirs("/".join(sbert_sentence_embeddings_path.split("/")[:-1]), exist_ok=True)
-            pickle.dump(self.sbert_sentence_embeddings, open(sbert_sentence_embeddings_path, "wb"))
+            save_list_of_lines(self.sbert_sentence_embeddings, sbert_sentence_embeddings_path)
         
         ## load doc2vec chunk embeddings
-        doc2vec_chunk_embeddings_path = doc_path[:-4].replace("/raw_docs", f"/processed_doc2vec_chunk_embeddings_spc_{sentences_per_chunk}") + ".pickle"
+        doc2vec_chunk_embeddings_path = doc_path.replace("/raw_docs", f"/processed_doc2vec_chunk_embeddings_spc_{sentences_per_chunk}")
         if os.path.exists(doc2vec_chunk_embeddings_path):
-            self.doc2vec_chunk_embeddings = pickle.load(open(doc2vec_chunk_embeddings_path, "rb"))
+            self.doc2vec_chunk_embeddings = load_list_of_lines(doc2vec_chunk_embeddings_path, "np")
         else:
             raise Exception(f"Could not find Doc2Vec chunk embeddings for chunk size {self.sentences_per_chunk}.")
         

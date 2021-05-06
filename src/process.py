@@ -27,7 +27,9 @@ class SentenceTokenizer(object):
             logging.info(f"Downloaded {self.model_name} for Spacy.")
             self.nlp = spacy.load(self.model_name)
         
-    def tokenize(self, doc):
+    def tokenize(self, doc_path):
+        with open(doc_path, "r") as reader:
+            doc = reader.read().strip()
         i = 0
         all_sentences = []
         while True:

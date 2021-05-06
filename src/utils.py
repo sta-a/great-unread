@@ -1,4 +1,7 @@
 import os
+from ast import literal_eval
+from pathlib import Path
+import numpy as np
 import pandas as pd
 
 
@@ -6,9 +9,22 @@ def get_doc_paths(docs_dir, lang):
     doc_paths = [os.path.join(docs_dir, lang, doc_name) for doc_name in os.listdir(os.path.join(docs_dir, lang)) if doc_name[-4:] == ".txt"]
     return doc_paths
 
-def get_pickle_paths(pickles_dir, lang):
-    pickle_paths = [os.path.join(pickles_dir, lang, pickle_name) for pickle_name in os.listdir(os.path.join(pickles_dir, lang)) if pickle_name[-7:] == ".pickle"]
-    return pickle_paths
+def load_list_of_lines(path, line_type):
+    if line_type == "str":
+        func = lambda x: x
+    elif line_type == "np":
+        func = lambda x: np.array(literal_eval(x))
+    else:
+        raise Exception(f"Not a valid line_type {line_type}")
+    with open(path, "r") as reader:
+        lines = [func(line.strip()) for line in reader]
+    return lines
+
+def save_list_of_lines(lst, path):
+    os.makedirs(str(Path(path).parent), exist_ok=True)
+    with open(path, "w") as writer:
+        for item in lst:
+            writer.write(str(item) + "\n")
 
 def read_labels(labels_dir, lang):
     labels_df = pd.read_csv(os.path.join(labels_dir, lang, "canonisation_scores.csv"), sep=";")
