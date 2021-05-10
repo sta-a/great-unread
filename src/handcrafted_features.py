@@ -122,7 +122,7 @@ class Doc2VecChunkVectorizer(object):
             else:
                 self.sentence_tokenizer = SentenceTokenizer(self.lang)
                 self.sentences = self.sentence_tokenizer.tokenize(doc_path)
-                save_list_of_lines(self.sentences, sentences_path)
+                save_list_of_lines(self.sentences, sentences_path, "str")
 
             if self.sentences_per_chunk is None:
                 words = self.tokenizer.tokenize(" ".join(self.sentences))
@@ -156,7 +156,7 @@ class Doc2VecChunkVectorizer(object):
         logging.info("Saving chunk vectors...")
         for doc_path in doc_paths:
             chunk_vectors = [self.d2v_model.dv[f'chunk_{chunk_id}'] for chunk_id in doc_path_to_chunk_ids[doc_path]]
-            save_list_of_lines(chunk_vectors, doc_path.replace("/raw_docs", f"/processed_doc2vec_chunk_embeddings_spc_{self.sentences_per_chunk}"))
+            save_list_of_lines(chunk_vectors, doc_path.replace("/raw_docs", f"/processed_doc2vec_chunk_embeddings_spc_{self.sentences_per_chunk}"), "np")
         logging.info("Saved chunk vectors.")
 
 
@@ -190,10 +190,10 @@ class FeatureExtractor(object):
         else:
             self.sentence_tokenizer = SentenceTokenizer(self.lang)
             self.sentences = self.sentence_tokenizer.tokenize(doc_path)
-            save_list_of_lines(self.sentences, sentences_path)
+            save_list_of_lines(self.sentences, sentences_path, "str")
         
         ## load sbert sentence embeddings
-        sbert_sentence_embeddings_path = doc_path.replace("/raw_docs", f"/processed_sbert_sentence_embeddings")
+        sbert_sentence_embeddings_path = doc_path.replace("/raw_docs", f"/processed_sbert_sentence_embeddings") + ".npz"
         if os.path.exists(sbert_sentence_embeddings_path):
             self.sbert_sentence_embeddings = load_list_of_lines(sbert_sentence_embeddings_path, "np")
         else:
@@ -202,10 +202,10 @@ class FeatureExtractor(object):
             elif self.lang == "ger":
                 self.sentence_encoder = SentenceTransformer('paraphrase-xlm-r-multilingual-v1')
             self.sbert_sentence_embeddings = list(self.sentence_encoder.encode(self.sentences))
-            save_list_of_lines(self.sbert_sentence_embeddings, sbert_sentence_embeddings_path)
+            save_list_of_lines(self.sbert_sentence_embeddings, sbert_sentence_embeddings_path, "np")
         
         ## load doc2vec chunk embeddings
-        doc2vec_chunk_embeddings_path = doc_path.replace("/raw_docs", f"/processed_doc2vec_chunk_embeddings_spc_{sentences_per_chunk}")
+        doc2vec_chunk_embeddings_path = doc_path.replace("/raw_docs", f"/processed_doc2vec_chunk_embeddings_spc_{sentences_per_chunk}") + ".npz"
         if os.path.exists(doc2vec_chunk_embeddings_path):
             self.doc2vec_chunk_embeddings = load_list_of_lines(doc2vec_chunk_embeddings_path, "np")
         else:

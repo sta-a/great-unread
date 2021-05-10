@@ -9,22 +9,29 @@ def get_doc_paths(docs_dir, lang):
     doc_paths = [os.path.join(docs_dir, lang, doc_name) for doc_name in os.listdir(os.path.join(docs_dir, lang)) if doc_name[-4:] == ".txt"]
     return doc_paths
 
+
 def load_list_of_lines(path, line_type):
     if line_type == "str":
-        func = lambda x: x
+        with open(path, "r") as reader:
+            lines = [line.strip() for line in reader]
     elif line_type == "np":
-        func = lambda x: np.array(literal_eval(x))
+        lines = list(np.load(path)["arr_0"])
     else:
         raise Exception(f"Not a valid line_type {line_type}")
-    with open(path, "r") as reader:
-        lines = [func(line.strip()) for line in reader]
     return lines
 
-def save_list_of_lines(lst, path):
+
+def save_list_of_lines(lst, path, line_type):
     os.makedirs(str(Path(path).parent), exist_ok=True)
-    with open(path, "w") as writer:
+    if line_type == "str":
         for item in lst:
-            writer.write(str(item) + "\n")
+            with open(path, "w") as writer:
+                writer.write(str(item) + "\n")
+    elif line_type == "np":
+        np.savez_compressed(path, np.array(lst))
+    else:
+        raise Exception(f"Not a valid line_type {line_type}")
+
 
 def read_labels(labels_dir, lang):
     labels_df = pd.read_csv(os.path.join(labels_dir, lang, "canonisation_scores.csv"), sep=";")
