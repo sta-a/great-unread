@@ -10,6 +10,8 @@ from unidecode import unidecode
 
 
 class SentenceTokenizer(object):
+    """Split text into sentences using Spacy."""
+
     def __init__(self, lang):
         self.lang = lang
         if self.lang == "eng":
@@ -74,7 +76,7 @@ class Doc2VecProcessor(object):
                 if os.path.exists(doc_path[:-4].replace("/raw_docs", f"/processed_sentences") + ".pickle"):
                     sentences = pickle.load(open(doc_path[:-4].replace("/raw_docs", f"/processed_sentences") + ".pickle", "rb"))
                 else:
-                    sentences = self.sentence_tokenizer.tokenize(doc)
+                    sentences = self.sentence_tokenizer.tokenize(doc_path)
                     pickle.dump(sentences, open(doc_path[:-4].replace("/raw_docs", f"/processed_sentences") + ".pickle", "wb"))
                 sentences = [_process_text(sentence) for sentence in sentences]
                 

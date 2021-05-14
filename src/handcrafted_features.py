@@ -206,6 +206,7 @@ class FeatureExtractor(object):
         
         ## load doc2vec chunk embeddings
         doc2vec_chunk_embeddings_path = doc_path.replace("/raw_docs", f"/processed_doc2vec_chunk_embeddings_spc_{sentences_per_chunk}") + ".npz"
+        print(doc2vec_chunk_embeddings_path)
         if os.path.exists(doc2vec_chunk_embeddings_path):
             self.doc2vec_chunk_embeddings = load_list_of_lines(doc2vec_chunk_embeddings_path, "np")
         else:
@@ -245,36 +246,36 @@ class FeatureExtractor(object):
     def get_all_features(self):
         features = {
             "ratio_of_punctuation_marks": self.get_ratio_of_punctuation_marks,
-            "ratio_of_whitespaces": self.get_ratio_of_whitespaces,
-            "ratio_of_digits": self.get_ratio_of_digits,
-            "ratio_of_exclamation_marks": self.get_ratio_of_exclamation_marks,
-            "ratio_of_question_marks": self.get_ratio_of_question_marks,
-            "ratio_of_commas": self.get_ratio_of_commas,
-            "ratio_of_uppercase_letters": self.get_ratio_of_uppercase_letters,
-            "average_number_of_words_in_sentence": self.get_average_number_of_words_in_sentence,
-            "maximum_number_of_words_in_sentence": self.get_maximum_number_of_words_in_sentence,
-            "ratio_of_unique_word_unigrams": self.get_ratio_of_unique_word_unigrams,
-            "ratio_of_unique_word_bigrams": self.get_ratio_of_unique_word_bigrams,
-            "ratio_of_unique_word_trigrams": self.get_ratio_of_unique_word_trigrams,
-            "text_length": self.get_text_length,
-            "average_word_length": self.get_average_word_length,
-            "ratio_of_stopwords": self.get_ratio_of_stopwords,
-            "bigram_entropy": self.get_word_bigram_entropy,
-            "trigram_entropy": self.get_word_trigram_entropy,
+            "ratio_of_whitespaces": self.get_ratio_of_whitespaces#,
+            # "ratio_of_digits": self.get_ratio_of_digits,
+            # "ratio_of_exclamation_marks": self.get_ratio_of_exclamation_marks,
+            # "ratio_of_question_marks": self.get_ratio_of_question_marks,
+            # "ratio_of_commas": self.get_ratio_of_commas,
+            # "ratio_of_uppercase_letters": self.get_ratio_of_uppercase_letters,
+            # "average_number_of_words_in_sentence": self.get_average_number_of_words_in_sentence,
+            # "maximum_number_of_words_in_sentence": self.get_maximum_number_of_words_in_sentence,
+            # "ratio_of_unique_word_unigrams": self.get_ratio_of_unique_word_unigrams,
+            # "ratio_of_unique_word_bigrams": self.get_ratio_of_unique_word_bigrams,
+            # "ratio_of_unique_word_trigrams": self.get_ratio_of_unique_word_trigrams,
+            # "text_length": self.get_text_length,
+            # "average_word_length": self.get_average_word_length,
+            # "ratio_of_stopwords": self.get_ratio_of_stopwords,
+            # "bigram_entropy": self.get_word_bigram_entropy,
+            # "trigram_entropy": self.get_word_trigram_entropy,
 
-            ## Features in the list
+            # ## Features in the list
             
-            "flesch_reading_ease_score": self.get_flesch_reading_ease_score, # readability
-            "unigram_entropy": self.get_word_unigram_entropy, # second order redundancy
-            "average_paragraph_length": self.get_average_paragraph_length, # structural features
-            "number_of_indentations": self.get_number_of_indentations, # structural features
-            0: self.get_average_sbert_sentence_embedding,
-            1: self.get_doc2vec_chunk_embedding,
-            # skipped greetings since this is not e-mail(structural features)
-            # skipped types of signature since this is not e-mail(structural features)
-            # skipped content specific features. added BERT average sentence embedding instead.
+            # "flesch_reading_ease_score": self.get_flesch_reading_ease_score, # readability
+            # "unigram_entropy": self.get_word_unigram_entropy, # second order redundancy
+            # "average_paragraph_length": self.get_average_paragraph_length, # structural features
+            # "number_of_indentations": self.get_number_of_indentations, # structural features
+            # 0: self.get_average_sbert_sentence_embedding,
+            # 1: self.get_doc2vec_chunk_embedding,
+            # # skipped greetings since this is not e-mail(structural features)
+            # # skipped types of signature since this is not e-mail(structural features)
+            # # skipped content specific features. added BERT average sentence embedding instead.
             
-            #######
+            # #######
         }
         data = []
         for chunk in self.chunks:
@@ -416,3 +417,8 @@ class FeatureExtractor(object):
         Not implemented for German. If we can find "easy words" in German, then we can implement it ourselves.
         """
         return textstat.gunning_fog(chunk.unidecoded_raw_text)
+
+
+class CorpusFeatureExtractor(object):
+    def __init__(self, all_features):
+        self.all_features = all_features
