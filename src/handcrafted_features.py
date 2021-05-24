@@ -7,14 +7,19 @@ from unidecode import unidecode
 from multiprocessing import cpu_count
 from gensim.models import Doc2Vec
 from gensim.models.doc2vec import TaggedDocument
+from sklearn.feature_extraction.text import CountVectorizer
+from gensim.models import LdaMulticore
+from gensim.matutils import Sparse2Corpus
 from sklearn.utils import shuffle
 from tqdm import tqdm
 from scipy.stats import entropy, kurtosis, skew
 import numpy as np
+import pandas as pd
 import textstat
 import string
 import re
 import logging
+from collections import Counter
 from utils import load_list_of_lines, save_list_of_lines
 logging.basicConfig(level=logging.DEBUG)
 
@@ -126,7 +131,7 @@ class Doc2VecChunkVectorizer(object):
 
             if self.sentences_per_chunk is None:
                 words = self.tokenizer.tokenize(" ".join(self.sentences))
-                tagged_chunks.append(TaggedDocument(words=words, tags=[f'chunk_{chunk_id_counter}', f'doc_{doc_id}']))
+                tagged_chunks.append(TaggedDocument(words=words, tags=[f'chunk_{chunk_id_counter}']))
                 if doc_path in doc_path_to_chunk_ids.keys():
                     doc_path_to_chunk_ids[doc_path].append(chunk_id_counter)
                 else:
@@ -137,7 +142,7 @@ class Doc2VecChunkVectorizer(object):
                     current_sentences = self.sentences[i:i+self.sentences_per_chunk]
                     if (len(current_sentences) == self.sentences_per_chunk) or (i == 0):
                         words = self.tokenizer.tokenize(" ".join(current_sentences))
-                        tagged_chunks.append(TaggedDocument(words=words, tags=[f'chunk_{chunk_id_counter}', f'doc_{doc_id}']))
+                        tagged_chunks.append(TaggedDocument(words=words, tags=[f'chunk_{chunk_id_counter}']))
                         if doc_path in doc_path_to_chunk_ids.keys():
                             doc_path_to_chunk_ids[doc_path].append(chunk_id_counter)
                         else:
@@ -147,6 +152,7 @@ class Doc2VecChunkVectorizer(object):
         
         logging.info("Fitting Doc2VecChunkVectorizer...")
         self.d2v_model = Doc2Vec(shuffle(tagged_chunks),
+                                 window=10,
                                  dm=self.dm,
                                  dm_mean=self.dm_mean,
                                  workers=self.n_cores,
@@ -160,7 +166,7 @@ class Doc2VecChunkVectorizer(object):
         logging.info("Saved chunk vectors.")
 
 
-class FeatureExtractor(object):
+class DocBasedFeatureExtractor(object):
     def __init__(self, lang, doc_path, sentences_per_chunk=500):
         self.lang = lang
         self.sentences_per_chunk = sentences_per_chunk
@@ -244,30 +250,29 @@ class FeatureExtractor(object):
     
     def get_all_features(self):
         chunk_based_feature_mapping = {
-            # "ratio_of_punctuation_marks": self.get_ratio_of_punctuation_marks,
-            # "ratio_of_whitespaces": self.get_ratio_of_whitespaces,
-            # "ratio_of_digits": self.get_ratio_of_digits,
-            # "ratio_of_exclamation_marks": self.get_ratio_of_exclamation_marks,
-            # "ratio_of_question_marks": self.get_ratio_of_question_marks,
-            # "ratio_of_commas": self.get_ratio_of_commas,
-            # "ratio_of_uppercase_letters": self.get_ratio_of_uppercase_letters,
-            # "average_number_of_words_in_sentence": self.get_average_number_of_words_in_sentence,
-            # "maximum_number_of_words_in_sentence": self.get_maximum_number_of_words_in_sentence,
-            # "ratio_of_unique_word_unigrams": self.get_ratio_of_unique_word_unigrams,
-            # "ratio_of_unique_word_bigrams": self.get_ratio_of_unique_word_bigrams,
-            # "ratio_of_unique_word_trigrams": self.get_ratio_of_unique_word_trigrams,
-            # "text_length": self.get_text_length,
-            # "average_word_length": self.get_average_word_length,
-            # "ratio_of_stopwords": self.get_ratio_of_stopwords,
-            # "bigram_entropy": self.get_word_bigram_entropy,
-            # "trigram_entropy": self.get_word_trigram_entropy,
+            "ratio_of_punctuation_marks": self.get_ratio_of_punctuation_marks,
+            "ratio_of_whitespaces": self.get_ratio_of_whitespaces,
+            "ratio_of_digits": self.get_ratio_of_digits,
+            "ratio_of_exclamation_marks": self.get_ratio_of_exclamation_marks,
+            "ratio_of_question_marks": self.get_ratio_of_question_marks,
+            "ratio_of_commas": self.get_ratio_of_commas,
+            "ratio_of_uppercase_letters": self.get_ratio_of_uppercase_letters,
+            "average_number_of_words_in_sentence": self.get_average_number_of_words_in_sentence,
+            "maximum_number_of_words_in_sentence": self.get_maximum_number_of_words_in_sentence,
+            "ratio_of_unique_word_unigrams": self.get_ratio_of_unique_word_unigrams,
+            "ratio_of_unique_word_bigrams": self.get_ratio_of_unique_word_bigrams,
+            "ratio_of_unique_word_trigrams": self.get_ratio_of_unique_word_trigrams,
+            "text_length": self.get_text_length,
+            "average_word_length": self.get_average_word_length,
+            "ratio_of_stopwords": self.get_ratio_of_stopwords,
+            "bigram_entropy": self.get_word_bigram_entropy,
+            "trigram_entropy": self.get_word_trigram_entropy,
 
             ## Features in the list
             
             "flesch_reading_ease_score": self.get_flesch_reading_ease_score, # readability
             "unigram_entropy": self.get_word_unigram_entropy, # second order redundancy
             "average_paragraph_length": self.get_average_paragraph_length, # structural features
-            "number_of_indentations": self.get_number_of_indentations, # structural features
             0: self.get_average_sbert_sentence_embedding,
             1: self.get_doc2vec_chunk_embedding,
             # skipped greetings since this is not e-mail(structural features)
@@ -282,8 +287,6 @@ class FeatureExtractor(object):
             "sbert_intra_textual_variance": self.get_sbert_intra_textual_variance,
             "doc2vec_stepwise_distance": self.get_doc2vec_stepwise_distance,
             "sbert_stepwise_distance": self.get_sbert_stepwise_distance
-            # skipped overlap score since it's an intra-book feature
-            # skipped outlier score since it's an intra-book feature
         }
         
         # extract chunk based features
@@ -301,9 +304,12 @@ class FeatureExtractor(object):
         book_based_features = {}
         for feature_name, feature_function in book_based_feature_mapping.items():
             book_based_features["book_name"] = self.doc_path.split("/")[-1][:-4]
-            book_based_features[feature_name] = feature_function(chunk_based_features)
+            book_based_features[feature_name] = feature_function(self.chunks)
         
-        return chunk_based_features, book_based_features
+        return chunk_based_features, \
+               book_based_features, \
+               [np.array(chunk.sbert_sentence_embeddings).mean(axis=0) for chunk in self.chunks], \
+               [chunk.doc2vec_chunk_embedding for chunk in self.chunks]
     
     def get_ratio_of_punctuation_marks(self, chunk):
         punctuations = 0
@@ -345,9 +351,6 @@ class FeatureExtractor(object):
     def get_average_paragraph_length(self, chunk):
         splitted_lengths = [len(splitted) for splitted in chunk.raw_text.split("\n")]
         return np.mean(splitted_lengths)
-    
-    def get_number_of_indentations(self, chunk):
-        return chunk.raw_text.count("\t")
     
     def get_average_sbert_sentence_embedding(self, chunk):
         average_sentence_embedding = np.array(chunk.sbert_sentence_embeddings).mean(axis=0)
@@ -435,6 +438,9 @@ class FeatureExtractor(object):
         """
         return textstat.gunning_fog(chunk.unidecoded_raw_text)
     
+    ######
+    ## book based features
+    ######
     def __get_intra_textual_variance(self, chunks, embedding_type):
         chunk_embeddings = []
         for chunk in chunks:
@@ -473,4 +479,311 @@ class FeatureExtractor(object):
     
     def get_sbert_stepwise_distance(self, chunks):
         return self.__get_stepwise_distance(chunks, "sbert")
+  
+
+class CorpusBasedFeatureExtractor(object):
+    def __init__(self, lang, doc_paths, all_average_sbert_sentence_embeddings, all_doc2vec_chunk_embeddings):
+        self.lang = lang
+        self.doc_paths = doc_paths
+        self.word_statistics = self.__get_word_statistics()
+        self.all_average_sbert_sentence_embeddings = all_average_sbert_sentence_embeddings
+        self.all_doc2vec_chunk_embeddings = all_doc2vec_chunk_embeddings
+        
+        if self.lang == "eng":
+            self.model_name = 'en_core_web_sm'
+        elif self.lang == "ger":
+            self.model_name = 'de_core_news_sm'
+        else:
+            raise Exception(f"Not a valid language {self.lang}")
+        
+        try:
+            self.nlp = spacy.load(self.model_name)
+        except OSError:
+            logging.info(f"Downloading {self.model_name} for Spacy...")
+            os.system(f"python3 -m spacy download {self.model_name}")
+            logging.info(f"Downloaded {self.model_name} for Spacy.")
+            self.nlp = spacy.load(self.model_name)
+        self.stopwords = self.nlp.Defaults.stop_words
     
+    def __find_word_unigram_counts(self, processed_sentences):
+        word_unigram_counts = {}
+        for processed_sentence in processed_sentences:
+            for word_unigram in processed_sentence.split():
+                if word_unigram in word_unigram_counts.keys():
+                    word_unigram_counts[word_unigram] += 1
+                else:
+                    word_unigram_counts[word_unigram] = 1
+        return word_unigram_counts
+
+    def __find_word_bigram_counts(self, processed_sentences):
+        processed_text = "<BOS> " + " <EOS> <BOS> ".join(processed_sentences) + " <EOS>"
+        splitted_processed_text = processed_text.split()
+        word_bigram_counts = {}
+        for i in range(len(splitted_processed_text) - 1):
+            current_word_bigram = splitted_processed_text[i] + " " + splitted_processed_text[i+1]
+            if current_word_bigram in word_bigram_counts:
+                word_bigram_counts[current_word_bigram] += 1
+            else:
+                word_bigram_counts[current_word_bigram] = 1
+        return word_bigram_counts
+
+    def __find_word_trigram_counts(self, processed_sentences):
+        processed_text = "<BOS> <BOS> " + " <EOS> <EOS> <BOS> <BOS> ".join(processed_sentences) + " <EOS> <EOS>"
+        splitted_processed_text = processed_text.split()
+        word_trigram_counts = {}
+        for i in range(len(splitted_processed_text) - 2):
+            current_word_trigram = splitted_processed_text[i] + " " + splitted_processed_text[i+1] + " " + splitted_processed_text[i+2]
+            if current_word_trigram in word_trigram_counts.keys():
+                word_trigram_counts[current_word_trigram] += 1
+            else:
+                word_trigram_counts[current_word_trigram] = 1
+        return word_trigram_counts
+    
+    def __preprocess_sentences(self, sentences):
+        def __preprocess_sentences_helper(text):
+            text = text.lower()
+            text = unidecode(text)
+            text = re.sub("[^a-zA-Z]+", " ", text).strip()
+            text = text.split()
+            text = " ".join(text)
+            return text
+        return [__preprocess_sentences_helper(sentence) for sentence in sentences]
+    
+    def __get_word_statistics(self):
+        all_word_unigram_counts = Counter()
+        all_word_bigram_counts = Counter()
+        all_word_trigram_counts = Counter()
+        
+        for doc_path in tqdm(self.doc_paths):
+            book_name = doc_path.split("/")[-1][:-4]
+            sentences_path = doc_path.replace("/raw_docs", f"/processed_sentences")
+            sentences = load_list_of_lines(sentences_path, "str")
+            processed_sentences = self.__preprocess_sentences(sentences)
+            unigram_counts = self.__find_word_unigram_counts(processed_sentences)
+            bigram_counts = self.__find_word_bigram_counts(processed_sentences)
+            trigram_counts = self.__find_word_trigram_counts(processed_sentences)
+            all_word_unigram_counts.update(unigram_counts)
+            all_word_bigram_counts.update(bigram_counts)
+            all_word_trigram_counts.update(trigram_counts)
+        
+        all_word_unigram_counts = dict(sorted(list(all_word_unigram_counts.items()), key=lambda x: -x[1])[:2000])
+        all_word_bigram_counts = dict(sorted(list(all_word_bigram_counts.items()), key=lambda x: -x[1])[:2000])
+        all_word_trigram_counts = dict(sorted(list(all_word_trigram_counts.items()), key=lambda x: -x[1])[:2000])
+        
+        book_name_word_unigram_mapping = {}
+        book_name_word_bigram_mapping = {}
+        book_name_word_trigram_mapping = {}
+        for doc_path in tqdm(self.doc_paths):
+            book_name = doc_path.split("/")[-1][:-4]
+            sentences_path = doc_path.replace("/raw_docs", f"/processed_sentences")
+            sentences = load_list_of_lines(sentences_path, "str")
+            processed_sentences = self.__preprocess_sentences(sentences)
+            unigram_counts = self.__find_word_unigram_counts(processed_sentences)
+            bigram_counts = self.__find_word_bigram_counts(processed_sentences)
+            trigram_counts = self.__find_word_trigram_counts(processed_sentences)
+            total_unigram_count = sum(unigram_counts.values())
+            total_bigram_count = sum(bigram_counts.values())
+            total_trigram_count = sum(trigram_counts.values())
+            book_name_word_unigram_mapping[book_name] = dict((unigram, count / total_unigram_count) for unigram, count in unigram_counts.items() if unigram in all_word_unigram_counts.keys())
+            book_name_word_bigram_mapping[book_name] = dict((bigram, count / total_bigram_count) for bigram, count in bigram_counts.items() if bigram in all_word_bigram_counts.keys())
+            book_name_word_trigram_mapping[book_name] = dict((trigram, count / total_trigram_count) for trigram, count in trigram_counts.items() if trigram in all_word_trigram_counts.keys())
+        
+        word_statistics = {
+            "all_word_unigram_counts": all_word_unigram_counts,
+            "all_word_bigram_counts": all_word_bigram_counts,
+            "all_word_trigram_counts": all_word_trigram_counts,
+            "book_name_word_unigram_mapping": book_name_word_unigram_mapping,
+            "book_name_word_bigram_mapping": book_name_word_bigram_mapping,
+            "book_name_word_trigram_mapping": book_name_word_trigram_mapping
+        }
+        return word_statistics
+
+    def get_k_most_common_word_ngram_counts(self, k, n, include_stopwords):
+        if n == 1:
+            dct1 = self.word_statistics["all_word_unigram_counts"]
+            dct2 = self.word_statistics["book_name_word_unigram_mapping"]
+        elif n == 2:
+            dct1 = self.word_statistics["all_word_bigram_counts"]
+            dct2 = self.word_statistics["book_name_word_bigram_mapping"]
+        elif n == 3:
+            dct1 = self.word_statistics["all_word_trigram_counts"]
+            dct2 = self.word_statistics["book_name_word_trigram_mapping"]
+        else:
+            raise Exception(f"Not a valid n: {n}")
+        if include_stopwords:
+            most_common_k_ngrams = [ngram for ngram, count in sorted(list(dct1.items()), key=lambda x: -x[1])[:k]]
+        else:
+            filtered_ngrams = []
+            for ngram, count in dct1.items():
+                splitted_ngram = ngram.split()
+                exclude = False
+                for word in splitted_ngram:
+                    if word in self.stopwords:
+                        exclude = True
+                if exclude:
+                    continue
+                else:
+                    filtered_ngrams.append((ngram, count))
+            most_common_k_ngrams = [ngram for ngram, count in sorted(filtered_ngrams, key=lambda x: -x[1])[:k]]
+        result = []
+        for book_name, ngram_counts in dct2.items():
+            dct = dict((common_ngram, dct2[book_name].get(common_ngram, 0)) for common_ngram in most_common_k_ngrams)
+            dct["book_name"] = book_name
+            result.append(dct)
+        return pd.DataFrame(result)
+    
+    def get_50_most_common_word_unigram_counts_including_stopwords(self):
+        return self.get_k_most_common_word_ngram_counts(50, 1, True)
+        
+    def get_50_most_common_word_bigram_counts_including_stopwords(self):
+        return self.get_k_most_common_word_ngram_counts(50, 2, True)
+        
+    def get_50_most_common_word_trigram_counts_including_stopwords(self):
+        return self.get_k_most_common_word_ngram_counts(50, 3, True)
+    
+    def get_50_most_common_word_unigram_counts_excluding_stopwords(self):
+        return self.get_k_most_common_word_ngram_counts(50, 1, False)
+        
+    def get_50_most_common_word_bigram_counts_excluding_stopwords(self):
+        return self.get_k_most_common_word_ngram_counts(50, 2, False)
+        
+    def get_50_most_common_word_trigram_counts_excluding_stopwords(self):
+        return self.get_k_most_common_word_ngram_counts(50, 3, False)
+    
+    def get_overlap_score(self, embedding_type):
+        if embedding_type == "doc2vec":
+            all_embeddings = self.all_doc2vec_chunk_embeddings
+        elif embedding_type == "sbert":
+            all_embeddings = self.all_average_sbert_sentence_embeddings
+        else:
+            raise Exception(f"Not a valid embedding_type {embedding_type}.")
+    
+        cluster_means = []
+        for index, current_list_of_embeddings in enumerate(all_embeddings):
+            cluster_means.append(np.array(current_list_of_embeddings).mean(axis=0))
+
+        labels = []
+        predictions = []
+        for label_index, current_list_of_embeddings in tqdm(list(enumerate(all_embeddings))):
+            for current_embedding in current_list_of_embeddings:
+                labels.append(label_index)
+                best_cluster = None
+                smallest_distance = np.inf
+                for prediction_index, cluster_mean in enumerate(cluster_means):
+                    current_distance = np.linalg.norm(current_embedding - cluster_mean)
+                    if current_distance < smallest_distance:
+                        smallest_distance = current_distance
+                        best_cluster = prediction_index
+                predictions.append(best_cluster)
+        labels = np.array(labels)
+        predictions = np.array(predictions)
+        
+        book_names = []
+        overlap_scores = []
+        for label_index, doc_path in enumerate(self.doc_paths):
+            book_name = doc_path.split("/")[-1][:-4]
+            indices = np.argwhere(labels == label_index).ravel()
+            current_predictions = predictions[indices]
+            incorrect_prediction_indices = np.argwhere(current_predictions != label_index)
+            overlap_score = len(incorrect_prediction_indices) / len(current_predictions)
+            book_names.append(book_name)
+            overlap_scores.append(overlap_score)
+        return pd.DataFrame.from_dict({"book_name": book_names, f"overlap_score_{embedding_type}": overlap_scores})
+    
+    def get_overlap_score_doc2vec(self):
+        return self.get_overlap_score("doc2vec")
+    
+    def get_overlap_score_sbert(self):
+        return self.get_overlap_score("sbert")
+    
+    def get_outlier_score(self, embedding_type):
+        if embedding_type == "doc2vec":
+            all_embeddings = self.all_doc2vec_chunk_embeddings
+        elif embedding_type == "sbert":
+            all_embeddings = self.all_average_sbert_sentence_embeddings
+        else:
+            raise Exception(f"Not a valid embedding_type {embedding_type}.")
+    
+        cluster_means = []
+        for index, current_list_of_embeddings in enumerate(all_embeddings):
+            cluster_means.append(np.array(current_list_of_embeddings).mean(axis=0))
+        
+        outlier_scores = []
+        book_names = []
+        for current_index, current_cluster_mean in enumerate(cluster_means):
+            doc_path = self.doc_paths[current_index]
+            book_name = doc_path.split("/")[-1][:-4]
+            nearest_distance = np.inf
+            for other_index, other_cluster_mean in enumerate(cluster_means):
+                if current_index == other_index:
+                    continue
+                current_distance = np.linalg.norm(current_cluster_mean - other_cluster_mean)
+                if current_distance < nearest_distance:
+                    nearest_distance = current_distance
+            outlier_scores.append(nearest_distance)
+            book_names.append(book_name)
+        return pd.DataFrame.from_dict({"book_name": book_names, f"outlier_score_{embedding_type}": outlier_scores})
+    
+    def get_outlier_score_doc2vec(self):
+        return self.get_outlier_score("doc2vec")
+    
+    def get_outlier_score_sbert(self):
+        return self.get_outlier_score("sbert")
+    
+    def get_lda_topic_distribution(self):
+        num_topics = 10
+
+        documents = []
+        for doc_path in self.doc_paths:
+            with open(doc_path, "r") as reader:
+                documents.append(reader.read().strip())
+
+        if self.lang == "eng":
+            stop_words = "english"
+        elif self.lang == "ger":
+            stop_words = "german"
+        else:
+            raise Exception(f"Not a valid language {self.lang}")
+
+        vect = CountVectorizer(min_df=20, max_df=0.2, stop_words=stop_words, 
+                               token_pattern='(?u)\\b\\w\\w\\w+\\b')
+        X = vect.fit_transform(documents)
+        corpus = Sparse2Corpus(X, documents_columns=False)
+        id_map = dict((v, k) for k, v in vect.vocabulary_.items())
+        lda_model = LdaMulticore(corpus=corpus, id2word=id_map, passes=2, random_state=42, num_topics=num_topics, workers=3)
+
+        topic_distributions = []
+        book_names = []
+        for doc_path, document in zip(self.doc_paths, documents):
+            book_name = doc_path.split("/")[-1][:-4]
+            string_input = [document]
+            X = vect.transform(string_input)
+            corpus = Sparse2Corpus(X, documents_columns=False)
+            output = list(lda_model[corpus])[0]
+            full_output = [0] * num_topics
+            for topic_id, ratio in output:
+                full_output[topic_id] = ratio
+            topic_distributions.append(full_output)
+            book_names.append(book_name)
+        topic_distributions = pd.DataFrame(topic_distributions, columns=[f"lda_topic_{i+1}" for i in range(num_topics)])
+        topic_distributions["book_name"] = book_names
+        return topic_distributions
+    
+    def get_all_features(self):
+        result = None
+        for feature_function in [self.get_50_most_common_word_unigram_counts_including_stopwords,
+                                 self.get_50_most_common_word_bigram_counts_including_stopwords,
+                                 self.get_50_most_common_word_trigram_counts_including_stopwords,
+                                 self.get_50_most_common_word_unigram_counts_excluding_stopwords,
+                                 self.get_50_most_common_word_bigram_counts_excluding_stopwords,
+                                 self.get_50_most_common_word_trigram_counts_excluding_stopwords,
+                                 self.get_overlap_score_doc2vec,
+                                 self.get_overlap_score_sbert,
+                                 self.get_outlier_score_doc2vec,
+                                 self.get_outlier_score_sbert,
+                                 self.get_lda_topic_distribution]:
+            if result is None:
+                result = feature_function()
+            else:
+                result = result.merge(feature_function(), on="book_name")
+        return result
