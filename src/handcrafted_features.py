@@ -7,7 +7,7 @@ from unidecode import unidecode
 from multiprocessing import cpu_count
 from gensim.models import Doc2Vec
 from gensim.models.doc2vec import TaggedDocument
-from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 from gensim.models import LdaMulticore
 from gensim.matutils import Sparse2Corpus
 from sklearn.utils import shuffle
@@ -769,6 +769,14 @@ class CorpusBasedFeatureExtractor(object):
         topic_distributions["book_name"] = book_names
         return topic_distributions
     
+    def get_document_term_matrix(self):
+        return pd.DataFrame.from_dict(word_statistics["book_name_word_unigram_mapping"])
+    
+    def get_tfidf(self):
+        document_term_matrix = self.get_document_term_matrix()
+        tfidf = TfidfTransformer.fit_transform(document_term_matrix)
+        return tfidf
+
     def get_all_features(self):
         result = None
         for feature_function in [self.get_50_most_common_word_unigram_counts_including_stopwords,
@@ -786,4 +794,5 @@ class CorpusBasedFeatureExtractor(object):
                 result = feature_function()
             else:
                 result = result.merge(feature_function(), on="book_name")
+                print(result)
         return result
