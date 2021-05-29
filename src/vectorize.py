@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.DEBUG)
 class Doc2VecVectorizer(object):
     def __init__(self,
                  dm=1,
-                 dm_mean=1
+                 dm_mean=1,
                  seed=42,
                  n_cores=-1):
         self.dm = dm
