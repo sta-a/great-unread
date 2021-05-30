@@ -786,22 +786,17 @@ class CorpusBasedFeatureExtractor(object):
 
     def get_tfidf(self):
         def __tfidfvectorizer_tokenizer(doc_path):
-            print('here,docpaht',doc_path)
-            sentences_path = doc_path.replace("/raw_docs", f"/processed_sentences")
-            print(sentences_path)
-            sentences = load_list_of_lines(sentences_path, "str")
-            #¼print('sentences',sentences)
-            processed_sentences = self.__preprocess_sentences(sentences)
-
             unigrams = []
             for processed_sentence in processed_sentences:
                 unigrams.append(processed_sentence.split())
             print(unigrams)
             return unigrams
         
+        processed_sents_paths = [doc_path.replace("/raw_docs", f"/processed_sentences") for path in self.doc_paths]
+        print(processed_sents_paths)
         vect = TfidfVectorizer(input='filename', tokenizer=__tfidfvectorizer_tokenizer)
         print(self.doc_paths)
-        X = vect.fit_transform(self.doc_paths)
+        X = vect.fit_transform(processed_sents_paths)
         print(vect.get_feature_names())
         print(X.shape)
         print(X)
