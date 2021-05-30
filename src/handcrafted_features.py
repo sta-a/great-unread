@@ -7,7 +7,7 @@ from unidecode import unidecode
 from multiprocessing import cpu_count
 from gensim.models import Doc2Vec
 from gensim.models.doc2vec import TaggedDocument
-from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
+from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer, TfidfVectorizer
 from gensim.models import LdaMulticore
 from gensim.matutils import Sparse2Corpus
 from sklearn.utils import shuffle
@@ -584,10 +584,11 @@ class CorpusBasedFeatureExtractor(object):
             total_unigram_count = sum(unigram_counts.values())
             total_bigram_count = sum(bigram_counts.values())
             total_trigram_count = sum(trigram_counts.values())
+            #relative frequencies
             book_name_word_unigram_mapping[book_name] = dict((unigram, count / total_unigram_count) for unigram, count in unigram_counts.items() if unigram in all_word_unigram_counts.keys())
             book_name_word_bigram_mapping[book_name] = dict((bigram, count / total_bigram_count) for bigram, count in bigram_counts.items() if bigram in all_word_bigram_counts.keys())
-            book_name_word_trigram_mapping[book_name] = dict((trigram, count / total_trigram_count) for trigram, count in trigram_counts.items() if trigram in all_word_trigram_counts.keys())
-        
+            book_name_word_trigram_mapping[book_name] = dict((trigram, count / total_trigram_count) for trigram, count in trigram_counts.items() if trigram in all_word_trigram_counts.keys())     
+
         word_statistics = {
             "all_word_unigram_counts": all_word_unigram_counts,
             "all_word_bigram_counts": all_word_bigram_counts,
@@ -769,30 +770,59 @@ class CorpusBasedFeatureExtractor(object):
         topic_distributions["book_name"] = book_names
         return topic_distributions
     
-    def get_document_term_matrix(self):
-        return pd.DataFrame.from_dict(word_statistics["book_name_word_unigram_mapping"])
+    # def get_document_term_matrix(self):
+    #     return pd.DataFrame.from_dict(self.word_statistics["book_name_word_unigram_mapping"]).fillna(0).T
+
+
     
+    
+        # document_term_matrix = self.get_document_term_matrix()
+        # print(document_term_matrix)
+        # idf = TfidfTransformer().fit(document_term_matrix).idf_
+        # print('multiply',document_term_matrix.multiply(idf, axis=1))
+        # tfidf = pd.DataFrame(TfidfTransformer(norm='l1').fit_transform(document_term_matrix).todense())
+        # print(tfidf)
+        # #return tfidf
+
     def get_tfidf(self):
-        document_term_matrix = self.get_document_term_matrix()
-        tfidf = TfidfTransformer.fit_transform(document_term_matrix)
-        return tfidf
+        def __tfidfvectorizer_tokenizer(doc_path):
+            print('here,docpaht',doc_path)
+            sentences_path = doc_path.replace("/raw_docs", f"/processed_sentences")
+            print(sentences_path)
+            sentences = load_list_of_lines(sentences_path, "str")
+            #¼print('sentences',sentences)
+            processed_sentences = self.__preprocess_sentences(sentences)
+
+            unigrams = []
+            for processed_sentence in processed_sentences:
+                unigrams.append(processed_sentence.split())
+            print(unigrams)
+            return unigrams
+        
+        vect = TfidfVectorizer(input='filename', tokenizer=__tfidfvectorizer_tokenizer)
+        print(self.doc_paths)
+        X = vect.fit_transform(self.doc_paths)
+        print(vect.get_feature_names())
+        print(X.shape)
+        print(X)
+        return 0
 
     def get_all_features(self):
         result = None
         for feature_function in [self.get_50_most_common_word_unigram_counts_including_stopwords,
                                  self.get_50_most_common_word_bigram_counts_including_stopwords,
-                                 self.get_50_most_common_word_trigram_counts_including_stopwords,
-                                 self.get_50_most_common_word_unigram_counts_excluding_stopwords,
-                                 self.get_50_most_common_word_bigram_counts_excluding_stopwords,
-                                 self.get_50_most_common_word_trigram_counts_excluding_stopwords,
-                                 self.get_overlap_score_doc2vec,
-                                 self.get_overlap_score_sbert,
-                                 self.get_outlier_score_doc2vec,
-                                 self.get_outlier_score_sbert,
-                                 self.get_lda_topic_distribution]:
+                                #  self.get_50_most_common_word_trigram_counts_including_stopwords,
+                                #  self.get_50_most_common_word_unigram_counts_excluding_stopwords,
+                                #  self.get_50_most_common_word_bigram_counts_excluding_stopwords,
+                                #  self.get_50_most_common_word_trigram_counts_excluding_stopwords,
+                                #  self.get_overlap_score_doc2vec,
+                                #  self.get_overlap_score_sbert,
+                                #  self.get_outlier_score_doc2vec,
+                                #  self.get_outlier_score_sbert,
+                                #  self.get_lda_topic_distribution,
+                                 self.get_tfidf]:
             if result is None:
                 result = feature_function()
             else:
                 result = result.merge(feature_function(), on="book_name")
-                print(result)
         return result
