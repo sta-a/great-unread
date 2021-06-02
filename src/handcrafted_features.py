@@ -788,7 +788,6 @@ class CorpusBasedFeatureExtractor(object):
         X = vect.fit_transform(processed_sents_paths)
         X = pd.DataFrame(X.toarray(), columns = vect.get_feature_names())
         X['book_name'] = book_names
-        print(X['the'], X['and'])
         return X
 
     def get_all_features(self):
