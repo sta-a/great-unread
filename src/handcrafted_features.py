@@ -769,43 +769,23 @@ class CorpusBasedFeatureExtractor(object):
         topic_distributions = pd.DataFrame(topic_distributions, columns=[f"lda_topic_{i+1}" for i in range(num_topics)])
         topic_distributions["book_name"] = book_names
         return topic_distributions
-    
-    # def get_document_term_matrix(self):
-    #     return pd.DataFrame.from_dict(self.word_statistics["book_name_word_unigram_mapping"]).fillna(0).T
-
-
-    
-    
-        # document_term_matrix = self.get_document_term_matrix()
-        # print(document_term_matrix)
-        # idf = TfidfTransformer().fit(document_term_matrix).idf_
-        # print('multiply',document_term_matrix.multiply(idf, axis=1))
-        # tfidf = pd.DataFrame(TfidfTransformer(norm='l1').fit_transform(document_term_matrix).todense())
-        # print(tfidf)
-        # #return tfidf
 
     def get_tfidf(self):
-        def __tfidfvectorizer_tokenizer(doc_path):
-            unigrams = []
-            for processed_sentence in processed_sentences:
-                unigrams.append(processed_sentence.split())
-            print(unigrams)
-            return unigrams
-        
-        processed_sents_paths = [doc_path.replace("/raw_docs", f"/processed_sentences") for path in self.doc_paths]
-        print(processed_sents_paths)
-        vect = TfidfVectorizer(input='filename', tokenizer=__tfidfvectorizer_tokenizer)
-        print(self.doc_paths)
+        # use preprocessed sentences instead of raw docs because they are preprocessed
+        # get absolute word counts
+        processed_sents_paths = [path.replace("/raw_docs", f"/processed_sentences") for path in self.doc_paths]
+        book_names = [path.split("/")[-1][:-4] for path in processed_sents_paths]
+        vect = TfidfVectorizer(input='filename')
         X = vect.fit_transform(processed_sents_paths)
-        print(vect.get_feature_names())
-        print(X.shape)
-        print(X)
-        return 0
+        X = pd.DataFrame(X.toarray(), columns = vect.get_feature_names())
+        X['book_name'] = book_names
+        print(X['the'], X['and'])
+        return X
 
     def get_all_features(self):
         result = None
-        for feature_function in [self.get_50_most_common_word_unigram_counts_including_stopwords,
-                                 self.get_50_most_common_word_bigram_counts_including_stopwords,
+        for feature_function in [#self.get_50_most_common_word_unigram_counts_including_stopwords,
+                                 #self.get_50_most_common_word_bigram_counts_including_stopwords,
                                 #  self.get_50_most_common_word_trigram_counts_including_stopwords,
                                 #  self.get_50_most_common_word_unigram_counts_excluding_stopwords,
                                 #  self.get_50_most_common_word_bigram_counts_excluding_stopwords,
