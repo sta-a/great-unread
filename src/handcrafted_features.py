@@ -267,6 +267,7 @@ class DocBasedFeatureExtractor(object):
             "ratio_of_stopwords": self.get_ratio_of_stopwords,
             "bigram_entropy": self.get_word_bigram_entropy,
             "trigram_entropy": self.get_word_trigram_entropy,
+            "type_token_ratio": self.get_type_token_ratio,
 
             ## Features in the list
             
@@ -428,6 +429,14 @@ class DocBasedFeatureExtractor(object):
         for left_and_middle, counts in temp_dict.items():
             entropies.append(entropy(counts))
         return np.mean(entropies)
+
+    def get_type_token_ratio(self, chunk):
+        # Type-token ratio according to Algee-Hewitt et al. (2016)
+        # Not completely accurate due to varying number of words per sentence
+        # Alternative: turn it into book-based features by averaging over chunks
+        tokens = self.get_text_length(chunk)
+        types = len(chunk.word_unigram_counts)
+        return types/tokens
     
     def get_flesch_reading_ease_score(self, chunk):
         return textstat.flesch_reading_ease(chunk.unidecoded_raw_text)
@@ -784,17 +793,17 @@ class CorpusBasedFeatureExtractor(object):
 
     def get_all_features(self):
         result = None
-        for feature_function in [#self.get_50_most_common_word_unigram_counts_including_stopwords,
-                                 #self.get_50_most_common_word_bigram_counts_including_stopwords,
-                                #  self.get_50_most_common_word_trigram_counts_including_stopwords,
-                                #  self.get_50_most_common_word_unigram_counts_excluding_stopwords,
-                                #  self.get_50_most_common_word_bigram_counts_excluding_stopwords,
-                                #  self.get_50_most_common_word_trigram_counts_excluding_stopwords,
-                                #  self.get_overlap_score_doc2vec,
-                                #  self.get_overlap_score_sbert,
-                                #  self.get_outlier_score_doc2vec,
-                                #  self.get_outlier_score_sbert,
-                                #  self.get_lda_topic_distribution,
+        for feature_function in [self.get_50_most_common_word_unigram_counts_including_stopwords,
+                                 self.get_50_most_common_word_bigram_counts_including_stopwords,
+                                 self.get_50_most_common_word_trigram_counts_including_stopwords,
+                                 self.get_50_most_common_word_unigram_counts_excluding_stopwords,
+                                 self.get_50_most_common_word_bigram_counts_excluding_stopwords,
+                                 self.get_50_most_common_word_trigram_counts_excluding_stopwords,
+                                 self.get_overlap_score_doc2vec,
+                                 self.get_overlap_score_sbert,
+                                 self.get_outlier_score_doc2vec,
+                                 self.get_outlier_score_sbert,
+                                 self.get_lda_topic_distribution,
                                  self.get_tfidf]:
             if result is None:
                 result = feature_function()
