@@ -21,6 +21,7 @@ import re
 import logging
 from collections import Counter
 from utils import load_list_of_lines, save_list_of_lines
+from corpus_toolkit import corpus_tools as ct
 logging.basicConfig(level=logging.DEBUG)
 
 
@@ -224,6 +225,8 @@ class DocBasedFeatureExtractor(object):
             return [Chunk(self.sentences, self.sbert_sentence_embeddings, self.sbert_sentence_embeddings)]
         chunks = []
         chunk_id_counter = 0
+        print(len(self.doc2vec_chunk_embeddings))
+        print(len(self.sentences))
         for i in range(0, len(self.sentences), self.sentences_per_chunk):
             current_sentences = self.sentences[i:i+self.sentences_per_chunk]
             current_sentence_embeddings = self.sbert_sentence_embeddings[i:i+self.sentences_per_chunk]
@@ -780,8 +783,8 @@ class CorpusBasedFeatureExtractor(object):
         return topic_distributions
 
     def get_tfidf(self):
-        # use preprocessed sentences instead of raw docs because they are preprocessed
-        # get absolute word counts
+        # use preprocessed sentences instead of raw docs
+        # get absolute word frequencies
         processed_sents_paths = [path.replace("/raw_docs", f"/processed_sentences") for path in self.doc_paths]
         book_names = [path.split("/")[-1][:-4] for path in processed_sents_paths]
         vect = TfidfVectorizer(input='filename')
@@ -791,20 +794,36 @@ class CorpusBasedFeatureExtractor(object):
         print(X['the'], X['and'])
         return X
 
+    def get_keyness(self):
+        #currently only looks at 2000 MFW because all_word_unigram_counts is limited
+        book_name_word_keyness_mapping = {}
+        for book_name, unigram_dict in self.word_statistics['book_name_word_unigram_mapping'].items():
+            # evaluate keyness in current book compared to whole corpus
+            print(book_name)
+            book_keyness = ct.keyness(unigram_dict, self.word_statistics['all_word_unigram_counts'], effect='log-ratio')
+            book_name_word_keyness_mapping[book_name] = book_keyness
+        print(book_name_word_keyness_mapping)            
+        book_name_word_keyness_mapping = pd.DataFrame(book_name_word_keyness_mapping).T
+        book_name_word_keyness_mapping['book_name'] = book_name_word_keyness_mapping.index
+        print(book_name_word_keyness_mapping)
+        return book_name_word_keyness_mapping
+
+
     def get_all_features(self):
         result = None
         for feature_function in [self.get_50_most_common_word_unigram_counts_including_stopwords,
-                                 self.get_50_most_common_word_bigram_counts_including_stopwords,
-                                 self.get_50_most_common_word_trigram_counts_including_stopwords,
-                                 self.get_50_most_common_word_unigram_counts_excluding_stopwords,
-                                 self.get_50_most_common_word_bigram_counts_excluding_stopwords,
-                                 self.get_50_most_common_word_trigram_counts_excluding_stopwords,
-                                 self.get_overlap_score_doc2vec,
-                                 self.get_overlap_score_sbert,
-                                 self.get_outlier_score_doc2vec,
-                                 self.get_outlier_score_sbert,
-                                 self.get_lda_topic_distribution,
-                                 self.get_tfidf]:
+                                #  self.get_50_most_common_word_bigram_counts_including_stopwords,
+                                #  self.get_50_most_common_word_trigram_counts_including_stopwords,
+                                #  self.get_50_most_common_word_unigram_counts_excluding_stopwords,
+                                #  self.get_50_most_common_word_bigram_counts_excluding_stopwords,
+                                #  self.get_50_most_common_word_trigram_counts_excluding_stopwords,
+                                #  self.get_overlap_score_doc2vec,
+                                #  self.get_overlap_score_sbert,
+                                #  self.get_outlier_score_doc2vec,
+                                #  self.get_outlier_score_sbert,
+                                 #self.get_lda_topic_distribution,
+                                 self.get_tfidf,
+                                 self.get_keyness]:
             if result is None:
                 result = feature_function()
             else:
