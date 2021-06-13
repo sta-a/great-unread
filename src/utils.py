@@ -24,8 +24,8 @@ def load_list_of_lines(path, line_type):
 def save_list_of_lines(lst, path, line_type):
     os.makedirs(str(Path(path).parent), exist_ok=True)
     if line_type == "str":
-        for item in lst:
-            with open(path, "w") as writer:
+        with open(path, "w") as writer:
+            for item in lst:
                 writer.write(str(item) + "\n")
     elif line_type == "np":
         np.savez_compressed(path, np.array(lst))

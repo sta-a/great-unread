@@ -7,7 +7,7 @@ from unidecode import unidecode
 from multiprocessing import cpu_count
 from gensim.models import Doc2Vec
 from gensim.models.doc2vec import TaggedDocument
-from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from gensim.models import LdaMulticore
 from gensim.matutils import Sparse2Corpus
 from sklearn.utils import shuffle
@@ -267,6 +267,7 @@ class DocBasedFeatureExtractor(object):
             "ratio_of_stopwords": self.get_ratio_of_stopwords,
             "bigram_entropy": self.get_word_bigram_entropy,
             "trigram_entropy": self.get_word_trigram_entropy,
+            "type_token_ratio": self.get_type_token_ratio,
 
             ## Features in the list
             
@@ -428,6 +429,14 @@ class DocBasedFeatureExtractor(object):
         for left_and_middle, counts in temp_dict.items():
             entropies.append(entropy(counts))
         return np.mean(entropies)
+
+    def get_type_token_ratio(self, chunk):
+        # Type-token ratio according to Algee-Hewitt et al. (2016)
+        # Not completely accurate due to varying number of words per sentence
+        # Alternative: turn it into book-based features by averaging over chunks
+        tokens = self.get_text_length(chunk)
+        types = len(chunk.word_unigram_counts)
+        return types/tokens
     
     def get_flesch_reading_ease_score(self, chunk):
         return textstat.flesch_reading_ease(chunk.unidecoded_raw_text)
@@ -584,6 +593,7 @@ class CorpusBasedFeatureExtractor(object):
             total_unigram_count = sum(unigram_counts.values())
             total_bigram_count = sum(bigram_counts.values())
             total_trigram_count = sum(trigram_counts.values())
+            #relative frequencies
             book_name_word_unigram_mapping[book_name] = dict((unigram, count / total_unigram_count) for unigram, count in unigram_counts.items() if unigram in all_word_unigram_counts.keys())
             book_name_word_bigram_mapping[book_name] = dict((bigram, count / total_bigram_count) for bigram, count in bigram_counts.items() if bigram in all_word_bigram_counts.keys())
             book_name_word_trigram_mapping[book_name] = dict((trigram, count / total_trigram_count) for trigram, count in trigram_counts.items() if trigram in all_word_trigram_counts.keys())
@@ -768,7 +778,18 @@ class CorpusBasedFeatureExtractor(object):
         topic_distributions = pd.DataFrame(topic_distributions, columns=[f"lda_topic_{i+1}" for i in range(num_topics)])
         topic_distributions["book_name"] = book_names
         return topic_distributions
-    
+
+    def get_tfidf(self):
+        # use preprocessed sentences instead of raw docs because they are preprocessed
+        # get absolute word counts
+        processed_sents_paths = [path.replace("/raw_docs", f"/processed_sentences") for path in self.doc_paths]
+        book_names = [path.split("/")[-1][:-4] for path in processed_sents_paths]
+        vect = TfidfVectorizer(input='filename')
+        X = vect.fit_transform(processed_sents_paths)
+        X = pd.DataFrame(X.toarray(), columns = vect.get_feature_names())
+        X['book_name'] = book_names
+        return X
+
     def get_all_features(self):
         result = None
         for feature_function in [self.get_50_most_common_word_unigram_counts_including_stopwords,
@@ -781,7 +802,8 @@ class CorpusBasedFeatureExtractor(object):
                                  self.get_overlap_score_sbert,
                                  self.get_outlier_score_doc2vec,
                                  self.get_outlier_score_sbert,
-                                 self.get_lda_topic_distribution]:
+                                 self.get_lda_topic_distribution,
+                                 self.get_tfidf]:
             if result is None:
                 result = feature_function()
             else:
