@@ -21,6 +21,7 @@ import re
 import logging
 from collections import Counter
 from utils import load_list_of_lines, save_list_of_lines
+from corpus_toolkit import corpus_tools as ct
 logging.basicConfig(level=logging.DEBUG)
 
 
@@ -40,6 +41,9 @@ class Chunk(object):
     def __preprocess_sentences(self):
         def __preprocess_sentences_helper(text):
             text = text.lower()
+            german_special_chars = {'Ä':'Ae', 'Ö':'Oe', 'Ü':'Ue', 'ä':'ae', 'ö':'oe', 'ü':'ue', 'ß':'ss'}
+            for char, replacement in german_special_chars.items():
+                text = text.replace(char, replacement)
             text = unidecode(text)
             text = re.sub("[^a-zA-Z]+", " ", text).strip()
             text = text.split()
@@ -551,6 +555,9 @@ class CorpusBasedFeatureExtractor(object):
     def __preprocess_sentences(self, sentences):
         def __preprocess_sentences_helper(text):
             text = text.lower()
+            german_special_chars = {'Ä':'Ae', 'Ö':'Oe', 'Ü':'Ue', 'ä':'ae', 'ö':'oe', 'ü':'ue', 'ß':'ss'}
+            for char, replacement in german_special_chars.items():
+                address = address.replace(char, replacement)
             text = unidecode(text)
             text = re.sub("[^a-zA-Z]+", " ", text).strip()
             text = text.split()
@@ -575,11 +582,12 @@ class CorpusBasedFeatureExtractor(object):
             all_word_bigram_counts.update(bigram_counts)
             all_word_trigram_counts.update(trigram_counts)
         
-        all_word_unigram_counts = dict(sorted(list(all_word_unigram_counts.items()), key=lambda x: -x[1])[:2000])
+        all_word_unigram_counts = dict(sorted(list(all_word_unigram_counts.items()), key=lambda x: -x[1])) #all words
         all_word_bigram_counts = dict(sorted(list(all_word_bigram_counts.items()), key=lambda x: -x[1])[:2000])
         all_word_trigram_counts = dict(sorted(list(all_word_trigram_counts.items()), key=lambda x: -x[1])[:2000])
         
-        book_name_word_unigram_mapping = {}
+        book_name_abs_word_unigram_mapping = {}
+        book_name_rel_word_unigram_mapping = {}
         book_name_word_bigram_mapping = {}
         book_name_word_trigram_mapping = {}
         for doc_path in tqdm(self.doc_paths):
@@ -593,8 +601,10 @@ class CorpusBasedFeatureExtractor(object):
             total_unigram_count = sum(unigram_counts.values())
             total_bigram_count = sum(bigram_counts.values())
             total_trigram_count = sum(trigram_counts.values())
+            #absolute frequency
+            book_name_abs_word_unigram_mapping[book_name] = unigram_counts
             #relative frequencies
-            book_name_word_unigram_mapping[book_name] = dict((unigram, count / total_unigram_count) for unigram, count in unigram_counts.items() if unigram in all_word_unigram_counts.keys())
+            book_name_rel_word_unigram_mapping[book_name] = dict((unigram, count / total_unigram_count) for unigram, count in unigram_counts.items()) #all words
             book_name_word_bigram_mapping[book_name] = dict((bigram, count / total_bigram_count) for bigram, count in bigram_counts.items() if bigram in all_word_bigram_counts.keys())
             book_name_word_trigram_mapping[book_name] = dict((trigram, count / total_trigram_count) for trigram, count in trigram_counts.items() if trigram in all_word_trigram_counts.keys())
         
@@ -602,7 +612,8 @@ class CorpusBasedFeatureExtractor(object):
             "all_word_unigram_counts": all_word_unigram_counts,
             "all_word_bigram_counts": all_word_bigram_counts,
             "all_word_trigram_counts": all_word_trigram_counts,
-            "book_name_word_unigram_mapping": book_name_word_unigram_mapping,
+            "book_name_abs_word_unigram_mapping": book_name_abs_word_unigram_mapping,
+            "book_name_rel_word_unigram_mapping": book_name_rel_word_unigram_mapping,
             "book_name_word_bigram_mapping": book_name_word_bigram_mapping,
             "book_name_word_trigram_mapping": book_name_word_trigram_mapping
         }
@@ -611,7 +622,7 @@ class CorpusBasedFeatureExtractor(object):
     def get_k_most_common_word_ngram_counts(self, k, n, include_stopwords):
         if n == 1:
             dct1 = self.word_statistics["all_word_unigram_counts"]
-            dct2 = self.word_statistics["book_name_word_unigram_mapping"]
+            dct2 = self.word_statistics["book_name_rel_word_unigram_mapping"]
         elif n == 2:
             dct1 = self.word_statistics["all_word_bigram_counts"]
             dct2 = self.word_statistics["book_name_word_bigram_mapping"]
@@ -780,8 +791,8 @@ class CorpusBasedFeatureExtractor(object):
         return topic_distributions
 
     def get_tfidf(self):
-        # use preprocessed sentences instead of raw docs because they are preprocessed
-        # get absolute word counts
+        # use preprocessed sentences instead of raw docs
+        # get absolute word frequencies
         processed_sents_paths = [path.replace("/raw_docs", f"/processed_sentences") for path in self.doc_paths]
         book_names = [path.split("/")[-1][:-4] for path in processed_sents_paths]
         vect = TfidfVectorizer(input='filename')
@@ -789,6 +800,20 @@ class CorpusBasedFeatureExtractor(object):
         X = pd.DataFrame(X.toarray(), columns = vect.get_feature_names())
         X['book_name'] = book_names
         return X
+
+    def get_keyness(self):
+        # evaluate keyness in current book compared to whole corpus
+        # "%diff" is best keyness metric (according to Gabrielatos & Marchi, 2011)
+        book_name_word_keyness_mapping = {}
+        corpus_absolute_freqs = self.word_statistics["all_word_unigram_counts"]
+        for book_name, abs_freqs in self.word_statistics["book_name_abs_word_unigram_mapping"].items(): 
+            #reference corpus is the word frequencies in all documents except the current one
+            reference_corpus = {key: corpus_absolute_freqs[key] - abs_freqs.get(key, 0) for key in corpus_absolute_freqs.keys()}
+            book_keyness = ct.keyness(abs_freqs, reference_corpus, effect='%diff')
+            book_name_word_keyness_mapping[book_name] = book_keyness
+        book_name_word_keyness_mapping = pd.DataFrame(book_name_word_keyness_mapping).T
+        book_name_word_keyness_mapping['book_name'] = book_name_word_keyness_mapping.index
+        return book_name_word_keyness_mapping
 
     def get_all_features(self):
         result = None
@@ -803,7 +828,8 @@ class CorpusBasedFeatureExtractor(object):
                                  self.get_outlier_score_doc2vec,
                                  self.get_outlier_score_sbert,
                                  self.get_lda_topic_distribution,
-                                 self.get_tfidf]:
+                                 self.get_tfidf,
+				  self.get_keyness]:
             if result is None:
                 result = feature_function()
             else:
