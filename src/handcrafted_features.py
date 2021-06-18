@@ -41,6 +41,9 @@ class Chunk(object):
     def __preprocess_sentences(self):
         def __preprocess_sentences_helper(text):
             text = text.lower()
+            german_special_chars = {'Ä':'Ae', 'Ö':'Oe', 'Ü':'Ue', 'ä':'ae', 'ö':'oe', 'ü':'ue', 'ß':'ss'}
+            for char, replacement in german_special_chars.items():
+                text = text.replace(char, replacement)
             text = unidecode(text)
             text = re.sub("[^a-zA-Z]+", " ", text).strip()
             text = text.split()
@@ -552,6 +555,9 @@ class CorpusBasedFeatureExtractor(object):
     def __preprocess_sentences(self, sentences):
         def __preprocess_sentences_helper(text):
             text = text.lower()
+            german_special_chars = {'Ä':'Ae', 'Ö':'Oe', 'Ü':'Ue', 'ä':'ae', 'ö':'oe', 'ü':'ue', 'ß':'ss'}
+            for char, replacement in german_special_chars.items():
+                address = address.replace(char, replacement)
             text = unidecode(text)
             text = re.sub("[^a-zA-Z]+", " ", text).strip()
             text = text.split()
