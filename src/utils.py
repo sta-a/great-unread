@@ -3,6 +3,9 @@ from ast import literal_eval
 from pathlib import Path
 import numpy as np
 import pandas as pd
+from unidecode import unidecode
+
+german_special_chars = {'Ä':'Ae', 'Ö':'Oe', 'Ü':'Ue', 'ä':'ae', 'ö':'oe', 'ü':'ue', 'ß':'ss'}
 
 
 def get_doc_paths(docs_dir, lang):
@@ -43,7 +46,7 @@ def read_labels(labels_dir, lang):
         }
 
         for key, value in file_name_mapper.items():
-            labels_df["file_name"][labels_df["file_name"] == key] = value
+            labels_df.loc[labels_df["file_name"] == key, "file_name"] = value
         
         extra_file_names = [
             "Austen_Jane_Northanger-Abbey_1818",
@@ -72,6 +75,13 @@ def read_labels(labels_dir, lang):
             'Hunold_Christian-Friedrich_Adalie_1702': 'Hunold_Christian_Friedrich_Die-liebenswuerdige-Adalie_1681'
         }
         for key, value in file_name_mapper.items():
-            labels_df["file_name"][labels_df["file_name"] == key] = value
+            labels_df.loc[labels_df["file_name"] == key, "file_name"] = value
         labels = dict(labels_df[["file_name", "percent"]].values)
     return labels
+
+
+def unidecode_custom(text):
+    for char, replacement in german_special_chars.items():
+        text = text.replace(char, replacement)
+    text = unidecode(text)
+    return text
