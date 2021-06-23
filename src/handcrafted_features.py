@@ -436,9 +436,7 @@ class DocBasedFeatureExtractor(object):
 
     def get_type_token_ratio(self, chunk):
         # Type-token ratio according to Algee-Hewitt et al. (2016)
-        # Not completely accurate due to varying number of words per sentence
-        # Alternative: turn it into book-based features by averaging over chunks
-        tokens = self.get_text_length(chunk)
+        tokens = sum(chunk.word_unigram_counts.values())
         types = len(chunk.word_unigram_counts)
         return types/tokens
     
