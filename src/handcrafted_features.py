@@ -759,9 +759,9 @@ class CorpusBasedFeatureExtractor(object):
                 documents.append(reader.read().strip())
 
         if self.lang == "eng":
-            stop_words = "english"
+            stop_words = spacy.lang.en.stop_words.STOP_WORDS
         elif self.lang == "ger":
-            stop_words = "german"
+            stop_words = spacy.lang.de.stop_words.STOP_WORDS
         else:
             raise Exception(f"Not a valid language {self.lang}")
 
@@ -793,13 +793,12 @@ class CorpusBasedFeatureExtractor(object):
         # use preprocessed sentences instead of raw docs
         # get absolute word frequencies
         words_to_return = [column[len("50_most_common_1gram_stopword_False_"):] for column in self.get_50_most_common_word_unigram_counts_excluding_stopwords().columns if column != "book_name"]
-        words_to_return = [word for word in words_to_return if len(word) > 1]
         processed_sents_paths = [path.replace("/raw_docs", f"/processed_sentences") for path in self.doc_paths]
         book_names = [path.split("/")[-1][:-4] for path in processed_sents_paths]
         vect = TfidfVectorizer(input='filename')
         X = vect.fit_transform(processed_sents_paths)
         X = pd.DataFrame(X.toarray(), columns = vect.get_feature_names())
-        X = X.loc[:, words_to_return]
+        X = X.loc[:, set(words_to_return).intersection(set(X.columns))]
         X.columns = [f"tfidf_{column}" for column in X.columns]
         X['book_name'] = book_names
         return X
@@ -817,7 +816,7 @@ class CorpusBasedFeatureExtractor(object):
             book_keyness = ct.keyness(abs_freqs, reference_corpus, effect='%diff')
             book_name_word_keyness_mapping[book_name] = book_keyness
         book_name_word_keyness_mapping = pd.DataFrame(book_name_word_keyness_mapping).T
-        book_name_word_keyness_mapping = book_name_word_keyness_mapping.loc[:, words_to_return]
+        book_name_word_keyness_mapping = book_name_word_keyness_mapping.loc[:, set(words_to_return).intersection(set(book_name_word_keyness_mapping.columns))]
         book_name_word_keyness_mapping.columns = [f"keyness_{column}" for column in book_name_word_keyness_mapping.columns]
         book_name_word_keyness_mapping['book_name'] = book_name_word_keyness_mapping.index
         return book_name_word_keyness_mapping
