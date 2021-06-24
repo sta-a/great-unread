@@ -3,7 +3,6 @@ import spacy
 from process import SentenceTokenizer
 from sentence_transformers import SentenceTransformer
 from transformers import BertTokenizer
-from unidecode import unidecode
 from multiprocessing import cpu_count
 from gensim.models import Doc2Vec
 from gensim.models.doc2vec import TaggedDocument
@@ -20,7 +19,7 @@ import string
 import re
 import logging
 from collections import Counter
-from utils import load_list_of_lines, save_list_of_lines
+from utils import load_list_of_lines, save_list_of_lines, unidecode_custom
 from corpus_toolkit import corpus_tools as ct
 logging.basicConfig(level=logging.DEBUG)
 
@@ -31,7 +30,7 @@ class Chunk(object):
         self.sbert_sentence_embeddings = sbert_sentence_embeddings
         self.raw_text = " ".join(sentences)
         self.doc2vec_chunk_embedding = doc2vec_chunk_embedding
-        self.unidecoded_raw_text = unidecode(self.raw_text)
+        self.unidecoded_raw_text = unidecode_custom(self.raw_text)
         self.processed_sentences = self.__preprocess_sentences()
         self.word_unigram_counts = self.__find_word_unigram_counts()
         self.word_bigram_counts = self.__find_word_bigram_counts()
@@ -41,10 +40,7 @@ class Chunk(object):
     def __preprocess_sentences(self):
         def __preprocess_sentences_helper(text):
             text = text.lower()
-            german_special_chars = {'Ä':'Ae', 'Ö':'Oe', 'Ü':'Ue', 'ä':'ae', 'ö':'oe', 'ü':'ue', 'ß':'ss'}
-            for char, replacement in german_special_chars.items():
-                text = text.replace(char, replacement)
-            text = unidecode(text)
+            text = unidecode_custom(text)
             text = re.sub("[^a-zA-Z]+", " ", text).strip()
             text = text.split()
             text = " ".join(text)
@@ -124,7 +120,7 @@ class Doc2VecChunkVectorizer(object):
         chunk_id_counter = 0
         doc_path_to_chunk_ids = {}
         logging.info("Preparing data for Doc2VecChunkVectorizer...")
-        for doc_id, doc_path in tqdm(list(enumerate(doc_paths))):
+        for doc_id, doc_path in enumerate(doc_paths):
             sentences_path = doc_path.replace("/raw_docs", f"/processed_sentences")
             if os.path.exists(sentences_path):
                 self.sentences = load_list_of_lines(sentences_path, "str")
@@ -152,6 +148,7 @@ class Doc2VecChunkVectorizer(object):
                         else:
                             doc_path_to_chunk_ids[doc_path] = [chunk_id_counter]
                         chunk_id_counter += 1
+        
         logging.info("Prepared data for Doc2VecChunkVectorizer.")
         
         logging.info("Fitting Doc2VecChunkVectorizer...")
@@ -225,13 +222,19 @@ class DocBasedFeatureExtractor(object):
         
     def __get_chunks(self):
         if self.sentences_per_chunk is None:
-            return [Chunk(self.sentences, self.sbert_sentence_embeddings, self.sbert_sentence_embeddings)]
+            return [Chunk(self.sentences, self.sbert_sentence_embeddings, self.doc2vec_chunk_embeddings)]
         chunks = []
         chunk_id_counter = 0
         for i in range(0, len(self.sentences), self.sentences_per_chunk):
             current_sentences = self.sentences[i:i+self.sentences_per_chunk]
             current_sentence_embeddings = self.sbert_sentence_embeddings[i:i+self.sentences_per_chunk]
             if (len(current_sentences) == self.sentences_per_chunk) or (i == 0):
+                # print("i", i)
+                # print("len(current_sentences)", len(current_sentences))
+                # print("len(self.doc2vec_chunk_embeddings)", len(self.doc2vec_chunk_embeddings))
+                # print("chunk_id_counter", chunk_id_counter)
+                # print("len(self.sentences)", len(self.sentences))
+                # print("self.sentences_per_chunk", self.sentences_per_chunk)
                 chunks.append(Chunk(current_sentences, current_sentence_embeddings, self.doc2vec_chunk_embeddings[chunk_id_counter]))
                 chunk_id_counter += 1
         return chunks
@@ -553,10 +556,7 @@ class CorpusBasedFeatureExtractor(object):
     def __preprocess_sentences(self, sentences):
         def __preprocess_sentences_helper(text):
             text = text.lower()
-            german_special_chars = {'Ä':'Ae', 'Ö':'Oe', 'Ü':'Ue', 'ä':'ae', 'ö':'oe', 'ü':'ue', 'ß':'ss'}
-            for char, replacement in german_special_chars.items():
-                address = address.replace(char, replacement)
-            text = unidecode(text)
+            text = unidecode_custom(text)
             text = re.sub("[^a-zA-Z]+", " ", text).strip()
             text = text.split()
             text = " ".join(text)
@@ -646,10 +646,11 @@ class CorpusBasedFeatureExtractor(object):
             most_common_k_ngrams = [ngram for ngram, count in sorted(filtered_ngrams, key=lambda x: -x[1])[:k]]
         result = []
         for book_name, ngram_counts in dct2.items():
-            dct = dict((common_ngram, dct2[book_name].get(common_ngram, 0)) for common_ngram in most_common_k_ngrams)
+            dct = dict((f"{k}_most_common_{n}gram_stopword_{include_stopwords}_{common_ngram}", dct2[book_name].get(common_ngram, 0)) for common_ngram in most_common_k_ngrams)
             dct["book_name"] = book_name
             result.append(dct)
-        return pd.DataFrame(result)
+        result = pd.DataFrame(result)
+        return result
     
     def get_50_most_common_word_unigram_counts_including_stopwords(self):
         return self.get_k_most_common_word_ngram_counts(50, 1, True)
@@ -758,9 +759,9 @@ class CorpusBasedFeatureExtractor(object):
                 documents.append(reader.read().strip())
 
         if self.lang == "eng":
-            stop_words = "english"
+            stop_words = spacy.lang.en.stop_words.STOP_WORDS
         elif self.lang == "ger":
-            stop_words = "german"
+            stop_words = spacy.lang.de.stop_words.STOP_WORDS
         else:
             raise Exception(f"Not a valid language {self.lang}")
 
@@ -791,17 +792,22 @@ class CorpusBasedFeatureExtractor(object):
     def get_tfidf(self):
         # use preprocessed sentences instead of raw docs
         # get absolute word frequencies
+        words_to_return = [column[len("50_most_common_1gram_stopword_False_"):] for column in self.get_50_most_common_word_unigram_counts_excluding_stopwords().columns if column != "book_name"]
         processed_sents_paths = [path.replace("/raw_docs", f"/processed_sentences") for path in self.doc_paths]
         book_names = [path.split("/")[-1][:-4] for path in processed_sents_paths]
         vect = TfidfVectorizer(input='filename')
         X = vect.fit_transform(processed_sents_paths)
         X = pd.DataFrame(X.toarray(), columns = vect.get_feature_names())
+        X = X.loc[:, set(words_to_return).intersection(set(X.columns))]
+        X.columns = [f"tfidf_{column}" for column in X.columns]
         X['book_name'] = book_names
         return X
 
     def get_keyness(self):
         # evaluate keyness in current book compared to whole corpus
         # "%diff" is best keyness metric (according to Gabrielatos & Marchi, 2011)
+        words_to_return = [column[len("50_most_common_1gram_stopword_False_"):] for column in self.get_50_most_common_word_unigram_counts_excluding_stopwords().columns if column != "book_name"]
+        words_to_return = [word for word in words_to_return if len(word) > 1]
         book_name_word_keyness_mapping = {}
         corpus_absolute_freqs = self.word_statistics["all_word_unigram_counts"]
         for book_name, abs_freqs in self.word_statistics["book_name_abs_word_unigram_mapping"].items(): 
@@ -810,6 +816,8 @@ class CorpusBasedFeatureExtractor(object):
             book_keyness = ct.keyness(abs_freqs, reference_corpus, effect='%diff')
             book_name_word_keyness_mapping[book_name] = book_keyness
         book_name_word_keyness_mapping = pd.DataFrame(book_name_word_keyness_mapping).T
+        book_name_word_keyness_mapping = book_name_word_keyness_mapping.loc[:, set(words_to_return).intersection(set(book_name_word_keyness_mapping.columns))]
+        book_name_word_keyness_mapping.columns = [f"keyness_{column}" for column in book_name_word_keyness_mapping.columns]
         book_name_word_keyness_mapping['book_name'] = book_name_word_keyness_mapping.index
         return book_name_word_keyness_mapping
 
@@ -827,7 +835,7 @@ class CorpusBasedFeatureExtractor(object):
                                  self.get_outlier_score_sbert,
                                  self.get_lda_topic_distribution,
                                  self.get_tfidf,
-				  self.get_keyness]:
+                                 self.get_keyness]:
             if result is None:
                 result = feature_function()
             else:
