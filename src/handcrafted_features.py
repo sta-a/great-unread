@@ -189,6 +189,10 @@ class DocBasedFeatureExtractor(object):
             self.nlp = spacy.load(self.model_name)
         
         self.stopwords = self.nlp.Defaults.stop_words
+        new_stopwords = []
+        for stopword in self.stopwords:
+            new_stopwords.append(unidecode_custom(stopword))
+        self.stopwords = set(new_stopwords)
         
         ## load sentences
         sentences_path = doc_path.replace("/raw_docs", f"/processed_sentences")
@@ -518,6 +522,10 @@ class CorpusBasedFeatureExtractor(object):
             logging.info(f"Downloaded {self.model_name} for Spacy.")
             self.nlp = spacy.load(self.model_name)
         self.stopwords = self.nlp.Defaults.stop_words
+        new_stopwords = []
+        for stopword in self.stopwords:
+            new_stopwords.append(unidecode_custom(stopword))
+        self.stopwords = set(new_stopwords)
     
     def __find_word_unigram_counts(self, processed_sentences):
         word_unigram_counts = {}
