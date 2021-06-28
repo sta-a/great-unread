@@ -36,47 +36,36 @@ def save_list_of_lines(lst, path, line_type):
         raise Exception(f"Not a valid line_type {line_type}")
 
 
-def read_labels(labels_dir, lang):
-    labels_df = pd.read_csv(os.path.join(labels_dir, lang, "canonisation_scores.csv"), sep=";")
-    if lang == "eng":
-        file_name_mapper = {
-            'The Wild Irish Girl': 'Owenson_Sydney_The-Wild-Irish-Girl_1806',
-            'Somerville-Ross_The-Real-Charlotte_1894': "Somerville-Ross_Edith-Martin_The-Real-Charlotte_1894",
-            'LeFanu_Joseph-Sheridan_Schalken-the-Painter_1851.txt': 'LeFanu_Joseph-Sheridan_Schalken-the-Painter_1851',
-        }
+def read_labels(labels_dir):
+    labels_df = pd.read_csv(os.path.join(labels_dir, "210616_regression_predict.csv"), sep=";")[["file_name", "m3"]]
 
-        for key, value in file_name_mapper.items():
-            labels_df.loc[labels_df["file_name"] == key, "file_name"] = value
+    file_name_mapper = {'Blackmore_R-D_Lorna-Doone_1869': 'Blackmore_R-D_Lorna_Doone_1869',
+                        'Bulwer-Lytton_Edward_Paul-Clifford_1830': 'Bulwer-Lytton_Edward_Paul-Clifford_1832',
+                        'Conrad_Joseph_The-Secret-Sharer_1910': 'Conrad_Joseph_The-Secret-Sharer_1895',
+                        'Parsons_Eliza_The-Castle-of-Wolfenbach_1793': 'Parsons_Eliza_The-Castle-of_Wolfenbach_1793',
+                        'Richardson_Samuel_Sir-Charles-Grandison_1753': 'Richardson_Sir-Charles-Grandison_1753',
+                        'Eichendorff_Joseph_Auch-ich-war-in-Arkadien_1832': 'Eichendorff_Joseph-von_Auch-ich-war-in-Arkadien_1832',
+                        'Eichendorff_Joseph_Die-Gluecksritter_1841': 'Eichendorff_Joseph-von_Die-Gluecksritter_1841',
+                        'Eichendorff_Joseph_Libertas-und-ihrer-Freier_1848': 'Eichendorff_Joseph-von_Libertas-und-ihrer-Freier_1848',
+                        'Eichendorff_Joseph_Viel-Laermen-um-Nichts_1832': 'Eichendorff_Joseph-von_Viel-Laermen-um-Nichts_1832',
+                        'Goethe_Johann-Wolfgang_Unterhaltungen-deutscher-Ausgewanderten_1795': 'Goethe_Johann-Wolfgang-von_Unterhaltungen-deutscher-Ausgewanderten_1795',
+                        'Zschokke_Johann_Addrich-im-Moos_1825': 'Zschokke_Johann-Heinrich_Addrich-im-Moos_1825',
+                        'Zschokke_Johann_Der-Freihof-von-Aarau_1823': 'Zschokke_Johann-Heinrich_Der-Freihof-von-Aarau_1823',
+                        'Zschokke_Johann_Die-Rose-von-Disentis_1844': 'Zschokke_Johann-Heinrich_Die-Rose-von-Disentis_1844'}
+
+    for key, value in file_name_mapper.items():
+        labels_df.loc[labels_df["file_name"] == key, "file_name"] = value
         
-        extra_file_names = [
-            "Austen_Jane_Northanger-Abbey_1818",
-            "Cleland_John_Fanny-Hill_1748",
-            "Defoe_Daniel_Roxana_1724",
-            "Fielding_Henry_Amelia_1752",
-            "Kingsley_Charles_The-Water-Babies_1863",
-            "Le-Queux_William_The-Invasion-of-1910_1906",
-            "Surtees_Robert_Jorrocks-Jaunts-and-Jollities_1831"
-        ]
-        labels = dict(labels_df[~labels_df["file_name"].isin(extra_file_names)][["file_name", "percent"]].values)
-    elif lang == "ger":
-        file_name_mapper = {
-            'Ebner-Eschenbach_Marie-von_Bozena_1876': 'Ebner-Eschenbach_Marie_Bozena_1876',
-            'Ebner-Eschenbach_Marie-von_Das-Gemeindekind_1887': 'Ebner-Eschenbach_Marie_Das-Gemeindekind_1887',
-            'Ebner-Eschenbach_Marie-von_Der-Kreisphysikus_1883': 'Ebner-Eschenbach_Marie_Der-Kreisphysikus_1883',
-            'Ebner-Eschenbach_Marie-von_Der-Muff_1896': 'Ebner-Eschenbach_Marie_Der-Muff_1896',
-            'Ebner-Eschenbach_Marie-von_Die-Freiherren-von-Gemperlein_1889': 'Ebner-Eschenbach_Marie_Die-Freiherren-von-Gemperlein_1889',
-            'Ebner-Eschenbach_Marie-von_Die-Poesie-des-Unbewussten_1883': 'Ebner-Eschenbach_Marie_Die-Poesie-des-Unbewussten_1883',
-            'Ebner-Eschenbach_Marie-von_Die-Resel_1883': 'Ebner-Eschenbach_Marie_Die-Resel_1883',
-            'Ebner-Eschenbach_Marie-von_Ein-kleiner-Roman_1887': 'Ebner-Eschenbach_Marie_Ein-kleiner-Roman_1887',
-            'Ebner-Eschenbach_Marie-von_Krambabuli_1883': 'Ebner-Eschenbach_Marie_Krambabuli_1883',
-            'Ebner-Eschenbach_Marie-von_Lotti-die-Uhrmacherin_1874': 'Ebner-Eschenbach_Marie_Lotti-die-Uhrmacherin_1874',
-            'Ebner-Eschenbach_Marie-von_Rittmeister-Brand_1896': 'Ebner-Eschenbach_Marie_Rittmeister-Brand_1896',
-            'Ebner-Eschenbach_Marie-von_Unsuehnbar_1890': 'Ebner-Eschenbach_Marie_Unsuehnbar_1890',
-            'Hunold_Christian-Friedrich_Adalie_1702': 'Hunold_Christian_Friedrich_Die-liebenswuerdige-Adalie_1681'
-        }
-        for key, value in file_name_mapper.items():
-            labels_df.loc[labels_df["file_name"] == key, "file_name"] = value
-        labels = dict(labels_df[["file_name", "percent"]].values)
+    extra_file_names = [
+         'Austen_Jane_Northanger-Abbey_1818',
+         'Cleland_John_Fanny-Hill_1748',
+         'Defoe_Daniel_Roxana_1724',
+         'Fielding_Henry_Amelia_1752',
+         'Kingsley_Charles_The-Water-Babies_1863',
+         'Le-Queux_William_The-Invasion-of-1910_1906',
+         'Surtees_Robert_Jorrocks-Jaunts-and-Jollities_1831'
+    ]
+    labels = dict(labels_df[~labels_df["file_name"].isin(extra_file_names)].values)
     return labels
 
 
