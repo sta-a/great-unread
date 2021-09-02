@@ -152,7 +152,7 @@ class Doc2VecChunkVectorizer(object):
         logging.info("Prepared data for Doc2VecChunkVectorizer.")
         
         logging.info("Fitting Doc2VecChunkVectorizer...")
-        self.d2v_model = Doc2Vec(shuffle(tagged_chunks),
+        self.d2v_model = Doc2Vec(shuffle(tagged_chunks), #vector_size=100 by default
                                  window=10,
                                  dm=self.dm,
                                  dm_mean=self.dm_mean,
@@ -798,15 +798,18 @@ class CorpusBasedFeatureExtractor(object):
         return topic_distributions
 
     def get_tfidf(self):
+        print('tfidf')
         # use preprocessed sentences instead of raw docs
         # get absolute word frequencies
         words_to_return = [column[len("50_most_common_1gram_stopword_False_"):] for column in self.get_50_most_common_word_unigram_counts_excluding_stopwords().columns if column != "book_name"]
+        print(len(words_to_return), words_to_return)
         processed_sents_paths = [path.replace("/raw_docs", f"/processed_sentences") for path in self.doc_paths]
         book_names = [path.split("/")[-1][:-4] for path in processed_sents_paths]
         vect = TfidfVectorizer(input='filename')
         X = vect.fit_transform(processed_sents_paths)
         X = pd.DataFrame(X.toarray(), columns = vect.get_feature_names())
-        X = X.loc[:, set(words_to_return).intersection(set(X.columns))]
+        X = X.loc[:, set(words_to_return).intersection(set(X.columns))] #error here, excludes random words
+        print(X.shape)
         X.columns = [f"tfidf_{column}" for column in X.columns]
         X['book_name'] = book_names
         return X
@@ -816,6 +819,7 @@ class CorpusBasedFeatureExtractor(object):
         # "%diff" is best keyness metric (according to Gabrielatos & Marchi, 2011)
         words_to_return = [column[len("50_most_common_1gram_stopword_False_"):] for column in self.get_50_most_common_word_unigram_counts_excluding_stopwords().columns if column != "book_name"]
         words_to_return = [word for word in words_to_return if len(word) > 1]
+        print(len(words_to_return, words_to_return))
         book_name_word_keyness_mapping = {}
         corpus_absolute_freqs = self.word_statistics["all_word_unigram_counts"]
         for book_name, abs_freqs in self.word_statistics["book_name_abs_word_unigram_mapping"].items(): 
@@ -831,19 +835,19 @@ class CorpusBasedFeatureExtractor(object):
 
     def get_all_features(self):
         result = None
-        for feature_function in [self.get_50_most_common_word_unigram_counts_including_stopwords,
-                                 self.get_50_most_common_word_bigram_counts_including_stopwords,
-                                 self.get_50_most_common_word_trigram_counts_including_stopwords,
-                                 self.get_50_most_common_word_unigram_counts_excluding_stopwords,
-                                 self.get_50_most_common_word_bigram_counts_excluding_stopwords,
-                                 self.get_50_most_common_word_trigram_counts_excluding_stopwords,
-                                 self.get_overlap_score_doc2vec,
-                                 self.get_overlap_score_sbert,
-                                 self.get_outlier_score_doc2vec,
-                                 self.get_outlier_score_sbert,
-                                 self.get_lda_topic_distribution,
-                                 self.get_tfidf,
-                                 self.get_keyness]:
+        for feature_function in [# self.get_50_most_common_word_unigram_counts_including_stopwords,
+                                #  self.get_50_most_common_word_bigram_counts_including_stopwords,
+                                #  self.get_50_most_common_word_trigram_counts_including_stopwords,
+                                #  self.get_50_most_common_word_unigram_counts_excluding_stopwords,
+                                #  self.get_50_most_common_word_bigram_counts_excluding_stopwords,
+                                #  self.get_50_most_common_word_trigram_counts_excluding_stopwords,
+                                #  self.get_overlap_score_doc2vec,
+                                #  self.get_overlap_score_sbert,
+                                #  self.get_outlier_score_doc2vec,
+                                #  self.get_outlier_score_sbert,
+                                #  self.get_lda_topic_distribution,
+                                 self.get_tfidf]:
+                                # self.get_keyness]:
             if result is None:
                 result = feature_function()
             else:
