@@ -37,7 +37,7 @@ def save_list_of_lines(lst, path, line_type):
 
 
 def read_labels(labels_dir):
-    labels_df = pd.read_csv(os.path.join(labels_dir, "210616_regression_predict.csv"), sep=";")[["file_name", "m3"]]
+    labels_df = pd.read_csv(os.path.join(labels_dir, "210907_regression_predict_02_setp3_FINAL.csv"), sep=";")[["file_name", "m3"]]
 
     file_name_mapper = {'Blackmore_R-D_Lorna-Doone_1869': 'Blackmore_R-D_Lorna_Doone_1869',
                         'Bulwer-Lytton_Edward_Paul-Clifford_1830': 'Bulwer-Lytton_Edward_Paul-Clifford_1832',
