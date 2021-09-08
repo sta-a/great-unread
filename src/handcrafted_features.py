@@ -18,6 +18,7 @@ import textstat
 import string
 import re
 import logging
+import pickle
 from collections import Counter
 from utils import load_list_of_lines, save_list_of_lines, unidecode_custom
 from corpus_toolkit import corpus_tools as ct
@@ -582,8 +583,13 @@ class CorpusBasedFeatureExtractor(object):
             sentences = load_list_of_lines(sentences_path, "str")
             processed_sentences = self.__preprocess_sentences(sentences)
             unigram_path = doc_path.replace("/raw_docs", f"/unigram_counts")
-            #if os.path.isfile(unigram_path + doc_path)
-            unigram_counts = self.__find_word_unigram_counts(processed_sentences)
+            if os.path.isfile(unigram_path):
+                with open(unigram_path, 'rb') as f:
+                    unigram_counts = pickle.load(f)
+            else:
+                unigram_counts = self.__find_word_unigram_counts(processed_sentences)
+                with open(unigram_path, 'wb') as f:
+                    pickle.dump(unigram_counts, f)
             all_word_unigram_counts.update(unigram_counts)
         
         all_word_unigram_counts = dict(sorted(list(all_word_unigram_counts.items()), key=lambda x: -x[1])) #all words
@@ -596,8 +602,8 @@ class CorpusBasedFeatureExtractor(object):
             sentences_path = doc_path.replace("/raw_docs", f"/processed_sentences")
             sentences = load_list_of_lines(sentences_path, "str")
             processed_sentences = self.__preprocess_sentences(sentences)
-            unigram_path = doc_path.replace("/raw_docs", f"/unigram_counts")
-            unigram_counts = self.__find_word_unigram_counts(processed_sentences)
+            with open(unigram_path, 'rb') as f:
+                unigram_counts = pickle.load(f)
             total_unigram_count = sum(unigram_counts.values())
             #absolute frequency
             book_name_abs_word_unigram_mapping[book_name] = unigram_counts
@@ -669,6 +675,7 @@ class CorpusBasedFeatureExtractor(object):
         else:
             raise Exception(f"Not a valid n: {n}")
         if include_stopwords:
+            # words that are the most common in the whole corpus
             most_common_k_ngrams = [ngram for ngram, count in sorted(list(dct1.items()), key=lambda x: -x[1])[:k]]
         else:
             filtered_ngrams = []
@@ -875,11 +882,11 @@ class CorpusBasedFeatureExtractor(object):
             pd.DataFrame ofvarious features
         '''
         result = None
-        for feature_function in [self.get_k_most_common_word_unigram_counts_including_stopwords(k), #,
+        for feature_function in [self.get_k_most_common_word_unigram_counts_including_stopwords(k)]: #,
                                 #  self.get_k_most_common_word_bigram_counts_including_stopwords(k),
                                 #  self.get_k_most_common_word_trigram_counts_including_stopwords(k),
                                 #  self.get_k_most_common_word_unigram_counts_excluding_stopwords(k),
-                                  self.get_k_most_common_word_bigram_counts_excluding_stopwords(k)]:
+                                #  self.get_k_most_common_word_bigram_counts_excluding_stopwords(k)]:
                                 #  self.get_k_most_common_word_trigram_counts_excluding_stopwords(k),
                                 #  self.get_overlap_score_doc2vec,
                                 #  self.get_overlap_score_sbert,
@@ -888,7 +895,6 @@ class CorpusBasedFeatureExtractor(object):
                                 #  self.get_lda_topic_distribution,
                                 # self.get_tfidf,
                                 # self.get_keyness]:
-            print(result)
             if result is None:
                 result = feature_function
             else:
