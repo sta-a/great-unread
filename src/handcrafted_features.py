@@ -6,12 +6,13 @@ from transformers import BertTokenizer
 from multiprocessing import cpu_count
 from gensim.models import Doc2Vec
 from gensim.models.doc2vec import TaggedDocument
-from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
+from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 from gensim.models import LdaMulticore
 from gensim.matutils import Sparse2Corpus
 from sklearn.utils import shuffle
 from tqdm import tqdm
 from scipy.stats import entropy, kurtosis, skew
+from scipy.sparse import csr_matrix
 import numpy as np
 import pandas as pd
 import textstat
@@ -575,7 +576,9 @@ class CorpusBasedFeatureExtractor(object):
     def __get_word_statistics(self):
         # get total counts over all documents
         all_word_unigram_counts = Counter()
-        
+        book_name_abs_word_unigram_mapping = {}
+        book_name_rel_word_unigram_mapping = {}
+
         for doc_path in tqdm(self.doc_paths):
             print(doc_path)
             book_name = doc_path.split("/")[-1][:-4]
@@ -591,25 +594,14 @@ class CorpusBasedFeatureExtractor(object):
                 with open(unigram_path, 'wb') as f:
                     pickle.dump(unigram_counts, f)
             all_word_unigram_counts.update(unigram_counts)
-        
-        all_word_unigram_counts = dict(sorted(list(all_word_unigram_counts.items()), key=lambda x: -x[1])) #all words
-        
-        # get (relative) counts per document
-        book_name_abs_word_unigram_mapping = {}
-        book_name_rel_word_unigram_mapping = {}
-        for doc_path in tqdm(self.doc_paths):
-            book_name = doc_path.split("/")[-1][:-4]
-            sentences_path = doc_path.replace("/raw_docs", f"/processed_sentences")
-            sentences = load_list_of_lines(sentences_path, "str")
-            processed_sentences = self.__preprocess_sentences(sentences)
-            with open(unigram_path, 'rb') as f:
-                unigram_counts = pickle.load(f)
+            # get (relative) counts per document
             total_unigram_count = sum(unigram_counts.values())
             #absolute frequency
             book_name_abs_word_unigram_mapping[book_name] = unigram_counts
             #relative frequencies
             book_name_rel_word_unigram_mapping[book_name] = dict((unigram, count / total_unigram_count) for unigram, count in unigram_counts.items()) #all words
         
+        all_word_unigram_counts = dict(sorted(list(all_word_unigram_counts.items()), key=lambda x: -x[1])) #all words
         word_statistics = {
             "all_word_unigram_counts": all_word_unigram_counts,
             "book_name_abs_word_unigram_mapping": book_name_abs_word_unigram_mapping,
@@ -836,11 +828,22 @@ class CorpusBasedFeatureExtractor(object):
         topic_distributions["book_name"] = book_names
         return topic_distributions
 
-    def get_tfidf(self):
-        print('tfidf')
-        # use preprocessed sentences instead of raw docs
-        # get absolute word frequencies
-        words_to_return = [column[len("50_most_common_1gram_stopword_False_"):] for column in self.get_50_most_common_word_unigram_counts_excluding_stopwords().columns if column != "book_name"]
+    def get_tfidf(self, k):
+        #print(self.word_statistics['book_name_rel_word_unigram_mapping'])
+        document_term_matrix = pd.DataFrame.from_dict(self.word_statistics['book_name_abs_word_unigram_mapping']).fillna(0).T
+        # Tfidf
+        t = TfidfTransformer(norm='l1', use_idf=True, smooth_idf=True)
+        tfidf = pd.DataFrame.sparse.from_spmatrix(t.fit_transform(document_term_matrix), columns=document_term_matrix.columns)
+        # Keep only those words which occur in more than 1 document
+        tfidf_reduced = pd.DataFrame()
+        # Get words which occurr in only 1 document
+        document_frequency = document_term_matrix.astype(bool).sum(axis=0)
+        reduced_columns = [document_term_matrix.columns[x] for x in range(0,len(document_term_matrix.columns)) if document_frequency[x]!=1]
+        tfidf_reduced = tfidf[reduced_columns]
+        print(tfidf_reduced)
+        '''
+        # remove preceding string from column names, only keep word
+        words_to_return = [column[len("50_most_common_1gram_stopword_False_"):] for column in self.get_k_most_common_word_unigram_counts_excluding_stopwords(k).columns if column != "book_name"]
         print(len(words_to_return), words_to_return)
         processed_sents_paths = [path.replace("/raw_docs", f"/processed_sentences") for path in self.doc_paths]
         book_names = [path.split("/")[-1][:-4] for path in processed_sents_paths]
@@ -851,12 +854,14 @@ class CorpusBasedFeatureExtractor(object):
         print(X.shape)
         X.columns = [f"tfidf_{column}" for column in X.columns]
         X['book_name'] = book_names
-        return X
 
-    def get_keyness(self):
+        return X
+        '''
+
+    def get_keyness(self, k):
         # evaluate keyness in current book compared to whole corpus
         # "%diff" is best keyness metric (according to Gabrielatos & Marchi, 2011)
-        words_to_return = [column[len("50_most_common_1gram_stopword_False_"):] for column in self.get_50_most_common_word_unigram_counts_excluding_stopwords().columns if column != "book_name"]
+        words_to_return = [column[len("50_most_common_1gram_stopword_False_"):] for column in self.get_k_most_common_word_unigram_counts_excluding_stopwords(k).columns if column != "book_name"]
         words_to_return = [word for word in words_to_return if len(word) > 1]
         print(len(words_to_return, words_to_return))
         book_name_word_keyness_mapping = {}
@@ -882,7 +887,7 @@ class CorpusBasedFeatureExtractor(object):
             pd.DataFrame ofvarious features
         '''
         result = None
-        for feature_function in [self.get_k_most_common_word_unigram_counts_including_stopwords(k)]: #,
+        for feature_function in [self.get_k_most_common_word_unigram_counts_including_stopwords(k),
                                 #  self.get_k_most_common_word_bigram_counts_including_stopwords(k),
                                 #  self.get_k_most_common_word_trigram_counts_including_stopwords(k),
                                 #  self.get_k_most_common_word_unigram_counts_excluding_stopwords(k),
@@ -893,8 +898,8 @@ class CorpusBasedFeatureExtractor(object):
                                 #  self.get_outlier_score_doc2vec,
                                 #  self.get_outlier_score_sbert,
                                 #  self.get_lda_topic_distribution,
-                                # self.get_tfidf,
-                                # self.get_keyness]:
+                                self.get_tfidf(k)]:
+                                #self.get_keyness(k)]:
             if result is None:
                 result = feature_function
             else:
