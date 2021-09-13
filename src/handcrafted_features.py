@@ -174,7 +174,6 @@ class DocBasedFeatureExtractor(object):
         self.lang = lang
         self.sentences_per_chunk = sentences_per_chunk
         self.doc_path = doc_path
-        print(self.doc_path)
 
         if self.lang == "eng":
             self.model_name = 'en_core_web_sm'
@@ -217,7 +216,6 @@ class DocBasedFeatureExtractor(object):
                 self.sentence_encoder = SentenceTransformer('paraphrase-xlm-r-multilingual-v1')
             self.sbert_sentence_embeddings = list(self.sentence_encoder.encode(self.sentences))
             save_list_of_lines(self.sbert_sentence_embeddings, sbert_sentence_embeddings_path, "np")
-            print('new sbert embeddings for', doc_path)
         
         ## load doc2vec chunk embeddings
         doc2vec_chunk_embeddings_path = doc_path.replace("/raw_docs", f"/processed_doc2vec_chunk_embeddings_spc_{sentences_per_chunk}") + ".npz"
@@ -582,7 +580,6 @@ class CorpusBasedFeatureExtractor(object):
         book_name_rel_word_unigram_mapping = {}
 
         for doc_path in tqdm(self.doc_paths):
-            print(doc_path)
             book_name = doc_path.split("/")[-1][:-4]
             sentences_path = doc_path.replace("/raw_docs", f"/processed_sentences")
             sentences = load_list_of_lines(sentences_path, "str")
@@ -646,12 +643,10 @@ class CorpusBasedFeatureExtractor(object):
             book_name_word_trigram_mapping[book_name] = dict((trigram, count / total_trigram_count) for trigram, count in trigram_counts.items() if trigram in all_word_trigram_counts.keys())
         
         word_stat_dir = self.word_statistics
-        word_stat_dir = {
-            "all_word_bigram_counts": all_word_bigram_counts,
-            "all_word_trigram_counts": all_word_trigram_counts,
-            "book_name_word_bigram_mapping": book_name_word_bigram_mapping,
-            "book_name_word_trigram_mapping": book_name_word_trigram_mapping
-        }
+        word_stat_dir["all_word_bigram_counts"] = all_word_bigram_counts
+        word_stat_dir["all_word_trigram_counts"] = all_word_trigram_counts
+        word_stat_dir["book_name_word_bigram_mapping"] = book_name_word_bigram_mapping
+        word_stat_dir["book_name_word_trigram_mapping"] = book_name_word_trigram_mapping
         return word_stat_dir
 
     def get_k_most_common_word_ngram_counts(self, k, n, include_stopwords):
@@ -693,22 +688,22 @@ class CorpusBasedFeatureExtractor(object):
         result = pd.DataFrame(result)
         return result
     
-    def get_k_most_common_word_unigram_counts_including_stopwords(self, k=50):
+    def get_k_most_common_word_unigram_counts_including_stopwords(self, k):
         return self.get_k_most_common_word_ngram_counts(k, 1, True)
         
-    def get_k_most_common_word_bigram_counts_including_stopwords(self, k=50):
+    def get_k_most_common_word_bigram_counts_including_stopwords(self, k):
         return self.get_k_most_common_word_ngram_counts(k, 2, True)
         
-    def get_k_most_common_word_trigram_counts_including_stopwords(self, k=50):
+    def get_k_most_common_word_trigram_counts_including_stopwords(self, k):
         return self.get_k_most_common_word_ngram_counts(k, 3, True)
     
-    def get_k_most_common_word_unigram_counts_excluding_stopwords(self, k=50):
+    def get_k_most_common_word_unigram_counts_excluding_stopwords(self, k):
         return self.get_k_most_common_word_ngram_counts(k, 1, False)
         
-    def get_k_most_common_word_bigram_counts_excluding_stopwords(self, k=50):
+    def get_k_most_common_word_bigram_counts_excluding_stopwords(self, k):
         return self.get_k_most_common_word_ngram_counts(k, 2, False)
         
-    def get_k_most_common_word_trigram_counts_excluding_stopwords(self, k=50):
+    def get_k_most_common_word_trigram_counts_excluding_stopwords(self, k):
         return self.get_k_most_common_word_ngram_counts(k, 3, False)
     
     def get_overlap_score(self, embedding_type):
@@ -831,7 +826,6 @@ class CorpusBasedFeatureExtractor(object):
         return topic_distributions
 
     def get_tfidf(self, k=50):
-        #print(self.word_statistics['book_name_rel_word_unigram_mapping'])
         document_term_matrix = pd.DataFrame.from_dict(self.word_statistics['book_name_abs_word_unigram_mapping']).fillna(0).T
         # Tfidf
         t = TfidfTransformer(norm='l1', use_idf=True, smooth_idf=True)
@@ -875,10 +869,10 @@ class CorpusBasedFeatureExtractor(object):
         # "%diff" is best keyness metric (according to Gabrielatos & Marchi, 2011)
         book_name_word_keyness_mapping = {}
         corpus_unigram_counts = self.word_statistics["all_word_unigram_counts"]
-        for book_name, book_unigram_count in self.word_statistics["book_name_abs_word_unigram_mapping"].items(): 
+        for book_name, book_unigram_counts in self.word_statistics["book_name_abs_word_unigram_mapping"].items(): 
             #reference corpus is the word frequencies in all documents except the current one
-            reference_corpus = {key: corpus_unigram_counts[key] - book_unigram_count.get(key, 0) for key in corpus_unigram_counts.keys()}
-            book_keyness = ct.keyness(book_unigram_count, reference_corpus, effect='%diff')
+            reference_corpus = {key: corpus_unigram_counts[key] - book_unigram_counts.get(key, 0) for key in corpus_unigram_counts.keys()}
+            book_keyness = ct.keyness(book_unigram_counts, reference_corpus, effect='%diff')
             book_name_word_keyness_mapping[book_name] = book_keyness
         keyness_df = pd.DataFrame(book_name_word_keyness_mapping).T
    
@@ -904,24 +898,21 @@ class CorpusBasedFeatureExtractor(object):
         ''' Get corpus-based features
 
         Args:
-            k (int): number of most frequent words to return
+            k (int): number of features to return
 
         Returns: 
-            pd.DataFrame ofvarious features
+            pd.DataFrame of corpus-based features
         '''
         result = None
-        for feature_function in [#self.get_k_most_common_word_unigram_counts_including_stopwords(k)]:
-                                #  self.get_k_most_common_word_bigram_counts_including_stopwords(k),
-                                #  self.get_k_most_common_word_trigram_counts_including_stopwords(k),
-                                #  self.get_k_most_common_word_unigram_counts_excluding_stopwords(k),
-                                #  self.get_k_most_common_word_bigram_counts_excluding_stopwords(k)]:
-                                #  self.get_k_most_common_word_trigram_counts_excluding_stopwords(k),
-                                #  self.get_overlap_score_doc2vec,
-                                #  self.get_overlap_score_sbert,
-                                #  self.get_outlier_score_doc2vec,
-                                #  self.get_outlier_score_sbert,
-                                #  self.get_lda_topic_distribution,
-                                #self.get_tfidf(k)]:
+        for feature_function in [self.get_k_most_common_word_unigram_counts_including_stopwords(k),
+                                self.get_k_most_common_word_bigram_counts_including_stopwords(k),
+                                self.get_k_most_common_word_trigram_counts_including_stopwords(k),
+                                self.get_overlap_score_doc2vec(),
+                                self.get_overlap_score_sbert(),
+                                self.get_outlier_score_doc2vec(),
+                                self.get_outlier_score_sbert(),
+                                #self.get_lda_topic_distribution,
+                                self.get_tfidf(k),
                                 self.get_keyness(k)]:
             if result is None:
                 result = feature_function
