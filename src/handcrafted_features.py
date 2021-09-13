@@ -174,6 +174,7 @@ class DocBasedFeatureExtractor(object):
         self.lang = lang
         self.sentences_per_chunk = sentences_per_chunk
         self.doc_path = doc_path
+        print(self.doc_path)
 
         if self.lang == "eng":
             self.model_name = 'en_core_web_sm'
@@ -216,6 +217,7 @@ class DocBasedFeatureExtractor(object):
                 self.sentence_encoder = SentenceTransformer('paraphrase-xlm-r-multilingual-v1')
             self.sbert_sentence_embeddings = list(self.sentence_encoder.encode(self.sentences))
             save_list_of_lines(self.sbert_sentence_embeddings, sbert_sentence_embeddings_path, "np")
+            print('new sbert embeddings for', doc_path)
         
         ## load doc2vec chunk embeddings
         doc2vec_chunk_embeddings_path = doc_path.replace("/raw_docs", f"/processed_doc2vec_chunk_embeddings_spc_{sentences_per_chunk}") + ".npz"
@@ -828,19 +830,29 @@ class CorpusBasedFeatureExtractor(object):
         topic_distributions["book_name"] = book_names
         return topic_distributions
 
-    def get_tfidf(self, k):
+    def get_tfidf(self, k=50):
         #print(self.word_statistics['book_name_rel_word_unigram_mapping'])
         document_term_matrix = pd.DataFrame.from_dict(self.word_statistics['book_name_abs_word_unigram_mapping']).fillna(0).T
         # Tfidf
         t = TfidfTransformer(norm='l1', use_idf=True, smooth_idf=True)
-        tfidf = pd.DataFrame.sparse.from_spmatrix(t.fit_transform(document_term_matrix), columns=document_term_matrix.columns)
-        # Keep only those words which occur in more than 1 document
-        tfidf_reduced = pd.DataFrame()
-        # Get words which occurr in only 1 document
+        tfidf = pd.DataFrame.sparse.from_spmatrix(t.fit_transform(document_term_matrix), columns=document_term_matrix.columns, index=document_term_matrix.index)
+        # Keep only those words which occur in more than 10% of documents
         document_frequency = document_term_matrix.astype(bool).sum(axis=0)
-        reduced_columns = [document_term_matrix.columns[x] for x in range(0,len(document_term_matrix.columns)) if document_frequency[x]!=1]
+        min_nr_documents = round(0.1 * tfidf.shape[0])
+        reduced_columns = [document_term_matrix.columns[x] for x in range(0,len(document_term_matrix.columns)) if document_frequency[x]>min_nr_documents]
         tfidf_reduced = tfidf[reduced_columns]
-        print(tfidf_reduced)
+        # From remaining words, keep only those that are in the top k for at least one book
+        all_top_k_words = []
+        for index, row in tfidf_reduced.iterrows():
+            top_k_words = row.nlargest(n=k, keep='all')
+            all_top_k_words.extend(top_k_words.index.to_list())
+        all_top_k_words = list(set(all_top_k_words))
+        tfidf_top_k = tfidf_reduced[all_top_k_words]
+
+
+        tfidf_top_k.columns = [f"tfidf_{column}" for column in tfidf_top_k.columns]
+        tfidf_top_k = tfidf_top_k.reset_index().rename(columns={'level_0':'book_name', 'index':'book_name'}) #automatically created column name can be 'index' or 'level_0'
+        return tfidf_top_k
         '''
         # remove preceding string from column names, only keep word
         words_to_return = [column[len("50_most_common_1gram_stopword_False_"):] for column in self.get_k_most_common_word_unigram_counts_excluding_stopwords(k).columns if column != "book_name"]
@@ -861,21 +873,32 @@ class CorpusBasedFeatureExtractor(object):
     def get_keyness(self, k):
         # evaluate keyness in current book compared to whole corpus
         # "%diff" is best keyness metric (according to Gabrielatos & Marchi, 2011)
-        words_to_return = [column[len("50_most_common_1gram_stopword_False_"):] for column in self.get_k_most_common_word_unigram_counts_excluding_stopwords(k).columns if column != "book_name"]
-        words_to_return = [word for word in words_to_return if len(word) > 1]
-        print(len(words_to_return, words_to_return))
         book_name_word_keyness_mapping = {}
-        corpus_absolute_freqs = self.word_statistics["all_word_unigram_counts"]
-        for book_name, abs_freqs in self.word_statistics["book_name_abs_word_unigram_mapping"].items(): 
+        corpus_unigram_counts = self.word_statistics["all_word_unigram_counts"]
+        for book_name, book_unigram_count in self.word_statistics["book_name_abs_word_unigram_mapping"].items(): 
             #reference corpus is the word frequencies in all documents except the current one
-            reference_corpus = {key: corpus_absolute_freqs[key] - abs_freqs.get(key, 0) for key in corpus_absolute_freqs.keys()}
-            book_keyness = ct.keyness(abs_freqs, reference_corpus, effect='%diff')
+            reference_corpus = {key: corpus_unigram_counts[key] - book_unigram_count.get(key, 0) for key in corpus_unigram_counts.keys()}
+            book_keyness = ct.keyness(book_unigram_count, reference_corpus, effect='%diff')
             book_name_word_keyness_mapping[book_name] = book_keyness
-        book_name_word_keyness_mapping = pd.DataFrame(book_name_word_keyness_mapping).T
-        book_name_word_keyness_mapping = book_name_word_keyness_mapping.loc[:, set(words_to_return).intersection(set(book_name_word_keyness_mapping.columns))]
-        book_name_word_keyness_mapping.columns = [f"keyness_{column}" for column in book_name_word_keyness_mapping.columns]
-        book_name_word_keyness_mapping['book_name'] = book_name_word_keyness_mapping.index
-        return book_name_word_keyness_mapping
+        keyness_df = pd.DataFrame(book_name_word_keyness_mapping).T
+   
+
+        #Keep only those words that are in at least 10% of documents and which are in the top k for at least one book
+        document_frequency = keyness_df.astype(bool).sum(axis=0)
+        min_nr_documents = round(0.1 * keyness_df.shape[0])
+        reduced_columns = [keyness_df.columns[x] for x in range(0,len(keyness_df.columns)) if document_frequency[x] > min_nr_documents]
+        keyness_df_reduced = keyness_df[reduced_columns]
+        # From remaining words, keep only those that are in the top k for at least one book
+        all_top_k_words = []
+        for index, row in keyness_df_reduced.iterrows():
+            top_k_words = row.nlargest(n=k, keep='all')
+            all_top_k_words.extend(top_k_words.index.to_list())
+        all_top_k_words = list(set(all_top_k_words))
+        keyness_df_top_k = keyness_df_reduced[all_top_k_words]
+        #return book_name_word_keyness_mapping
+        keyness_df_top_k.columns = [f"keyness_{column}" for column in keyness_df_top_k.columns]
+        keyness_df_top_k = keyness_df_top_k.reset_index().rename(columns={'level_0':'book_name', 'index':'book_name'}) #automatically created column name can be 'index' or 'level_0'
+        return keyness_df_top_k
 
     def get_all_features(self, k=50):
         ''' Get corpus-based features
@@ -887,7 +910,7 @@ class CorpusBasedFeatureExtractor(object):
             pd.DataFrame ofvarious features
         '''
         result = None
-        for feature_function in [self.get_k_most_common_word_unigram_counts_including_stopwords(k),
+        for feature_function in [#self.get_k_most_common_word_unigram_counts_including_stopwords(k)]:
                                 #  self.get_k_most_common_word_bigram_counts_including_stopwords(k),
                                 #  self.get_k_most_common_word_trigram_counts_including_stopwords(k),
                                 #  self.get_k_most_common_word_unigram_counts_excluding_stopwords(k),
@@ -898,8 +921,8 @@ class CorpusBasedFeatureExtractor(object):
                                 #  self.get_outlier_score_doc2vec,
                                 #  self.get_outlier_score_sbert,
                                 #  self.get_lda_topic_distribution,
-                                self.get_tfidf(k)]:
-                                #self.get_keyness(k)]:
+                                #self.get_tfidf(k)]:
+                                self.get_keyness(k)]:
             if result is None:
                 result = feature_function
             else:
