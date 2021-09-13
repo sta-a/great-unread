@@ -62,19 +62,20 @@ def save_list_of_lines(lst, path, line_type):
 def read_labels(labels_dir):
     labels_df = pd.read_csv(os.path.join(labels_dir, "210907_regression_predict_02_setp3_FINAL.csv"), sep=";")[["file_name", "m3"]]
 
-    for key, value in file_name_mapper.items():
-        labels_df.loc[labels_df["file_name"] == key, "file_name"] = value
+    # for key, value in file_name_mapper.items():
+    #     labels_df.loc[labels_df["file_name"] == key, "file_name"] = value
 
-    labels = dict(labels_df[~labels_df["file_name"].isin(extra_file_names)].values)
+    # labels = dict(labels_df[~labels_df["file_name"].isin(extra_file_names)].values)
+    labels = dict(labels_df.values)
     return labels
 
 def read_extreme_cases(labels_dir):
     extreme_cases_df = pd.read_csv(os.path.join(labels_dir, "210907_classified_data_02_m3_step3_FINAL.csv"), sep=";")[["file_name"]]
 
-    for key, value in file_name_mapper.items():
-        extreme_cases_df.loc[extreme_cases_df["file_name"] == key, "file_name"] = value
+    # for key, value in file_name_mapper.items():
+    #     extreme_cases_df.loc[extreme_cases_df["file_name"] == key, "file_name"] = value
         
-    extreme_cases_df = extreme_cases_df[~extreme_cases_df["file_name"].isin(extra_file_names)]
+    # extreme_cases_df = extreme_cases_df[~extreme_cases_df["file_name"].isin(extra_file_names)]
     return extreme_cases_df
 
 
