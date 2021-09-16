@@ -6,18 +6,20 @@ from transformers import BertTokenizer
 from multiprocessing import cpu_count
 from gensim.models import Doc2Vec
 from gensim.models.doc2vec import TaggedDocument
-from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
+from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 from gensim.models import LdaMulticore
 from gensim.matutils import Sparse2Corpus
 from sklearn.utils import shuffle
 from tqdm import tqdm
 from scipy.stats import entropy, kurtosis, skew
+from scipy.sparse import csr_matrix
 import numpy as np
 import pandas as pd
 import textstat
 import string
 import re
 import logging
+import pickle
 from collections import Counter
 from utils import load_list_of_lines, save_list_of_lines, unidecode_custom
 from corpus_toolkit import corpus_tools as ct
@@ -152,7 +154,7 @@ class Doc2VecChunkVectorizer(object):
         logging.info("Prepared data for Doc2VecChunkVectorizer.")
         
         logging.info("Fitting Doc2VecChunkVectorizer...")
-        self.d2v_model = Doc2Vec(shuffle(tagged_chunks),
+        self.d2v_model = Doc2Vec(shuffle(tagged_chunks), #vector_size=100 by default
                                  window=10,
                                  dm=self.dm,
                                  dm_mean=self.dm_mean,
@@ -572,7 +574,42 @@ class CorpusBasedFeatureExtractor(object):
         return [__preprocess_sentences_helper(sentence) for sentence in sentences]
     
     def __get_word_statistics(self):
+        # get total counts over all documents
         all_word_unigram_counts = Counter()
+        book_name_abs_word_unigram_mapping = {}
+        book_name_rel_word_unigram_mapping = {}
+
+        for doc_path in tqdm(self.doc_paths):
+            book_name = doc_path.split("/")[-1][:-4]
+            sentences_path = doc_path.replace("/raw_docs", f"/processed_sentences")
+            sentences = load_list_of_lines(sentences_path, "str")
+            processed_sentences = self.__preprocess_sentences(sentences)
+            unigram_path = doc_path.replace("/raw_docs", f"/unigram_counts")
+            if os.path.isfile(unigram_path):
+                with open(unigram_path, 'rb') as f:
+                    unigram_counts = pickle.load(f)
+            else:
+                unigram_counts = self.__find_word_unigram_counts(processed_sentences)
+                with open(unigram_path, 'wb') as f:
+                    pickle.dump(unigram_counts, f)
+            all_word_unigram_counts.update(unigram_counts)
+            # get (relative) counts per document
+            total_unigram_count = sum(unigram_counts.values())
+            #absolute frequency
+            book_name_abs_word_unigram_mapping[book_name] = unigram_counts
+            #relative frequencies
+            book_name_rel_word_unigram_mapping[book_name] = dict((unigram, count / total_unigram_count) for unigram, count in unigram_counts.items()) #all words
+        
+        all_word_unigram_counts = dict(sorted(list(all_word_unigram_counts.items()), key=lambda x: -x[1])) #all words
+        word_statistics = {
+            "all_word_unigram_counts": all_word_unigram_counts,
+            "book_name_abs_word_unigram_mapping": book_name_abs_word_unigram_mapping,
+            "book_name_rel_word_unigram_mapping": book_name_rel_word_unigram_mapping,
+        }
+        return word_statistics
+
+    def __add_bigrams_trigrams_word_statistics(self):
+        # get total counts over all documents
         all_word_bigram_counts = Counter()
         all_word_trigram_counts = Counter()
         
@@ -581,19 +618,15 @@ class CorpusBasedFeatureExtractor(object):
             sentences_path = doc_path.replace("/raw_docs", f"/processed_sentences")
             sentences = load_list_of_lines(sentences_path, "str")
             processed_sentences = self.__preprocess_sentences(sentences)
-            unigram_counts = self.__find_word_unigram_counts(processed_sentences)
             bigram_counts = self.__find_word_bigram_counts(processed_sentences)
             trigram_counts = self.__find_word_trigram_counts(processed_sentences)
-            all_word_unigram_counts.update(unigram_counts)
             all_word_bigram_counts.update(bigram_counts)
             all_word_trigram_counts.update(trigram_counts)
         
-        all_word_unigram_counts = dict(sorted(list(all_word_unigram_counts.items()), key=lambda x: -x[1])) #all words
         all_word_bigram_counts = dict(sorted(list(all_word_bigram_counts.items()), key=lambda x: -x[1])[:2000])
         all_word_trigram_counts = dict(sorted(list(all_word_trigram_counts.items()), key=lambda x: -x[1])[:2000])
         
-        book_name_abs_word_unigram_mapping = {}
-        book_name_rel_word_unigram_mapping = {}
+        # get (relative) counts per document
         book_name_word_bigram_mapping = {}
         book_name_word_trigram_mapping = {}
         for doc_path in tqdm(self.doc_paths):
@@ -601,43 +634,37 @@ class CorpusBasedFeatureExtractor(object):
             sentences_path = doc_path.replace("/raw_docs", f"/processed_sentences")
             sentences = load_list_of_lines(sentences_path, "str")
             processed_sentences = self.__preprocess_sentences(sentences)
-            unigram_counts = self.__find_word_unigram_counts(processed_sentences)
             bigram_counts = self.__find_word_bigram_counts(processed_sentences)
             trigram_counts = self.__find_word_trigram_counts(processed_sentences)
-            total_unigram_count = sum(unigram_counts.values())
             total_bigram_count = sum(bigram_counts.values())
             total_trigram_count = sum(trigram_counts.values())
-            #absolute frequency
-            book_name_abs_word_unigram_mapping[book_name] = unigram_counts
             #relative frequencies
-            book_name_rel_word_unigram_mapping[book_name] = dict((unigram, count / total_unigram_count) for unigram, count in unigram_counts.items()) #all words
             book_name_word_bigram_mapping[book_name] = dict((bigram, count / total_bigram_count) for bigram, count in bigram_counts.items() if bigram in all_word_bigram_counts.keys())
             book_name_word_trigram_mapping[book_name] = dict((trigram, count / total_trigram_count) for trigram, count in trigram_counts.items() if trigram in all_word_trigram_counts.keys())
         
-        word_statistics = {
-            "all_word_unigram_counts": all_word_unigram_counts,
-            "all_word_bigram_counts": all_word_bigram_counts,
-            "all_word_trigram_counts": all_word_trigram_counts,
-            "book_name_abs_word_unigram_mapping": book_name_abs_word_unigram_mapping,
-            "book_name_rel_word_unigram_mapping": book_name_rel_word_unigram_mapping,
-            "book_name_word_bigram_mapping": book_name_word_bigram_mapping,
-            "book_name_word_trigram_mapping": book_name_word_trigram_mapping
-        }
-        return word_statistics
+        word_stat_dir = self.word_statistics
+        word_stat_dir["all_word_bigram_counts"] = all_word_bigram_counts
+        word_stat_dir["all_word_trigram_counts"] = all_word_trigram_counts
+        word_stat_dir["book_name_word_bigram_mapping"] = book_name_word_bigram_mapping
+        word_stat_dir["book_name_word_trigram_mapping"] = book_name_word_trigram_mapping
+        return word_stat_dir
 
     def get_k_most_common_word_ngram_counts(self, k, n, include_stopwords):
         if n == 1:
             dct1 = self.word_statistics["all_word_unigram_counts"]
             dct2 = self.word_statistics["book_name_rel_word_unigram_mapping"]
-        elif n == 2:
-            dct1 = self.word_statistics["all_word_bigram_counts"]
-            dct2 = self.word_statistics["book_name_word_bigram_mapping"]
-        elif n == 3:
-            dct1 = self.word_statistics["all_word_trigram_counts"]
-            dct2 = self.word_statistics["book_name_word_trigram_mapping"]
+        elif n == 2 or n == 3:
+            self.word_statistics = self.__add_bigrams_trigrams_word_statistics()
+            if n == 2:
+                dct1 = self.word_statistics["all_word_bigram_counts"]
+                dct2 = self.word_statistics["book_name_word_bigram_mapping"]
+            else:
+                dct1 = self.word_statistics["all_word_trigram_counts"]
+                dct2 = self.word_statistics["book_name_word_trigram_mapping"]
         else:
             raise Exception(f"Not a valid n: {n}")
         if include_stopwords:
+            # words that are the most common in the whole corpus
             most_common_k_ngrams = [ngram for ngram, count in sorted(list(dct1.items()), key=lambda x: -x[1])[:k]]
         else:
             filtered_ngrams = []
@@ -654,29 +681,30 @@ class CorpusBasedFeatureExtractor(object):
             most_common_k_ngrams = [ngram for ngram, count in sorted(filtered_ngrams, key=lambda x: -x[1])[:k]]
         result = []
         for book_name, ngram_counts in dct2.items():
+            # get freq of k most common n-grams in current document
             dct = dict((f"{k}_most_common_{n}gram_stopword_{include_stopwords}_{common_ngram}", dct2[book_name].get(common_ngram, 0)) for common_ngram in most_common_k_ngrams)
             dct["book_name"] = book_name
             result.append(dct)
         result = pd.DataFrame(result)
         return result
     
-    def get_50_most_common_word_unigram_counts_including_stopwords(self):
-        return self.get_k_most_common_word_ngram_counts(50, 1, True)
+    def get_k_most_common_word_unigram_counts_including_stopwords(self, k):
+        return self.get_k_most_common_word_ngram_counts(k, 1, True)
         
-    def get_50_most_common_word_bigram_counts_including_stopwords(self):
-        return self.get_k_most_common_word_ngram_counts(50, 2, True)
+    def get_k_most_common_word_bigram_counts_including_stopwords(self, k):
+        return self.get_k_most_common_word_ngram_counts(k, 2, True)
         
-    def get_50_most_common_word_trigram_counts_including_stopwords(self):
-        return self.get_k_most_common_word_ngram_counts(50, 3, True)
+    def get_k_most_common_word_trigram_counts_including_stopwords(self, k):
+        return self.get_k_most_common_word_ngram_counts(k, 3, True)
     
-    def get_50_most_common_word_unigram_counts_excluding_stopwords(self):
-        return self.get_k_most_common_word_ngram_counts(50, 1, False)
+    def get_k_most_common_word_unigram_counts_excluding_stopwords(self, k):
+        return self.get_k_most_common_word_ngram_counts(k, 1, False)
         
-    def get_50_most_common_word_bigram_counts_excluding_stopwords(self):
-        return self.get_k_most_common_word_ngram_counts(50, 2, False)
+    def get_k_most_common_word_bigram_counts_excluding_stopwords(self, k):
+        return self.get_k_most_common_word_ngram_counts(k, 2, False)
         
-    def get_50_most_common_word_trigram_counts_excluding_stopwords(self):
-        return self.get_k_most_common_word_ngram_counts(50, 3, False)
+    def get_k_most_common_word_trigram_counts_excluding_stopwords(self, k):
+        return self.get_k_most_common_word_ngram_counts(k, 3, False)
     
     def get_overlap_score(self, embedding_type):
         if embedding_type == "doc2vec":
@@ -797,55 +825,97 @@ class CorpusBasedFeatureExtractor(object):
         topic_distributions["book_name"] = book_names
         return topic_distributions
 
-    def get_tfidf(self):
-        # use preprocessed sentences instead of raw docs
-        # get absolute word frequencies
-        words_to_return = [column[len("50_most_common_1gram_stopword_False_"):] for column in self.get_50_most_common_word_unigram_counts_excluding_stopwords().columns if column != "book_name"]
+    def get_tfidf(self, k=50):
+        document_term_matrix = pd.DataFrame.from_dict(self.word_statistics['book_name_abs_word_unigram_mapping']).fillna(0).T
+        # Tfidf
+        t = TfidfTransformer(norm='l1', use_idf=True, smooth_idf=True)
+        tfidf = pd.DataFrame.sparse.from_spmatrix(t.fit_transform(document_term_matrix), columns=document_term_matrix.columns, index=document_term_matrix.index)
+        # Keep only those words which occur in more than 10% of documents
+        document_frequency = document_term_matrix.astype(bool).sum(axis=0)
+        min_nr_documents = round(0.1 * tfidf.shape[0])
+        reduced_columns = [document_term_matrix.columns[x] for x in range(0,len(document_term_matrix.columns)) if document_frequency[x]>min_nr_documents]
+        tfidf_reduced = tfidf[reduced_columns]
+        # From remaining words, keep only those that are in the top k for at least one book
+        all_top_k_words = []
+        for index, row in tfidf_reduced.iterrows():
+            top_k_words = row.nlargest(n=k, keep='all')
+            all_top_k_words.extend(top_k_words.index.to_list())
+        all_top_k_words = list(set(all_top_k_words))
+        tfidf_top_k = tfidf_reduced[all_top_k_words]
+
+
+        tfidf_top_k.columns = [f"tfidf_{column}" for column in tfidf_top_k.columns]
+        tfidf_top_k = tfidf_top_k.reset_index().rename(columns={'level_0':'book_name', 'index':'book_name'}) #automatically created column name can be 'index' or 'level_0'
+        return tfidf_top_k
+        '''
+        # remove preceding string from column names, only keep word
+        words_to_return = [column[len("50_most_common_1gram_stopword_False_"):] for column in self.get_k_most_common_word_unigram_counts_excluding_stopwords(k).columns if column != "book_name"]
+        print(len(words_to_return), words_to_return)
         processed_sents_paths = [path.replace("/raw_docs", f"/processed_sentences") for path in self.doc_paths]
         book_names = [path.split("/")[-1][:-4] for path in processed_sents_paths]
         vect = TfidfVectorizer(input='filename')
         X = vect.fit_transform(processed_sents_paths)
         X = pd.DataFrame(X.toarray(), columns = vect.get_feature_names())
-        X = X.loc[:, set(words_to_return).intersection(set(X.columns))]
+        X = X.loc[:, set(words_to_return).intersection(set(X.columns))] #error here, excludes random words
+        print(X.shape)
         X.columns = [f"tfidf_{column}" for column in X.columns]
         X['book_name'] = book_names
-        return X
 
-    def get_keyness(self):
+        return X
+        '''
+
+    def get_keyness(self, k):
         # evaluate keyness in current book compared to whole corpus
         # "%diff" is best keyness metric (according to Gabrielatos & Marchi, 2011)
-        words_to_return = [column[len("50_most_common_1gram_stopword_False_"):] for column in self.get_50_most_common_word_unigram_counts_excluding_stopwords().columns if column != "book_name"]
-        words_to_return = [word for word in words_to_return if len(word) > 1]
         book_name_word_keyness_mapping = {}
-        corpus_absolute_freqs = self.word_statistics["all_word_unigram_counts"]
-        for book_name, abs_freqs in self.word_statistics["book_name_abs_word_unigram_mapping"].items(): 
+        corpus_unigram_counts = self.word_statistics["all_word_unigram_counts"]
+        for book_name, book_unigram_counts in self.word_statistics["book_name_abs_word_unigram_mapping"].items(): 
             #reference corpus is the word frequencies in all documents except the current one
-            reference_corpus = {key: corpus_absolute_freqs[key] - abs_freqs.get(key, 0) for key in corpus_absolute_freqs.keys()}
-            book_keyness = ct.keyness(abs_freqs, reference_corpus, effect='%diff')
+            reference_corpus = {key: corpus_unigram_counts[key] - book_unigram_counts.get(key, 0) for key in corpus_unigram_counts.keys()}
+            book_keyness = ct.keyness(book_unigram_counts, reference_corpus, effect='%diff')
             book_name_word_keyness_mapping[book_name] = book_keyness
-        book_name_word_keyness_mapping = pd.DataFrame(book_name_word_keyness_mapping).T
-        book_name_word_keyness_mapping = book_name_word_keyness_mapping.loc[:, set(words_to_return).intersection(set(book_name_word_keyness_mapping.columns))]
-        book_name_word_keyness_mapping.columns = [f"keyness_{column}" for column in book_name_word_keyness_mapping.columns]
-        book_name_word_keyness_mapping['book_name'] = book_name_word_keyness_mapping.index
-        return book_name_word_keyness_mapping
+        keyness_df = pd.DataFrame(book_name_word_keyness_mapping).T
+   
 
-    def get_all_features(self):
+        #Keep only those words that are in at least 10% of documents and which are in the top k for at least one book
+        document_frequency = keyness_df.astype(bool).sum(axis=0)
+        min_nr_documents = round(0.1 * keyness_df.shape[0])
+        reduced_columns = [keyness_df.columns[x] for x in range(0,len(keyness_df.columns)) if document_frequency[x] > min_nr_documents]
+        keyness_df_reduced = keyness_df[reduced_columns]
+        # From remaining words, keep only those that are in the top k for at least one book
+        all_top_k_words = []
+        for index, row in keyness_df_reduced.iterrows():
+            top_k_words = row.nlargest(n=k, keep='all')
+            all_top_k_words.extend(top_k_words.index.to_list())
+        all_top_k_words = list(set(all_top_k_words))
+        keyness_df_top_k = keyness_df_reduced[all_top_k_words]
+        #return book_name_word_keyness_mapping
+        keyness_df_top_k.columns = [f"keyness_{column}" for column in keyness_df_top_k.columns]
+        keyness_df_top_k = keyness_df_top_k.reset_index().rename(columns={'level_0':'book_name', 'index':'book_name'}) #automatically created column name can be 'index' or 'level_0'
+        return keyness_df_top_k
+
+    def get_all_features(self, k=50):
+        ''' Get corpus-based features
+
+        Args:
+            k (int): number of features to return
+
+        Returns: 
+            pd.DataFrame of corpus-based features
+        '''
         result = None
-        for feature_function in [self.get_50_most_common_word_unigram_counts_including_stopwords,
-                                 self.get_50_most_common_word_bigram_counts_including_stopwords,
-                                 self.get_50_most_common_word_trigram_counts_including_stopwords,
-                                 self.get_50_most_common_word_unigram_counts_excluding_stopwords,
-                                 self.get_50_most_common_word_bigram_counts_excluding_stopwords,
-                                 self.get_50_most_common_word_trigram_counts_excluding_stopwords,
-                                 self.get_overlap_score_doc2vec,
-                                 self.get_overlap_score_sbert,
-                                 self.get_outlier_score_doc2vec,
-                                 self.get_outlier_score_sbert,
-                                 self.get_lda_topic_distribution,
-                                 self.get_tfidf,
-                                 self.get_keyness]:
+        for feature_function in [self.get_k_most_common_word_unigram_counts_including_stopwords(k),
+                                self.get_k_most_common_word_bigram_counts_including_stopwords(k),
+                                self.get_k_most_common_word_trigram_counts_including_stopwords(k),
+                                self.get_overlap_score_doc2vec(),
+                                self.get_overlap_score_sbert(),
+                                self.get_outlier_score_doc2vec(),
+                                self.get_outlier_score_sbert(),
+                                #self.get_lda_topic_distribution,
+                                self.get_tfidf(k),
+                                self.get_keyness(k)]:
             if result is None:
-                result = feature_function()
+                result = feature_function
             else:
-                result = result.merge(feature_function(), on="book_name")
+                result = result.merge(feature_function, on="book_name")
         return result
