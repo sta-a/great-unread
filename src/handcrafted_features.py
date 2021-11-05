@@ -904,16 +904,16 @@ class CorpusBasedFeatureExtractor(object):
             pd.DataFrame of corpus-based features
         '''
         result = None
-        for feature_function in [self.get_k_most_common_word_unigram_counts_including_stopwords(k),
-                                self.get_k_most_common_word_bigram_counts_including_stopwords(k),
-                                self.get_k_most_common_word_trigram_counts_including_stopwords(k),
+        for feature_function in [self.get_k_most_common_word_unigram_counts_including_stopwords(k=100),
+                                self.get_k_most_common_word_bigram_counts_including_stopwords(k=100),
+                                self.get_k_most_common_word_trigram_counts_including_stopwords(k=100),
                                 self.get_overlap_score_doc2vec(),
                                 self.get_overlap_score_sbert(),
                                 self.get_outlier_score_doc2vec(),
                                 self.get_outlier_score_sbert(),
                                 #self.get_lda_topic_distribution,
-                                self.get_tfidf(k),
-                                self.get_keyness(k)]:
+                                self.get_tfidf(k=30)]:
+                                #self.get_keyness(k)]:
             if result is None:
                 result = feature_function
             else:
