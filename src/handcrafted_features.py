@@ -181,7 +181,7 @@ class DocBasedFeatureExtractor(object):
             self.model_name = 'de_core_news_sm'
         else:
             raise Exception(f"Not a valid language {self.lang}")
-        
+
         try:
             self.nlp = spacy.load(self.model_name)
         except OSError:
@@ -189,13 +189,13 @@ class DocBasedFeatureExtractor(object):
             os.system(f"python3 -m spacy download {self.model_name}")
             logging.info(f"Downloaded {self.model_name} for Spacy.")
             self.nlp = spacy.load(self.model_name)
-        
+
         self.stopwords = self.nlp.Defaults.stop_words
         new_stopwords = []
         for stopword in self.stopwords:
             new_stopwords.append(unidecode_custom(stopword))
         self.stopwords = set(new_stopwords)
-        
+
         ## load sentences
         sentences_path = doc_path.replace("/raw_docs", f"/processed_sentences")
         if os.path.exists(sentences_path):
@@ -204,7 +204,7 @@ class DocBasedFeatureExtractor(object):
             self.sentence_tokenizer = SentenceTokenizer(self.lang)
             self.sentences = self.sentence_tokenizer.tokenize(doc_path)
             save_list_of_lines(self.sentences, sentences_path, "str")
-        
+
         ## load sbert sentence embeddings
         sbert_sentence_embeddings_path = doc_path.replace("/raw_docs", f"/processed_sbert_sentence_embeddings") + ".npz"
         if os.path.exists(sbert_sentence_embeddings_path):
@@ -216,16 +216,16 @@ class DocBasedFeatureExtractor(object):
                 self.sentence_encoder = SentenceTransformer('paraphrase-xlm-r-multilingual-v1')
             self.sbert_sentence_embeddings = list(self.sentence_encoder.encode(self.sentences))
             save_list_of_lines(self.sbert_sentence_embeddings, sbert_sentence_embeddings_path, "np")
-        
+
         ## load doc2vec chunk embeddings
         doc2vec_chunk_embeddings_path = doc_path.replace("/raw_docs", f"/processed_doc2vec_chunk_embeddings_spc_{sentences_per_chunk}") + ".npz"
         if os.path.exists(doc2vec_chunk_embeddings_path):
             self.doc2vec_chunk_embeddings = load_list_of_lines(doc2vec_chunk_embeddings_path, "np")
         else:
             raise Exception(f"Could not find Doc2Vec chunk embeddings for chunk size {self.sentences_per_chunk}.")
-        
+
         self.chunks = self.__get_chunks()
-        
+
     def __get_chunks(self):
         if self.sentences_per_chunk is None:
             return [Chunk(self.sentences, self.sbert_sentence_embeddings, self.doc2vec_chunk_embeddings)]
@@ -235,31 +235,10 @@ class DocBasedFeatureExtractor(object):
             current_sentences = self.sentences[i:i+self.sentences_per_chunk]
             current_sentence_embeddings = self.sbert_sentence_embeddings[i:i+self.sentences_per_chunk]
             if (len(current_sentences) == self.sentences_per_chunk) or (i == 0):
-                # print("i", i)
-                # print("len(current_sentences)", len(current_sentences))
-                # print("len(self.doc2vec_chunk_embeddings)", len(self.doc2vec_chunk_embeddings))
-                # print("chunk_id_counter", chunk_id_counter)
-                # print("len(self.sentences)", len(self.sentences))
-                # print("self.sentences_per_chunk", self.sentences_per_chunk)
                 chunks.append(Chunk(current_sentences, current_sentence_embeddings, self.doc2vec_chunk_embeddings[chunk_id_counter]))
                 chunk_id_counter += 1
         return chunks
-    
-    # def get_statistics_of_list_features(self, list_of_features, feature_name):
-    #     statistics = {
-    #         "max": np.max,
-    #         "min": np.min,
-    #         "mean": np.mean,
-    #         "std": np.std,
-    #         "entropy": entropy,
-    #         "kurtosis": kurtosis,
-    #         "skewness": skew
-    #     }
-    #     sorted_list_of_features = sorted(list_of_features)
-    #     features = {}
-    #     for statistic_name, statistic_function in statistics.items():
-    #         features[f"{feature_name}_{statistic_name}"] = statistic_function(sorted_list_of_features)
-    #     return features
+
     
     def get_all_features(self):
         chunk_based_feature_mapping = {
@@ -283,7 +262,6 @@ class DocBasedFeatureExtractor(object):
             "type_token_ratio": self.get_type_token_ratio,
 
             ## Features in the list
-            
             "flesch_reading_ease_score": self.get_flesch_reading_ease_score, # readability
             "unigram_entropy": self.get_word_unigram_entropy, # second order redundancy
             "average_paragraph_length": self.get_average_paragraph_length, # structural features
@@ -361,11 +339,11 @@ class DocBasedFeatureExtractor(object):
                 if char.isupper():
                     num_upper += 1
         return num_upper / num_alpha
-    
+
     def get_average_paragraph_length(self, chunk):
         splitted_lengths = [len(splitted) for splitted in chunk.raw_text.split("\n")]
         return np.mean(splitted_lengths)
-    
+
     def get_average_sbert_sentence_embedding(self, chunk):
         average_sentence_embedding = np.array(chunk.sbert_sentence_embeddings).mean(axis=0)
         average_sentence_embedding_features = dict((f"average_sentence_embedding_{index+1}", embedding_part) for index, embedding_part in enumerate(average_sentence_embedding))
@@ -499,7 +477,7 @@ class DocBasedFeatureExtractor(object):
     
     def get_sbert_stepwise_distance(self, chunks):
         return self.__get_stepwise_distance(chunks, "sbert")
-  
+
 
 class CorpusBasedFeatureExtractor(object):
     def __init__(self, lang, doc_paths, all_average_sbert_sentence_embeddings, all_doc2vec_chunk_embeddings):
@@ -572,6 +550,79 @@ class CorpusBasedFeatureExtractor(object):
             text = " ".join(text)
             return text
         return [__preprocess_sentences_helper(sentence) for sentence in sentences]
+
+
+    def __tag_books(self, doc_paths, tag_type, gram_type, k):
+        def __tag_sentence(doc, tag_type, gram_type):
+            if tag_type == "pos":
+                tokens_unigram = [token.pos_ for token in doc]
+            elif tag_type == "tag":
+                tokens_unigram = [token.tag_ for token in doc]
+            elif tag_type == "dep":
+                tokens_unigram = [token.dep_ for token in doc]
+            else:
+                raise Exception("Not a valid tag_type")
+
+            if gram_type == "unigram":
+                return tokens_unigram
+            elif gram_type == "bigram":
+                tokens_bigram_temp = ["BOS"] + tokens_unigram + ["EOS"]
+                tokens_bigram = ["_".join([tokens_bigram_temp[i], tokens_bigram_temp[i+1]]) for i in range(len(tokens_bigram_temp)-1)]
+                return tokens_bigram
+            elif gram_type == "trigram":
+                tokens_trigram_temp = ["BOS", "BOS"] + tokens_unigram + ["EOS", "EOS"]
+                tokens_trigram = ["_".join([tokens_trigram_temp[i], tokens_trigram_temp[i+1], tokens_trigram_temp[i+2]]) for i in range(len(tokens_trigram_temp)-2)]
+                return tokens_trigram
+            else:
+                raise Exception("Not a valid gram_type")
+        
+        def __tag_book(book, tag_type, gram_type):
+            book_tag_counter = Counter()
+            for sentence in book:
+                doc = self.nlp(sentence)
+                sentence_tags = __tag_sentence(doc, tag_type, gram_type)
+                book_tag_counter.update(sentence_tags)
+            return book_tag_counter
+
+        tagged_books = {}
+        corpus_tag_counter = Counter()
+        for doc_path in doc_paths:
+            book_name = doc_path.split("/")[-1][:-4]
+            sentences_path = doc_path.replace("/raw_docs", "/processed_sentences")
+            sentences = load_list_of_lines(sentences_path, "str")
+            book_tag_counter = __tag_book(sentences, tag_type, gram_type)
+            tagged_books[book_name] = book_tag_counter
+            corpus_tag_counter.update(book_tag_counter)
+        
+        # get first k tags of corpus_tag_counter
+        corpus_tag_counter = sorted([(tag, count) for tag, count in corpus_tag_counter.items()], key=lambda x: -x[1])[:k]
+        corpus_tag_counter = list(corpus_tag_counter.keys())
+        
+        data = []
+        
+        # get first k tags of each book_tag_counter
+        for book_name, tagged_book in tagged_books.items():
+            current_books_chosen_tag_counts = dict([(tag_type + "_" + gram_type + "_" + tag_name, tagged_book[tag_name]) for tag_name in corpus_tag_counter])
+            current_books_chosen_tag_counts_sum = sum([count for tag, count in current_books_chosen_tag_counts.items()])
+            current_books_chosen_tag_counts = dict([(tag, count/current_books_chosen_tag_counts_sum) for tag, count in current_books_chosen_tag_counts.items()])
+            current_books_chosen_tag_counts["book_name"] = book_name
+            data.append(current_books_chosen_tag_counts)
+        
+        df = pd.DataFrame(data)
+        return df
+
+
+    def get_tag_distribution(self, k):
+        result_df = None
+        for tag_type in ['pos', 'tag', 'dep']:
+            for gram_type in ['unigram', 'bigram', 'trigram']:
+                current_df = self.__tag_books(self.doc_paths, tag_type, gram_type, k)
+                if result_df is None:
+                    result_df = current_df
+                else:
+                    result_df = result_df.merge(current_df, on='book_name')
+        return result_df
+
     
     def __get_word_statistics(self):
         # get total counts over all documents
@@ -912,7 +963,8 @@ class CorpusBasedFeatureExtractor(object):
                                 self.get_outlier_score_doc2vec(),
                                 self.get_outlier_score_sbert(),
                                 #self.get_lda_topic_distribution,
-                                self.get_tfidf(k=30)]:
+                                self.get_tfidf(k=30),
+                                self.get_tag_distribution(k=30)]:
                                 #self.get_keyness(k)]:
             if result is None:
                 result = feature_function
