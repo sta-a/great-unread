@@ -18,7 +18,7 @@ class SentenceTokenizer(object):
             self.model_name = 'de_core_news_sm'
         else:
             raise Exception(f"Not a valid language {self.lang}")
-        
+
         try:
             self.nlp = spacy.load(self.model_name)
         except OSError:
@@ -26,7 +26,7 @@ class SentenceTokenizer(object):
             os.system(f"python3 -m spacy download {self.model_name}")
             logging.info(f"Downloaded {self.model_name} for Spacy.")
             self.nlp = spacy.load(self.model_name)
-        
+
     def tokenize(self, doc_path):
         with open(doc_path, "r") as reader:
             doc = reader.read().strip()
@@ -34,6 +34,10 @@ class SentenceTokenizer(object):
         all_sentences = []
         while True:
             current_doc = doc[i:i+500000]
+            current_doc = current_doc.replace("\r\n", " ")
+            current_doc = current_doc.replace("\n", " ")
+            current_doc = current_doc.replace("   ", " ")
+            current_doc = current_doc.replace("  ", " ")
             current_sentences = [(sent.text, sent.text_with_ws) for sent in self.nlp(current_doc).sents]
             if len(current_sentences) == 1:
                 all_sentences.extend([sents[0].strip() for sents in current_sentences])
@@ -51,7 +55,7 @@ class Doc2VecProcessor(object):
         self.sentence_tokenizer = SentenceTokenizer(self.lang)
         self.processed_chunk_sentence_count = processed_chunk_sentence_count
         self.stride = stride
-    
+
     def process(self, doc_paths):
         logging.info("Processing texts...")
         if self.processed_chunk_sentence_count is not None:
@@ -62,7 +66,7 @@ class Doc2VecProcessor(object):
         for doc_path in tqdm(doc_paths):
             with open(doc_path, "r") as doc_reader:
                 doc = doc_reader.read()
-            
+
             def _process_text(text):
                 text = text.lower()
                 text = unidecode(text)
@@ -77,7 +81,7 @@ class Doc2VecProcessor(object):
                     sentences = self.sentence_tokenizer.tokenize(doc)
                     pickle.dump(sentences, open(doc_path[:-4].replace("/raw_docs", f"/processed_sentences") + ".pickle", "wb"))
                 sentences = [_process_text(sentence) for sentence in sentences]
-                
+
                 for i in range(0, len(doc), self.stride):
                     current_chunk = sentences[i:i+self.processed_chunk_sentence_count]
                     if (len(current_chunk) < self.processed_chunk_sentence_count) and i != 0:
@@ -104,7 +108,7 @@ class BertProcessor(object):
         else:
             raise Exception(f"Not a valid language {self.lang}")
         self.sentence_tokenizer = SentenceTokenizer(self.lang)
-    
+
     def process(self, doc_paths):
         logging.info("Processing texts...")
         os.makedirs("/".join(doc_paths[0].split("/")[:-1]).replace("/raw_docs", f"/processed_bert_512_tokens"), exist_ok=True)
@@ -119,7 +123,7 @@ class BertProcessor(object):
             else:
                 sentences = self.sentence_tokenizer.tokenize(doc)
                 pickle.dump(sentences, open(doc_path[:-4].replace("/raw_docs", f"/processed_sentences") + ".pickle", "wb"))
-            
+
             current_paragraph = ""
             current_token_count = 0
             tokenized_paragraphs = []
