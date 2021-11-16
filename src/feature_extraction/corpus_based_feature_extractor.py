@@ -1,5 +1,6 @@
 import os
 import spacy
+import re
 from spellchecker import SpellChecker
 from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 from gensim.models import LdaMulticore
@@ -11,6 +12,7 @@ import logging
 import pickle
 from collections import Counter
 from utils import load_list_of_lines, unidecode_custom
+from feature_extraction.production_rule_extractor import ProductionRuleExtractor
 from corpus_toolkit import corpus_tools as ct
 logging.basicConfig(level=logging.DEBUG)
 
@@ -22,7 +24,7 @@ class CorpusBasedFeatureExtractor(object):
         self.word_statistics = self.__get_word_statistics()
         self.all_average_sbert_sentence_embeddings = all_average_sbert_sentence_embeddings
         self.all_doc2vec_chunk_embeddings = all_doc2vec_chunk_embeddings
-        self.book_name_processed_sentences_mapping = None
+        self.book_name_spacy_processed_sentences_mapping = {}
 
         if self.lang == "eng":
             self.model_name = 'en_core_web_sm'
@@ -104,8 +106,8 @@ class CorpusBasedFeatureExtractor(object):
             book_name = doc_path.split("/")[-1][:-4]
             sentences_path = doc_path.replace("/raw_docs", "/processed_sentences")
             sentences = load_list_of_lines(sentences_path, "str")
-            processed_sentences = self.__apply_spacy_nlp_to_sentences(sentences, "str")
-            self.book_name_processed_sentences_mapping[book_name] = processed_sentences
+            spacy_processed_sentences = self.__apply_spacy_nlp_to_sentences(sentences)
+            self.book_name_spacy_processed_sentences_mapping[book_name] = spacy_processed_sentences
 
     def __tag_books(self, tag_type, gram_type, k):
         def __tag_sentence(doc, tag_type, gram_type):
@@ -139,22 +141,22 @@ class CorpusBasedFeatureExtractor(object):
             return book_tag_counter
 
         # to process sentences for only one time
-        if self.book_name_processed_sentences_mapping is None:
+        if len(self.book_name_spacy_processed_sentences_mapping) == 0:
             self.__apply_spacy_nlp_to_docs()
 
         tagged_books = {}
         corpus_tag_counter = Counter()
-        for book_name, processed_sentences in self.book_name_processed_sentences_mapping.items():
+        for book_name, processed_sentences in self.book_name_spacy_processed_sentences_mapping.items():
             book_tag_counter = __tag_book(processed_sentences, tag_type, gram_type)
             tagged_books[book_name] = book_tag_counter
             corpus_tag_counter.update(book_tag_counter)
-        
+
         # get first k tags of corpus_tag_counter
         corpus_tag_counter = sorted([(tag, count) for tag, count in corpus_tag_counter.items()], key=lambda x: -x[1])[:k]
-        corpus_tag_counter = list(corpus_tag_counter.keys())
-        
+        corpus_tag_counter = [tag for tag, count in corpus_tag_counter]
+
         data = []
-        
+
         # get first k tags of each book_tag_counter
         for book_name, tagged_book in tagged_books.items():
             current_books_chosen_tag_counts = dict([(tag_type + "_" + gram_type + "_" + tag_name, tagged_book[tag_name]) for tag_name in corpus_tag_counter])
@@ -162,31 +164,31 @@ class CorpusBasedFeatureExtractor(object):
             current_books_chosen_tag_counts = dict([(tag, count/current_books_chosen_tag_counts_sum) for tag, count in current_books_chosen_tag_counts.items()])
             current_books_chosen_tag_counts["book_name"] = book_name
             data.append(current_books_chosen_tag_counts)
-        
+
         df = pd.DataFrame(data)
         return df
 
     def get_tag_distribution(self, k):
         result_df = None
-        for tag_type in ['pos']: # ['pos', 'tag', 'dep']:
+        for tag_type in ['pos']:  # ['pos', 'tag', 'dep']:
             for gram_type in ['unigram', 'bigram', 'trigram']:
-                current_df = self.__tag_books(self.doc_paths, tag_type, gram_type, k)
+                current_df = self.__tag_books(tag_type, gram_type, k)
                 if result_df is None:
                     result_df = current_df
                 else:
                     result_df = result_df.merge(current_df, on='book_name')
         return result_df
-    
+
     def get_spelling_error_distribution(self):
         def __get_spelling_error_count_in_sentence(self, sentence):
             misspelled = self.spell_checker.unknown(sentence.split())
             return len(misspelled)
-        
+
         def __get_spelling_error_rate_in_book(book):
             error_counter = sum([__get_spelling_error_count_in_sentence(sentence) for sentence in book])
             error_rate = error_counter / len(book)
             return error_rate
-        
+
         data = []
         for doc_path in self.doc_paths:
             book_name = doc_path.split("/")[-1][:-4]
@@ -263,6 +265,7 @@ class CorpusBasedFeatureExtractor(object):
                     unigram_counts = pickle.load(f)
             else:
                 unigram_counts = self.__find_word_unigram_counts(processed_sentences)
+                os.makedirs("/".join(unigram_path.split("/")[:-1]), exist_ok=True)
                 with open(unigram_path, 'wb') as f:
                     pickle.dump(unigram_counts, f)
             all_word_unigram_counts.update(unigram_counts)
@@ -582,13 +585,12 @@ class CorpusBasedFeatureExtractor(object):
                                  self.get_overlap_score_sbert(),
                                  self.get_outlier_score_doc2vec(),
                                  self.get_outlier_score_sbert(),
-                                 #self.get_lda_topic_distribution,
+                                 # self.get_lda_topic_distribution,
                                  self.get_tfidf(k=30),
                                  self.get_tag_distribution(k=30),
                                  self.get_spelling_error_distribution(),
                                  self.get_production_distribution(k=30), # this returns an empty dataframe if language is German
                                 ]:
-                                #self.get_keyness(k)]:
             if result is None:
                 result = feature_function
             else:
