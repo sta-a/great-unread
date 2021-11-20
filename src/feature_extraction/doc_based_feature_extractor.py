@@ -1,8 +1,10 @@
 import os
 import numpy as np
 import spacy
+import string
 import logging
 import textstat
+from scipy.stats import entropy
 from process import SentenceTokenizer
 from feature_extraction.chunk import Chunk
 from sentence_transformers import SentenceTransformer
@@ -75,9 +77,6 @@ class DocBasedFeatureExtractor(object):
             current_sentences = self.sentences[i:i+self.sentences_per_chunk]
             current_sentence_embeddings = self.sbert_sentence_embeddings[i:i+self.sentences_per_chunk]
             if (len(current_sentences) == self.sentences_per_chunk) or (i == 0):
-                print(self.doc_path)
-                print("len(self.doc2vec_chunk_embeddings):", len(self.doc2vec_chunk_embeddings))
-                print("chunk_id_counter:", chunk_id_counter)
                 chunks.append(Chunk(current_sentences, current_sentence_embeddings, self.doc2vec_chunk_embeddings[chunk_id_counter]))
                 chunk_id_counter += 1
         return chunks
