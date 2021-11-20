@@ -538,35 +538,19 @@ class CorpusBasedFeatureExtractor(object):
 
         return X
         '''
-
-    def get_keyness(self, k):
-        # evaluate keyness in current book compared to whole corpus
-        # "%diff" is best keyness metric (according to Gabrielatos & Marchi, 2011)
-        book_name_word_keyness_mapping = {}
-        corpus_unigram_counts = self.word_statistics["all_word_unigram_counts"]
-        for book_name, book_unigram_counts in self.word_statistics["book_name_abs_word_unigram_mapping"].items(): 
-            #reference corpus is the word frequencies in all documents except the current one
-            reference_corpus = {key: corpus_unigram_counts[key] - book_unigram_counts.get(key, 0) for key in corpus_unigram_counts.keys()}
-            book_keyness = ct.keyness(book_unigram_counts, reference_corpus, effect='%diff')
-            book_name_word_keyness_mapping[book_name] = book_keyness
-        keyness_df = pd.DataFrame(book_name_word_keyness_mapping).T
-
-        #Keep only those words that are in at least 10% of documents and which are in the top k for at least one book
-        document_frequency = keyness_df.astype(bool).sum(axis=0)
-        min_nr_documents = round(0.1 * keyness_df.shape[0])
-        reduced_columns = [keyness_df.columns[x] for x in range(0,len(keyness_df.columns)) if document_frequency[x] > min_nr_documents]
-        keyness_df_reduced = keyness_df[reduced_columns]
-        # From remaining words, keep only those that are in the top k for at least one book
-        all_top_k_words = []
-        for index, row in keyness_df_reduced.iterrows():
-            top_k_words = row.nlargest(n=k, keep='all')
-            all_top_k_words.extend(top_k_words.index.to_list())
-        all_top_k_words = list(set(all_top_k_words))
-        keyness_df_top_k = keyness_df_reduced[all_top_k_words]
-        #return book_name_word_keyness_mapping
-        keyness_df_top_k.columns = [f"keyness_{column}" for column in keyness_df_top_k.columns]
-        keyness_df_top_k = keyness_df_top_k.reset_index().rename(columns={'level_0':'book_name', 'index':'book_name'}) #automatically created column name can be 'index' or 'level_0'
-        return keyness_df_top_k
+        
+    def get_wordfreq_distance(self):
+        # Filter with tf-idf? 
+        distances = []
+        document_term_matrix_relative = pd.DataFrame.from_dict(self.word_statistics['book_name_rel_word_unigram_mapping']).fillna(0).T 
+        for index, document in tqdm(document_term_matrix_relative.iterrows()):
+            dtmr_reduced = document_term_matrix_relative.drop(labels=document.name, axis=0, inplace=False)
+            mean_rel_frequencies = dtmr_reduced.mean(axis=0)
+            cosine_distance = distance.cosine(document, mean_rel_frequencies)
+            distances.append(cosine_distance)
+        distances = pd.DataFrame(distances, columns=['wordfreq_distance'])
+        distances['book_name'] = document_term_matrix_relative.index
+        return distances
 
     def get_all_features(self, k=100):
         ''' Get corpus-based features
@@ -586,7 +570,7 @@ class CorpusBasedFeatureExtractor(object):
                                  self.get_outlier_score_doc2vec(),
                                  self.get_outlier_score_sbert(),
                                  # self.get_lda_topic_distribution,
-                                 self.get_tfidf(k=30),
+                                 self.get_wordfreq_distance(),
                                  self.get_tag_distribution(k=30),
                                  self.get_spelling_error_distribution(),
                                  self.get_production_distribution(k=30), # this returns an empty dataframe if language is German
