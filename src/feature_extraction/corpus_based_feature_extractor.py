@@ -24,7 +24,6 @@ class CorpusBasedFeatureExtractor(object):
         self.word_statistics = self.__get_word_statistics()
         self.all_average_sbert_sentence_embeddings = all_average_sbert_sentence_embeddings
         self.all_doc2vec_chunk_embeddings = all_doc2vec_chunk_embeddings
-        self.book_name_spacy_processed_sentences_mapping = {}
 
         if self.lang == "eng":
             self.model_name = 'en_core_web_sm'
@@ -98,17 +97,6 @@ class CorpusBasedFeatureExtractor(object):
             return text
         return [__preprocess_sentences_helper(sentence) for sentence in sentences]
 
-    def __apply_spacy_nlp_to_sentences(self, sentences):
-        return [self.nlp(sentence) for sentence in sentences]
-
-    def __apply_spacy_nlp_to_docs(self):
-        for doc_path in self.doc_paths:
-            book_name = doc_path.split("/")[-1][:-4]
-            sentences_path = doc_path.replace("/raw_docs", "/processed_sentences")
-            sentences = load_list_of_lines(sentences_path, "str")
-            spacy_processed_sentences = self.__apply_spacy_nlp_to_sentences(sentences)
-            self.book_name_spacy_processed_sentences_mapping[book_name] = spacy_processed_sentences
-
     def __tag_books(self, tag_type, gram_type, k):
         def __tag_sentence(doc, tag_type, gram_type):
             if tag_type == "pos":
@@ -133,21 +121,21 @@ class CorpusBasedFeatureExtractor(object):
             else:
                 raise Exception("Not a valid gram_type")
 
-        def __tag_book(processed_sentences, tag_type, gram_type):
+        def __tag_book(sentences, tag_type, gram_type):
             book_tag_counter = Counter()
-            for processed_sentence in processed_sentences:
+            for sentence in sentences:
+                processed_sentence = self.nlp(sentence)
                 sentence_tags = __tag_sentence(processed_sentence, tag_type, gram_type)
                 book_tag_counter.update(sentence_tags)
             return book_tag_counter
 
-        # to process sentences for only one time
-        if len(self.book_name_spacy_processed_sentences_mapping) == 0:
-            self.__apply_spacy_nlp_to_docs()
-
         tagged_books = {}
         corpus_tag_counter = Counter()
-        for book_name, processed_sentences in self.book_name_spacy_processed_sentences_mapping.items():
-            book_tag_counter = __tag_book(processed_sentences, tag_type, gram_type)
+        for doc_path in self.doc_paths:
+            book_name = doc_path.split("/")[-1][:-4]
+            sentences_path = doc_path.replace("/raw_docs", "/processed_sentences")
+            sentences = load_list_of_lines(sentences_path, "str")
+            book_tag_counter = __tag_book(sentences, tag_type, gram_type)
             tagged_books[book_name] = book_tag_counter
             corpus_tag_counter.update(book_tag_counter)
 
@@ -180,7 +168,7 @@ class CorpusBasedFeatureExtractor(object):
         return result_df
 
     def get_spelling_error_distribution(self):
-        def __get_spelling_error_count_in_sentence(self, sentence):
+        def __get_spelling_error_count_in_sentence(sentence):
             misspelled = self.spell_checker.unknown(sentence.split())
             return len(misspelled)
 
@@ -233,10 +221,10 @@ class CorpusBasedFeatureExtractor(object):
         
         # get first k tags of corpus_tag_counter
         corpus_production_counter = sorted([(tag, count) for tag, count in corpus_production_counter.items()], key=lambda x: -x[1])[:k]
-        corpus_production_counter = list(corpus_production_counter.keys())
-        
+        corpus_production_counter = [tag for tag, count in corpus_production_counter]
+
         data = []
-        
+
         # get first k tags of each book_tag_counter
         for book_name, book_prodution_counter in book_production_counters.items():
             current_books_chosen_production_counts = dict([(production_type, book_prodution_counter[production_type]) for production_type in corpus_production_counter])
@@ -244,10 +232,10 @@ class CorpusBasedFeatureExtractor(object):
             current_books_chosen_production_counts = dict([(tag, count/current_books_chosen_production_counts_sum) for tag, count in current_books_chosen_production_counts.items()])
             current_books_chosen_production_counts["book_name"] = book_name
             data.append(current_books_chosen_production_counts)
-        
+
         df = pd.DataFrame(data)
         return df
-    
+
     def __get_word_statistics(self):
         # get total counts over all documents
         all_word_unigram_counts = Counter()
@@ -275,7 +263,7 @@ class CorpusBasedFeatureExtractor(object):
             book_name_abs_word_unigram_mapping[book_name] = unigram_counts
             #relative frequencies
             book_name_rel_word_unigram_mapping[book_name] = dict((unigram, count / total_unigram_count) for unigram, count in unigram_counts.items()) #all words
-        
+
         all_word_unigram_counts = dict(sorted(list(all_word_unigram_counts.items()), key=lambda x: -x[1])) #all words
         word_statistics = {
             "all_word_unigram_counts": all_word_unigram_counts,
@@ -288,7 +276,7 @@ class CorpusBasedFeatureExtractor(object):
         # get total counts over all documents
         all_word_bigram_counts = Counter()
         all_word_trigram_counts = Counter()
-        
+
         for doc_path in tqdm(self.doc_paths):
             book_name = doc_path.split("/")[-1][:-4]
             sentences_path = doc_path.replace("/raw_docs", f"/processed_sentences")
@@ -298,10 +286,10 @@ class CorpusBasedFeatureExtractor(object):
             trigram_counts = self.__find_word_trigram_counts(processed_sentences)
             all_word_bigram_counts.update(bigram_counts)
             all_word_trigram_counts.update(trigram_counts)
-        
+
         all_word_bigram_counts = dict(sorted(list(all_word_bigram_counts.items()), key=lambda x: -x[1])[:2000])
         all_word_trigram_counts = dict(sorted(list(all_word_trigram_counts.items()), key=lambda x: -x[1])[:2000])
-        
+
         # get (relative) counts per document
         book_name_word_bigram_mapping = {}
         book_name_word_trigram_mapping = {}
@@ -317,7 +305,7 @@ class CorpusBasedFeatureExtractor(object):
             #relative frequencies
             book_name_word_bigram_mapping[book_name] = dict((bigram, count / total_bigram_count) for bigram, count in bigram_counts.items() if bigram in all_word_bigram_counts.keys())
             book_name_word_trigram_mapping[book_name] = dict((trigram, count / total_trigram_count) for trigram, count in trigram_counts.items() if trigram in all_word_trigram_counts.keys())
-        
+
         word_stat_dir = self.word_statistics
         word_stat_dir["all_word_bigram_counts"] = all_word_bigram_counts
         word_stat_dir["all_word_trigram_counts"] = all_word_trigram_counts
@@ -363,25 +351,25 @@ class CorpusBasedFeatureExtractor(object):
             result.append(dct)
         result = pd.DataFrame(result)
         return result
-    
+
     def get_k_most_common_word_unigram_counts_including_stopwords(self, k):
         return self.get_k_most_common_word_ngram_counts(k, 1, True)
-        
+
     def get_k_most_common_word_bigram_counts_including_stopwords(self, k):
         return self.get_k_most_common_word_ngram_counts(k, 2, True)
-        
+
     def get_k_most_common_word_trigram_counts_including_stopwords(self, k):
         return self.get_k_most_common_word_ngram_counts(k, 3, True)
-    
+
     def get_k_most_common_word_unigram_counts_excluding_stopwords(self, k):
         return self.get_k_most_common_word_ngram_counts(k, 1, False)
-        
+
     def get_k_most_common_word_bigram_counts_excluding_stopwords(self, k):
         return self.get_k_most_common_word_ngram_counts(k, 2, False)
-        
+
     def get_k_most_common_word_trigram_counts_excluding_stopwords(self, k):
         return self.get_k_most_common_word_ngram_counts(k, 3, False)
-    
+
     def get_overlap_score(self, embedding_type):
         if embedding_type == "doc2vec":
             all_embeddings = self.all_doc2vec_chunk_embeddings
@@ -389,7 +377,7 @@ class CorpusBasedFeatureExtractor(object):
             all_embeddings = self.all_average_sbert_sentence_embeddings
         else:
             raise Exception(f"Not a valid embedding_type {embedding_type}.")
-    
+
         cluster_means = []
         for index, current_list_of_embeddings in enumerate(all_embeddings):
             cluster_means.append(np.array(current_list_of_embeddings).mean(axis=0))
@@ -409,7 +397,7 @@ class CorpusBasedFeatureExtractor(object):
                 predictions.append(best_cluster)
         labels = np.array(labels)
         predictions = np.array(predictions)
-        
+
         book_names = []
         overlap_scores = []
         for label_index, doc_path in enumerate(self.doc_paths):
@@ -421,13 +409,13 @@ class CorpusBasedFeatureExtractor(object):
             book_names.append(book_name)
             overlap_scores.append(overlap_score)
         return pd.DataFrame.from_dict({"book_name": book_names, f"overlap_score_{embedding_type}": overlap_scores})
-    
+
     def get_overlap_score_doc2vec(self):
         return self.get_overlap_score("doc2vec")
-    
+
     def get_overlap_score_sbert(self):
         return self.get_overlap_score("sbert")
-    
+
     def get_outlier_score(self, embedding_type):
         if embedding_type == "doc2vec":
             all_embeddings = self.all_doc2vec_chunk_embeddings
@@ -435,11 +423,11 @@ class CorpusBasedFeatureExtractor(object):
             all_embeddings = self.all_average_sbert_sentence_embeddings
         else:
             raise Exception(f"Not a valid embedding_type {embedding_type}.")
-    
+
         cluster_means = []
         for index, current_list_of_embeddings in enumerate(all_embeddings):
             cluster_means.append(np.array(current_list_of_embeddings).mean(axis=0))
-        
+
         outlier_scores = []
         book_names = []
         for current_index, current_cluster_mean in enumerate(cluster_means):
@@ -455,13 +443,13 @@ class CorpusBasedFeatureExtractor(object):
             outlier_scores.append(nearest_distance)
             book_names.append(book_name)
         return pd.DataFrame.from_dict({"book_name": book_names, f"outlier_score_{embedding_type}": outlier_scores})
-    
+
     def get_outlier_score_doc2vec(self):
         return self.get_outlier_score("doc2vec")
-    
+
     def get_outlier_score_sbert(self):
         return self.get_outlier_score("sbert")
-    
+
     def get_lda_topic_distribution(self):
         num_topics = 10
 
