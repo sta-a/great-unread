@@ -2,7 +2,6 @@ import os
 from ast import literal_eval
 from pathlib import Path
 import numpy as np
-import pickle
 import pandas as pd
 from unidecode import unidecode
 
@@ -63,15 +62,3 @@ def unidecode_custom(text):
         text = text.replace(char, replacement)
     text = unidecode(text)
     return text
-
-
-def read_pickle(path):
-    with open(path, "rb") as reader:
-        content = pickle.load(reader)
-    return content
-
-
-def write_pickle(content, path):
-    os.makedirs(str(Path(path).parent), exist_ok=True)
-    with open(path, "wb") as writer:
-        pickle.dump(content, writer)

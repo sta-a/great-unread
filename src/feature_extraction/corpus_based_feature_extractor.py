@@ -12,7 +12,7 @@ import pandas as pd
 import logging
 import pickle
 from collections import Counter
-from utils import load_list_of_lines, save_list_of_lines, unidecode_custom, read_pickle, write_pickle
+from utils import load_list_of_lines, save_list_of_lines, unidecode_custom
 from feature_extraction.production_rule_extractor import ProductionRuleExtractor
 from corpus_toolkit import corpus_tools as ct
 logging.basicConfig(level=logging.DEBUG)
