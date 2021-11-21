@@ -3,7 +3,7 @@ import spacy
 import re
 from spellchecker import SpellChecker
 from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
-from scipy.special import distance
+import scipy
 from gensim.models import LdaMulticore
 from gensim.matutils import Sparse2Corpus
 from tqdm import tqdm
@@ -12,7 +12,7 @@ import pandas as pd
 import logging
 import pickle
 from collections import Counter
-from utils import load_list_of_lines, unidecode_custom
+from utils import load_list_of_lines, unidecode_custom, read_pickle, write_pickle
 from feature_extraction.production_rule_extractor import ProductionRuleExtractor
 from corpus_toolkit import corpus_tools as ct
 logging.basicConfig(level=logging.DEBUG)
@@ -134,9 +134,14 @@ class CorpusBasedFeatureExtractor(object):
         corpus_tag_counter = Counter()
         for doc_path in self.doc_paths:
             book_name = doc_path.split("/")[-1][:-4]
-            sentences_path = doc_path.replace("/raw_docs", "/processed_sentences")
-            sentences = load_list_of_lines(sentences_path, "str")
-            book_tag_counter = __tag_book(sentences, tag_type, gram_type)
+            tag_counts_path = doc_path.replace("/raw_docs", f"/{gram_type}_{tag_type}_counts").replace(".txt", ".pickle")
+            if os.path.exists(tag_counts_path):
+                book_tag_counter = read_pickle(tag_counts_path)
+            else:
+                sentences_path = doc_path.replace("/raw_docs", "/processed_sentences")
+                sentences = load_list_of_lines(sentences_path, "str")
+                book_tag_counter = __tag_book(sentences, tag_type, gram_type)
+                write_pickle(book_tag_counter, tag_counts_path)
             tagged_books[book_name] = book_tag_counter
             corpus_tag_counter.update(book_tag_counter)
 
@@ -219,7 +224,7 @@ class CorpusBasedFeatureExtractor(object):
             book_production_counter = self.__get_book_production_counts(sentences, pre)
             book_production_counters[book_name] = book_production_counter
             corpus_production_counter.update(book_production_counter)
-        
+
         # get first k tags of corpus_tag_counter
         corpus_production_counter = sorted([(tag, count) for tag, count in corpus_production_counter.items()], key=lambda x: -x[1])[:k]
         corpus_production_counter = [tag for tag, count in corpus_production_counter]
@@ -303,7 +308,7 @@ class CorpusBasedFeatureExtractor(object):
             trigram_counts = self.__find_word_trigram_counts(processed_sentences)
             total_bigram_count = sum(bigram_counts.values())
             total_trigram_count = sum(trigram_counts.values())
-            #relative frequencies
+            # relative frequencies
             book_name_word_bigram_mapping[book_name] = dict((bigram, count / total_bigram_count) for bigram, count in bigram_counts.items() if bigram in all_word_bigram_counts.keys())
             book_name_word_trigram_mapping[book_name] = dict((trigram, count / total_trigram_count) for trigram, count in trigram_counts.items() if trigram in all_word_trigram_counts.keys())
 
@@ -466,7 +471,7 @@ class CorpusBasedFeatureExtractor(object):
         else:
             raise Exception(f"Not a valid language {self.lang}")
 
-        vect = CountVectorizer(min_df=20, max_df=0.2, stop_words=stop_words, 
+        vect = CountVectorizer(min_df=20, max_df=0.2, stop_words=stop_words,
                                token_pattern='(?u)\\b\\w\\w\\w+\\b')
         X = vect.fit_transform(documents)
         corpus = Sparse2Corpus(X, documents_columns=False)
@@ -527,15 +532,15 @@ class CorpusBasedFeatureExtractor(object):
 
         return X
         '''
-        
+
     def get_wordfreq_distance(self):
-        # Filter with tf-idf? 
+        # Filter with tf-idf?
         distances = []
         document_term_matrix_relative = pd.DataFrame.from_dict(self.word_statistics['book_name_rel_word_unigram_mapping']).fillna(0).T 
         for index, document in tqdm(document_term_matrix_relative.iterrows()):
             dtmr_reduced = document_term_matrix_relative.drop(labels=document.name, axis=0, inplace=False)
             mean_rel_frequencies = dtmr_reduced.mean(axis=0)
-            cosine_distance = distance.cosine(document, mean_rel_frequencies)
+            cosine_distance = scipy.spatial.distance.cosine(document, mean_rel_frequencies)
             distances.append(cosine_distance)
         distances = pd.DataFrame(distances, columns=['wordfreq_distance'])
         distances['book_name'] = document_term_matrix_relative.index
@@ -547,7 +552,7 @@ class CorpusBasedFeatureExtractor(object):
         Args:
             k (int): number of features to return
 
-        Returns: 
+        Returns:
             pd.DataFrame of corpus-based features
         '''
         result = None
@@ -562,7 +567,7 @@ class CorpusBasedFeatureExtractor(object):
                                  self.get_wordfreq_distance(),
                                  self.get_tag_distribution(k=30),
                                  self.get_spelling_error_distribution(),
-                                 self.get_production_distribution(k=30), # this returns an empty dataframe if language is German
+                                 self.get_production_distribution(k=30),  # this returns an empty dataframe if language is German
                                 ]:
             if result is None:
                 result = feature_function

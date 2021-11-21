@@ -2,6 +2,7 @@ import os
 from ast import literal_eval
 from pathlib import Path
 import numpy as np
+import pickle
 import pandas as pd
 from unidecode import unidecode
 
@@ -46,12 +47,13 @@ def read_labels(labels_dir):
     labels = dict(labels_df.values)
     return labels
 
+
 def read_extreme_cases(labels_dir):
     extreme_cases_df = pd.read_csv(os.path.join(labels_dir, "210907_classified_data_02_m3_step3_FINAL.csv"), sep=";")[["file_name"]]
 
     # for key, value in file_name_mapper.items():
     #     extreme_cases_df.loc[extreme_cases_df["file_name"] == key, "file_name"] = value
-        
+
     # extreme_cases_df = extreme_cases_df[~extreme_cases_df["file_name"].isin(extra_file_names)]
     return extreme_cases_df
 
@@ -61,3 +63,15 @@ def unidecode_custom(text):
         text = text.replace(char, replacement)
     text = unidecode(text)
     return text
+
+
+def read_pickle(path):
+    with open(path, "rb") as reader:
+        content = pickle.load(reader)
+    return content
+
+
+def write_pickle(content, path):
+    os.makedirs(str(Path(path).parent), exist_ok=True)
+    with open(path, "wb") as writer:
+        pickle.dump(content, writer)
