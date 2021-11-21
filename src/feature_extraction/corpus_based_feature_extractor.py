@@ -3,6 +3,7 @@ import spacy
 import re
 from spellchecker import SpellChecker
 from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
+from scipy.special import distance
 from gensim.models import LdaMulticore
 from gensim.matutils import Sparse2Corpus
 from tqdm import tqdm
