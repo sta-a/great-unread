@@ -12,7 +12,7 @@ import pandas as pd
 import logging
 import pickle
 from collections import Counter
-from utils import load_list_of_lines, unidecode_custom, read_pickle, write_pickle
+from utils import load_list_of_lines, save_list_of_lines, unidecode_custom, read_pickle, write_pickle
 from feature_extraction.production_rule_extractor import ProductionRuleExtractor
 from corpus_toolkit import corpus_tools as ct
 logging.basicConfig(level=logging.DEBUG)
@@ -99,16 +99,7 @@ class CorpusBasedFeatureExtractor(object):
         return [__preprocess_sentences_helper(sentence) for sentence in sentences]
 
     def __tag_books(self, tag_type, gram_type, k):
-        def __tag_sentence(doc, tag_type, gram_type):
-            if tag_type == "pos":
-                tokens_unigram = [token.pos_ for token in doc]
-            elif tag_type == "tag":
-                tokens_unigram = [token.tag_ for token in doc]
-            elif tag_type == "dep":
-                tokens_unigram = [token.dep_ for token in doc]
-            else:
-                raise Exception("Not a valid tag_type")
-
+        def __tag_sentence(tokens_unigram, gram_type):
             if gram_type == "unigram":
                 return tokens_unigram
             elif gram_type == "bigram":
@@ -122,11 +113,30 @@ class CorpusBasedFeatureExtractor(object):
             else:
                 raise Exception("Not a valid gram_type")
 
-        def __tag_book(sentences, tag_type, gram_type):
+        def __tag_book(doc_path, tag_type, gram_type):
+            tags_path = doc_path.replace("/raw_docs", f"/{tag_type}_tags")
+            if os.path.exists(tags_path):
+                all_tokens_unigram = [line for line in load_list_of_lines(tags_path, "str")]
+            else:
+                sentences_path = doc_path.replace("/raw_docs", "/processed_sentences")
+                sentences = load_list_of_lines(sentences_path, "str")
+                all_tokens_unigram = []
+                for sentence in sentences:
+                    doc = self.nlp(sentence)
+                    if tag_type == "pos":
+                        tokens_unigram = [token.pos_.replace(" ", "") for token in doc]
+                    elif tag_type == "tag":
+                        tokens_unigram = [token.tag_.replace(" ", "") for token in doc]
+                    elif tag_type == "dep":
+                        tokens_unigram = [token.dep_.replace(" ", "") for token in doc]
+                    else:
+                        raise Exception("Not a valid tag_type")
+                    all_tokens_unigram.append(" ".join(tokens_unigram))
+                save_list_of_lines(all_tokens_unigram, tags_path, "str")
+
             book_tag_counter = Counter()
-            for sentence in sentences:
-                processed_sentence = self.nlp(sentence)
-                sentence_tags = __tag_sentence(processed_sentence, tag_type, gram_type)
+            for tokens_unigram in all_tokens_unigram:
+                sentence_tags = __tag_sentence(tokens_unigram.split(), gram_type)
                 book_tag_counter.update(sentence_tags)
             return book_tag_counter
 
@@ -134,14 +144,7 @@ class CorpusBasedFeatureExtractor(object):
         corpus_tag_counter = Counter()
         for doc_path in self.doc_paths:
             book_name = doc_path.split("/")[-1][:-4]
-            tag_counts_path = doc_path.replace("/raw_docs", f"/{gram_type}_{tag_type}_counts").replace(".txt", ".pickle")
-            if os.path.exists(tag_counts_path):
-                book_tag_counter = read_pickle(tag_counts_path)
-            else:
-                sentences_path = doc_path.replace("/raw_docs", "/processed_sentences")
-                sentences = load_list_of_lines(sentences_path, "str")
-                book_tag_counter = __tag_book(sentences, tag_type, gram_type)
-                write_pickle(book_tag_counter, tag_counts_path)
+            book_tag_counter = __tag_book(doc_path, tag_type, gram_type)
             tagged_books[book_name] = book_tag_counter
             corpus_tag_counter.update(book_tag_counter)
 
