@@ -210,7 +210,7 @@ class CorpusBasedFeatureExtractor(object):
         docstring of ProductionRuleExtractor.
         """
         if self.lang == "ger":
-            return pd.DataFrame()
+            return pd.DataFrame(data=[doc_path.split("/")[-1][:-4] for doc_path in self.doc_paths], columns=["book_name"])
         elif self.lang == "eng":
             pass
         else:
