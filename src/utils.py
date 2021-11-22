@@ -46,12 +46,13 @@ def read_labels(labels_dir):
     labels = dict(labels_df.values)
     return labels
 
+
 def read_extreme_cases(labels_dir):
     extreme_cases_df = pd.read_csv(os.path.join(labels_dir, "210907_classified_data_02_m3_step3_FINAL.csv"), sep=";")[["file_name"]]
 
     # for key, value in file_name_mapper.items():
     #     extreme_cases_df.loc[extreme_cases_df["file_name"] == key, "file_name"] = value
-        
+
     # extreme_cases_df = extreme_cases_df[~extreme_cases_df["file_name"].isin(extra_file_names)]
     return extreme_cases_df
 
