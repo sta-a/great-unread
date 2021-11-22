@@ -562,7 +562,7 @@ class CorpusBasedFeatureExtractor(object):
             pd.DataFrame of corpus-based features
         '''
         result = None
-        for feature_function in [self.get_k_most_common_word_unigram_counts_including_stopwords(k=k),
+        for feature_function in [#self.get_k_most_common_word_unigram_counts_including_stopwords(k=k),
                                  self.get_k_most_common_word_bigram_counts_including_stopwords(k=k),
                                  self.get_k_most_common_word_trigram_counts_including_stopwords(k=k),
                                  self.get_overlap_score_doc2vec(),
