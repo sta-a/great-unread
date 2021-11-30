@@ -271,7 +271,6 @@ class CorpusBasedFeatureExtractor(object):
         return word_statistics
 
     def __add_bigrams_trigrams_statistics(self):
-        print('bigram function called')
         if "all_bigram_counts" in self.word_statistics:
             return self.word_statistics
         else:
@@ -330,7 +329,6 @@ class CorpusBasedFeatureExtractor(object):
             dct2 = self.word_statistics["book_unigram_mapping_rel"]
         elif n == 2 or n == 3:
             self.word_statistics = self.__add_bigrams_trigrams_statistics()
-            print('call bigram function from k most common ngrams')
             if n == 2:
                 dct1 = self.word_statistics["all_bigram_counts"]
                 dct2 = self.word_statistics["book_bigram_mapping_rel"]
@@ -559,7 +557,6 @@ class CorpusBasedFeatureExtractor(object):
             column_name = "distance_" + column_name + "_minpercdocs_" + str(min_percent_documents) + "_maxpercdocs_" + str(max_percent_documents)
         distances = pd.DataFrame(distances, columns=[column_name])
         distances['book_name'] = df.index
-        #print(distances)
         return distances
 
     def get_unigram_distance(self):
