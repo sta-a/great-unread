@@ -38,13 +38,16 @@ def save_list_of_lines(lst, path, line_type):
 
 def read_labels(labels_dir):
     labels_df = pd.read_csv(os.path.join(labels_dir, "210907_regression_predict_02_setp3_FINAL.csv"), sep=";")[["file_name", "m3"]]
-
-    # for key, value in file_name_mapper.items():
-    #     labels_df.loc[labels_df["file_name"] == key, "file_name"] = value
-
-    # labels = dict(labels_df[~labels_df["file_name"].isin(extra_file_names)].values)
+    print(type(labels_df))
     labels = dict(labels_df.values)
     return labels
+
+def get_sentiment_scores(sentiment_dir, canonization_labels_dir):
+    canonization_scores = pd.read_csv(canonization_labels_dir + "210907_regression_predict_02_setp3_FINAL.csv", sep=';', header=0)[["id", "file_name"]]
+    scores = pd.read_csv(sentiment_dir + "ENG_reviews_senti.csv", sep=";", header=0)[["text_id", "sentiscore_average"]]
+    scores = scores.merge(right=canonization_scores, how="left", right_on="id", left_on="text_id", validate="many_to_one")
+    scores = dict(scores[["file_name", "sentiscore_average"]].values)
+    return scores
 
 
 def read_extreme_cases(labels_dir):
