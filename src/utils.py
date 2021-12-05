@@ -42,11 +42,13 @@ def read_labels(labels_dir):
     labels = dict(labels_df.values)
     return labels
 
-def get_sentiment_scores(sentiment_dir, canonization_labels_dir):
+
+def read_sentiment_scores(sentiment_dir, canonization_labels_dir):
     canonization_scores = pd.read_csv(canonization_labels_dir + "210907_regression_predict_02_setp3_FINAL.csv", sep=';', header=0)[["id", "file_name"]]
     scores = pd.read_csv(sentiment_dir + "ENG_reviews_senti.csv", sep=";", header=0)[["text_id", "sentiscore_average"]]
     scores = scores.merge(right=canonization_scores, how="left", right_on="id", left_on="text_id", validate="many_to_one")
-    scores = dict(scores[["file_name", "sentiscore_average"]].values)
+    scores = scores.rename(columns={"sentiscore_average": "y", "file_name": "book_name"})[["book_name", "y"]]
+    # scores = dict(scores[["file_name", "sentiscore_average"]].values)
     return scores
 
 
