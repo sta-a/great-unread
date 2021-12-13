@@ -51,6 +51,15 @@ def read_sentiment_scores(sentiment_dir, canonization_labels_dir):
     # scores = dict(scores[["file_name", "sentiscore_average"]].values)
     return scores
 
+def read_new_sentiment_scores(sentiment_dir, canonization_labels_dir):
+    canonization_scores = pd.read_csv(canonization_labels_dir + "210907_regression_predict_02_setp3_FINAL.csv", sep=';', header=0)[["id", "file_name"]]
+    scores = pd.read_csv(sentiment_dir + "ENG_reviews_senti_classified.csv", sep=";", header=0)[["text_id", "sentiscore_average", "classified"]]
+    scores = scores.merge(right=canonization_scores, how="left", right_on="id", left_on="text_id", validate="many_to_one")
+    scores = scores.rename(columns={"sentiscore_average": "y", "classified": "c", "file_name": "book_name"})[["book_name", "y", "c"]]
+    # scores = dict(scores[["file_name", "sentiscore_average"]].values)
+    return scores
+
+
 
 def read_extreme_cases(labels_dir):
     extreme_cases_df = pd.read_csv(os.path.join(labels_dir, "210907_classified_data_02_m3_step3_FINAL.csv"), sep=";")[["file_name"]]
