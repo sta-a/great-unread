@@ -43,33 +43,28 @@ def read_labels(labels_dir):
     return labels
 
 
-def read_sentiment_scores(sentiment_dir, canonization_labels_dir):
+def read_sentiment_scores(sentiment_dir, canonization_labels_dir, lang):
+    if lang == "eng":
+        file_name = "ENG_reviews_senti_classified.csv"
+    else:
+        file_name = "GER_reviews_senti_classified.csv"
     canonization_scores = pd.read_csv(canonization_labels_dir + "210907_regression_predict_02_setp3_FINAL.csv", sep=';', header=0)[["id", "file_name"]]
-    scores = pd.read_csv(sentiment_dir + "ENG_reviews_senti.csv", sep=";", header=0)[["text_id", "sentiscore_average"]]
-    scores = scores.merge(right=canonization_scores, how="left", right_on="id", left_on="text_id", validate="many_to_one")
-    scores = scores.rename(columns={"sentiscore_average": "y", "file_name": "book_name"})[["book_name", "y"]]
-    # scores = dict(scores[["file_name", "sentiscore_average"]].values)
-    return scores
-
-def read_new_sentiment_scores(sentiment_dir, canonization_labels_dir):
-    canonization_scores = pd.read_csv(canonization_labels_dir + "210907_regression_predict_02_setp3_FINAL.csv", sep=';', header=0)[["id", "file_name"]]
-    scores = pd.read_csv(sentiment_dir + "ENG_reviews_senti_classified.csv", sep=";", header=0)[["text_id", "sentiscore_average", "classified"]]
+    scores = pd.read_csv(sentiment_dir + file_name, sep=";", header=0)[["text_id", "sentiscore_average", "classified"]]
     scores = scores.merge(right=canonization_scores, how="left", right_on="id", left_on="text_id", validate="many_to_one")
     scores = scores.rename(columns={"sentiscore_average": "y", "classified": "c", "file_name": "book_name"})[["book_name", "y", "c"]]
-    # scores = dict(scores[["file_name", "sentiscore_average"]].values)
     return scores
 
 
-
-def read_extreme_cases(labels_dir):
-    extreme_cases_df = pd.read_csv(os.path.join(labels_dir, "210907_classified_data_02_m3_step3_FINAL.csv"), sep=";")[["file_name"]]
-
-    # for key, value in file_name_mapper.items():
-    #     extreme_cases_df.loc[extreme_cases_df["file_name"] == key, "file_name"] = value
-
-    # extreme_cases_df = extreme_cases_df[~extreme_cases_df["file_name"].isin(extra_file_names)]
-    return extreme_cases_df
-
+def read_library_scores(sentiment_dir, canonization_labels_dir, lang):
+    if lang == "eng":
+        file_name = "ENG_texts_circulating-libs.csv"
+    else:
+        file_name = "GER_texts_circulating-libs.csv"
+    canonization_scores = pd.read_csv(canonization_labels_dir + "210907_regression_predict_02_setp3_FINAL.csv", sep=';', header=0)[["id", "file_name"]]
+    scores = pd.read_csv(sentiment_dir + file_name, sep=";", header=0)[["id", "sum_libraries"]]
+    scores = scores.merge(right=canonization_scores, how="left", on="id", validate="one_to_one")
+    scores = scores.rename(columns={"sum_libraries": "y", "file_name": "book_name"})[["book_name", "y"]]
+    return scores
 
 def unidecode_custom(text):
     for char, replacement in german_special_chars.items():
