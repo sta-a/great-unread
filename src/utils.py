@@ -4,6 +4,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from unidecode import unidecode
+import statistics
 
 german_special_chars = {'Ä':'Ae', 'Ö':'Oe', 'Ü':'Ue', 'ä':'ae', 'ö':'oe', 'ü':'ue', 'ß':'ss'}
 
@@ -48,10 +49,22 @@ def read_sentiment_scores(sentiment_dir, canonization_labels_dir, lang):
         file_name = "ENG_reviews_senti_classified.csv"
     else:
         file_name = "GER_reviews_senti_classified.csv"
+    print(file_name)
     canonization_scores = pd.read_csv(canonization_labels_dir + "210907_regression_predict_02_setp3_FINAL.csv", sep=';', header=0)[["id", "file_name"]]
-    scores = pd.read_csv(sentiment_dir + file_name, sep=";", header=0)[["text_id", "sentiscore_average", "classified"]]
+    scores = pd.read_csv(sentiment_dir + file_name, sep=";", header=0)[["text_id", "sentiscore_average", "sentiment_Textblob","classified"]]
     scores = scores.merge(right=canonization_scores, how="left", right_on="id", left_on="text_id", validate="many_to_one")
-    scores = scores.rename(columns={"sentiscore_average": "y", "classified": "c", "file_name": "book_name"})[["book_name", "y", "c"]]
+    
+    def _aggregate_scores(row):
+        if row["classified"] == "positive":
+            y = row["sentiment_Textblob"]
+        elif row["classified"] == "negative":
+            y = row["sentiscore_average"]
+        elif row["classified"] == "not_classified":
+            y = statistics.mean([row["sentiment_Textblob"], row["sentiscore_average"]])
+        return y
+    scores["y"] = scores.apply(lambda row: _aggregate_scores(row), axis=1)
+    scores["y"].sort_values().plot(kind="bar", figsize=(10, 5))
+    scores = scores.rename(columns={"classified": "c", "file_name": "book_name"})[["book_name", "y", "c"]]
     return scores
 
 
