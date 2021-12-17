@@ -49,23 +49,44 @@ def read_sentiment_scores(sentiment_dir, canonization_labels_dir, lang):
         file_name = "ENG_reviews_senti_classified.csv"
     else:
         file_name = "GER_reviews_senti_classified.csv"
-    print(file_name)
     canonization_scores = pd.read_csv(canonization_labels_dir + "210907_regression_predict_02_setp3_FINAL.csv", sep=';', header=0)[["id", "file_name"]]
-    scores = pd.read_csv(sentiment_dir + file_name, sep=";", header=0)[["text_id", "sentiscore_average", "sentiment_Textblob","classified"]]
-    scores = scores.merge(right=canonization_scores, how="left", right_on="id", left_on="text_id", validate="many_to_one")
-    
+    labels = pd.read_csv(sentiment_dir + file_name, sep=";", header=0)[["text_id", "sentiscore_average", "sentiment_Textblob","classified"]]
+    labels = labels.merge(right=canonization_scores, how="left", right_on="id", left_on="text_id", validate="many_to_one")    
+    labels = labels.rename(columns={"classified": "c", "file_name": "book_name"})
+
     def _aggregate_scores(row):
-        if row["classified"] == "positive":
+        if row["c"] == "positive":
             y = row["sentiment_Textblob"]
-        elif row["classified"] == "negative":
+        elif row["c"] == "negative":
             y = row["sentiscore_average"]
-        elif row["classified"] == "not_classified":
-            y = statistics.mean([row["sentiment_Textblob"], row["sentiscore_average"]])
+        elif row["c"] == "not_classified":
+            y = statistics.mean([row["sentiment_Textblob"], row["sentiscore_average"]]) 
         return y
-    scores["y"] = scores.apply(lambda row: _aggregate_scores(row), axis=1)
-    scores["y"].sort_values().plot(kind="bar", figsize=(10, 5))
-    scores = scores.rename(columns={"classified": "c", "file_name": "book_name"})[["book_name", "y", "c"]]
-    return scores
+    labels["y"] = labels.apply(lambda row: _aggregate_scores(row), axis=1)
+    labels["y"].sort_values().plot(kind="bar", figsize=(10, 5))
+
+    #Aggregate works with multiple reviews
+    #Assign one label per work
+    single_review = labels.groupby("book_name").filter(lambda x: len(x)==1)
+    #multiple_reviews = labels.groupby("book_name").apply(lambda x: print(("negative" in x["c"].values and "positive" in x["c"].values)))
+    multiple_reviews = labels.groupby("book_name").filter(lambda x: len(x)>1 and not("negative" in x["c"].values and "positive" in x["c"].values))
+    opposed_reviews = labels.groupby("book_name").filter(lambda x: len(x)>1 and ("negative" in x["c"].values and "positive" in x["c"].values))  
+    def _select_label(group):
+        count = group["c"].value_counts().reset_index().rename(columns={'index': 'c', "c": "count"})
+        #take label with the highest count, take more extreme label if counts are equal
+        if count.shape[0]>1:
+            if count.iloc[0,1] == count.iloc[1,1]:
+                grouplabel = count["c"].max()
+            else:
+                grouplabel = count.iloc[0,0]
+            group["c"] = grouplabel
+        return group
+    multiple_reviews = multiple_reviews.groupby("book_name").apply(_select_label)
+    multiple_reviews = multiple_reviews.drop_duplicates(subset="book_name")
+    labels = pd.concat([single_review, multiple_reviews])
+    
+    labels["c"] = labels["c"].replace(to_replace={"positive": 3, "not_classified": 2, "negative": 1})
+    return labels[["book_name", "y", "c"]]
 
 
 def read_library_scores(sentiment_dir, canonization_labels_dir, lang):
