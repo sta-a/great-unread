@@ -4,6 +4,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from unidecode import unidecode
+import statistics
 
 german_special_chars = {'Ä':'Ae', 'Ö':'Oe', 'Ü':'Ue', 'ä':'ae', 'ö':'oe', 'ü':'ue', 'ß':'ss'}
 
@@ -43,33 +44,61 @@ def read_labels(labels_dir):
     return labels
 
 
-def read_sentiment_scores(sentiment_dir, canonization_labels_dir):
+def read_sentiment_scores(sentiment_dir, canonization_labels_dir, lang):
+    if lang == "eng":
+        file_name = "ENG_reviews_senti_classified.csv"
+    else:
+        file_name = "GER_reviews_senti_classified.csv"
     canonization_scores = pd.read_csv(canonization_labels_dir + "210907_regression_predict_02_setp3_FINAL.csv", sep=';', header=0)[["id", "file_name"]]
-    scores = pd.read_csv(sentiment_dir + "ENG_reviews_senti.csv", sep=";", header=0)[["text_id", "sentiscore_average"]]
-    scores = scores.merge(right=canonization_scores, how="left", right_on="id", left_on="text_id", validate="many_to_one")
-    scores = scores.rename(columns={"sentiscore_average": "y", "file_name": "book_name"})[["book_name", "y"]]
-    # scores = dict(scores[["file_name", "sentiscore_average"]].values)
-    return scores
+    labels = pd.read_csv(sentiment_dir + file_name, sep=";", header=0)[["text_id", "sentiscore_average", "sentiment_Textblob","classified"]]
+    labels = labels.merge(right=canonization_scores, how="left", right_on="id", left_on="text_id", validate="many_to_one")    
+    labels = labels.rename(columns={"classified": "c", "file_name": "book_name"})
 
-def read_new_sentiment_scores(sentiment_dir, canonization_labels_dir):
+    def _aggregate_scores(row):
+        if row["c"] == "positive":
+            y = row["sentiment_Textblob"]
+        elif row["c"] == "negative":
+            y = row["sentiscore_average"]
+        elif row["c"] == "not_classified":
+            y = statistics.mean([row["sentiment_Textblob"], row["sentiscore_average"]]) 
+        return y
+    labels["y"] = labels.apply(lambda row: _aggregate_scores(row), axis=1)
+    labels["y"].sort_values().plot(kind="bar", figsize=(10, 5))
+
+    #Aggregate works with multiple reviews
+    #Assign one label per work
+    single_review = labels.groupby("book_name").filter(lambda x: len(x)==1)
+    #multiple_reviews = labels.groupby("book_name").apply(lambda x: print(("negative" in x["c"].values and "positive" in x["c"].values)))
+    multiple_reviews = labels.groupby("book_name").filter(lambda x: len(x)>1 and not("negative" in x["c"].values and "positive" in x["c"].values))
+    opposed_reviews = labels.groupby("book_name").filter(lambda x: len(x)>1 and ("negative" in x["c"].values and "positive" in x["c"].values))  
+    def _select_label(group):
+        count = group["c"].value_counts().reset_index().rename(columns={'index': 'c', "c": "count"})
+        #take label with the highest count, take more extreme label if counts are equal
+        if count.shape[0]>1:
+            if count.iloc[0,1] == count.iloc[1,1]:
+                grouplabel = count["c"].max()
+            else:
+                grouplabel = count.iloc[0,0]
+            group["c"] = grouplabel
+        return group
+    multiple_reviews = multiple_reviews.groupby("book_name").apply(_select_label)
+    multiple_reviews = multiple_reviews.drop_duplicates(subset="book_name")
+    labels = pd.concat([single_review, multiple_reviews])
+    
+    labels["c"] = labels["c"].replace(to_replace={"positive": 3, "not_classified": 2, "negative": 1})
+    return labels[["book_name", "y", "c"]]
+
+
+def read_library_scores(sentiment_dir, canonization_labels_dir, lang):
+    if lang == "eng":
+        file_name = "ENG_texts_circulating-libs.csv"
+    else:
+        file_name = "GER_texts_circulating-libs.csv"
     canonization_scores = pd.read_csv(canonization_labels_dir + "210907_regression_predict_02_setp3_FINAL.csv", sep=';', header=0)[["id", "file_name"]]
-    scores = pd.read_csv(sentiment_dir + "ENG_reviews_senti_classified.csv", sep=";", header=0)[["text_id", "sentiscore_average", "classified"]]
-    scores = scores.merge(right=canonization_scores, how="left", right_on="id", left_on="text_id", validate="many_to_one")
-    scores = scores.rename(columns={"sentiscore_average": "y", "classified": "c", "file_name": "book_name"})[["book_name", "y", "c"]]
-    # scores = dict(scores[["file_name", "sentiscore_average"]].values)
+    scores = pd.read_csv(sentiment_dir + file_name, sep=";", header=0)[["id", "sum_libraries"]]
+    scores = scores.merge(right=canonization_scores, how="left", on="id", validate="one_to_one")
+    scores = scores.rename(columns={"sum_libraries": "y", "file_name": "book_name"})[["book_name", "y"]]
     return scores
-
-
-
-def read_extreme_cases(labels_dir):
-    extreme_cases_df = pd.read_csv(os.path.join(labels_dir, "210907_classified_data_02_m3_step3_FINAL.csv"), sep=";")[["file_name"]]
-
-    # for key, value in file_name_mapper.items():
-    #     extreme_cases_df.loc[extreme_cases_df["file_name"] == key, "file_name"] = value
-
-    # extreme_cases_df = extreme_cases_df[~extreme_cases_df["file_name"].isin(extra_file_names)]
-    return extreme_cases_df
-
 
 def unidecode_custom(text):
     for char, replacement in german_special_chars.items():
