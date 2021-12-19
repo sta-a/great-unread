@@ -105,3 +105,28 @@ def unidecode_custom(text):
         text = text.replace(char, replacement)
     text = unidecode(text)
     return text
+
+def read_sentiart_textblob_scores(sentiment_dir, canonization_labels_dir, lang):
+    if lang == "eng":
+        file_name = "ENG_reviews_senti_FINAL.csv"
+    else:
+        file_name = "GER_reviews_senti_FINAL.csv"
+    canonization_scores = pd.read_csv(canonization_labels_dir + "210907_regression_predict_02_setp3_FINAL.csv", sep=';', header=0)[["id", "file_name"]]
+    labels = pd.read_csv(sentiment_dir + file_name, sep=";", header=0)[["text_id", "sentiscore_average", "sentiment_Textblob"]]
+    labels = labels.merge(right=canonization_scores, how="left", right_on="id", left_on="text_id", validate="many_to_one")    
+    labels = labels.rename(columns={"file_name": "book_name"})
+    print(labels)
+
+    print(labels.shape)
+    def _aggregate_scores(group):
+        textblob_value = group["sentiment_Textblob"].mean()
+        sentiart_value = group["sentiscore_average"].mean()
+        group["sentiment_Textblob"] = textblob_value
+        group["sentiscore_average"] = sentiart_value
+        return group
+    labels = labels.groupby("book_name").apply(_aggregate_scores)
+    print(labels.shape)
+
+    labels = labels.drop_duplicates(subset="book_name")
+    print(labels.shape)
+    return labels[["book_name", "sentiscore_average", "sentiment_Textblob"]]
