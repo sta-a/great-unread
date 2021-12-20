@@ -1,0 +1,57 @@
+lang,model,features,drop_columns_including,dimensionality_reduction,model_param,mean_train_f1,mean_validation_f1
+eng,svc,book,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding']",,0.1,0.14814437147504755,0.13751783461767184
+eng,svc,book,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', '->']",,0.1,0.15574618797993273,0.14207391982216705
+eng,svc,book,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', 'pos']",,0.1,0.17343980989765032,0.16638566170641578
+eng,svc,book,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', '->', 'pos']",,0.1,0.17293213298517143,0.16919721303078109
+eng,svc,book_and_averaged_chunk,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding']",,0.1,0.13654490367825073,0.11804200609219691
+eng,svc,book_and_averaged_chunk,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', '->']",,0.1,0.13372097915707346,0.13561524395328795
+eng,svc,book_and_averaged_chunk,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', 'pos']",,0.1,0.14781339271403077,0.11887167183383916
+eng,svc,book_and_averaged_chunk,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', '->', 'pos']",,0.1,0.10976732897969903,0.09713471705817034
+eng,svc,book,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding']",,1.0,0.2561151195332346,0.20423082043002205
+eng,svc,book,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', '->']",,1.0,0.2334192417311372,0.19911531966207352
+eng,svc,book,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', 'pos']",,1.0,0.23129343952918016,0.17986917574929345
+eng,svc,book,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', '->', 'pos']",,1.0,0.25904033265265525,0.20991582851885712
+eng,svc,book_and_averaged_chunk,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding']",,1.0,0.20155685335551546,0.1668586608337536
+eng,svc,book_and_averaged_chunk,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', '->']",,1.0,0.20866915442322798,0.16806551403973735
+eng,svc,book_and_averaged_chunk,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', 'pos']",,1.0,0.20601493495641773,0.16216475165095037
+eng,svc,book_and_averaged_chunk,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', '->', 'pos']",,1.0,0.2159040557772008,0.19091093294685954
+eng,svc,book,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding']",,10.0,0.3060608158151616,0.22223956971788816
+eng,svc,book,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', '->']",,10.0,0.311827094773906,0.25017860891405524
+eng,svc,book,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', 'pos']",,10.0,0.29593754996071225,0.23182222987104104
+eng,svc,book,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', '->', 'pos']",,10.0,0.3142062902711131,0.24557918199078133
+eng,svc,book_and_averaged_chunk,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding']",,10.0,0.24046980351722827,0.1676862303613496
+eng,svc,book_and_averaged_chunk,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', '->']",,10.0,0.23058656901443525,0.17724532912496868
+eng,svc,book_and_averaged_chunk,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', 'pos']",,10.0,0.2531615022728464,0.23311801838026114
+eng,svc,book_and_averaged_chunk,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', '->', 'pos']",,10.0,0.24796282445227566,0.18198957815515535
+eng,svc,book,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding']",,100.0,0.3659919160639947,0.25357948011663256
+eng,svc,book,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', '->']",,100.0,0.3574054144662494,0.2260366929883698
+eng,svc,book,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', 'pos']",,100.0,0.3662175868260704,0.2530152440771639
+eng,svc,book,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', '->', 'pos']",,100.0,0.3663955885262002,0.24204651029879568
+eng,svc,book_and_averaged_chunk,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding']",,100.0,0.2740894957869158,0.2670376799374975
+eng,svc,book_and_averaged_chunk,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', '->']",,100.0,0.2678377666915436,0.24743763406288227
+eng,svc,book_and_averaged_chunk,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', 'pos']",,100.0,0.26329643921651585,0.20025164747339078
+eng,svc,book_and_averaged_chunk,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', '->', 'pos']",,100.0,0.2769081810989861,0.214665342770448
+eng,svc,book,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding']",,1000.0,0.46387142467632725,0.33192692646881866
+eng,svc,book,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', '->']",,1000.0,0.464188804435127,0.2678008692014338
+eng,svc,book,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', 'pos']",,1000.0,0.42493063845163465,0.26786021965733153
+eng,svc,book,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', '->', 'pos']",,1000.0,0.4160442313540524,0.2555285761848965
+eng,svc,book_and_averaged_chunk,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding']",,1000.0,0.2511773437982364,0.20099658058487876
+eng,svc,book_and_averaged_chunk,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', '->']",,1000.0,0.26179933832085045,0.23395754724499443
+eng,svc,book_and_averaged_chunk,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', 'pos']",,1000.0,0.2581031536603096,0.20763110866707615
+eng,svc,book_and_averaged_chunk,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', '->', 'pos']",,1000.0,0.2517837602906085,0.1914313975638764
+eng,svc,book,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding']",,10000.0,0.6027511506629538,0.2700557109769227
+eng,svc,book,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', '->']",,10000.0,0.5950279227503738,0.28769856717865216
+eng,svc,book,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', 'pos']",,10000.0,0.5328606216019827,0.3088261053403127
+eng,svc,book,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', '->', 'pos']",,10000.0,0.5057581427265496,0.26722923884132566
+eng,svc,book_and_averaged_chunk,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding']",,10000.0,0.2647777911517024,0.24340923537875345
+eng,svc,book_and_averaged_chunk,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', '->']",,10000.0,0.2687138083991932,0.22402009987336205
+eng,svc,book_and_averaged_chunk,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', 'pos']",,10000.0,0.2584031640937039,0.20679447054558053
+eng,svc,book_and_averaged_chunk,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', '->', 'pos']",,10000.0,0.26487033971002427,0.22039778265563714
+eng,xgboost,book,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding']",,,0.835214771367755,0.3228945938935484
+eng,xgboost,book,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', '->']",,,0.7939231008254809,0.27078692099546847
+eng,xgboost,book,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', 'pos']",,,0.7998475428172255,0.3407118833411985
+eng,xgboost,book,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', '->', 'pos']",,,0.862735787631213,0.30064131555804957
+eng,xgboost,book_and_averaged_chunk,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding']",,,0.8800627821069921,0.2879309919761566
+eng,xgboost,book_and_averaged_chunk,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', '->']",,,0.87197297092885,0.3436845412322325
+eng,xgboost,book_and_averaged_chunk,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', 'pos']",,,0.8099457974246368,0.30631363086893654
+eng,xgboost,book_and_averaged_chunk,"['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', '->', 'pos']",,,0.8845154371122719,0.29652110756264355
