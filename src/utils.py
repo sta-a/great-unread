@@ -97,7 +97,11 @@ def read_library_scores(sentiment_dir, canonization_labels_dir, lang):
     canonization_scores = pd.read_csv(canonization_labels_dir + "210907_regression_predict_02_setp3_FINAL.csv", sep=';', header=0)[["id", "file_name"]]
     scores = pd.read_csv(sentiment_dir + file_name, sep=";", header=0)[["id", "sum_libraries"]]
     scores = scores.merge(right=canonization_scores, how="left", on="id", validate="one_to_one")
-    scores = scores.rename(columns={"sum_libraries": "y", "file_name": "book_name"})[["book_name", "y"]]
+    scores = scores.rename(columns={"sum_libraries": "c", "file_name": "book_name"})[["book_name", "c"]]
+    scores = scores.drop_duplicates("book_name")
+    scores["c"] = scores["c"].apply(lambda x: 1 if x!=0 else 0)
+    scores["y"] = 0
+    scores
     return scores
 
 def unidecode_custom(text):
