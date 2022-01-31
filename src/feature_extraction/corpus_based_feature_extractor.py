@@ -1,4 +1,6 @@
+from code import compile_command
 import os
+from xml.sax.handler import feature_namespace_prefixes
 import spacy
 import re
 from spellchecker import SpellChecker
@@ -14,17 +16,26 @@ import pickle
 from collections import Counter
 from utils import load_list_of_lines, save_list_of_lines, unidecode_custom
 from feature_extraction.production_rule_extractor import ProductionRuleExtractor
+from doc_based_feature_extractor import DocBasedFeatureExtractor
 from corpus_toolkit import corpus_tools as ct
 logging.basicConfig(level=logging.DEBUG)
 
 
 class CorpusBasedFeatureExtractor(object):
-    def __init__(self, lang, doc_paths, all_average_sbert_sentence_embeddings, all_doc2vec_chunk_embeddings):
+    def __init__(self, lang, doc_paths, all_average_sbert_sentence_embeddings, all_doc2vec_chunk_embeddings, sentences_per_chunk=200, nr_features=100):
         self.lang = lang
         self.doc_paths = doc_paths
-        self.word_statistics = self.__get_word_statistics()
         self.all_average_sbert_sentence_embeddings = all_average_sbert_sentence_embeddings
         self.all_doc2vec_chunk_embeddings = all_doc2vec_chunk_embeddings
+        self.sentences_per_chunk = sentences_per_chunk
+        self.nr_features = nr_features
+
+        self.word_statistics = self.__get_word_statistics(include_ngrams=True)
+        self.document_term_matrix_relative = pd.DataFrame.from_dict(self.word_statistics['book_word_unigram_mapping_rel']).fillna(0).T 
+        if not "all_word_bigram_counts" in self.word_statistics:
+            self.word_statistics = self.__get_word_statistics(include_ngrams=True)
+        self.document_bigram_matrix_relative = pd.DataFrame.from_dict(self.word_statistics['book_word_bigram_mapping_rel']).fillna(0).T 
+        self.document_trigram_matrix_relative = pd.DataFrame.from_dict(self.word_statistics['book_word_trigram_mapping_rel']).fillna(0).T 
 
         if self.lang == "eng":
             self.model_name = 'en_core_web_sm'
@@ -54,7 +65,82 @@ class CorpusBasedFeatureExtractor(object):
             new_stopwords.append(unidecode_custom(stopword))
         self.stopwords = set(new_stopwords)
 
-    def __find_unigram_counts(self, processed_sentences):
+    def __get_word_statistics(self, include_ngrams=True):
+        # get total counts over all documents
+        all_word_unigram_counts = Counter()
+        book_total_word_unigram_count = {}
+        book_word_unigram_mapping_abs = {}
+        book_word_unigram_mapping_rel = {}
+
+        for doc_path in tqdm(self.doc_paths):
+            book_name = doc_path.split("/")[-1][:-4]
+            sentences_path = doc_path.replace("/raw_docs", f"/processed_sentences")
+            sentences = load_list_of_lines(sentences_path, "str")
+            processed_sentences = self.__preprocess_sentences(sentences)
+            unigram_counts = self.__find_word_unigram_counts(processed_sentences)
+            all_word_unigram_counts.update(unigram_counts)            
+            total_unigram_count = sum(unigram_counts.values())# get counts per document    
+            book_total_word_unigram_count[book_name] = total_unigram_count
+            book_word_unigram_mapping_abs[book_name] = unigram_counts#absolute frequency            
+            book_word_unigram_mapping_rel[book_name] = dict((unigram, count / total_unigram_count) for unigram, count in unigram_counts.items() if unigram in all_word_unigram_counts.keys()) #relative frequencies
+
+        all_word_unigram_counts = dict(sorted(list(all_word_unigram_counts.items()), key=lambda x: -x[1])) #all words
+        word_statistics = {
+            "book_total_word_unigram_count": book_total_word_unigram_count,
+            "all_word_unigram_counts": all_word_unigram_counts,
+            "book_word_unigram_mapping_abs": book_word_unigram_mapping_abs,
+            "book_word_unigram_mapping_rel": book_word_unigram_mapping_rel,
+        }
+
+        if include_ngrams == True:
+            all_word_bigram_counts = Counter()
+            all_word_trigram_counts = Counter()
+            book_word_bigram_mapping_abs = {}
+            book_word_trigram_mapping_abs = {}
+            book_word_bigram_mapping_rel = {}
+            book_word_trigram_mapping_rel = {}
+
+            for doc_path in tqdm(self.doc_paths):
+                book_name = doc_path.split("/")[-1][:-4]
+                sentences_path = doc_path.replace("/raw_docs", f"/processed_sentences")
+                sentences = load_list_of_lines(sentences_path, "str")
+                processed_sentences = self.__preprocess_sentences(sentences)
+                
+                bigram_counts = self.__find_word_bigram_counts(processed_sentences)
+                trigram_counts = self.__find_word_trigram_counts(processed_sentences)
+                all_word_bigram_counts.update(bigram_counts)
+                all_word_trigram_counts.update(trigram_counts)
+                total_bigram_count = sum(bigram_counts.values())
+                total_trigram_count = sum(trigram_counts.values())
+                book_word_bigram_mapping_abs[book_name] = bigram_counts
+                book_word_trigram_mapping_abs[book_name] = trigram_counts
+                book_word_bigram_mapping_rel[book_name] = dict((bigram, count / total_bigram_count) for bigram, count in bigram_counts.items() if bigram in all_word_bigram_counts.keys())
+                book_word_trigram_mapping_rel[book_name] = dict((trigram, count / total_trigram_count) for trigram, count in trigram_counts.items() if trigram in all_word_trigram_counts.keys())
+
+            all_word_bigram_counts = dict(sorted(list(all_word_bigram_counts.items()), key=lambda x: -x[1])[:2000]) ######################################
+            all_word_trigram_counts = dict(sorted(list(all_word_trigram_counts.items()), key=lambda x: -x[1])[:2000])
+            
+            #filter dicts so that they only contain most frequent n-grams
+            for mapping in [book_word_bigram_mapping_abs, book_word_bigram_mapping_rel]:
+                for book, book_dict in mapping.items():
+                    for ngram in list(book_dict.keys()):
+                        if ngram not in list(all_word_bigram_counts.keys()):
+                            del book_dict[ngram]
+            for mapping in [book_word_trigram_mapping_abs, book_word_trigram_mapping_rel]:
+                for book, book_dict in mapping.items():
+                    for ngram in list(book_dict.keys()):
+                        if ngram not in list(all_word_trigram_counts.keys()):
+                            del book_dict[ngram]
+
+            word_statistics["all_word_bigram_counts"] = all_word_bigram_counts
+            word_statistics["all_word_trigram_counts"] = all_word_trigram_counts
+            word_statistics["book_word_bigram_mapping_abs"] = book_word_bigram_mapping_abs
+            word_statistics["book_word_trigram_mapping_abs"] = book_word_trigram_mapping_abs
+            word_statistics["book_word_bigram_mapping_rel"] = book_word_bigram_mapping_rel
+            word_statistics["book_word_trigram_mapping_rel"] = book_word_trigram_mapping_rel
+        return word_statistics
+
+    def __find_word_unigram_counts(self, processed_sentences):
         word_unigram_counts = {}
         for processed_sentence in processed_sentences:
             for word_unigram in processed_sentence.split():
@@ -64,7 +150,7 @@ class CorpusBasedFeatureExtractor(object):
                     word_unigram_counts[word_unigram] = 1
         return word_unigram_counts
 
-    def __find_bigram_counts(self, processed_sentences):
+    def __find_word_bigram_counts(self, processed_sentences):
         processed_text = "<BOS> " + " <EOS> <BOS> ".join(processed_sentences) + " <EOS>"
         split_processed_text = processed_text.split()
         word_bigram_counts = {}
@@ -76,7 +162,7 @@ class CorpusBasedFeatureExtractor(object):
                 word_bigram_counts[current_bigram] = 1
         return word_bigram_counts
 
-    def __find_trigram_counts(self, processed_sentences):
+    def __find_word_trigram_counts(self, processed_sentences):
         processed_text = "<BOS> <BOS> " + " <EOS> <EOS> <BOS> <BOS> ".join(processed_sentences) + " <EOS> <EOS>"
         split_processed_text = processed_text.split()
         word_trigram_counts = {}
@@ -165,18 +251,18 @@ class CorpusBasedFeatureExtractor(object):
         df = pd.DataFrame(data)
         return df
 
-    def get_tag_distribution(self, k):
+    def get_tag_distribution(self, chunk, doc_path):
         result_df = None
         for tag_type in ['pos']:  # ['pos', 'tag', 'dep']:
             for gram_type in ['unigram', 'bigram', 'trigram']:
-                current_df = self.__tag_books(tag_type, gram_type, k)
+                current_df = self.__tag_books(tag_type, gram_type, self.nr_features)
                 if result_df is None:
                     result_df = current_df
                 else:
                     result_df = result_df.merge(current_df, on='book_name')
         return result_df
 
-    def get_spelling_error_distribution(self):
+    def get_spelling_error_distribution(self, chunk, doc_path):
         def __get_spelling_error_count_in_sentence(sentence):
             misspelled = self.spell_checker.unknown(sentence.split())
             return len(misspelled)
@@ -204,7 +290,7 @@ class CorpusBasedFeatureExtractor(object):
             book_production_counter.update(sentence_production_counter)
         return book_production_counter
 
-    def get_production_distribution(self, k):
+    def get_production_distribution(self, chunk, doc_path):
         """
         Returns an empty dataframe if the language is German. Reason is explained in
         docstring of ProductionRuleExtractor.
@@ -229,7 +315,7 @@ class CorpusBasedFeatureExtractor(object):
             corpus_production_counter.update(book_production_counter)
 
         # get first k tags of corpus_tag_counter
-        corpus_production_counter = sorted([(tag, count) for tag, count in corpus_production_counter.items()], key=lambda x: -x[1])[:k]
+        corpus_production_counter = sorted([(tag, count) for tag, count in corpus_production_counter.items()], key=lambda x: -x[1])[:self.nr_features]
         corpus_production_counter = [tag for tag, count in corpus_production_counter]
 
         data = []
@@ -245,96 +331,20 @@ class CorpusBasedFeatureExtractor(object):
         df = pd.DataFrame(data)
         return df
 
-    def __get_word_statistics(self):
-        # get total counts over all documents
-        all_unigram_counts = Counter()
-        book_unigram_mapping_abs = {}
-        book_unigram_mapping_rel = {}
-
-        for doc_path in tqdm(self.doc_paths):
-            book_name = doc_path.split("/")[-1][:-4]
-            sentences_path = doc_path.replace("/raw_docs", f"/processed_sentences")
-            sentences = load_list_of_lines(sentences_path, "str")
-            processed_sentences = self.__preprocess_sentences(sentences)
-            unigram_counts = self.__find_unigram_counts(processed_sentences)
-            all_unigram_counts.update(unigram_counts)            
-            total_unigram_count = sum(unigram_counts.values())# get counts per document            
-            book_unigram_mapping_abs[book_name] = unigram_counts#absolute frequency            
-            book_unigram_mapping_rel[book_name] = dict((unigram, count / total_unigram_count) for unigram, count in unigram_counts.items() if unigram in all_unigram_counts.keys()) #relative frequencies
-
-        all_unigram_counts = dict(sorted(list(all_unigram_counts.items()), key=lambda x: -x[1])) #all words
-        word_statistics = {
-            "all_unigram_counts": all_unigram_counts,
-            "book_unigram_mapping_abs": book_unigram_mapping_abs,
-            "book_unigram_mapping_rel": book_unigram_mapping_rel,
-        }
-        return word_statistics
-
-    def __add_bigrams_trigrams_statistics(self):
-        if "all_bigram_counts" in self.word_statistics:
-            return self.word_statistics
-        else:
-            all_bigram_counts = Counter()
-            all_trigram_counts = Counter()
-            book_bigram_mapping_abs = {}
-            book_trigram_mapping_abs = {}
-            book_bigram_mapping_rel = {}
-            book_trigram_mapping_rel = {}
-
-            for doc_path in tqdm(self.doc_paths):
-                book_name = doc_path.split("/")[-1][:-4]
-                sentences_path = doc_path.replace("/raw_docs", f"/processed_sentences")
-                sentences = load_list_of_lines(sentences_path, "str")
-                processed_sentences = self.__preprocess_sentences(sentences)
-                
-                bigram_counts = self.__find_bigram_counts(processed_sentences)
-                trigram_counts = self.__find_trigram_counts(processed_sentences)
-                all_bigram_counts.update(bigram_counts)
-                all_trigram_counts.update(trigram_counts)
-                total_bigram_count = sum(bigram_counts.values())
-                total_trigram_count = sum(trigram_counts.values())
-                book_bigram_mapping_abs[book_name] = bigram_counts
-                book_trigram_mapping_abs[book_name] = trigram_counts
-                book_bigram_mapping_rel[book_name] = dict((bigram, count / total_bigram_count) for bigram, count in bigram_counts.items() if bigram in all_bigram_counts.keys())
-                book_trigram_mapping_rel[book_name] = dict((trigram, count / total_trigram_count) for trigram, count in trigram_counts.items() if trigram in all_trigram_counts.keys())
-
-            all_bigram_counts = dict(sorted(list(all_bigram_counts.items()), key=lambda x: -x[1])[:2000])
-            all_trigram_counts = dict(sorted(list(all_trigram_counts.items()), key=lambda x: -x[1])[:2000])
-
-            #filter dicts so that they only contain most frequent n-grams
-            for mapping in [book_bigram_mapping_abs, book_bigram_mapping_rel]:
-                for book, book_dict in mapping.items():
-                    for ngram in list(book_dict.keys()):
-                        if ngram not in list(all_bigram_counts.keys()):
-                            del book_dict[ngram]
-            for mapping in [book_trigram_mapping_abs, book_trigram_mapping_rel]:
-                for book, book_dict in mapping.items():
-                    for ngram in list(book_dict.keys()):
-                        if ngram not in list(all_trigram_counts.keys()):
-                            del book_dict[ngram]
-
-            word_stat_dir = self.word_statistics
-            word_stat_dir["all_bigram_counts"] = all_bigram_counts
-            word_stat_dir["all_trigram_counts"] = all_trigram_counts
-            word_stat_dir["book_bigram_mapping_abs"] = book_bigram_mapping_abs
-            word_stat_dir["book_trigram_mapping_abs"] = book_trigram_mapping_abs
-            word_stat_dir["book_bigram_mapping_rel"] = book_bigram_mapping_rel
-            word_stat_dir["book_trigram_mapping_rel"] = book_trigram_mapping_rel
-            return word_stat_dir
-
 
     def get_k_most_common_ngram_counts(self, k, n, include_stopwords):
         if n == 1:
-            dct1 = self.word_statistics["all_unigram_counts"]
-            dct2 = self.word_statistics["book_unigram_mapping_rel"]
+            dct1 = self.word_statistics["all_word_unigram_counts"]
+            dct2 = self.word_statistics["book_word_unigram_mapping_rel"]
         elif n == 2 or n == 3:
-            self.word_statistics = self.__add_bigrams_trigrams_statistics()
+            if not "all_word_bigram_counts" in self.word_statistics:
+                self.word_statistics = self.__get_word_statistics(include_ngrams=True)
             if n == 2:
-                dct1 = self.word_statistics["all_bigram_counts"]
-                dct2 = self.word_statistics["book_bigram_mapping_rel"]
+                dct1 = self.word_statistics["all_word_bigram_counts"]
+                dct2 = self.word_statistics["book_word_bigram_mapping_rel"]
             else:
-                dct1 = self.word_statistics["all_trigram_counts"]
-                dct2 = self.word_statistics["book_trigram_mapping_rel"]
+                dct1 = self.word_statistics["all_word_trigram_counts"]
+                dct2 = self.word_statistics["book_word_trigram_mapping_rel"]
         else:
             raise Exception(f"Not a valid n: {n}")
         if include_stopwords:
@@ -362,23 +372,23 @@ class CorpusBasedFeatureExtractor(object):
         result = pd.DataFrame(result)
         return result
 
-    def get_k_most_common_unigram_counts_including_stopwords(self, k):
-        return self.get_k_most_common_ngram_counts(k, 1, True)
+    def get_k_most_common_unigram_counts_including_stopwords(self):
+        return self.get_k_most_common_ngram_counts(self.nr_features, 1, True)
 
-    def get_k_most_common_bigram_counts_including_stopwords(self, k):
-        return self.get_k_most_common_ngram_counts(k, 2, True)
+    def get_k_most_common_bigram_counts_including_stopwords(self):
+        return self.get_k_most_common_ngram_counts(self.nr_features, 2, True)
 
-    def get_k_most_common_trigram_counts_including_stopwords(self, k):
-        return self.get_k_most_common_ngram_counts(k, 3, True)
+    def get_k_most_common_trigram_counts_including_stopwords(self):
+        return self.get_k_most_common_ngram_counts(self.nr_features, 3, True)
 
-    def get_k_most_common_unigram_counts_excluding_stopwords(self, k):
-        return self.get_k_most_common_ngram_counts(k, 1, False)
+    def get_k_most_common_unigram_counts_excluding_stopwords(self):
+        return self.get_k_most_common_ngram_counts(self.nr_features, 1, False)
 
-    def get_k_most_common_bigram_counts_excluding_stopwords(self, k):
-        return self.get_k_most_common_ngram_counts(k, 2, False)
+    def get_k_most_common_bigram_counts_excluding_stopwords(self):
+        return self.get_k_most_common_ngram_counts(self.nr_features, 2, False)
 
-    def get_k_most_common_trigram_counts_excluding_stopwords(self, k):
-        return self.get_k_most_common_ngram_counts(k, 3, False)
+    def get_k_most_common_trigram_counts_excluding_stopwords(self):
+        return self.get_k_most_common_ngram_counts(self.nr_features, 3, False)
 
     def get_overlap_score(self, embedding_type):
         if embedding_type == "doc2vec":
@@ -460,131 +470,120 @@ class CorpusBasedFeatureExtractor(object):
     def get_outlier_score_sbert(self):
         return self.get_outlier_score("sbert")
 
-    def get_lda_topic_distribution(self):
-        num_topics = 10
+    # def get_lda_topic_distribution(self):
+    #     num_topics = 10
 
-        documents = []
-        for doc_path in self.doc_paths:
-            with open(doc_path, "r") as reader:
-                documents.append(reader.read().strip())
+    #     documents = []
+    #     for doc_path in self.doc_paths:
+    #         with open(doc_path, "r") as reader:
+    #             documents.append(reader.read().strip())
 
-        if self.lang == "eng":
-            stop_words = spacy.lang.en.stop_words.STOP_WORDS
-        elif self.lang == "ger":
-            stop_words = spacy.lang.de.stop_words.STOP_WORDS
-        else:
-            raise Exception(f"Not a valid language {self.lang}")
+    #     if self.lang == "eng":
+    #         stop_words = spacy.lang.en.stop_words.STOP_WORDS
+    #     elif self.lang == "ger":
+    #         stop_words = spacy.lang.de.stop_words.STOP_WORDS
+    #     else:
+    #         raise Exception(f"Not a valid language {self.lang}")
 
-        vect = CountVectorizer(min_df=20, max_df=0.2, stop_words=stop_words,
-                               token_pattern='(?u)\\b\\w\\w\\w+\\b')
-        X = vect.fit_transform(documents)
-        corpus = Sparse2Corpus(X, documents_columns=False)
-        id_map = dict((v, k) for k, v in vect.vocabulary_.items())
-        lda_model = LdaMulticore(corpus=corpus, id2word=id_map, passes=2, random_state=42, num_topics=num_topics, workers=3)
+    #     vect = CountVectorizer(min_df=20, max_df=0.2, stop_words=stop_words,
+    #                            token_pattern='(?u)\\b\\w\\w\\w+\\b')
+    #     X = vect.fit_transform(documents)
+    #     corpus = Sparse2Corpus(X, documents_columns=False)
+    #     id_map = dict((v, k) for k, v in vect.vocabulary_.items())
+    #     lda_model = LdaMulticore(corpus=corpus, id2word=id_map, passes=2, random_state=42, num_topics=num_topics, workers=3)
 
-        topic_distributions = []
-        book_names = []
-        for doc_path, document in zip(self.doc_paths, documents):
-            book_name = doc_path.split("/")[-1][:-4]
-            string_input = [document]
-            X = vect.transform(string_input)
-            corpus = Sparse2Corpus(X, documents_columns=False)
-            output = list(lda_model[corpus])[0]
-            full_output = [0] * num_topics
-            for topic_id, ratio in output:
-                full_output[topic_id] = ratio
-            topic_distributions.append(full_output)
-            book_names.append(book_name)
-        topic_distributions = pd.DataFrame(topic_distributions, columns=[f"lda_topic_{i+1}" for i in range(num_topics)])
-        topic_distributions["book_name"] = book_names
-        return topic_distribution
+    #     topic_distributions = []
+    #     book_names = []
+    #     for doc_path, document in zip(self.doc_paths, documents):
+    #         book_name = doc_path.split("/")[-1][:-4]
+    #         string_input = [document]
+    #         X = vect.transform(string_input)
+    #         corpus = Sparse2Corpus(X, documents_columns=False)
+    #         output = list(lda_model[corpus])[0]
+    #         full_output = [0] * num_topics
+    #         for topic_id, ratio in output:
+    #             full_output[topic_id] = ratio
+    #         topic_distributions.append(full_output)
+    #         book_names.append(book_name)
+    #     topic_distributions = pd.DataFrame(topic_distributions, columns=[f"lda_topic_{i+1}" for i in range(num_topics)])
+    #     topic_distributions["book_name"] = book_names
+    #     return topic_distribution
 
-    def filter_document_term_matrix(self, df, min_nr_documents=None, min_percent_documents=None, max_nr_documents=None, max_percent_documents=None):
+    # def get_tfidf(self):
+    #     document_term_matrix = pd.DataFrame.from_dict(self.word_statistics['book_word_unigram_mapping_abs']).fillna(0).T
+    #     # Tfidf
+    #     t = TfidfTransformer(norm='l1', use_idf=True, smooth_idf=True)
+    #     tfidf = pd.DataFrame.sparse.from_spmatrix(t.fit_transform(document_term_matrix), columns=document_term_matrix.columns, index=document_term_matrix.index)
+    #     tfidf_reduced = self.filter_document_term_matrix(tfidf, min_percent_documents=10)
+    #     # From remaining words, keep only those that are in the top k for at least one book
+    #     all_top_k_words = []
+    #     for index, row in tfidf_reduced.iterrows():
+    #         top_k_words = row.nlargest(n=self.nr_features, keep='all')
+    #         all_top_k_words.extend(top_k_words.index.to_list())
+    #     all_top_k_words = list(set(all_top_k_words))
+    #     tfidf_top_k = tfidf_reduced[all_top_k_words]
+    #     tfidf_top_k.columns = [f"tfidf_{column}" for column in tfidf_top_k.columns]
+    #     tfidf_top_k = tfidf_top_k.reset_index().rename(columns={'level_0':'book_name', 'index':'book_name'}) #automatically created column name can be 'index' or 'level_0'
+    #     return tfidf_top_k
+
+    def filter_document_term_matrix(self, dtm, min_nr_documents=None, min_percent_documents=None, max_nr_documents=None, max_percent_documents=None):
         if min_nr_documents==None and min_percent_documents==None and max_nr_documents==None and max_percent_documents==None:
             raise Exception("Specify at least one filtering criterion.")
-
+        print(min_nr_documents, min_percent_documents, max_nr_documents, max_percent_documents)
         min_columns = []
         max_columns = []
         #Filter minimum
         if min_nr_documents!=None and min_percent_documents!=None:
             raise Exception("Specify either the the minimum number of documents or the minimum percentage of documents in which a term must occur.")
         elif min_percent_documents!=None:
-            min_nr_documents = round(min_percent_documents/100 * df.shape[0])
-        elif min_nr_documents!=None:
-            document_frequency = df.astype(bool).sum(axis=0)
-            min_columns = [df.columns[x] for x in range(0,len(df.columns)) if document_frequency[x]>=min_nr_documents]
+            min_nr_documents = round(min_percent_documents/100 * dtm.shape[0])
+        document_frequency = dtm.astype(bool).sum(axis=0)
+        min_columns = [dtm.columns[x] for x in range(0,len(dtm.columns)) if document_frequency[x]>=min_nr_documents]
 
         #Filter maximum
         if max_nr_documents!=None and max_percent_documents!=None:
             raise Exception("Specify either the the maximum number of documents or the maximum percentage of documents in which a term can occur.")
         elif max_percent_documents!=None:
-            max_nr_documents = round(max_percent_documents/100 * df.shape[0])
-        elif max_nr_documents!=None:
-            document_frequency = df.astype(bool).sum(axis=0)
-            max_columns = [df.columns[x] for x in range(0,len(df.columns)) if document_frequency[x]<=max_nr_documents]
+            max_nr_documents = round(max_percent_documents/100 * dtm.shape[0])
+        max_columns = [dtm.columns[x] for x in range(0,len(dtm.columns)) if document_frequency[x]<=max_nr_documents]
 
-        df_reduced = df[list(set(min_columns + max_columns))]
-        return df_reduced
+        dtm_reduced = dtm[list(set(min_columns + max_columns))]
+        return dtm_reduced
 
-    def get_tfidf(self, k=50):
-        document_term_matrix = pd.DataFrame.from_dict(self.word_statistics['book_unigram_mapping_abs']).fillna(0).T
-        # Tfidf
-        t = TfidfTransformer(norm='l1', use_idf=True, smooth_idf=True)
-        tfidf = pd.DataFrame.sparse.from_spmatrix(t.fit_transform(document_term_matrix), columns=document_term_matrix.columns, index=document_term_matrix.index)
-        tfidf_reduced = self.filter_document_term_matrix(tfidf, min_percent_documents=10)
-        # From remaining words, keep only those that are in the top k for at least one book
-        all_top_k_words = []
-        for index, row in tfidf_reduced.iterrows():
-            top_k_words = row.nlargest(n=k, keep='all')
-            all_top_k_words.extend(top_k_words.index.to_list())
-        all_top_k_words = list(set(all_top_k_words))
-        tfidf_top_k = tfidf_reduced[all_top_k_words]
-        tfidf_top_k.columns = [f"tfidf_{column}" for column in tfidf_top_k.columns]
-        tfidf_top_k = tfidf_top_k.reset_index().rename(columns={'level_0':'book_name', 'index':'book_name'}) #automatically created column name can be 'index' or 'level_0'
-        return tfidf_top_k
+    def get_distance_from_corpus(self, chunk, doc_path, dtm, min_nr_documents=None, min_percent_documents=None, max_nr_documents=None, max_percent_documents=None):
+        book_name = doc_path.split("/")[-1][:-4]
 
-    def get_distance_from_corpus(self, df, column_name, min_nr_documents=None, min_percent_documents=None, max_nr_documents=None, max_percent_documents=None):
-        df_reduced = self.filter_document_term_matrix(df, min_nr_documents=2)
-        distances = []
-        for index, document in tqdm(df.iterrows()):
-            df_reduced = df.drop(labels=document.name, axis=0, inplace=False)
-            mean_rel_frequencies = df_reduced.mean(axis=0)
-            cosine_distance = scipy.spatial.distance.cosine(document, mean_rel_frequencies)
-            distances.append(cosine_distance)
-        if min_nr_documents!=None:
-            column_name = "distance_" + column_name + "_minnrdocs_" + str(min_nr_documents) + "_maxnrdocs_" + str(max_nr_documents)
-        else: 
-            column_name = "distance_" + column_name + "_minpercdocs_" + str(min_percent_documents) + "_maxpercdocs_" + str(max_percent_documents)
-        distances = pd.DataFrame(distances, columns=[column_name])
-        distances['book_name'] = df.index
+        dtm_reduced = self.filter_document_term_matrix(dtm, min_nr_documents, min_percent_documents, max_nr_documents, max_percent_documents)
+        dtm_reduced = dtm_reduced.drop(labels=book_name, axis=0, inplace=False)
+        print(dtm_reduced)
+        mean_rel_frequencies = dtm_reduced.mean(axis=0).reset_index().rename(columns={"index": "word", 0: "mean_freq"})
+
+        # Get chunk relative frequencies, fill 0
+        chunk_unigram_frequencies_rel = dict((unigram, count / self.word_statistics["book_total_word_unigram_count"][book_name]) for unigram, count in chunk.word_unigram_counts.items() if unigram in self.word_statistics["all_word_unigram_counts"].keys()) 
+        chunk_unigram_frequencies_rel = pd.Series(chunk_unigram_frequencies_rel).reset_index().rename(columns={"index": "word", 0: "chunk_count"})
+        
+        df = mean_rel_frequencies.merge(chunk_unigram_frequencies_rel, how='outer', on="word", validate="one_to_one").fillna(0)
+        cosine_distance = scipy.spatial.distance.cosine(df["mean_freq"], df["chunk_count"])
+        return cosine_distance
+
+    def get_unigram_distance(self, chunk, doc_path):
+        distances = self.get_distance_from_corpus(chunk, doc_path, dtm=self.document_term_matrix_relative, min_nr_documents=2)
         return distances
 
-    def get_unigram_distance(self):
-        document_term_matrix_relative = pd.DataFrame.from_dict(self.word_statistics['book_unigram_mapping_rel']).fillna(0).T 
-        distances = self.get_distance_from_corpus(document_term_matrix_relative, column_name="unigram", min_nr_documents=2)
-        return distances
-
-    def get_unigram_distance_limited(self):
+    def get_unigram_distance_limited(self, chunk, doc_path):
         #Filter for mid-frequency words
-        document_term_matrix_relative = pd.DataFrame.from_dict(self.word_statistics['book_unigram_mapping_rel']).fillna(0).T 
-        distances = self.get_distance_from_corpus(document_term_matrix_relative, column_name="unigram_limited", min_percent_documents=5, max_percent_documents=50)
+        distances = self.get_distance_from_corpus(chunk, doc_path, dtm=self.document_term_matrix_relative, min_percent_documents=5, max_percent_documents=50)
         return distances
 
-    def get_bigram_distance(self):
-        if not "all_bigram_counts" in self.word_statistics:
-            self.word_statistics = self.__add_bigrams_trigrams_statistics()
-        document_bigram_matrix_relative = pd.DataFrame.from_dict(self.word_statistics['book_bigram_mapping_rel']).fillna(0).T 
-        distances = self.get_distance_from_corpus(document_bigram_matrix_relative, column_name="bigram", min_nr_documents=2)
+    def get_bigram_distance(self, chunk, doc_path):
+        distances = self.get_distance_from_corpus(chunk, doc_path, dtm=self.document_bigram_matrix_relative, min_nr_documents=2)
         return distances
 
-    def get_trigram_distance(self):
-        if not "all_trigram_counts" in self.word_statistics:
-            self.word_statistics = self.__add_bigrams_trigrams_statistics()
-        document_trigram_matrix_relative = pd.DataFrame.from_dict(self.word_statistics['book_trigram_mapping_rel']).fillna(0).T 
-        distances = self.get_distance_from_corpus(document_trigram_matrix_relative, column_name="trigram", min_nr_documents=2)
+    def get_trigram_distance(self, chunk, doc_path):
+        distances = self.get_distance_from_corpus(chunk, doc_path, dtm=self.document_trigram_matrix_relative, min_nr_documents=2)
         return distances
 
-    def get_all_features(self, k=100):
+    def get_all_features(self):
         ''' Get corpus-based features
 
         Args:
@@ -593,26 +592,46 @@ class CorpusBasedFeatureExtractor(object):
         Returns:
             pd.DataFrame of corpus-based features
         '''
-        result = None
-        for feature_function in [# self.get_lda_topic_distribution,
-                                self.get_k_most_common_unigram_counts_including_stopwords(k=k),
-                                self.get_k_most_common_bigram_counts_including_stopwords(k=k),
-                                self.get_k_most_common_trigram_counts_including_stopwords(k=k),
+        chunk_based_feature_mapping = {#"unigram_distance": self.get_unigram_distance,
+                                "unigram_distance_limited": self.get_unigram_distance_limited,
+                                #"bigram_distance": self.get_bigram_distance,
+                                #"trigram_distance": self.get_trigram_distance,
+                                #0: self.get_tag_distribution,
+                                #"spelling_error_distribution": self.get_spelling_error_distribution,
+                                #1: self.get_production_distribution,  # this returns an empty dataframe if language is German
+                                }
+        book_based_feature_mapping = [# self.get_lda_topic_distribution,
+                                # self.get_k_most_common_unigram_counts_including_stopwords,
+                                # self.get_k_most_common_bigram_counts_including_stopwords,
+                                # self.get_k_most_common_trigram_counts_including_stopwords,
+                                self.get_overlap_score_doc2vec,
+                                self.get_overlap_score_sbert,
+                                self.get_outlier_score_doc2vec,
+                                self.get_outlier_score_sbert,
+                                ]
 
-                                self.get_overlap_score_doc2vec(),
-                                self.get_overlap_score_sbert(),
-                                self.get_outlier_score_doc2vec(),
-                                self.get_outlier_score_sbert(),
-                                self.get_unigram_distance(),
-                                self.get_unigram_distance_limited(),
-                                self.get_bigram_distance(),
-                                self.get_trigram_distance(),
-                                self.get_tag_distribution(k=30),
-                                self.get_spelling_error_distribution(),
-                                self.get_production_distribution(k=30),  # this returns an empty dataframe if language is German
-                                ]:
-            if result is None:
-                result = feature_function
-            else:
-                result = result.merge(feature_function, on="book_name")
-        return result
+        # result = None
+        # for feature_function in book_based_feature_mapping:
+        #     if result is None:
+        #         result = feature_function
+        #     else:
+        #         result = result.merge(feature_function, on="book_name")
+
+        all_chunk_based_features = []
+        for doc_path in tqdm(self.doc_paths):
+            extractor = DocBasedFeatureExtractor(self.lang, doc_path, self.sentences_per_chunk)
+            print('next doc')
+            chunk_based_features = []
+            for chunk in extractor.chunks:
+                print('next chunk')
+                current_features = {"book_name": doc_path.split("/")[-1][:-4]}
+                for feature_name, feature_function in chunk_based_feature_mapping.items():
+                    if isinstance(feature_name, int):
+                        current_features.update(feature_function(chunk, doc_path))
+                    else:
+                        current_features[feature_name] = feature_function(chunk, doc_path)
+                chunk_based_features.append(current_features)
+            all_chunk_based_features.extend(chunk_based_features)
+        all_chunk_based_features = pd.DataFrame(all_chunk_based_features)
+
+        return all_chunk_based_features
