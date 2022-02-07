@@ -12,7 +12,7 @@ from utils import load_list_of_lines, save_list_of_lines, unidecode_custom
 
 
 class DocBasedFeatureExtractor(object):
-    def __init__(self, lang, doc_path, sentences_per_chunk=500):
+    def __init__(self, lang, doc_path, sentences_per_chunk=200):
         self.lang = lang
         self.sentences_per_chunk = sentences_per_chunk
         self.doc_path = doc_path
@@ -69,15 +69,16 @@ class DocBasedFeatureExtractor(object):
         self.chunks = self.__get_chunks()
 
     def __get_chunks(self):
+        book_name = self.doc_path.split("/")[-1][:-4]
         if self.sentences_per_chunk is None:
-            return [Chunk(self.sentences, self.sbert_sentence_embeddings, self.doc2vec_chunk_embeddings)]
+            return [Chunk(book_name, "full", self.sentences, self.sbert_sentence_embeddings, self.doc2vec_chunk_embeddings)]
         chunks = []
         chunk_id_counter = 0
         for i in range(0, len(self.sentences), self.sentences_per_chunk):
             current_sentences = self.sentences[i:i+self.sentences_per_chunk]
             current_sentence_embeddings = self.sbert_sentence_embeddings[i:i+self.sentences_per_chunk]
             if (len(current_sentences) == self.sentences_per_chunk) or (i == 0):
-                chunks.append(Chunk(current_sentences, current_sentence_embeddings, self.doc2vec_chunk_embeddings[chunk_id_counter]))
+                chunks.append(Chunk(book_name, chunk_id_counter, current_sentences, current_sentence_embeddings, self.doc2vec_chunk_embeddings[chunk_id_counter]))
                 chunk_id_counter += 1
         return chunks
 
@@ -93,19 +94,19 @@ class DocBasedFeatureExtractor(object):
             "ratio_of_uppercase_letters": self.get_ratio_of_uppercase_letters,
             "average_number_of_words_in_sentence": self.get_average_number_of_words_in_sentence,
             "maximum_number_of_words_in_sentence": self.get_maximum_number_of_words_in_sentence,
-            "ratio_of_unique_word_unigrams": self.get_ratio_of_unique_word_unigrams,
-            "ratio_of_unique_word_bigrams": self.get_ratio_of_unique_word_bigrams,
-            "ratio_of_unique_word_trigrams": self.get_ratio_of_unique_word_trigrams,
+            "ratio_of_unique_unigrams": self.get_ratio_of_unique_unigrams,
+            "ratio_of_unique_bigrams": self.get_ratio_of_unique_bigrams,
+            "ratio_of_unique_trigrams": self.get_ratio_of_unique_trigrams,
             "text_length": self.get_text_length,
             "average_word_length": self.get_average_word_length,
             "ratio_of_stopwords": self.get_ratio_of_stopwords,
-            "bigram_entropy": self.get_word_bigram_entropy,
-            "trigram_entropy": self.get_word_trigram_entropy,
+            "bigram_entropy": self.get_bigram_entropy,
+            "trigram_entropy": self.get_trigram_entropy,
             "type_token_ratio": self.get_type_token_ratio,
 
             ## Features in the list
             "flesch_reading_ease_score": self.get_flesch_reading_ease_score, # readability
-            "unigram_entropy": self.get_word_unigram_entropy, # second order redundancy
+            "unigram_entropy": self.get_unigram_entropy, # second order redundancy
             "average_paragraph_length": self.get_average_paragraph_length, # structural features
             0: self.get_average_sbert_sentence_embedding,
             1: self.get_doc2vec_chunk_embedding,
@@ -207,40 +208,40 @@ class DocBasedFeatureExtractor(object):
             sentence_lengths.append(len(processed_sentence.split()))
         return np.max(sentence_lengths)
 
-    def get_ratio_of_unique_word_unigrams(self, chunk):
-        return len(chunk.word_unigram_counts.keys()) / sum(chunk.word_unigram_counts.values())
+    def get_ratio_of_unique_unigrams(self, chunk):
+        return len(chunk.unigram_counts.keys()) / sum(chunk.unigram_counts.values())
 
-    def get_ratio_of_unique_word_bigrams(self, chunk):
-        return len(chunk.word_bigram_counts.keys()) / sum(chunk.word_bigram_counts.values())
+    def get_ratio_of_unique_bigrams(self, chunk):
+        return len(chunk.bigram_counts.keys()) / sum(chunk.bigram_counts.values())
 
-    def get_ratio_of_unique_word_trigrams(self, chunk):
-        return len(chunk.word_trigram_counts.keys()) / sum(chunk.word_trigram_counts.values())
+    def get_ratio_of_unique_trigrams(self, chunk):
+        return len(chunk.trigram_counts.keys()) / sum(chunk.trigram_counts.values())
 
     def get_text_length(self, chunk):
         return len(chunk.unidecoded_raw_text)
 
     def get_average_word_length(self, chunk):
         word_lengths = []
-        for word, count in chunk.word_unigram_counts.items():
+        for word, count in chunk.unigram_counts.items():
             word_lengths.append(len(word) * count)
         return np.mean(word_lengths)
 
     def get_ratio_of_stopwords(self, chunk):
         number_of_stopwords = 0
         number_of_all_words = 0
-        for word, count in chunk.word_unigram_counts.items():
+        for word, count in chunk.unigram_counts.items():
             number_of_all_words += 1
             if word in self.stopwords:
                 number_of_stopwords += count
         return number_of_stopwords / number_of_all_words
 
-    def get_word_unigram_entropy(self, chunk):
-        return entropy(list(chunk.word_unigram_counts.values()))
+    def get_unigram_entropy(self, chunk):
+        return entropy(list(chunk.unigram_counts.values()))
 
-    def get_word_bigram_entropy(self, chunk):
+    def get_bigram_entropy(self, chunk):
         temp_dict = {}
-        for word_bigram, count in chunk.word_bigram_counts.items():
-            left = word_bigram[0]
+        for bigram, count in chunk.bigram_counts.items():
+            left = bigram[0]
             if left in temp_dict.keys():
                 temp_dict[left].append(count)
             else:
@@ -250,10 +251,10 @@ class DocBasedFeatureExtractor(object):
             entropies.append(entropy(counts))
         return np.mean(entropies)
 
-    def get_word_trigram_entropy(self, chunk):
+    def get_trigram_entropy(self, chunk):
         temp_dict = {}
-        for word_trigram, count in chunk.word_trigram_counts.items():
-            left_and_middle = (word_trigram[0], word_trigram[1])
+        for trigram, count in chunk.trigram_counts.items():
+            left_and_middle = (trigram[0], trigram[1])
             if left_and_middle in temp_dict.keys():
                 temp_dict[left_and_middle].append(count)
             else:
@@ -265,8 +266,8 @@ class DocBasedFeatureExtractor(object):
 
     def get_type_token_ratio(self, chunk):
         # Type-token ratio according to Algee-Hewitt et al. (2016)
-        tokens = sum(chunk.word_unigram_counts.values())
-        types = len(chunk.word_unigram_counts)
+        tokens = sum(chunk.unigram_counts.values())
+        types = len(chunk.unigram_counts)
         return types/tokens
 
     def get_flesch_reading_ease_score(self, chunk):

@@ -37,10 +37,9 @@ def save_list_of_lines(lst, path, line_type):
         raise Exception(f"Not a valid line_type {line_type}")
 
 
-def read_labels(labels_dir):
-    labels_df = pd.read_csv(os.path.join(labels_dir, "210907_regression_predict_02_setp3_FINAL.csv"), sep=";")[["file_name", "m3"]]
-    print(type(labels_df))
-    labels = dict(labels_df.values)
+def read_canon_labels(labels_dir):
+    labels = pd.read_csv(os.path.join(labels_dir, "210907_regression_predict_02_setp3_FINAL.csv"), sep=";")[["file_name", "m3"]]
+    labels = labels.rename(columns={'file_name': 'book_name', 'm3': 'y'})
     return labels
 
 
