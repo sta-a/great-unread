@@ -6,7 +6,7 @@ import logging
 import textstat
 from scipy.stats import entropy
 from process import SentenceTokenizer
-from feature_extraction.chunk import Chunk
+from chunk import Chunk
 from sentence_transformers import SentenceTransformer
 from utils import load_list_of_lines, save_list_of_lines, unidecode_custom
 
@@ -39,16 +39,16 @@ class DocBasedFeatureExtractor(object):
         self.stopwords = set(new_stopwords)
 
         ## load sentences
-        sentences_path = doc_path.replace("/raw_docs", f"/processed_sentences")
-        if os.path.exists(sentences_path):
-            self.sentences = load_list_of_lines(sentences_path, "str")
+        tokenized_sentences_path = doc_path.replace("/raw_docs", f"/tokenized_sentences")
+        if os.path.exists(tokenized_sentences_path):
+            self.tokenized_sentences = load_list_of_lines(tokenized_sentences_path, "str")
         else:
             self.sentence_tokenizer = SentenceTokenizer(self.lang)
-            self.sentences = self.sentence_tokenizer.tokenize(doc_path)
-            save_list_of_lines(self.sentences, sentences_path, "str")
+            self.tokenized_sentences = self.sentence_tokenizer.tokenize(doc_path)
+            save_list_of_lines(self.tokenized_sentences, tokenized_sentences_path, "str")
 
         ## load sbert sentence embeddings
-        sbert_sentence_embeddings_path = doc_path.replace("/raw_docs", f"/processed_sbert_sentence_embeddings") + ".npz"
+        sbert_sentence_embeddings_path = doc_path.replace("/raw_docs", f"/sbert_sentence_embeddings") + ".npz"
         if os.path.exists(sbert_sentence_embeddings_path):
             self.sbert_sentence_embeddings = load_list_of_lines(sbert_sentence_embeddings_path, "np")
         else:
@@ -56,11 +56,11 @@ class DocBasedFeatureExtractor(object):
                 self.sentence_encoder = SentenceTransformer('stsb-mpnet-base-v2')
             elif self.lang == "ger":
                 self.sentence_encoder = SentenceTransformer('paraphrase-xlm-r-multilingual-v1')
-            self.sbert_sentence_embeddings = list(self.sentence_encoder.encode(self.sentences))
+            self.sbert_sentence_embeddings = list(self.sentence_encoder.encode(self.tokenized_sentences))
             save_list_of_lines(self.sbert_sentence_embeddings, sbert_sentence_embeddings_path, "np")
 
         ## load doc2vec chunk embeddings
-        doc2vec_chunk_embeddings_path = doc_path.replace("/raw_docs", f"/processed_doc2vec_chunk_embeddings_spc_{sentences_per_chunk}") + ".npz"
+        doc2vec_chunk_embeddings_path = doc_path.replace("/raw_docs", f"/doc2vec_chunk_embeddings_spc_{sentences_per_chunk}") + ".npz"
         if os.path.exists(doc2vec_chunk_embeddings_path):
             self.doc2vec_chunk_embeddings = load_list_of_lines(doc2vec_chunk_embeddings_path, "np")
         else:
@@ -71,20 +71,20 @@ class DocBasedFeatureExtractor(object):
     def __get_chunks(self):
         book_name = self.doc_path.split("/")[-1][:-4]
         if self.sentences_per_chunk is None:
-            return [Chunk(book_name, "full", self.sentences, self.sbert_sentence_embeddings, self.doc2vec_chunk_embeddings)]
+            return [Chunk(self.doc_path, book_name, "full", self.tokenized_sentences, self.sbert_sentence_embeddings, self.doc2vec_chunk_embeddings)]
         chunks = []
         chunk_id_counter = 0
-        for i in range(0, len(self.sentences), self.sentences_per_chunk):
-            current_sentences = self.sentences[i:i+self.sentences_per_chunk]
+        for i in range(0, len(self.tokenized_sentences), self.sentences_per_chunk):
+            current_sentences = self.tokenized_sentences[i:i+self.sentences_per_chunk]
             current_sentence_embeddings = self.sbert_sentence_embeddings[i:i+self.sentences_per_chunk]
             if (len(current_sentences) == self.sentences_per_chunk) or (i == 0):
-                chunks.append(Chunk(book_name, chunk_id_counter, current_sentences, current_sentence_embeddings, self.doc2vec_chunk_embeddings[chunk_id_counter]))
+                chunks.append(Chunk(self.doc_path, book_name, chunk_id_counter, current_sentences, current_sentence_embeddings, self.doc2vec_chunk_embeddings[chunk_id_counter]))
                 chunk_id_counter += 1
         return chunks
 
 
     def get_all_features(self):
-        chunk_based_feature_mapping = {
+        chunk_feature_mapping = {
             "ratio_of_punctuation_marks": self.get_ratio_of_punctuation_marks,
             "ratio_of_whitespaces": self.get_ratio_of_whitespaces,
             "ratio_of_digits": self.get_ratio_of_digits,
@@ -117,7 +117,7 @@ class DocBasedFeatureExtractor(object):
             #######
         }
 
-        book_based_feature_mapping = {
+        book_feature_mapping = {
             "doc2vec_intra_textual_variance": self.get_doc2vec_intra_textual_variance,
             "sbert_intra_textual_variance": self.get_sbert_intra_textual_variance,
             "doc2vec_stepwise_distance": self.get_doc2vec_stepwise_distance,
@@ -125,26 +125,34 @@ class DocBasedFeatureExtractor(object):
         }
 
         # extract chunk based features
-        chunk_based_features = []
+        chunk_features = []
         for chunk in self.chunks:
             current_features = {"book_name": self.doc_path.split("/")[-1][:-4]}
-            for feature_name, feature_function in chunk_based_feature_mapping.items():
+            for feature_name, feature_function in chunk_feature_mapping.items():
                 if isinstance(feature_name, int):
                     current_features.update(feature_function(chunk))
                 else:
                     current_features[feature_name] = feature_function(chunk)
-            chunk_based_features.append(current_features)
+            chunk_features.append(current_features)
 
         # extract book based features
-        book_based_features = {}
-        for feature_name, feature_function in book_based_feature_mapping.items():
-            book_based_features["book_name"] = self.doc_path.split("/")[-1][:-4]
-            book_based_features[feature_name] = feature_function(self.chunks)
+        book_features = None
+        sbert_embeddings = None
+        doc2vec_embeddings = None
+        if self.sentences_per_chunk is not None:
+            book_features = {}
+            for feature_name, feature_function in book_feature_mapping.items():
+                book_features["book_name"] = self.doc_path.split("/")[-1][:-4]
+                book_features[feature_name] = feature_function(self.chunks)
+        
+            sbert_embeddings = [np.array(chunk.sbert_sentence_embeddings).mean(axis=0) for chunk in self.chunks]
+            doc2vec_embeddings = [chunk.doc2vec_chunk_embedding for chunk in self.chunks]
+        
 
-        return chunk_based_features, \
-               book_based_features, \
-               [np.array(chunk.sbert_sentence_embeddings).mean(axis=0) for chunk in self.chunks], \
-               [chunk.doc2vec_chunk_embedding for chunk in self.chunks]
+        return chunk_features, \
+               book_features, \
+               sbert_embeddings, \
+               doc2vec_embeddings
 
     def get_ratio_of_punctuation_marks(self, chunk):
         punctuations = 0
@@ -184,8 +192,8 @@ class DocBasedFeatureExtractor(object):
         return num_upper / num_alpha
 
     def get_average_paragraph_length(self, chunk):
-        splitted_lengths = [len(splitted) for splitted in chunk.raw_text.split("\n")]
-        return np.mean(splitted_lengths)
+        split_lengths = [len(curr_split) for curr_split in chunk.raw_text.split("\n")]
+        return np.mean(split_lengths)
 
     def get_average_sbert_sentence_embedding(self, chunk):
         average_sentence_embedding = np.array(chunk.sbert_sentence_embeddings).mean(axis=0)
@@ -241,6 +249,7 @@ class DocBasedFeatureExtractor(object):
     def get_bigram_entropy(self, chunk):
         temp_dict = {}
         for bigram, count in chunk.bigram_counts.items():
+            bigram = bigram.split()
             left = bigram[0]
             if left in temp_dict.keys():
                 temp_dict[left].append(count)
@@ -254,7 +263,8 @@ class DocBasedFeatureExtractor(object):
     def get_trigram_entropy(self, chunk):
         temp_dict = {}
         for trigram, count in chunk.trigram_counts.items():
-            left_and_middle = (trigram[0], trigram[1])
+            trigram = trigram.split()
+            left_and_middle = trigram[0] + " " + trigram[1]
             if left_and_middle in temp_dict.keys():
                 temp_dict[left_and_middle].append(count)
             else:

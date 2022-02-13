@@ -40,13 +40,13 @@ class Doc2VecChunkVectorizer(object):
         doc_path_to_chunk_ids = {}
         logging.info("Preparing data for Doc2VecChunkVectorizer...")
         for doc_id, doc_path in enumerate(doc_paths): # fix this
-            sentences_path = doc_path.replace("/raw_docs", f"/processed_sentences")
-            if os.path.exists(sentences_path):
-                self.sentences = load_list_of_lines(sentences_path, "str")
+            tokenized_sentences_path = doc_path.replace("/raw_docs", f"/tokenized_sentences")
+            if os.path.exists(tokenized_sentences_path):
+                self.sentences = load_list_of_lines(tokenized_sentences_path, "str")
             else:
                 self.sentence_tokenizer = SentenceTokenizer(self.lang)
                 self.sentences = self.sentence_tokenizer.tokenize(doc_path)
-                save_list_of_lines(self.sentences, sentences_path, "str")
+                save_list_of_lines(self.sentences, tokenized_sentences_path, "str")
 
             if self.sentences_per_chunk is None:
                 words = self.tokenizer.tokenize(" ".join(self.sentences))
@@ -82,5 +82,5 @@ class Doc2VecChunkVectorizer(object):
         logging.info("Saving chunk vectors...")
         for doc_path in doc_paths:
             chunk_vectors = [self.d2v_model.dv[f'chunk_{chunk_id}'] for chunk_id in doc_path_to_chunk_ids[doc_path]]
-            save_list_of_lines(chunk_vectors, doc_path.replace("/raw_docs", f"/processed_doc2vec_chunk_embeddings_spc_{self.sentences_per_chunk}"), "np")
+            save_list_of_lines(chunk_vectors, doc_path.replace("/raw_docs", f"/doc2vec_chunk_embeddings_spc_{self.sentences_per_chunk}"), "np")
         logging.info("Saved chunk vectors.")

@@ -75,11 +75,11 @@ class Doc2VecProcessor(object):
                 return text
 
             if self.processed_chunk_sentence_count is not None:
-                if os.path.exists(doc_path[:-4].replace("/raw_docs", f"/processed_sentences") + ".pickle"):
-                    sentences = pickle.load(open(doc_path[:-4].replace("/raw_docs", f"/processed_sentences") + ".pickle", "rb"))
+                if os.path.exists(doc_path[:-4].replace("/raw_docs", f"/tokenized_sentences") + ".pickle"):
+                    sentences = pickle.load(open(doc_path[:-4].replace("/raw_docs", f"/tokenized_sentences") + ".pickle", "rb"))
                 else:
                     sentences = self.sentence_tokenizer.tokenize(doc)
-                    pickle.dump(sentences, open(doc_path[:-4].replace("/raw_docs", f"/processed_sentences") + ".pickle", "wb"))
+                    pickle.dump(sentences, open(doc_path[:-4].replace("/raw_docs", f"/tokenized_sentences") + ".pickle", "wb"))
                 sentences = [_process_text(sentence) for sentence in sentences]
 
                 for i in range(0, len(doc), self.stride):
@@ -113,16 +113,16 @@ class BertProcessor(object):
         logging.info("Processing texts...")
         os.makedirs("/".join(doc_paths[0].split("/")[:-1]).replace("/raw_docs", f"/processed_bert_512_tokens"), exist_ok=True)
         os.makedirs("/".join(doc_paths[0].split("/")[:-1]).replace("/raw_docs", f"/processed_bert_sentence_tokens"), exist_ok=True)
-        os.makedirs("/".join(doc_paths[0].split("/")[:-1]).replace("/raw_docs", f"/processed_sentences"), exist_ok=True)
+        os.makedirs("/".join(doc_paths[0].split("/")[:-1]).replace("/raw_docs", f"/tokenized_sentences"), exist_ok=True)
 
         for doc_path in tqdm(doc_paths):
             with open(doc_path, "r") as doc_reader:
                 doc = doc_reader.read()
-            if os.path.exists(doc_path[:-4].replace("/raw_docs", f"/processed_sentences") + ".pickle"):
-                sentences = pickle.load(open(doc_path[:-4].replace("/raw_docs", f"/processed_sentences") + ".pickle", "rb"))
+            if os.path.exists(doc_path[:-4].replace("/raw_docs", f"/tokenized_sentences") + ".pickle"):
+                sentences = pickle.load(open(doc_path[:-4].replace("/raw_docs", f"/tokenized_sentences") + ".pickle", "rb"))
             else:
                 sentences = self.sentence_tokenizer.tokenize(doc)
-                pickle.dump(sentences, open(doc_path[:-4].replace("/raw_docs", f"/processed_sentences") + ".pickle", "wb"))
+                pickle.dump(sentences, open(doc_path[:-4].replace("/raw_docs", f"/tokenized_sentences") + ".pickle", "wb"))
 
             current_paragraph = ""
             current_token_count = 0
