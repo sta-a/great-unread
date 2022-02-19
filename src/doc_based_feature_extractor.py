@@ -4,6 +4,7 @@ import spacy
 import string
 import logging
 import textstat
+from tqdm import tqdm
 from scipy.stats import entropy
 from process import SentenceTokenizer
 from chunk import Chunk
@@ -74,7 +75,7 @@ class DocBasedFeatureExtractor(object):
             return [Chunk(self.doc_path, book_name, "full", self.tokenized_sentences, self.sbert_sentence_embeddings, self.doc2vec_chunk_embeddings)]
         chunks = []
         chunk_id_counter = 0
-        for i in range(0, len(self.tokenized_sentences), self.sentences_per_chunk):
+        for i in tqdm(range(0, len(self.tokenized_sentences), self.sentences_per_chunk)):
             current_sentences = self.tokenized_sentences[i:i+self.sentences_per_chunk]
             current_sentence_embeddings = self.sbert_sentence_embeddings[i:i+self.sentences_per_chunk]
             if (len(current_sentences) == self.sentences_per_chunk) or (i == 0):
@@ -127,7 +128,11 @@ class DocBasedFeatureExtractor(object):
         # extract chunk based features
         chunk_features = []
         for chunk in self.chunks:
-            current_features = {"book_name": self.doc_path.split("/")[-1][:-4]}
+            if self.sentences_per_chunk != None:
+                chunk_name = chunk.book_name + "_" + str(chunk.chunk_id)
+            else:
+                chunk_name = chunk.book_name
+            current_features = {"book_name": chunk_name}
             for feature_name, feature_function in chunk_feature_mapping.items():
                 if isinstance(feature_name, int):
                     current_features.update(feature_function(chunk))
@@ -145,7 +150,7 @@ class DocBasedFeatureExtractor(object):
                 book_features["book_name"] = self.doc_path.split("/")[-1][:-4]
                 book_features[feature_name] = feature_function(self.chunks)
         
-            sbert_embeddings = [np.array(chunk.sbert_sentence_embeddings).mean(axis=0) for chunk in self.chunks]
+            sbert_embeddings = [np.array(chunk.sbert_sentence_embeddings).mean(axis=0) for chunk in self.chunks] # Average across sentences belonging to a chunk
             doc2vec_embeddings = [chunk.doc2vec_chunk_embedding for chunk in self.chunks]
         
 
@@ -298,7 +303,7 @@ class DocBasedFeatureExtractor(object):
             if embedding_type == "doc2vec":
                 chunk_embeddings.append(chunk.doc2vec_chunk_embedding)
             elif embedding_type == "sbert":
-                chunk_embeddings.append(np.array(chunk.sbert_sentence_embeddings).mean(axis=0))
+                chunk_embeddings.append(np.array(chunk.sbert_sentence_embeddings).mean(axis=0)) 
             else:
                 raise Exception(f"Not a valid embedding type {embedding_type}")
         average_chunk_embedding = np.array(chunk_embeddings).mean(axis=0)

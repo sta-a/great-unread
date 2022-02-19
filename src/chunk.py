@@ -8,7 +8,7 @@ class Chunk(object):
         self.book_name = book_name
         self.chunk_id = chunk_id
         self.tokenized_sentences = tokenized_sentences
-        self.sbert_sentence_embeddings = sbert_sentence_embeddings
+        self.sbert_sentence_embeddings = sbert_sentence_embeddings # list of arrays, one array per sentence
         self.raw_text = " ".join(tokenized_sentences)
         self.doc2vec_chunk_embedding = doc2vec_chunk_embedding
         self.unidecoded_raw_text = unidecode_custom(self.raw_text)

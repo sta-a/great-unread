@@ -14,7 +14,7 @@ import pandas as pd
 import logging
 import pickle
 from collections import Counter
-from utils import load_list_of_lines, save_list_of_lines, unidecode_custom
+from utils import load_list_of_lines, save_list_of_lines, unidecode_custom, df_from_dict
 from production_rule_extractor import ProductionRuleExtractor
 from doc_based_feature_extractor import DocBasedFeatureExtractor
 from corpus_toolkit import corpus_tools as ct
@@ -60,14 +60,21 @@ class CorpusBasedFeatureExtractor(object):
             new_stopwords.append(unidecode_custom(stopword))
         self.stopwords = set(new_stopwords)
 
-        self.chunks = self.__get_chunks()
+        self.chunks, self.new_sbert, self.new_doc2vec = self.__get_chunks()
 
     def __get_chunks(self):
         chunks = []
-        for doc_path in tqdm(self.doc_paths):
+        all_average_sbert_sentence_embeddings = []
+        all_doc2vec_chunk_embeddings = []
+
+        for doc_path in self.doc_paths:
             extractor = DocBasedFeatureExtractor(self.lang, doc_path, self.sentences_per_chunk)
             chunks.extend(extractor.chunks)
-        return chunks
+            all_average_sbert_sentence_embeddings.append([np.array(chunk.sbert_sentence_embeddings).mean(axis=0) for chunk in extractor.chunks])
+            all_doc2vec_chunk_embeddings.append([chunk.doc2vec_chunk_embedding for chunk in extractor.chunks])
+            #sbert_embeddings = [np.array(chunk.sbert_sentence_embeddings).mean(axis=0) for chunk in self.chunks] # Average across sentences belonging to a chunk
+            #doc2vec_embeddings = [chunk.doc2vec_chunk_embedding for chunk in self.chunks]
+        return chunks, all_average_sbert_sentence_embeddings, all_doc2vec_chunk_embeddings
 
     def __get_word_statistics(self, include_ngrams=True):
         # get total counts over all documents
@@ -76,7 +83,7 @@ class CorpusBasedFeatureExtractor(object):
         book_unigram_mapping_abs = {}
         book_unigram_mapping_rel = {}
 
-        for doc_path in tqdm(self.doc_paths):
+        for doc_path in self.doc_paths:
             book_name = doc_path.split("/")[-1][:-4]
             tokenized_sentences_path = doc_path.replace("/raw_docs", f"/tokenized_sentences")
             tokenized_sentences = load_list_of_lines(tokenized_sentences_path, "str")
@@ -109,7 +116,7 @@ class CorpusBasedFeatureExtractor(object):
             book_bigram_mapping_rel = {}
             book_trigram_mapping_rel = {}
 
-            for doc_path in tqdm(self.doc_paths):
+            for doc_path in self.doc_paths:
                 book_name = doc_path.split("/")[-1][:-4]
                 tokenized_sentences_path = doc_path.replace("/raw_docs", f"/tokenized_sentences")
                 tokenized_sentences = load_list_of_lines(tokenized_sentences_path, "str")
@@ -332,11 +339,11 @@ class CorpusBasedFeatureExtractor(object):
 
         cluster_means = []
         for index, current_list_of_embeddings in enumerate(all_embeddings):
-            cluster_means.append(np.array(current_list_of_embeddings).mean(axis=0))
+            cluster_means.append(np.array(current_list_of_embeddings).mean(axis=0)) #average of all sentenfces
 
         labels = []
         predictions = []
-        for label_index, current_list_of_embeddings in tqdm(list(enumerate(all_embeddings))):
+        for label_index, current_list_of_embeddings in list(enumerate(all_embeddings)):
             for current_embedding in current_list_of_embeddings:
                 labels.append(label_index)
                 best_cluster = None
@@ -357,6 +364,7 @@ class CorpusBasedFeatureExtractor(object):
             indices = np.argwhere(labels == label_index).ravel()
             current_predictions = predictions[indices]
             incorrect_prediction_indices = np.argwhere(current_predictions != label_index)
+            # fraction of nearest chunks that are part of other books
             overlap_score = len(incorrect_prediction_indices) / len(current_predictions)
             book_names.append(book_name)
             overlap_scores.append(overlap_score)
@@ -433,25 +441,19 @@ class CorpusBasedFeatureExtractor(object):
             dtm_reduced = dtm[max_columns]
         return dtm_reduced
 
-    def df_from_dict(self, d, keys_as_index, keys_column_name, values_column_value):
-        df = pd.DataFrame(d.items(), columns=[keys_column_name, values_column_value])
-        if keys_as_index == True:
-            df = df.set_index(keys=keys_column_name)
-        return df
-
     def get_distance_from_corpus(self, ngram_type, min_nr_documents=None, min_percent_documents=None, max_nr_documents=None, max_percent_documents=None):
         if ngram_type == 'unigram':
-            corpus_freq = self.df_from_dict(d=self.word_statistics['total_unigram_counts'], keys_as_index=True, keys_column_name='ngram', values_column_value='corpus_freq')
+            corpus_freq = df_from_dict(d=self.word_statistics['total_unigram_counts'], keys_as_index=True, keys_column_name='ngram', values_column_value='corpus_freq')
             dtm = pd.DataFrame(self.word_statistics['book_unigram_mapping_abs'])
         elif ngram_type == 'bigram':
             if not 'total_bigram_counts' in self.word_statistics.keys():
                 self.word_statistics = self.__get_word_statistics(include_ngrams=True)
-            corpus_freq = self.df_from_dict(d=self.word_statistics['total_bigram_counts'], keys_as_index=True, keys_column_name='ngram', values_column_value='corpus_freq')
+            corpus_freq = df_from_dict(d=self.word_statistics['total_bigram_counts'], keys_as_index=True, keys_column_name='ngram', values_column_value='corpus_freq')
             dtm = pd.DataFrame(self.word_statistics['book_bigram_mapping_abs'])
         elif ngram_type == 'trigram':
             if not 'total_trigram_counts' in self.word_statistics.keys():
                 self.word_statistics = self.__get_word_statistics(include_ngrams=True)
-            corpus_freq = self.df_from_dict(d=self.word_statistics['total_trigram_counts'], keys_as_index=True, keys_column_name='ngram', values_column_value='corpus_freq')
+            corpus_freq = df_from_dict(d=self.word_statistics['total_trigram_counts'], keys_as_index=True, keys_column_name='ngram', values_column_value='corpus_freq')
             dtm = pd.DataFrame(self.word_statistics['book_trigram_mapping_abs'])
         dtm = dtm.fillna(0).T
         dtm_filtered = self.filter_document_term_matrix(dtm, min_nr_documents, min_percent_documents, max_nr_documents, max_percent_documents).T
@@ -465,7 +467,7 @@ class CorpusBasedFeatureExtractor(object):
                 chunk_ngram_counts = chunk.bigram_counts
             elif ngram_type == 'trigram':
                 chunk_ngram_counts = chunk.trigram_counts
-            chunk_freq = self.df_from_dict(d=chunk_ngram_counts, keys_as_index=True, keys_column_name='ngram', values_column_value='chunk_freq')
+            chunk_freq = df_from_dict(d=chunk_ngram_counts, keys_as_index=True, keys_column_name='ngram', values_column_value='chunk_freq')
             df = corpus_freq.merge(chunk_freq, how='outer', left_index=True, right_index=True, validate='one_to_one').fillna(0)
             if df['corpus_freq'].isnull().values.any():
                 raise Exception(f"Error in word statistics: Not all {ngram_type}s in total counts.")
@@ -477,7 +479,7 @@ class CorpusBasedFeatureExtractor(object):
             df = df.div(df.sum(axis=0), axis=1)
             cosine_distance = scipy.spatial.distance.cosine(df["corpus_freq"], df["chunk_freq"])
             distances[chunk.book_name + "_" + str(chunk.chunk_id)] = cosine_distance
-        distances = self.df_from_dict(d=distances, keys_as_index=False, keys_column_name='book_name', values_column_value=f"{ngram_type}_distance")
+        distances = df_from_dict(d=distances, keys_as_index=False, keys_column_name='book_name', values_column_value=f"{ngram_type}_distance")
         return distances 
 
     def get_unigram_distance(self):
@@ -507,10 +509,10 @@ class CorpusBasedFeatureExtractor(object):
                                 self.get_production_distribution,  # this returns an empty dataframe if language is German
                                 #self.get_spelling_error_distribution,
                                 ]
-        corpus_book_feature_mapping = [# self.get_lda_topic_distribution,
-                                # self.get_k_most_common_unigram_counts_including_stopwords,
-                                # self.get_k_most_common_bigram_counts_including_stopwords,
-                                # self.get_k_most_common_trigram_counts_including_stopwords,
+        corpus_book_feature_mapping = [#self.get_lda_topic_distribution,
+        #                         self.get_k_most_common_unigram_counts_including_stopwords,
+        #                         self.get_k_most_common_bigram_counts_including_stopwords,
+        #                         self.get_k_most_common_trigram_counts_including_stopwords,
                                 self.get_overlap_score_doc2vec,
                                 self.get_overlap_score_sbert,
                                 self.get_outlier_score_doc2vec,
@@ -523,13 +525,16 @@ class CorpusBasedFeatureExtractor(object):
                 corpus_chunk_features = feature_function()
             else:
                 corpus_chunk_features = corpus_chunk_features.merge(feature_function(), on="book_name")
+        if self.sentences_per_chunk == None:
+            corpus_chunk_features['book_name'] = corpus_chunk_features['book_name'].str.split('_').str[:4].str.join('_')
 
         corpus_book_features = None
-        for feature_function in corpus_book_feature_mapping:
-            if corpus_book_features is None:
-                corpus_book_features = feature_function()
-            else:
-                corpus_book_features = corpus_book_features.merge(feature_function(), on="book_name")
+        if self.sentences_per_chunk is not None:
+            for feature_function in corpus_book_feature_mapping:
+                if corpus_book_features is None:
+                    corpus_book_features = feature_function()
+                else:
+                    corpus_book_features = corpus_book_features.merge(feature_function(), on="book_name")
 
         return corpus_chunk_features, corpus_book_features
 

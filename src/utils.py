@@ -9,8 +9,15 @@ import statistics
 german_special_chars = {'Ä':'Ae', 'Ö':'Oe', 'Ü':'Ue', 'ä':'ae', 'ö':'oe', 'ü':'ue', 'ß':'ss'}
 
 
+def df_from_dict(d, keys_as_index, keys_column_name, values_column_value):
+    df = pd.DataFrame(d.items(), columns=[keys_column_name, values_column_value])
+    if keys_as_index == True:
+        df = df.set_index(keys=keys_column_name)
+    return df
+
+
 def get_doc_paths(docs_dir, lang):
-    doc_paths = [os.path.join(docs_dir, lang, doc_name) for doc_name in os.listdir(os.path.join(docs_dir, lang)) if doc_name[-4:] == ".txt"]
+    doc_paths = [os.path.join(docs_dir, doc_name) for doc_name in os.listdir(docs_dir) if doc_name[-4:] == ".txt"]
     return doc_paths
 
 
