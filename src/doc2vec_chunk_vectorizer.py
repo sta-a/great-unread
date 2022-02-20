@@ -10,7 +10,7 @@ from utils import load_list_of_lines, save_list_of_lines
 logging.basicConfig(level=logging.DEBUG)
 
 
-class Doc2VecChunkVectorizer(object):
+class Doc2VecChunkVectorizer():
     def __init__(self,
                  lang,
                  sentences_per_chunk=500,

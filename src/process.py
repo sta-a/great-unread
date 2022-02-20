@@ -9,7 +9,7 @@ from transformers import BertTokenizer
 from unidecode import unidecode
 
 
-class SentenceTokenizer(object):
+class SentenceTokenizer():
     def __init__(self, lang):
         self.lang = lang
         if self.lang == "eng":
@@ -49,7 +49,7 @@ class SentenceTokenizer(object):
         return all_sentences
 
 
-class Doc2VecProcessor(object):
+class Doc2VecProcessor():
     def __init__(self, lang, processed_chunk_sentence_count=500, stride=500):
         self.lang = lang
         self.sentence_tokenizer = SentenceTokenizer(self.lang)
@@ -97,7 +97,7 @@ class Doc2VecProcessor(object):
         logging.info("Processed texts.")
 
 
-class BertProcessor(object):
+class BertProcessor():
     def __init__(self, lang, pad):
         self.lang = lang
         self.pad = pad

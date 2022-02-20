@@ -2,7 +2,7 @@ import re
 from utils import unidecode_custom
 
 
-class Chunk(object):
+class Chunk():
     def __init__(self, doc_path, book_name, chunk_id, tokenized_sentences, sbert_sentence_embeddings, doc2vec_chunk_embedding):
         self.doc_path = doc_path
         self.book_name = book_name

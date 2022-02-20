@@ -12,7 +12,7 @@ from sentence_transformers import SentenceTransformer
 from utils import load_list_of_lines, save_list_of_lines, unidecode_custom
 
 
-class DocBasedFeatureExtractor(object):
+class DocBasedFeatureExtractor():
     def __init__(self, lang, doc_path, sentences_per_chunk=200):
         self.lang = lang
         self.sentences_per_chunk = sentences_per_chunk
@@ -142,22 +142,18 @@ class DocBasedFeatureExtractor(object):
 
         # extract book based features
         book_features = None
-        sbert_embeddings = None
-        doc2vec_embeddings = None
         if self.sentences_per_chunk is not None:
             book_features = {}
             for feature_name, feature_function in book_feature_mapping.items():
                 book_features["book_name"] = self.doc_path.split("/")[-1][:-4]
                 book_features[feature_name] = feature_function(self.chunks)
-        
-            sbert_embeddings = [np.array(chunk.sbert_sentence_embeddings).mean(axis=0) for chunk in self.chunks] # Average across sentences belonging to a chunk
-            doc2vec_embeddings = [chunk.doc2vec_chunk_embedding for chunk in self.chunks]
-        
 
+        #Return sbert embeddings by averageing across sentences belonging to a chunk 
         return chunk_features, \
-               book_features, \
-               sbert_embeddings, \
-               doc2vec_embeddings
+                book_features, \
+                [np.array(chunk.sbert_sentence_embeddings).mean(axis=0) for chunk in self.chunks], \
+                [chunk.doc2vec_chunk_embedding for chunk in self.chunks]
+
 
     def get_ratio_of_punctuation_marks(self, chunk):
         punctuations = 0

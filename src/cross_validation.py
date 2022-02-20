@@ -24,7 +24,7 @@ import statistics
 import random
 random.seed(8)
 
-class Regression(object):
+class Regression():
     def __init__(self, language, features, drop_columns_including, dimensionality_reduction, model_param, model, verbose):
         assert isinstance(drop_columns_including, list)
         for i in drop_columns_including:

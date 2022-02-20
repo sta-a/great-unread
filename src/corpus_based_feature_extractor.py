@@ -21,7 +21,7 @@ from corpus_toolkit import corpus_tools as ct
 logging.basicConfig(level=logging.DEBUG)
 
 
-class CorpusBasedFeatureExtractor(object):
+class CorpusBasedFeatureExtractor():
     def __init__(self, lang, doc_paths, all_average_sbert_sentence_embeddings, all_doc2vec_chunk_embeddings, sentences_per_chunk=200, nr_features=100):
         self.lang = lang
         self.doc_paths = doc_paths
