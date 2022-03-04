@@ -72,7 +72,7 @@ class DocBasedFeatureExtractor():
     def __get_chunks(self):
         book_name = self.doc_path.split("/")[-1][:-4]
         if self.sentences_per_chunk is None:
-            return [Chunk(self.doc_path, book_name, "full", self.tokenized_sentences, self.sbert_sentence_embeddings, self.doc2vec_chunk_embeddings)]
+            return [Chunk(self.doc_path, book_name, "full", self.tokenized_sentences, self.sbert_sentence_embeddings, self.doc2vec_chunk_embeddings[0])]
         chunks = []
         chunk_id_counter = 0
         for i in tqdm(range(0, len(self.tokenized_sentences), self.sentences_per_chunk)):
