@@ -203,6 +203,7 @@ class DocBasedFeatureExtractor():
 
     def get_doc2vec_chunk_embedding(self, chunk):
         doc2vec_chunk_embedding_features = dict((f"doc2vec_chunk_embedding_{index+1}", embedding_part) for index, embedding_part in enumerate(chunk.doc2vec_chunk_embedding))
+        print(doc2vec_chunk_embedding_features)
         return doc2vec_chunk_embedding_features
 
     def get_average_number_of_words_in_sentence(self, chunk):
