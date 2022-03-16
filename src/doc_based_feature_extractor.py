@@ -5,11 +5,15 @@ import string
 import logging
 import textstat
 from tqdm import tqdm
+from pathlib import Path
+import pickle
 from scipy.stats import entropy
 from process import SentenceTokenizer
 from chunk import Chunk
 from sentence_transformers import SentenceTransformer
 from utils import load_list_of_lines, save_list_of_lines, unidecode_custom
+import json
+
 
 
 class DocBasedFeatureExtractor():
@@ -33,7 +37,7 @@ class DocBasedFeatureExtractor():
             logging.info(f"Downloaded {self.model_name} for Spacy.")
             self.nlp = spacy.load(self.model_name)
 
-        self.stopwords = self.nlp.Defaults.stop_words
+        self.stopwords = self.nlp.Defaults.stop_words #####################################################3
         new_stopwords = []
         for stopword in self.stopwords:
             new_stopwords.append(unidecode_custom(stopword))
@@ -61,25 +65,56 @@ class DocBasedFeatureExtractor():
             save_list_of_lines(self.sbert_sentence_embeddings, sbert_sentence_embeddings_path, "np")
 
         ## load doc2vec chunk embeddings
-        doc2vec_chunk_embeddings_path = doc_path.replace("/raw_docs", f"/doc2vec_chunk_embeddings_spc_{sentences_per_chunk}") + ".npz"
+        doc2vec_chunk_embeddings_path = doc_path.replace("/raw_docs", f"/doc2vec_chunk_embeddings_spc_{self.sentences_per_chunk}") + ".npz"
         if os.path.exists(doc2vec_chunk_embeddings_path):
             self.doc2vec_chunk_embeddings = load_list_of_lines(doc2vec_chunk_embeddings_path, "np")
         else:
             raise Exception(f"Could not find Doc2Vec chunk embeddings for chunk size {self.sentences_per_chunk}.")
 
-        self.chunks = self.__get_chunks()
+        # def object_decoder(obj):
+        #     if 'chunk_id' in obj:
+        #         print('obj', obj)
+        #         return Chunk(sentences_per_chunk = obj['sentences_per_chunk'],
+        #                     doc_path = obj['doc_path'],
+        #                     book_name = obj['book_name'],
+        #                     chunk_id = obj['chunk_id'],
+        #                     tokenized_sentences = obj['tokenized_sentences'],
+        #                     sbert_sentence_embeddings = [np.asarray(x) for x in obj['sbert_sentence_embeddings']],
+        #                     doc2vec_chunk_embedding = np.asarray(obj['doc2vec_chunk_embedding']),
+        #                     raw_text = obj['raw_text'],
+        #                     unidecoded_raw_text = obj['unidecoded_raw_text'],
+        #                     processed_sentences = obj['processed_sentences'], 
+        #                     unigram_counts = obj['unigram_counts'],
+        #                     bigram_counts = obj['bigram_counts'],
+        #                     trigram_counts = obj['trigram_counts'],
+        #                     char_unigram_counts = obj['char_unigram_counts'])
+        #     return obj
+        # def get_chunk():
+        #     with open('test.json', 'r') as f:
+        #         return json.load(f, object_hook=object_decoder)
+        # json_load = get_chunk()
+
+        chunks_path = self.doc_path.replace("/raw_docs", f"/chunks_spc_{self.sentences_per_chunk}") + ".json"
+        if os.path.exists(chunks_path):
+            with open(chunks_path, 'r') as f:
+                chunks = json.load(f)
+        else:
+            os.makedirs(str(Path(chunks_path).parent), exist_ok=True)
+            self.chunks = self.__get_chunks()
+            with open(chunks_path, 'a') as f:
+                [json.dump(chunk.to_json(), fp=f, indent=4) for chunk in self.chunks]
 
     def __get_chunks(self):
         book_name = self.doc_path.split("/")[-1][:-4]
         if self.sentences_per_chunk is None:
-            return [Chunk(self.doc_path, book_name, "full", self.tokenized_sentences, self.sbert_sentence_embeddings, self.doc2vec_chunk_embeddings[0])]
+            return [Chunk(self.sentences_per_chunk, self.doc_path, book_name, "full", self.tokenized_sentences, self.sbert_sentence_embeddings, self.doc2vec_chunk_embeddings[0])]
         chunks = []
         chunk_id_counter = 0
-        for i in tqdm(range(0, len(self.tokenized_sentences), self.sentences_per_chunk)):
+        for i in range(0, len(self.tokenized_sentences), self.sentences_per_chunk):
             current_sentences = self.tokenized_sentences[i:i+self.sentences_per_chunk]
             current_sentence_embeddings = self.sbert_sentence_embeddings[i:i+self.sentences_per_chunk]
             if (len(current_sentences) == self.sentences_per_chunk) or (i == 0):
-                chunks.append(Chunk(self.doc_path, book_name, chunk_id_counter, current_sentences, current_sentence_embeddings, self.doc2vec_chunk_embeddings[chunk_id_counter]))
+                chunks.append(Chunk(self.sentences_per_chunk, self.doc_path, book_name, chunk_id_counter, current_sentences, current_sentence_embeddings, self.doc2vec_chunk_embeddings[chunk_id_counter]))
                 chunk_id_counter += 1
         return chunks
 
@@ -203,7 +238,6 @@ class DocBasedFeatureExtractor():
 
     def get_doc2vec_chunk_embedding(self, chunk):
         doc2vec_chunk_embedding_features = dict((f"doc2vec_chunk_embedding_{index+1}", embedding_part) for index, embedding_part in enumerate(chunk.doc2vec_chunk_embedding))
-        print(doc2vec_chunk_embedding_features)
         return doc2vec_chunk_embedding_features
 
     def get_average_number_of_words_in_sentence(self, chunk):
