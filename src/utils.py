@@ -8,6 +8,8 @@ import statistics
 
 german_special_chars = {'Ä':'Ae', 'Ö':'Oe', 'Ü':'Ue', 'ä':'ae', 'ö':'oe', 'ü':'ue', 'ß':'ss'}
 
+def get_bookname(doc_path):
+    return doc_path.split("/")[-1][:-4]
 
 def df_from_dict(d, keys_as_index, keys_column_name, values_column_value):
     df = pd.DataFrame(d.items(), columns=[keys_column_name, values_column_value])
@@ -20,7 +22,7 @@ def get_doc_paths(docs_dir, lang):
     doc_paths = [os.path.join(docs_dir, doc_name) for doc_name in os.listdir(docs_dir) if doc_name[-4:] == ".txt"]
     return doc_paths
 
-
+    
 def load_list_of_lines(path, line_type):
     if line_type == "str":
         with open(path, "r") as reader:
@@ -47,6 +49,7 @@ def save_list_of_lines(lst, path, line_type):
 def read_canon_labels(labels_dir):
     labels = pd.read_csv(os.path.join(labels_dir, "210907_regression_predict_02_setp3_FINAL.csv"), sep=";")[["file_name", "m3"]]
     labels = labels.rename(columns={'file_name': 'book_name', 'm3': 'y'})
+    labels = labels.sort_values(by='book_name', axis=0, ascending=True, na_position='first')
     return labels
 
 
@@ -92,6 +95,7 @@ def read_sentiment_scores(sentiment_dir, canonization_labels_dir, lang):
     labels = pd.concat([single_review, multiple_reviews])
     
     labels["c"] = labels["c"].replace(to_replace={"positive": 3, "not_classified": 2, "negative": 1})
+    labels = labels.sort_values(by='book_name', axis=0, ascending=True, na_position='first')
     return labels[["book_name", "y", "c"]]
 
 
