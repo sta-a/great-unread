@@ -25,20 +25,18 @@ from .doc_based_feature_extractor import DocBasedFeatureExtractor
 
 class CorpusBasedFeatureExtractor():
     '''Get features for which the whole corpus needs to be considered.'''
-    def __init__(self, lang, doc_paths, all_average_sbert_sentence_embeddings, all_doc2vec_chunk_embeddings, sentences_per_chunk=200, nr_features=100):
-        self.lang = lang
+    def __init__(self, language, doc_paths, sentences_per_chunk=200, nr_features=100):
+        self.language = language
         self.doc_paths = doc_paths
-        self.all_average_sbert_sentence_embeddings = all_average_sbert_sentence_embeddings
-        self.all_doc2vec_chunk_embeddings = all_doc2vec_chunk_embeddings
         self.sentences_per_chunk = sentences_per_chunk
         self.nr_features = nr_features
 
-        if self.lang == "eng":
+        if self.language == "eng":
             self.model_name = 'en_core_web_sm'
-        elif self.lang == "ger":
+        elif self.language == "ger":
             self.model_name = 'de_core_news_sm'
         else:
-            raise Exception(f"Not a valid language {self.lang}")
+            raise Exception(f"Not a valid language {self.language}")
 
         try:
             self.nlp = spacy.load(self.model_name)
@@ -61,45 +59,28 @@ class CorpusBasedFeatureExtractor():
                 pickle.dump(self.word_statistics, f, -1)
         
 
-        self.all_average_sbert_sentence_embeddings_ = []
-        self.all_doc2vec_chunk_embeddings_ = []
+        self.all_average_sbert_sentence_embeddings = []
+        self.all_doc2vec_chunk_embeddings = []
         for doc_chunks in self.__generate_chunks():
             curr_sbert = []
             curr_doc2vec = []
             for chunk in doc_chunks:
                 curr_sbert.append(np.array(chunk.sbert_sentence_embeddings).mean(axis=0))
                 curr_doc2vec.append(chunk.doc2vec_chunk_embedding)
-            self.all_average_sbert_sentence_embeddings_.append(curr_sbert)
-            self.all_doc2vec_chunk_embeddings_.append(curr_doc2vec)
+            self.all_average_sbert_sentence_embeddings.append(curr_sbert)
+            self.all_doc2vec_chunk_embeddings.append(curr_doc2vec)
 
-        # # Aggregate embeddings from chunks in cbfe instead of returning them via functions from dbfe
-        # for o,n in zip(self.all_average_sbert_sentence_embeddings, new_sbert):
-        #     print(len(o))
-        #     print(len(n))  
-        #     print(np.array_equal(o,n))
-
-        # # Aggregate embeddings from chunks in cbfe instead of returning them via functions from dbfe
-        # for o,n in zip(self.all_doc2vec_chunk_embeddings, new_doc2vec):
-        #     print(len(o), len(n))
-        #     print(np.array_equal(o,n))
-
-        print(all([np.array_equal(x,y) for x,y in zip(self.all_average_sbert_sentence_embeddings, self.all_average_sbert_sentence_embeddings_)]))
-        print(all([np.array_equal(x,y) for x,y in zip(self.all_doc2vec_chunk_embeddings, self.all_doc2vec_chunk_embeddings_)]))
-
-    def __generate_chunks(self):
+    def __generate_chunks(self,         
+            processed_sentences=False, 
+            unigram_counts=False, 
+            bigram_counts=False, 
+            trigram_counts=False, 
+            raw_text=False, 
+            unidecoded_raw_text=False, 
+            char_unigram_counts=False):
         for doc_path in tqdm(self.doc_paths):
-            pickled_chunks_path = doc_path.replace("/raw_docs", f"/chunks_{self.sentences_per_chunk}").replace(".txt", ".pickle")
-            if os.path.exists(pickled_chunks_path):
-                with open(pickled_chunks_path, 'rb') as f:
-                    doc_chunks = pickle.load(f)
-
-            else:
-                doc_chunks = DocBasedFeatureExtractor(self.lang, doc_path).chunks
-                if not os.path.exists(os.path.dirname(pickled_chunks_path)):
-                    os.makedirs(os.path.dirname(pickled_chunks_path))
-                with open(pickled_chunks_path, 'wb') as f:
-                    pickle.dump(doc_chunks, f, -1)
-
+            doc_chunks = DocBasedFeatureExtractor(self.language, doc_path, self.sentences_per_chunk, processed_sentences, unigram_counts, bigram_counts, trigram_counts, raw_text, 
+                unidecoded_raw_text, char_unigram_counts).chunks
             yield doc_chunks
 
 
@@ -111,7 +92,7 @@ class CorpusBasedFeatureExtractor():
         book_bigram_mapping = {}
         book_trigram_mapping = {}
 
-        for doc_chunks in self.__generate_chunks():
+        for doc_chunks in self.__generate_chunks(unigram_counts=True, bigram_counts=True, trigram_counts=True):
             book_unigram_counts = {}
             book_bigram_counts = {}
             book_trigram_counts = {}
@@ -267,9 +248,9 @@ class CorpusBasedFeatureExtractor():
         Returns an empty dataframe if the language is German. Reason is explained in
         docstring of ProductionRuleExtractor.
         """
-        if self.lang == "ger":
-            return pd.DataFrame(data=[doc_path.split("/")[-1][:-4] for doc_path in self.doc_paths], columns=["book_name"])
-        elif self.lang == "eng":
+        if self.language == "ger":
+            raise Exception("Not implemented for German.")
+        elif self.language == "eng":
             pass
         else:
             raise Exception("Not a valid language")
@@ -421,7 +402,7 @@ class CorpusBasedFeatureExtractor():
         corpus_vector = [corpus_counts[key] if key in corpus_counts else 0 for key in dtm]
 
         distances = {}
-        for doc_chunks in self.__generate_chunks():
+        for doc_chunks in self.__generate_chunks(unigram_counts=True, bigram_counts=True, trigram_counts=True):
             for chunk in doc_chunks:
                 
                 if ngram_type == 'unigram':
@@ -463,8 +444,9 @@ class CorpusBasedFeatureExtractor():
                                 self.get_unigram_distance_limited,
                                 self.get_bigram_distance,
                                 self.get_trigram_distance,
-                                self.get_tag_distribution,
-                                self.get_production_distribution]  # this returns an empty dataframe if language is German
+                                self.get_tag_distribution]
+        if self.language == 'eng':
+            corpus_chunk_feature_mapping.append(self.get_production_distribution)
         corpus_book_feature_mapping = [
                                 self.get_overlap_score_doc2vec,
                                 self.get_overlap_score_sbert,
@@ -478,9 +460,9 @@ class CorpusBasedFeatureExtractor():
             if  corpus_chunk_features is None:
                 corpus_chunk_features = feature_function()
             else:
-                corpus_chunk_features = corpus_chunk_features.merge(feature_function(), on="book_name")
+                corpus_chunk_features = corpus_chunk_features.merge(feature_function(), how='inner', on="book_name", validate='one_to_one')
             end = time.time()
-            print(f'\nTime for {feature_function}: {end-start}')
+            print(f'\nTime for corpus_chunk_feature_mapping {feature_function}: {end-start}')
         if self.sentences_per_chunk is None:
             corpus_chunk_features['book_name'] = corpus_chunk_features['book_name'].str.split('_').str[:4].str.join('_')
 
@@ -491,7 +473,7 @@ class CorpusBasedFeatureExtractor():
                 if corpus_book_features is None:
                     corpus_book_features = feature_function()
                 else:
-                    corpus_book_features = corpus_book_features.merge(feature_function(), on="book_name")
+                    corpus_book_features = corpus_book_features.merge(feature_function(), how='inner', on="book_name", validate='one_to_one')
                 end = time.time()
                 print(f'Time for {feature_function}: {end-start}')
         return corpus_chunk_features, corpus_book_features

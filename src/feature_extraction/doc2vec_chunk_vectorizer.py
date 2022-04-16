@@ -40,7 +40,7 @@ class Doc2VecChunkVectorizer():
         doc_path_to_chunk_ids = {}
         logging.info("Preparing data for Doc2VecChunkVectorizer...")
         for doc_id, doc_path in enumerate(doc_paths): # fix this
-            tokenized_sentences_path = doc_path.replace("/raw_docs", f"/tokenized_sentences")
+            tokenized_sentences_path = doc_path.replace("/raw_docs", "/tokenized_sentences")
             if os.path.exists(tokenized_sentences_path):
                 self.sentences = load_list_of_lines(tokenized_sentences_path, "str")
             else:

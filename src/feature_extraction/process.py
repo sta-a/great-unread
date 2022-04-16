@@ -6,7 +6,7 @@ from tqdm import tqdm
 import pickle
 import spacy
 from transformers import BertTokenizer
-from unidecode import unidecode
+from utils import preprocess_sentences_helper
 
 
 class SentenceTokenizer():
@@ -67,20 +67,13 @@ class Doc2VecProcessor():
             with open(doc_path, "r") as doc_reader:
                 doc = doc_reader.read()
 
-            def _process_text(text):
-                text = text.lower()
-                text = unidecode(text)
-                text = re.sub("[^a-zA-Z]+", " ", text).strip()
-                text = " ".join(text.split())
-                return text
-
             if self.processed_chunk_sentence_count is not None:
                 if os.path.exists(doc_path[:-4].replace("/raw_docs", f"/tokenized_sentences") + ".pickle"):
                     sentences = pickle.load(open(doc_path[:-4].replace("/raw_docs", f"/tokenized_sentences") + ".pickle", "rb"))
                 else:
                     sentences = self.sentence_tokenizer.tokenize(doc)
                     pickle.dump(sentences, open(doc_path[:-4].replace("/raw_docs", f"/tokenized_sentences") + ".pickle", "wb"))
-                sentences = [_process_text(sentence) for sentence in sentences]
+                sentences = [preprocess_sentences_helper(sentence) for sentence in sentences]
 
                 for i in range(0, len(doc), self.stride):
                     current_chunk = sentences[i:i+self.processed_chunk_sentence_count]
@@ -90,7 +83,7 @@ class Doc2VecProcessor():
                     with open(processed_doc_path, "w") as doc_writer:
                         doc_writer.write(" ".join(current_chunk))
             else:
-                doc = _process_text(doc)
+                doc = preprocess_sentences_helper(doc)
                 processed_doc_path = doc_path.replace("/raw_docs", "/processed_doc2vec_full")
                 with open(processed_doc_path, "w") as doc_writer:
                     doc_writer.write(doc)

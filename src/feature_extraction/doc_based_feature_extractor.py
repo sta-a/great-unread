@@ -8,26 +8,47 @@ from tqdm import tqdm
 from pathlib import Path
 import pickle
 from scipy.stats import entropy
+from unidecode import unidecode
 from sentence_transformers import SentenceTransformer
 from .process import SentenceTokenizer
 from .chunk import Chunk
-from utils import load_list_of_lines, save_list_of_lines, unidecode_custom, get_bookname
+from utils import load_list_of_lines, save_list_of_lines, get_bookname
 
 
 class DocBasedFeatureExtractor():
     '''Get features that can be calculated from a single document.'''
-    def __init__(self, lang, doc_path, sentences_per_chunk=200):
-        self.lang = lang
+    def __init__(self, 
+        language, 
+        doc_path, 
+        sentences_per_chunk=200,
+        processed_sentences=True, 
+        unigram_counts=True, 
+        bigram_counts=True, 
+        trigram_counts=True, 
+        raw_text=True, 
+        unidecoded_raw_text=True, 
+        char_unigram_counts=True):
+
+        self.language = language
         self.sentences_per_chunk = sentences_per_chunk
         self.doc_path = doc_path
 
-        if self.lang == "eng":
+        # Parameters for creating chunks
+        self.processed_sentences = processed_sentences
+        self.unigram_counts = unigram_counts
+        self.bigram_counts = bigram_counts
+        self.trigram_counts = trigram_counts
+        self.raw_text = raw_text
+        self.unidecoded_raw_text = unidecoded_raw_text
+        self.char_unigram_counts = char_unigram_counts
+
+        # Spacy
+        if self.language == "eng":
             self.model_name = 'en_core_web_sm'
-        elif self.lang == "ger":
+        elif self.language == "ger":
             self.model_name = 'de_core_news_sm'
         else:
-            raise Exception(f"Not a valid language {self.lang}")
-
+            raise Exception(f"Not a valid language {self.language}")
         try:
             self.nlp = spacy.load(self.model_name)
         except OSError:
@@ -36,34 +57,26 @@ class DocBasedFeatureExtractor():
             logging.info(f"Downloaded {self.model_name} for Spacy.")
             self.nlp = spacy.load(self.model_name)
 
-        self.stopwords = self.nlp.Defaults.stop_words #####################################################3
-        new_stopwords = []
-        for stopword in self.stopwords:
-            new_stopwords.append(unidecode_custom(stopword))
-        self.stopwords = set(new_stopwords)
-
-        ## load sentences
+        ## Preprocess or load data
         tokenized_sentences_path = doc_path.replace("/raw_docs", f"/tokenized_sentences")
         if os.path.exists(tokenized_sentences_path):
             self.tokenized_sentences = load_list_of_lines(tokenized_sentences_path, "str")
         else:
-            self.sentence_tokenizer = SentenceTokenizer(self.lang)
+            self.sentence_tokenizer = SentenceTokenizer(self.language)
             self.tokenized_sentences = self.sentence_tokenizer.tokenize(doc_path)
             save_list_of_lines(self.tokenized_sentences, tokenized_sentences_path, "str")
 
-        ## load sbert sentence embeddings
         sbert_sentence_embeddings_path = doc_path.replace("/raw_docs", f"/sbert_sentence_embeddings") + ".npz"
         if os.path.exists(sbert_sentence_embeddings_path):
             self.sbert_sentence_embeddings = load_list_of_lines(sbert_sentence_embeddings_path, "np")
         else:
-            if self.lang == "eng":
+            if self.language == "eng":
                 self.sentence_encoder = SentenceTransformer('stsb-mpnet-base-v2')
-            elif self.lang == "ger":
+            elif self.language == "ger":
                 self.sentence_encoder = SentenceTransformer('paraphrase-xlm-r-multilingual-v1')
             self.sbert_sentence_embeddings = list(self.sentence_encoder.encode(self.tokenized_sentences))
             save_list_of_lines(self.sbert_sentence_embeddings, sbert_sentence_embeddings_path, "np")
 
-        ## load doc2vec chunk embeddings
         doc2vec_chunk_embeddings_path = doc_path.replace("/raw_docs", f"/doc2vec_chunk_embeddings_spc_{self.sentences_per_chunk}") + ".npz"
         if os.path.exists(doc2vec_chunk_embeddings_path):
             self.doc2vec_chunk_embeddings = load_list_of_lines(doc2vec_chunk_embeddings_path, "np")
@@ -72,17 +85,24 @@ class DocBasedFeatureExtractor():
 
         self.chunks = self.__get_chunks()
 
-
     def __get_chunks(self):
         book_name = get_bookname(self.doc_path)
         if self.sentences_per_chunk is None:
             return [Chunk(
                 sentences_per_chunk = self.sentences_per_chunk,
                 doc_path = self.doc_path,
-                chunk_id = "full",
+                chunk_id = "None",
                 tokenized_sentences = self.tokenized_sentences,
                 sbert_sentence_embeddings = self.sbert_sentence_embeddings,
-                doc2vec_chunk_embedding = self.doc2vec_chunk_embeddings[0])]
+                doc2vec_chunk_embedding = self.doc2vec_chunk_embeddings[0],
+                processed_sentences = self.processed_sentences,
+                unigram_counts = self.unigram_counts,
+                bigram_counts = self.bigram_counts,
+                trigram_counts = self.trigram_counts,
+                raw_text = self.raw_text,
+                unidecoded_raw_text = self.unidecoded_raw_text,
+                char_unigram_counts = self.char_unigram_counts)]
+
         else:
             chunks = []
             chunk_id_counter = 0
@@ -96,7 +116,14 @@ class DocBasedFeatureExtractor():
                         chunk_id = chunk_id_counter,
                         tokenized_sentences = current_sentences,
                         sbert_sentence_embeddings = current_sentence_embeddings,
-                        doc2vec_chunk_embedding = self.doc2vec_chunk_embeddings[chunk_id_counter]))
+                        doc2vec_chunk_embedding = self.doc2vec_chunk_embeddings[chunk_id_counter],
+                        processed_sentences = self.processed_sentences,
+                        unigram_counts = self.unigram_counts,
+                        bigram_counts = self.bigram_counts,
+                        trigram_counts = self.trigram_counts,
+                        raw_text = self.raw_text,
+                        unidecoded_raw_text = self.unidecoded_raw_text,
+                        char_unigram_counts = self.char_unigram_counts))
                     chunk_id_counter += 1
             return chunks
 
@@ -117,7 +144,6 @@ class DocBasedFeatureExtractor():
             "ratio_of_unique_trigrams": self.get_ratio_of_unique_trigrams,
             "text_length": self.get_text_length,
             "average_word_length": self.get_average_word_length,
-            "ratio_of_stopwords": self.get_ratio_of_stopwords,
             "bigram_entropy": self.get_bigram_entropy,
             "trigram_entropy": self.get_trigram_entropy,
             "type_token_ratio": self.get_type_token_ratio,
@@ -145,7 +171,7 @@ class DocBasedFeatureExtractor():
         # extract chunk based features
         chunk_features = []
         for chunk in self.chunks:
-            if self.sentences_per_chunk != None:
+            if self.sentences_per_chunk is not None:
                 chunk_name = chunk.book_name + "_" + str(chunk.chunk_id)
             else:
                 chunk_name = chunk.book_name
@@ -167,9 +193,7 @@ class DocBasedFeatureExtractor():
 
         #Return sbert embeddings by averageing across sentences belonging to a chunk 
         return chunk_features, \
-                book_features, \
-                [np.array(chunk.sbert_sentence_embeddings).mean(axis=0) for chunk in self.chunks], \
-                [chunk.doc2vec_chunk_embedding for chunk in self.chunks]
+                book_features
 
 
     def get_ratio_of_punctuation_marks(self, chunk):
@@ -251,15 +275,6 @@ class DocBasedFeatureExtractor():
         for word, count in chunk.unigram_counts.items():
             word_lengths.append(len(word) * count)
         return np.mean(word_lengths)
-
-    def get_ratio_of_stopwords(self, chunk):
-        number_of_stopwords = 0
-        number_of_all_words = 0
-        for word, count in chunk.unigram_counts.items():
-            number_of_all_words += 1
-            if word in self.stopwords:
-                number_of_stopwords += count
-        return number_of_stopwords / number_of_all_words
 
     def get_unigram_entropy(self, chunk):
         return entropy(list(chunk.unigram_counts.values()))
