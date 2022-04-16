@@ -1,4 +1,5 @@
 from code import compile_command
+from hashlib import new
 import os
 import sys
 import time
@@ -10,7 +11,6 @@ from tqdm import tqdm
 import pickle
 from pydoc import doc
 from xml.sax.handler import feature_namespace_prefixes
-import re
 from collections import Counter
 from spellchecker import SpellChecker
 from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer, _document_frequency
@@ -19,7 +19,7 @@ import spacy
 from gensim.models import LdaMulticore
 from gensim.matutils import Sparse2Corpus
 from corpus_toolkit import corpus_tools as ct
-from utils import load_list_of_lines, save_list_of_lines, unidecode_custom, df_from_dict, get_bookname
+from utils import load_list_of_lines, save_list_of_lines, df_from_dict, get_bookname
 from .production_rule_extractor import ProductionRuleExtractor
 from .doc_based_feature_extractor import DocBasedFeatureExtractor
 
@@ -32,8 +32,6 @@ class CorpusBasedFeatureExtractor():
         self.all_doc2vec_chunk_embeddings = all_doc2vec_chunk_embeddings
         self.sentences_per_chunk = sentences_per_chunk
         self.nr_features = nr_features
-
-        self.word_statistics = self.__get_word_statistics(include_ngrams=True)
 
         if self.lang == "eng":
             self.model_name = 'en_core_web_sm'
@@ -50,135 +48,132 @@ class CorpusBasedFeatureExtractor():
             logging.info(f"Downloaded {self.model_name} for Spacy.")
             self.nlp = spacy.load(self.model_name)
 
-        if self.lang == "eng":
-            self.spell_checker = SpellChecker(language='en')
-        elif self.lang == "ger":
-            self.spell_checker = SpellChecker(language='de')
-        else:
-            raise Exception(f"Not a valid language {self.lang}")
 
-        self.stopwords = self.nlp.Defaults.stop_words
-        new_stopwords = []
-        for stopword in self.stopwords:
-            new_stopwords.append(unidecode_custom(stopword))
-        self.stopwords = set(new_stopwords)
+        word_stat_path = os.path.dirname(doc_paths[0]).replace("/raw_docs", f"/word_stat") + "/word_statistics.pickle"
+        if os.path.exists(word_stat_path):
+            with open(word_stat_path, 'rb') as f:
+                self.word_statistics = pickle.load(f)
+        else:
+            self.word_statistics = self.__get_word_statistics()
+            if not os.path.exists(os.path.dirname(word_stat_path)):
+                os.makedirs(os.path.dirname(word_stat_path))
+            with open(word_stat_path, 'wb') as f:
+                pickle.dump(self.word_statistics, f, -1)
+        
+
+        self.all_average_sbert_sentence_embeddings_ = []
+        self.all_doc2vec_chunk_embeddings_ = []
+        for doc_chunks in self.__generate_chunks():
+            curr_sbert = []
+            curr_doc2vec = []
+            for chunk in doc_chunks:
+                curr_sbert.append(np.array(chunk.sbert_sentence_embeddings).mean(axis=0))
+                curr_doc2vec.append(chunk.doc2vec_chunk_embedding)
+            self.all_average_sbert_sentence_embeddings_.append(curr_sbert)
+            self.all_doc2vec_chunk_embeddings_.append(curr_doc2vec)
+
+        # # Aggregate embeddings from chunks in cbfe instead of returning them via functions from dbfe
+        # for o,n in zip(self.all_average_sbert_sentence_embeddings, new_sbert):
+        #     print(len(o))
+        #     print(len(n))  
+        #     print(np.array_equal(o,n))
+
+        # # Aggregate embeddings from chunks in cbfe instead of returning them via functions from dbfe
+        # for o,n in zip(self.all_doc2vec_chunk_embeddings, new_doc2vec):
+        #     print(len(o), len(n))
+        #     print(np.array_equal(o,n))
+
+        print(all([np.array_equal(x,y) for x,y in zip(self.all_average_sbert_sentence_embeddings, self.all_average_sbert_sentence_embeddings_)]))
+        print(all([np.array_equal(x,y) for x,y in zip(self.all_doc2vec_chunk_embeddings, self.all_doc2vec_chunk_embeddings_)]))
 
     def __generate_chunks(self):
         for doc_path in tqdm(self.doc_paths):
-            doc_chunks = DocBasedFeatureExtractor(self.lang, doc_path, self.sentences_per_chunk).chunks
+            pickled_chunks_path = doc_path.replace("/raw_docs", f"/chunks_{self.sentences_per_chunk}").replace(".txt", ".pickle")
+            if os.path.exists(pickled_chunks_path):
+                with open(pickled_chunks_path, 'rb') as f:
+                    doc_chunks = pickle.load(f)
+
+            else:
+                doc_chunks = DocBasedFeatureExtractor(self.lang, doc_path).chunks
+                if not os.path.exists(os.path.dirname(pickled_chunks_path)):
+                    os.makedirs(os.path.dirname(pickled_chunks_path))
+                with open(pickled_chunks_path, 'wb') as f:
+                    pickle.dump(doc_chunks, f, -1)
+
             yield doc_chunks
 
 
-    def __get_word_statistics(self, include_ngrams=True):
-        # get total counts over all documents
+    def __get_word_statistics(self):
         total_unigram_counts = Counter()
+        total_bigram_counts = Counter()
+        total_trigram_counts = Counter()
         book_unigram_mapping = {}
+        book_bigram_mapping = {}
+        book_trigram_mapping = {}
 
-        for doc_path in tqdm(self.doc_paths):
-            book_name = get_bookname(doc_path)
-            tokenized_sentences_path = doc_path.replace("/raw_docs", f"/tokenized_sentences")
-            tokenized_sentences = load_list_of_lines(tokenized_sentences_path, "str")
-            processed_sentences = self.__preprocess_sentences(tokenized_sentences)
-            unigram_counts = self.__find_unigram_counts(processed_sentences)
-            total_unigram_counts.update(unigram_counts)            
-            book_unigram_mapping[book_name] = unigram_counts         
+        for doc_chunks in self.__generate_chunks():
+            book_unigram_counts = {}
+            book_bigram_counts = {}
+            book_trigram_counts = {}
+            for chunk in doc_chunks:
+                book_name = chunk.book_name
+
+                for unigram, counts in chunk.unigram_counts.items():
+                    if unigram in book_unigram_counts:
+                        book_unigram_counts[unigram] += counts
+                    else:
+                        book_unigram_counts[unigram] = counts
+
+                for bigram, counts in chunk.bigram_counts.items():
+                    if bigram in book_bigram_counts:
+                        book_bigram_counts[bigram] += counts
+                    else:
+                        book_bigram_counts[bigram] = counts
+
+                for trigram, counts in chunk.trigram_counts.items():
+                    if trigram in book_trigram_counts:
+                        book_trigram_counts[trigram] += counts
+                    else:
+                        book_trigram_counts[trigram] = counts
+            book_unigram_mapping[book_name] = book_unigram_counts
+            book_bigram_mapping[book_name] = book_bigram_counts
+            book_trigram_mapping[book_name] = book_trigram_counts
+            total_unigram_counts.update(book_unigram_counts)
+            total_bigram_counts.update(book_bigram_counts)
+            total_trigram_counts.update(book_trigram_counts)
 
         total_unigram_counts = dict(sorted(list(total_unigram_counts.items()), key=lambda x: -x[1])) #all words
+        total_bigram_counts = dict(sorted(list(total_bigram_counts.items()), key=lambda x: -x[1])[:2000]) 
+        total_trigram_counts = dict(sorted(list(total_trigram_counts.items()), key=lambda x: -x[1])[:2000])
+        
+        # keep only counts of the 2000 most frequent bi- and trigrams
+        book_bigram_mapping_ = {}
+        for book, book_dict in book_bigram_mapping.items():
+            book_dict_ = {}
+            for ngram in set(total_bigram_counts.keys()):
+                if ngram in book_dict:
+                    book_dict_[ngram] = book_dict[ngram]
+            book_bigram_mapping_[book] = book_dict_
+
+        book_trigram_mapping_ = {}
+        for book, book_dict in book_trigram_mapping.items():
+            book_dict_ = {}
+            for ngram in set(total_trigram_counts.keys()):
+                if ngram in book_dict:
+                    book_dict_[ngram] = book_dict[ngram]
+            book_trigram_mapping_[book] = book_dict_
+
         word_statistics = {
             # {unigram: count}
             "total_unigram_counts": total_unigram_counts,
+            "total_bigram_counts": total_bigram_counts,
+            "total_trigram_counts": total_trigram_counts,
             # {book_name: {unigram: count}
             "book_unigram_mapping": book_unigram_mapping,
-           }
-
-        if include_ngrams == True:
-            total_bigram_counts = Counter()
-            total_trigram_counts = Counter()
-            book_bigram_mapping = {}
-            book_trigram_mapping = {}
-            for doc_path in tqdm(self.doc_paths):
-                book_name = get_bookname(doc_path)
-                tokenized_sentences_path = doc_path.replace("/raw_docs", f"/tokenized_sentences")
-                tokenized_sentences = load_list_of_lines(tokenized_sentences_path, "str")
-                processed_sentences = self.__preprocess_sentences(tokenized_sentences)
-                bigram_counts = self.__find_bigram_counts(processed_sentences)
-                trigram_counts = self.__find_trigram_counts(processed_sentences)
-                total_bigram_counts.update(bigram_counts)
-                total_trigram_counts.update(trigram_counts)
-                book_bigram_mapping[book_name] = bigram_counts
-                book_trigram_mapping[book_name] = trigram_counts
-
-            total_bigram_counts = dict(sorted(list(total_bigram_counts.items()), key=lambda x: -x[1])[:2000]) 
-            total_trigram_counts = dict(sorted(list(total_trigram_counts.items()), key=lambda x: -x[1])[:2000])
-            
-            # make all dicts same length
-            book_bigram_mapping_ = {}
-            for book, book_dict in book_bigram_mapping.items():
-                book_dict_ = {}
-                for ngram in set(total_bigram_counts.keys()):
-                    if ngram in book_dict:
-                        book_dict_[ngram] = book_dict[ngram]
-                book_bigram_mapping_[book] = book_dict_
-
-            book_trigram_mapping_ = {}
-            for book, book_dict in book_trigram_mapping.items():
-                book_dict_ = {}
-                for ngram in set(total_trigram_counts.keys()):
-                    if ngram in book_dict:
-                        book_dict_[ngram] = book_dict[ngram]
-                book_trigram_mapping_[book] = book_dict_
-
-            # {bigram: count}
-            word_statistics["total_bigram_counts"] = total_bigram_counts
-            word_statistics["total_trigram_counts"] = total_trigram_counts
-            # {book_name: {bigram: count}}
-            word_statistics["book_bigram_mapping"] = book_bigram_mapping_
-            word_statistics["book_trigram_mapping"] = book_trigram_mapping_
+            "book_bigram_mapping": book_bigram_mapping_,
+            "book_trigram_mapping": book_trigram_mapping_}
         return word_statistics
 
-    def __find_unigram_counts(self, processed_sentences):
-        unigram_counts = {}
-        for processed_sentence in processed_sentences:
-            for unigram in processed_sentence.split():
-                if unigram in unigram_counts.keys():
-                    unigram_counts[unigram] += 1
-                else:
-                    unigram_counts[unigram] = 1
-        return unigram_counts
-
-    def __find_bigram_counts(self, processed_sentences):
-        processed_text = "<BOS> " + " <EOS> <BOS> ".join(processed_sentences) + " <EOS>"
-        processed_text_split = processed_text.split()
-        bigram_counts = {}
-        for i in range(len(processed_text_split) - 1):
-            current_bigram = processed_text_split[i] + " " + processed_text_split[i+1]
-            if current_bigram in bigram_counts:
-                bigram_counts[current_bigram] += 1
-            else:
-                bigram_counts[current_bigram] = 1
-        return bigram_counts
-
-    def __find_trigram_counts(self, processed_sentences):
-        processed_text = "<BOS> <BOS> " + " <EOS> <EOS> <BOS> <BOS> ".join(processed_sentences) + " <EOS> <EOS>"
-        processed_text_split = processed_text.split()
-        trigram_counts = {}
-        for i in range(len(processed_text_split) - 2):
-            current_trigram = processed_text_split[i] + " " + processed_text_split[i+1] + " " + processed_text_split[i+2]
-            if current_trigram in trigram_counts.keys():
-                trigram_counts[current_trigram] += 1
-            else:
-                trigram_counts[current_trigram] = 1
-        return trigram_counts
-
-    def __preprocess_sentences(self, tokenized_sentences):
-        def __preprocess_sentences_helper(text):
-            text = text.lower()
-            text = unidecode_custom(text)
-            text = re.sub("[^a-zA-Z]+", " ", text).strip()
-            text = text.split()
-            text = " ".join(text)
-            return text
-        return [__preprocess_sentences_helper(sentence) for sentence in tokenized_sentences]
 
     def __tag_chunks(self, tag_type, gram_type):
         def __tag_sentence(sentence_tags, gram_type):
@@ -419,43 +414,27 @@ class CorpusBasedFeatureExtractor():
         return dtm_reduced
 
     def get_distance_from_corpus(self, ngram_type, min_nr_documents=None, min_percent_documents=None, max_nr_documents=None, max_percent_documents=None):
-        if ngram_type == 'unigram':
-            corpus_freq = df_from_dict(d=self.word_statistics['total_unigram_counts'], keys_as_index=True, keys_column_name='ngram', values_column_value='corpus_freq')
-            dtm = pd.DataFrame(self.word_statistics['book_unigram_mapping'])
-        elif ngram_type == 'bigram':
-            if not 'total_bigram_counts' in self.word_statistics.keys():
-                self.word_statistics = self.__get_word_statistics(include_ngrams=True)
-            corpus_freq = df_from_dict(d=self.word_statistics['total_bigram_counts'], keys_as_index=True, keys_column_name='ngram', values_column_value='corpus_freq')
-            dtm = pd.DataFrame(self.word_statistics['book_bigram_mapping'])
-        elif ngram_type == 'trigram':
-            if not 'total_trigram_counts' in self.word_statistics.keys():
-                self.word_statistics = self.__get_word_statistics(include_ngrams=True)
-            corpus_freq = df_from_dict(d=self.word_statistics['total_trigram_counts'], keys_as_index=True, keys_column_name='ngram', values_column_value='corpus_freq')
-            dtm = pd.DataFrame(self.word_statistics['book_trigram_mapping'])
-        dtm = dtm.fillna(0).T
-        dtm_filtered = self.filter_document_term_matrix(dtm, min_nr_documents, min_percent_documents, max_nr_documents, max_percent_documents).T
+        dtm = pd.DataFrame(self.word_statistics[f'book_{ngram_type}_mapping']).fillna(0).T
+        dtm = self.filter_document_term_matrix(dtm, min_nr_documents, min_percent_documents, max_nr_documents, max_percent_documents)
+        dtm = list(set(dtm.columns.tolist()))
+        corpus_counts = self.word_statistics[f'total_{ngram_type}_counts']
+        corpus_vector = [corpus_counts[key] if key in corpus_counts else 0 for key in dtm]
 
         distances = {}
-        # for unigrams
         for doc_chunks in self.__generate_chunks():
             for chunk in doc_chunks:
+                
                 if ngram_type == 'unigram':
-                    chunk_ngram_counts = chunk.unigram_counts
+                    chunk_counts = chunk.unigram_counts
                 elif ngram_type == 'bigram':
-                    chunk_ngram_counts = chunk.bigram_counts
+                    chunk_counts = chunk.bigram_counts
                 elif ngram_type == 'trigram':
-                    chunk_ngram_counts = chunk.trigram_counts
-                chunk_freq = df_from_dict(d=chunk_ngram_counts, keys_as_index=True, keys_column_name='ngram', values_column_value='chunk_freq')
-                df = corpus_freq.merge(chunk_freq, how='outer', left_index=True, right_index=True, validate='one_to_one').fillna(0)
-                if df['corpus_freq'].isnull().values.any():
-                    raise Exception(f"Error in word statistics: Not all {ngram_type}s in total counts.")
-                # Only keep words that are in filtered matrix            
-                df = df[df.index.isin(dtm_filtered.index)]    
-                # Frequency in corpus without the chunk
-                df['corpus_freq'] = df['corpus_freq'] - df['chunk_freq']
-                # Relative frequencies in corpus and chunk
-                df = df.div(df.sum(axis=0), axis=1)
-                cosine_distance = scipy.spatial.distance.cosine(df["corpus_freq"], df["chunk_freq"])
+                    chunk_counts = chunk.trigram_counts
+
+                chunk_vector = [chunk_counts[key] if key in chunk_counts else 0 for key in dtm]
+                # Corpus counts without the counts from the chunk
+                curr_corpus_vector = list(np.subtract(np.array(corpus_vector), np.array(chunk_vector)))
+                cosine_distance = scipy.spatial.distance.cosine(curr_corpus_vector, chunk_vector)
                 distances[chunk.book_name + "_" + str(chunk.chunk_id)] = cosine_distance
         distances = df_from_dict(d=distances, keys_as_index=False, keys_column_name='book_name', values_column_value=f"{ngram_type}_distance")
         return distances 
@@ -494,14 +473,15 @@ class CorpusBasedFeatureExtractor():
 
         corpus_chunk_features = None
         for feature_function in corpus_chunk_feature_mapping:
+            print(feature_function)
             start = time.time()
             if  corpus_chunk_features is None:
                 corpus_chunk_features = feature_function()
             else:
                 corpus_chunk_features = corpus_chunk_features.merge(feature_function(), on="book_name")
             end = time.time()
-            print(f'Time for {feature_function}: {end-start}')
-        if self.sentences_per_chunk == None:
+            print(f'\nTime for {feature_function}: {end-start}')
+        if self.sentences_per_chunk is None:
             corpus_chunk_features['book_name'] = corpus_chunk_features['book_name'].str.split('_').str[:4].str.join('_')
 
         corpus_book_features = None
@@ -514,5 +494,4 @@ class CorpusBasedFeatureExtractor():
                     corpus_book_features = corpus_book_features.merge(feature_function(), on="book_name")
                 end = time.time()
                 print(f'Time for {feature_function}: {end-start}')
-
         return corpus_chunk_features, corpus_book_features
