@@ -1,0 +1,49 @@
+language	target	model	model_param	labels_string	features_string	dimensionality_reduction	drop_columns	mean_train_mse	mean_train_rmse	mean_train_mae	mean_train_r2	mean_train_corr	mean_validation_mse	mean_validation_rmse	mean_validation_mae	mean_validation_r2	mean_validation_corr	mean_p_value
+eng	regression	xgboost	None	textblob	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.0	0.0	0.0	1.0	1.0	0.001	0.024	0.019	-0.279	0.057	0.489
+eng	regression	xgboost	None	textblob	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.0	0.001	0.001	0.977	0.993	0.001	0.025	0.02	-0.464	-0.149	0.106
+eng	regression	xgboost	None	textblob	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.0	0.0	0.0	1.0	1.0	0.001	0.024	0.018	-0.347	0.051	0.581
+eng	regression	xgboost	None	textblob	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.0	0.004	0.003	0.905	0.964	0.001	0.024	0.019	-0.355	-0.06	0.344
+eng	regression	xgboost	None	textblob	chunk	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.0	0.004	0.003	0.953	0.992	0.001	0.022	0.017	-0.147	-0.01	0.062
+eng	regression	xgboost	None	textblob	chunk	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.0	0.005	0.004	0.926	0.988	0.0	0.022	0.017	-0.137	0.006	0.263
+eng	regression	xgboost	None	textblob	chunk	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.0	0.006	0.004	0.884	0.957	0.001	0.022	0.018	-0.195	-0.057	0.166
+eng	regression	xgboost	None	textblob	chunk	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.0	0.016	0.012	0.447	0.732	0.0	0.022	0.017	-0.14	0.03	0.149
+eng	regression	xgboost	None	textblob	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.0	0.0	0.0	1.0	1.0	0.001	0.024	0.019	-0.353	-0.013	0.304
+eng	regression	xgboost	None	textblob	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.0	0.0	0.0	1.0	1.0	0.001	0.025	0.019	-0.402	-0.088	0.137
+eng	regression	xgboost	None	textblob	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.0	0.0	0.0	1.0	1.0	0.001	0.024	0.019	-0.331	0.091	0.304
+eng	regression	xgboost	None	textblob	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.0	0.002	0.002	0.966	0.989	0.001	0.025	0.019	-0.407	-0.078	0.127
+eng	regression	xgboost	None	textblob	cacb	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.0	0.001	0.001	0.982	0.994	0.001	0.024	0.019	-0.342	-0.111	0.075
+eng	regression	xgboost	None	textblob	cacb	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.0	0.0	0.0	1.0	1.0	0.001	0.024	0.019	-0.391	-0.199	0.099
+eng	regression	xgboost	None	textblob	cacb	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.0	0.0	0.0	1.0	1.0	0.001	0.024	0.019	-0.371	-0.123	0.234
+eng	regression	xgboost	None	textblob	cacb	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.0	0.004	0.003	0.9	0.958	0.001	0.024	0.019	-0.404	-0.07	0.45
+eng	regression	xgboost	None	sentiart	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.0	0.004	0.003	0.947	0.983	0.001	0.028	0.021	-0.267	0.125	0.182
+eng	regression	xgboost	None	sentiart	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.0	0.003	0.002	0.968	0.989	0.001	0.027	0.02	-0.17	0.233	0.024
+eng	regression	xgboost	None	sentiart	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.0	0.003	0.002	0.973	0.992	0.001	0.029	0.021	-0.315	0.085	0.323
+eng	regression	xgboost	None	sentiart	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.0	0.004	0.003	0.946	0.982	0.001	0.028	0.022	-0.281	0.041	0.32
+eng	regression	xgboost	None	sentiart	chunk	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.0	0.016	0.013	0.582	0.827	0.001	0.026	0.02	-0.079	0.215	0.026
+eng	regression	xgboost	None	sentiart	chunk	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.0	0.015	0.011	0.642	0.87	0.001	0.026	0.02	-0.096	0.125	0.069
+eng	regression	xgboost	None	sentiart	chunk	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.0	0.015	0.012	0.618	0.842	0.001	0.026	0.02	-0.084	0.158	0.171
+eng	regression	xgboost	None	sentiart	chunk	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.0	0.021	0.016	0.327	0.649	0.001	0.027	0.021	-0.151	0.077	0.248
+eng	regression	xgboost	None	sentiart	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.0	0.004	0.003	0.952	0.983	0.001	0.028	0.021	-0.276	0.089	0.152
+eng	regression	xgboost	None	sentiart	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.0	0.003	0.002	0.969	0.99	0.001	0.028	0.021	-0.273	0.178	0.018
+eng	regression	xgboost	None	sentiart	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.0	0.004	0.003	0.947	0.983	0.001	0.029	0.022	-0.38	0.083	0.176
+eng	regression	xgboost	None	sentiart	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.0	0.007	0.005	0.879	0.958	0.001	0.029	0.023	-0.371	0.013	0.162
+eng	regression	xgboost	None	sentiart	cacb	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.0	0.003	0.002	0.971	0.99	0.001	0.027	0.022	-0.235	0.154	0.061
+eng	regression	xgboost	None	sentiart	cacb	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.0	0.007	0.005	0.907	0.967	0.001	0.027	0.021	-0.202	0.112	0.333
+eng	regression	xgboost	None	sentiart	cacb	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.0	0.003	0.002	0.962	0.985	0.001	0.028	0.021	-0.253	0.149	0.049
+eng	regression	xgboost	None	sentiart	cacb	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.0	0.005	0.003	0.911	0.962	0.001	0.031	0.024	-0.481	-0.066	0.408
+eng	regression	xgboost	None	combined	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.0	0.005	0.004	0.942	0.983	0.001	0.034	0.027	-0.36	0.04	0.286
+eng	regression	xgboost	None	combined	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.0	0.005	0.004	0.945	0.986	0.001	0.034	0.026	-0.392	-0.004	0.11
+eng	regression	xgboost	None	combined	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.0	0.003	0.002	0.98	0.994	0.001	0.032	0.025	-0.247	0.106	0.193
+eng	regression	xgboost	None	combined	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.0	0.011	0.008	0.796	0.922	0.001	0.033	0.025	-0.275	0.097	0.382
+eng	regression	xgboost	None	combined	chunk	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.0	0.019	0.015	0.591	0.857	0.001	0.031	0.024	-0.139	-0.001	0.255
+eng	regression	xgboost	None	combined	chunk	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.0	0.02	0.015	0.56	0.85	0.001	0.03	0.024	-0.083	0.101	0.468
+eng	regression	xgboost	None	combined	chunk	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.0	0.014	0.011	0.737	0.912	0.001	0.031	0.023	-0.093	0.082	0.37
+eng	regression	xgboost	None	combined	chunk	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.001	0.023	0.017	0.431	0.741	0.001	0.031	0.023	-0.107	0.129	0.333
+eng	regression	xgboost	None	combined	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.0	0.007	0.005	0.919	0.977	0.001	0.034	0.027	-0.4	0.046	0.582
+eng	regression	xgboost	None	combined	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.0	0.007	0.005	0.899	0.971	0.001	0.034	0.026	-0.367	-0.009	0.274
+eng	regression	xgboost	None	combined	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.0	0.006	0.005	0.936	0.982	0.001	0.033	0.026	-0.337	0.01	0.413
+eng	regression	xgboost	None	combined	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.0	0.005	0.004	0.929	0.973	0.001	0.034	0.026	-0.334	0.131	0.247
+eng	regression	xgboost	None	combined	cacb	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.0	0.005	0.003	0.956	0.986	0.001	0.033	0.025	-0.263	0.037	0.452
+eng	regression	xgboost	None	combined	cacb	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.0	0.008	0.006	0.884	0.956	0.001	0.032	0.025	-0.233	0.062	0.192
+eng	regression	xgboost	None	combined	cacb	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.0	0.004	0.003	0.958	0.985	0.001	0.033	0.025	-0.407	0.061	0.165
+eng	regression	xgboost	None	combined	cacb	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.0	0.009	0.007	0.825	0.93	0.001	0.035	0.027	-0.459	0.024	0.394
