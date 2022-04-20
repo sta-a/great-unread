@@ -20,22 +20,19 @@ from sklearn.utils.class_weight import compute_class_weight
 import xgboost
 #  from xgboost import XGBRegressor
 
-
-
 class AuthorSplit():
     """
     Distribute book names over splits.
     All works of an author are in the same split.
     Adapted from https://www.titanwolf.org/Network/q/b7ee732a-7c92-4416-bc80-a2bd2ed136f1/y
     """
-    def __init__(self, language, df, nr_splits, seed, return_indices=False):
+    def __init__(self, language, df, nr_splits, seed, stratified=False, return_indices=False):
         self.language = language
         self.df = df
         self.nr_splits = nr_splits
+        self.stratified = stratified
         self.return_indices = return_indices
         self.book_names = df["book_name"]
-        print(self.book_names.shape)
-        print('Stevenson-Grift_Robert-Louis-Fanny-van-de_The-Dynamiter_1885' in self.book_names)
         self.author_bookname_mapping, self.works_per_author = self.get_author_books()
         random.seed(seed)
 
@@ -44,16 +41,13 @@ class AuthorSplit():
         author_bookname_mapping = {}
         #Get books per authors
         for book_name in self.book_names:
-            print(book_name)
             author = "_".join(book_name.split("_")[:2])
-            print(author)
             authors.append(author)
             if author in author_bookname_mapping:
                 author_bookname_mapping[author].append(book_name)
             else:
                 author_bookname_mapping[author] = []
                 author_bookname_mapping[author].append(book_name)
-            print(book_name)
                 
         # Aggregate if author has collaborations with others
         if self.language == "ger":
@@ -65,22 +59,42 @@ class AuthorSplit():
                                                    "Stevenson-Osbourne_Robert-Louis-Lloyde"]}
             
         for author, aliases in agg_dict.items():
-            print('author', author, 'aliases', aliases)
             if author in authors:
-                #print(author, aliases)
                 for alias in aliases:
-                    #print(alias)
-                    author_bookname_mapping[author].extend(author_bookname_mapping[alias]) 
-                    del author_bookname_mapping[alias]
-                    authors = [author for author in authors if author != alias]
+                    if alias in authors:
+                        author_bookname_mapping[author].extend(author_bookname_mapping[alias]) 
+                        del author_bookname_mapping[alias]
+                        authors = [author for author in authors if author != alias]
         
         works_per_author = Counter(authors)
-        #print('author bookname mapping', author_bookname_mapping)
         return author_bookname_mapping, works_per_author
     
     def split(self):
         splits = [[] for _ in range(0,self.nr_splits)]
-        totals = [(0,i) for i in range (0, self.nr_splits)]
+
+        if self.stratified == True:
+            rare_labels = sorted(self.df['y'].unique().tolist())[1:]
+            splits_counter = [0 for _ in range(0,self.nr_splits)]
+            for rare_label in rare_labels:
+                # If stratified, first distribute authors that have rarest label over split so that the author is assigned to the split with the smallest number or rarest labels
+                print('rarest label is ', rare_label)
+                counts = [(0,i) for i in range (0,self.nr_splits)]
+                # heapify based on first element of tuple, inplace
+                heapq.heapify(counts)
+                for author in list(self.works_per_author.keys()):
+                    rare_label_counter = 0
+                    for curr_book_name in self.author_bookname_mapping[author]:
+                        if self.df.loc[self.df['book_name'] == curr_book_name].squeeze().at['y'] == rare_label:
+                            rare_label_counter += 1
+                    if rare_label_counter != 0:
+                        author_workcount = self.works_per_author.pop(author)
+                        count, index = heapq.heappop(counts)
+                        splits[index].append(author)
+                        splits_counter[index] += author_workcount
+                        heapq.heappush(counts, (count + rare_label_counter, index))
+            totals = [(splits_counter[i],i) for i in range(0,len(splits_counter))]
+        else:
+            totals = [(0,i) for i in range (0, self.nr_splits)]
         # heapify based on first element of tuple, inplace
         heapq.heapify(totals)
         while bool(self.works_per_author):
@@ -100,6 +114,10 @@ class AuthorSplit():
                 for author in split:
                     new.extend(self.author_bookname_mapping[author])
                 map_splits.append(new)
+
+            for split in map_splits:
+                split_df = self.df[self.df["book_name"].isin(split)]
+                print('labels per split\n\n', split_df['y'].value_counts())
         else:
             # Return indices of book_names in split
             book_name_idx_mapping = dict((book_name, index) for index, book_name in enumerate(self.book_names))
@@ -117,11 +135,11 @@ class AuthorSplit():
 
 class Regression():
     '''Predict sentiment scores.'''
-    def __init__(self, results_dir, language, target, model, model_param, labels_string, labels, features_string, df, dimensionality_reduction, drop_columns, verbose=True):
+    def __init__(self, results_dir, language, task_type, model, model_param, labels_string, labels, features_string, df, dimensionality_reduction, drop_columns, verbose=True):
 
         self.results_dir = results_dir
         self.language = language
-        self.target = target
+        self.task_type = task_type
         self.model = model
         self.model_param = model_param
         self.labels_string = labels_string
@@ -131,6 +149,7 @@ class Regression():
         self.dimensionality_reduction = dimensionality_reduction
         self.drop_columns = drop_columns
         self.verbose = True
+        self.model_info_string = f"{self.language}_{self.task_type}_{self.model}_param-{self.model_param}_label-{self.labels_string}_feat-{self.features_string}_dimred-{self.dimensionality_reduction}_drop-{len(self.drop_columns)}"
 
         assert isinstance(self.drop_columns, list)
         for i in self.drop_columns:
@@ -139,7 +158,6 @@ class Regression():
         self._check_class_specific_assertions()
 
         self.df = self._drop_columns()
-        print(self.labels)
 
     def _check_class_specific_assertions(self):
         assert self.model in ["xgboost", "svr", "lasso"]
@@ -286,10 +304,40 @@ class Regression():
         #Average of sentiscores per book
         df = df.merge(right=self.labels, on="book_name", how="inner", validate="many_to_one")
         return df
+
+    def prepare_dfs(self, split, df):
+        # Prapare data
+        train_df = df[~df["book_name"].isin(split)]
+        train_X = train_df.drop(columns=["y", "book_name"], inplace=False).values
+        train_y = train_df["y"].values.ravel()
+
+        validation_df = df[df["book_name"].isin(split)]
+        validation_X = validation_df.drop(columns=["y", "book_name"], inplace=False).values
+
+        train_X, validation_X = self._impute(train_X, validation_X)
+        #if self.verbose:
+        #    print(f"train_X.shape before {self.dimensionality_reduction}: {train_X.shape}, validation_X.shape before {self.dimensionality_reduction}: {validation_X.shape}")
+        train_X, validation_X = self._reduce_dimensions(train_X, train_y, validation_X)
+        #if self.verbose:
+        #    print(f"train_X.shape after {self.dimensionality_reduction}: {train_X.shape}, validation_X.shape after {self.dimensionality_reduction}: {validation_X.shape}")
+            
+        train_labels = deepcopy(train_df[["book_name", "y"]])
+        validation_labels = deepcopy(validation_df[["book_name", "y"]])
+        #if self.verbose:
+            #print('Class distribution over train and validation set :', train_df["y"].value_counts()'\n', validation_df["y"].value_counts())
+        return train_df, train_X, train_y, validation_X, train_labels, validation_labels
     
+    def _concat_and_save_examples(self,all_validation_labels):
+        all_validation_labels = pd.concat(all_validation_labels)
+        all_validation_labels.to_csv(f"{self.results_dir}examples-{self.model_info_string}.csv", index=False)
+        return all_validation_labels
+
     def run(self):
+        # List of all predicted values/all true labels, for plotting
         all_predictions = []
         all_labels = []
+        # List of dfs with book_name, y, yhat
+        all_validation_labels = []
 
         train_mses = []
         train_maes = []
@@ -304,28 +352,10 @@ class Regression():
 
         df = self.df
         df = self._combine_df_labels(df)
-        print(self.df)
-        book_names_split = AuthorSplit(language=self.language, df=df, nr_splits=10, seed=2, return_indices=False).split()
-        all_validation_books = []
-
+        book_names_split = AuthorSplit(language=self.language, df=df, nr_splits=1, seed=1, return_indices=False).split()
+        
         for index, split in enumerate(book_names_split):
-                        
-            # Prapare data
-            train_df = df[~df["book_name"].isin(split)]
-            train_X = train_df.drop(columns=["y", "book_name"], inplace=False).values
-            train_y = train_df["y"].values.ravel()
-
-            validation_df = df[df["book_name"].isin(split)]
-            validation_X = validation_df.drop(columns=["y", "book_name"], inplace=False).values
-            validation_y = validation_df["y"].values.ravel()
-
-            train_X, validation_X = self._impute(train_X, validation_X)
-            #if self.verbose:
-            #    print(f"train_X.shape before {self.dimensionality_reduction}: {train_X.shape}, validation_X.shape before {self.dimensionality_reduction}: {validation_X.shape}")
-            train_X, validation_X = self._reduce_dimensions(train_X, train_y, validation_X)
-            #if self.verbose:
-            #    print(f"train_X.shape after {self.dimensionality_reduction}: {train_X.shape}, validation_X.shape after {self.dimensionality_reduction}: {validation_X.shape}")
-
+            train_df, train_X, train_y, validation_X, train_labels, validation_labels = self.prepare_dfs(split, df)
             # Train model
             if self.model == "xgboost":
                 train_book_names = train_df["book_name"].values.reshape(-1, 1)
@@ -342,29 +372,26 @@ class Regression():
                 model = self._get_model(self.model_param)
                 model.fit(train_X, train_y)
             
-            # Predict and evaluate
-            train_books = deepcopy(train_df[["book_name", "y"]])
-            validation_books = deepcopy(validation_df[["book_name", "y"]])
-            
+            # Predict           
             if self.model == "xgboost":
-                train_books["yhat"] = model.predict(xgboost.DMatrix(train_X))
-                validation_books["yhat"] = model.predict(xgboost.DMatrix(validation_X))
-                
-                print("train preds:", model.predict(xgboost.DMatrix(train_X)))
-                print("validation preds:", model.predict(xgboost.DMatrix(validation_X)))
+                train_labels["yhat"] = model.predict(xgboost.DMatrix(train_X))
+                validation_labels["yhat"] = model.predict(xgboost.DMatrix(validation_X))
+            
             else:
-                train_books["yhat"] = model.predict(train_X)
-                validation_books["yhat"] = model.predict(validation_X)
+                train_labels["yhat"] = model.predict(train_X)
+                validation_labels["yhat"] = model.predict(validation_X)
             
-            train_books = train_books.groupby("book_name").mean()
-            validation_books = validation_books.groupby("book_name").mean()
-            all_validation_books.append(validation_books.reset_index())
+            # Evaluate
+            train_labels = train_labels.groupby("book_name").mean()
+            validation_labels = validation_labels.groupby("book_name").mean()
+            all_validation_labels.append(validation_labels.reset_index())
             
-            train_y = train_books["y"].tolist()
-            train_yhat = train_books["yhat"].tolist()
-            validation_y = validation_books["y"].tolist()
-            validation_yhat = validation_books["yhat"].tolist()
+            train_y = train_labels["y"].tolist()
+            train_yhat = train_labels["yhat"].tolist()
+            validation_y = validation_labels["y"].tolist()
+            validation_yhat = validation_labels["yhat"].tolist()
             
+            # list of values
             all_labels.extend(validation_y)
             all_predictions.extend(validation_yhat)
             
@@ -394,9 +421,8 @@ class Regression():
         all_labels = np.array(all_labels)
         all_predictions = np.array(all_predictions)
         
-        # Save y and y_pred for examples
-        model_info_string = f"{self.language}_{self.target}_{self.model}_param-{self.model_param}_label-{self.labels_string}_feat-{self.features_string}_dimred-{self.dimensionality_reduction}_drop-{len(self.drop_columns)}"
-        all_validation_books = pd.concat(all_validation_books).to_csv(f"{self.results_dir}y_yhat-{model_info_string}.csv", index=False)
+        # Save book_names with y and yhat for analyzing results for each book
+        _ = self._concat_and_save_examples(all_validation_labels)
         
         mean_train_mse = np.mean(train_mses)
         mean_train_rmse = np.mean([sqrt(x) for x in train_mses])
@@ -412,6 +438,10 @@ class Regression():
         mean_p_value = self._get_pvalue(validation_corr_pvalues)
         
         if self.verbose:
+            if self.language == 'eng':
+                color = 'm'
+            else:
+                color = 'teal'
             print(f"""TrainMSE: {np.round(mean_train_mse, 3)}, 
                 TrainRMSE: {np.round(mean_train_rmse, 3)}, 
                 TrainMAE: {np.round(mean_train_mae, 3)}, 
@@ -429,10 +459,10 @@ class Regression():
             plt.yticks(fontsize=15)
             plt.xlim([min(all_labels), max(all_labels)])
             plt.ylim([min(all_predictions), max(all_predictions)])
-            plt.scatter(x=all_labels, y=all_predictions, s=6)
+            plt.scatter(x=all_labels, y=all_predictions, s=6, c=color)
             plt.xlabel("True Scores", fontsize=20)
             plt.ylabel("Predicted Scores", fontsize=20)
-            plt.savefig(f"{self.results_dir}{model_info_string}.png", dpi=400, bbox_inches="tight")
+            plt.savefig(f"{self.results_dir}{self.model_info_string}.png", dpi=400, bbox_inches="tight")
             plt.show();
 
         returned_values = [mean_train_mse, 
@@ -451,39 +481,24 @@ class Regression():
 
 class TwoclassClassification(Regression):
     ''' Classify into reviewed/not reviewed.'''
-    def __init__(self, results_dir, language, target, model, model_param, labels_string, labels, features_string, df, dimensionality_reduction, drop_columns, verbose=True):
-        super().__init__(results_dir, language, target, model, model_param, labels_string, labels, features_string, df, dimensionality_reduction, drop_columns, verbose=True)
+    def __init__(self, results_dir, language, task_type, model, model_param, labels_string, labels, features_string, df, dimensionality_reduction, drop_columns, verbose=True):
+        super().__init__(results_dir, language, task_type, model, model_param, labels_string, labels, features_string, df, dimensionality_reduction, drop_columns, verbose=True)
 
     def _check_class_specific_assertions(self):
         assert self.model in ["svc", "xgboost"]
         assert self.features_string in ["book", "baac"]
-        assert self.labels_string in ['classification']
+        assert self.labels_string in ['twoclass', 'library']
         
     def _combine_df_labels(self, df):
-        # Create label reviewed/not reviewed
         #Reviews zum englischen Korpus beginnnen mit 1759 und decken alles bis 1914 ab
-        self.labels["y"] = 1
-        review_year = df["book_name"].str.replace('-', '_').str.split('_').str[-1].astype('int64')
-        print(type(review_year), print(min(review_year)))
-
         df = df.merge(right=self.labels, on="book_name", how="left", validate="many_to_one")
         df["y"] = df["y"].fillna(value=0)
         #Select books written after year of first review)
         book_year = df["book_name"].str.replace('-', '_').str.split('_').str[-1].astype('int64')
-        print(book_year)
-        print('year earliest published text: ', min(book_year))
+        review_year = book_year[df['y'] != 0]
         # Keep only those texts that that were published after the first review had appeared
         df = df.loc[book_year>=min(review_year)]
         return df
-    
-    def _get_sample_weights(self, df):
-        # Weights for calculating accuracy 
-        chunks_per_book = df["book_name"].value_counts(sort=False).rename('chunks_per_book')
-        chunks_per_book = chunks_per_book.reset_index().rename(columns={"index":'book_name'})
-        chunks_per_book["chunks_per_book"] = 1/chunks_per_book["chunks_per_book"]
-        df = df.merge(right=chunks_per_book, how="left", on="book_name", validate='one_to_one')
-        sample_weights = df["chunks_per_book"].tolist()
-        return sample_weights
     
     def _aggregate_chunk_predictions(self, df):
         g = df.groupby("book_name")
@@ -504,49 +519,25 @@ class TwoclassClassification(Regression):
         
         # Average accuracy within book
         book_acc = g.apply(lambda group: accuracy_score(group["y"], group["yhat"])).mean()
-        #Accuracy when each chunk is treated as single document
-        chunk_acc = accuracy_score(df["y"], df["yhat"])#, sample_weight = self._get_sample_weights(df))
-        return {"mode_acc": mode_acc, "book_acc": book_acc, "chunk_acc": chunk_acc}
-    
-    def _split_booknames_stratified(self, df, nr_splits, return_indices=False):
-        label_splits = []
-        combined_splits = []
-        # Split df into folds for each label individualls
-        df_by_labels = df.groupby("y")
-        for name, group in df_by_labels:
-            AuthorSplit(language=self.language, df=group, nr_splits=5, seed=2, return_indices=False).split()
-            label_splits.append(split)
-        # Combine splits so that one split combines splits of all labels
-        for fold in range(0, nr_splits):
-            combined_split = []
-            for label in range(0, len(pd.unique(df["y"]))):
-                label_split = label_splits[label]
-                fold_split = label_split[fold]
-                combined_split.extend(fold_split)
-            combined_splits.append(combined_split)
-        return combined_splits                            
-                             
+        return {"mode_acc": mode_acc, "book_acc": book_acc}
+
+    def _make_crosstabs(self, all_validation_labels):
+        crosstab = pd.crosstab(all_validation_labels["y"], all_validation_labels["yhat"], rownames=['True'], colnames=['Predicted'], margins=True)
+        crosstab.to_csv(f"{self.results_dir}crosstab-{self.model_info_string}.csv", index=True)
+        print('--------------------------\nCrosstab\n', crosstab, '\n--------------------------')
+                    
     def run(self):
         train_accs = []
         validation_accs = []
         df = self.df
         df = self._combine_df_labels(df)
-        book_names_split_stratified = self._split_booknames_stratified(df, nr_splits=5, return_indices=False)
-        all_validation_books = []
+        book_names_split_stratified = AuthorSplit(language=self.language, df=df, nr_splits=5, seed=1, stratified=True, return_indices=False).split()
+        all_validation_labels = []
 
         for index, split in enumerate(book_names_split_stratified):
-            train_df = df[~df["book_name"].isin(split)]
-            validation_df = df[df["book_name"].isin(split)]
-            train_X = train_df.drop(columns=["y", "book_name"]).values
-            train_y = train_df["y"].values.ravel()
-            validation_X = validation_df.drop(columns=["y", "book_name"]).values
-            validation_y = validation_df["y"].values.ravel()
-            train_X, validation_X = self._impute(train_X, validation_X)
-            #if self.verbose:
-            #    print(f"train_X.shape before {self.dimensionality_reduction}: {train_X.shape}, validation_X.shape before {self.dimensionality_reduction}: {validation_X.shape}")
-            train_X, validation_X = self._reduce_dimensions(train_X, train_y, validation_X)
-            #if self.verbose:
-            #    print(f"train_X.shape after {self.dimensionality_reduction}: {train_X.shape}, validation_X.shape after {self.dimensionality_reduction}: {validation_X.shape}")
+            train_df, train_X, train_y, validation_X, train_labels, validation_labels = self.prepare_dfs(split, df)
+            
+            # Train model
             if self.model == "xgboost":
                 train_book_names = train_df["book_name"].values.reshape(-1, 1)
                 best_parameters = self._get_model(self.model_param, train_X, train_y, train_book_names, task_type="binary_classification")
@@ -563,88 +554,52 @@ class TwoclassClassification(Regression):
                 model = self._get_model(self.model_param)
                 model.fit(train_X, train_y)
             
-            train_books = deepcopy(train_df[["book_name", "y"]])
-            validation_books = deepcopy(validation_df[["book_name", "y"]])
-            
+            # Predict           
             if self.model == "xgboost":
-                train_books["yhat"] = model.predict(xgboost.DMatrix(train_X))
-                validation_books["yhat"] = model.predict(xgboost.DMatrix(validation_X))
+                train_labels["yhat"] = model.predict(xgboost.DMatrix(train_X))
+                validation_labels["yhat"] = model.predict(xgboost.DMatrix(validation_X))
             else:
-                train_books["yhat"] = model.predict(train_X)
-                validation_books["yhat"] = model.predict(validation_X)
+                train_labels["yhat"] = model.predict(train_X)
+                validation_labels["yhat"] = model.predict(validation_X)
+            # list of dfs
+            all_validation_labels.append(validation_labels)
 
-            train_acc = self._aggregate_chunk_predictions(train_books)
-            validation_acc = self._aggregate_chunk_predictions(validation_books)
-            
-            all_validation_books.append(validation_books)
+            # Evaluate
+            # Dicts with mode_acc, book_acc
+            train_acc = self._aggregate_chunk_predictions(train_labels)###############################
+            validation_acc = self._aggregate_chunk_predictions(validation_labels)
             
             train_accs.append(train_acc)
             validation_accs.append(validation_acc)
         
         # Save y and y_pred for examples
-        all_validation_books = pd.concat(all_validation_books)
-        all_validation_books.to_csv(f"{self.results_dir}valiationbooks-{self.target}.csv", index=False)
-        
-        print(confusion_matrix(all_validation_books["y"], all_validation_books["yhat"]))
-        print(pd.crosstab(all_validation_books["y"], all_validation_books["yhat"], rownames=['True'], colnames=['Predicted'], margins=True))
+        all_validation_labels = self._concat_and_save_examples(all_validation_labels)
+
+        self._make_crosstabs(all_validation_labels)
 
         train_accs = pd.DataFrame(train_accs)
         validation_accs = pd.DataFrame(validation_accs)
 
-        mean_train_mode_acc = train_accs["mode_acc"].mean()
+        #mean_train_mode_acc = train_accs["mode_acc"].mean()
         mean_train_book_acc = train_accs["book_acc"].mean()
-        mean_train_chunk_acc = train_accs["chunk_acc"].mean()
-        mean_validation_mode_acc = validation_accs["mode_acc"].mean()
+        #mean_validation_mode_acc = validation_accs["mode_acc"].mean()
         mean_validation_book_acc = validation_accs["book_acc"].mean()
-        mean_validation_chunk_acc = validation_accs["chunk_acc"].mean()
-        print('validation mode, book, and chunk acc', mean_validation_mode_acc, mean_validation_book_acc, mean_validation_chunk_acc)
 
-        return [mean_train_book_acc, mean_validation_book_acc]
-        
+        return [round(mean_train_book_acc, 3),round(mean_validation_book_acc, 3)]
 
-class LibraryClassification(TwoclassClassification):
-    '''Classify into in library/not in library.'''
-
-    def _check_class_specific_assertions(self):
-        assert self.model in ["svc", "xgboost"]
-        assert self.features_string in ["book", "baac"]
-        assert self.labels_string in ['classification']
-
-    def _combine_df_labels(self, df):
-        df = df.merge(right=self.labels, on="book_name", how="left", validate="one_to_one")
-        df["y"] = df["y"].fillna(0)
-        #Select books written after year first one appeared in a library catalogues
-        df["year"] = df["book_name"].str.replace('-', '_').str.split('_').str[-1].astype('int64')
-        helper_df = df.loc[df["y"]!=0]
-        first_library_year = min(helper_df["y"])
-        df = df.loc[df["year"]>=first_library_year]
-        df = df.drop(columns="year")
-        return df
-        
-        
 class MulticlassClassification(TwoclassClassification):
     '''Classify into not reviewed/negative/not classified/positive.'''
-    def __init__(self, results_dir, language, target, model, model_param, labels_string, labels, features_string, df, dimensionality_reduction, drop_columns, verbose=True):
-        super().__init__(results_dir, language, target, model, model_param, labels_string, labels, features_string, df, dimensionality_reduction, drop_columns, verbose=True)
+    def __init__(self, results_dir, language, task_type, model, model_param, labels_string, labels, features_string, df, dimensionality_reduction, drop_columns, verbose=True):
+        super().__init__(results_dir, language, task_type, model, model_param, labels_string, labels, features_string, df, dimensionality_reduction, drop_columns, verbose=True)
 
     def _check_class_specific_assertions(self):
         assert self.model in ["svc", "xgboost"]
         assert self.features_string in ["book", "baac"]
-        assert self.labels_string in ['classification']
+        assert self.labels_string in ['multiclass']
                 
-    def _combine_df_labels(self, df):
-        #Reviews zum englischen Korpus beginnnen mit 1759 und decken alles bis 1914 ab
-        df = df.merge(right=self.labels, on="book_name", how="left", validate="many_to_one")
-        df["y"] = df["y"].fillna(value=0)
-        #Select books written after year of first review
-        year = df["book_name"].str.replace('-', '_').str.split('_').str[-1].astype('int64')
-        df = df.loc[year>=min(year)]
-        return df
-    
-    def _evaluate_predictions(self, df):
+    def _get_f1_score(self, df):
         score = f1_score(df["y"], df["yhat"], average='macro')
         return score
-            
         
     def run(self):
         train_f1s = []
@@ -652,28 +607,12 @@ class MulticlassClassification(TwoclassClassification):
 
         df = self.df
         df = self._combine_df_labels(df)
-        book_names_split_stratified = self._split_booknames_stratified(df, nr_splits=5, return_indices=False)
-        all_validation_books = []
+        book_names_split_stratified = AuthorSplit(language=self.language, df=df, nr_splits=5, seed=1, stratified=True, return_indices=False).split()
+        all_validation_labels = []
 
         for index, split in enumerate(book_names_split_stratified):
-            train_df = df[~df["book_name"].isin(split)]
-            validation_df = df[df["book_name"].isin(split)]
-            print("class distribution over dfs")
-            print(train_df["y"].value_counts())
-            print(validation_df["y"].value_counts())
-            #print(train_df.loc[train_df["y"]==1])
-            print(validation_df.loc[validation_df["y"]==1])
-            
-            train_X = train_df.drop(columns=["y", "book_name"]).values
-            train_y = train_df["y"].values.ravel()
-            validation_X = validation_df.drop(columns=["y", "book_name"]).values
-            validation_y = validation_df["y"].values.ravel()
-            train_X, validation_X = self._impute(train_X, validation_X)
-            #if self.verbose:
-            #    print(f"train_X.shape before {self.dimensionality_reduction}: {train_X.shape}, validation_X.shape before {self.dimensionality_reduction}: {validation_X.shape}")
-            train_X, validation_X = self._reduce_dimensions(train_X, train_y, validation_X)
-            #if self.verbose:
-            #    print(f"train_X.shape after {self.dimensionality_reduction}: {train_X.shape}, validation_X.shape after {self.dimensionality_reduction}: {validation_X.shape}")
+            train_df, train_X, train_y, validation_X, train_labels, validation_labels = self.prepare_dfs(split, df)
+    
             if self.model == "xgboost":
                 train_book_names = train_df["book_name"].values.reshape(-1, 1)
                 best_parameters = self._get_model(self.model_param, train_X, train_y, train_book_names, task_type="multiclass_classification")
@@ -690,30 +629,25 @@ class MulticlassClassification(TwoclassClassification):
                 model = self._get_model(self.model_param)
                 model.fit(train_X, train_y)
             
-            train_books = deepcopy(train_df[["book_name", "y"]])
-            validation_books = deepcopy(validation_df[["book_name", "y"]])
-            
             if self.model == "xgboost":
-                train_books["yhat"] = model.predict(xgboost.DMatrix(train_X))
-                validation_books["yhat"] = model.predict(xgboost.DMatrix(validation_X))
+                train_labels["yhat"] = model.predict(xgboost.DMatrix(train_X))
+                validation_labels["yhat"] = model.predict(xgboost.DMatrix(validation_X))
             else:
-                train_books["yhat"] = model.predict(train_X)
-                validation_books["yhat"] = model.predict(validation_X)
-            
-            train_f1 = self._evaluate_predictions(train_books)
-            validation_f1 = self._evaluate_predictions(validation_books)
-            all_validation_books.append(validation_books)
-            
+                train_labels["yhat"] = model.predict(train_X)
+                validation_labels["yhat"] = model.predict(validation_X)
+            all_validation_labels.append(validation_labels)
+
+            train_f1 = self._get_f1_score(train_labels)
             train_f1s.append(train_f1)
+            validation_f1 = self._get_f1_score(validation_labels)           
             validation_f1s.append(validation_f1)
             if self.verbose:
                 print(f"Fold: {index+1}, TrainF1: {np.round(train_f1, 3)}, ValF1: {np.round(validation_f1, 3)}")
         
-        # Save y and y_pred for examples
-        all_validation_books = pd.concat(all_validation_books)
-        all_validation_books.to_csv(f"{self.results_dir}valiationbooks-{self.target}.csv", index=False)        
-        print(confusion_matrix(all_validation_books["y"], all_validation_books["yhat"]))
-        print(pd.crosstab(all_validation_books["y"], all_validation_books["yhat"], rownames=['True'], colnames=['Predicted'], margins=True))
+        # Save y and yhat for examples
+        all_validation_labels = self._concat_and_save_examples(all_validation_labels)
+
+        self._make_crosstabs(all_validation_labels)
 
         mean_train_f1 = statistics.mean(train_f1s)
         mean_validation_f1 = statistics.mean(validation_f1s)
@@ -721,4 +655,4 @@ class MulticlassClassification(TwoclassClassification):
         if self.verbose:
             print(f"""TrainF1: {np.round(mean_train_f1, 3)}, ValidationF1: {np.round(mean_validation_f1, 3)}""")
             print("\n---------------------------------------------------\n")
-        return [mean_train_f1, mean_validation_f1]
+        return [round(mean_train_f1, 3), round(mean_validation_f1, 3)]

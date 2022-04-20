@@ -123,7 +123,7 @@ def get_labels(lang, sentiment_dir, canonization_labels_dir, label_type):
             labels["combined"] = labels.apply(lambda row: _aggregate_scores(row), axis=1)
             #labels["combined"].sort_values().plot(kind="bar", figsize=(10, 5))
 
-        elif label_type == 'classification':
+        elif (label_type == 'multiclass') or (label_type == 'twoclass'):
             #Assign one class label per work
             grouped_docs = labels.groupby("book_name")
             single_review = grouped_docs.filter(lambda x: len(x)==1)
@@ -143,6 +143,10 @@ def get_labels(lang, sentiment_dir, canonization_labels_dir, label_type):
             multiple_reviews = multiple_reviews.groupby("book_name").apply(_select_label)
             labels = pd.concat([single_review, multiple_reviews])
             labels["classified"] = labels["classified"].replace(to_replace={"positive": 3, "not_classified": 2, "negative": 1})
+
+            if label_type =='twoclass':
+                # Create label reviewed/not reviewed
+                labels["classified"] = 1
             
     labels = labels.sort_values(by='book_name', axis=0, ascending=True, na_position='first')
     labels = labels.drop_duplicates(subset="book_name")
@@ -150,7 +154,7 @@ def get_labels(lang, sentiment_dir, canonization_labels_dir, label_type):
         labels = labels[["book_name", "sentiment_Textblob"]].rename(columns={"sentiment_Textblob": "y"})
     elif label_type == 'sentiart':
         labels = labels[["book_name", "sentiscore_average"]].rename(columns={"sentiscore_average": "y"})
-    elif label_type == 'classification':
+    elif (label_type == 'multiclass') or (label_type == 'twoclass'):
         labels = labels[["book_name", "classified"]].rename(columns={"classified": "y"})
     elif label_type == 'combined':
         labels = labels[["book_name", "combined"]].rename(columns={"combined": "y"})
