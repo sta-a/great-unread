@@ -1,0 +1,57 @@
+language	task_type	model	model_param	labels_string	features_string	dimensionality_reduction	drop_columns	mean_train_f1	mean_validation_f1
+eng	multiclass	svc	0.1	multiclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.295529	0.259479
+eng	multiclass	svc	0.1	multiclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.295541	0.259479
+eng	multiclass	svc	0.1	multiclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.295489	0.259479
+eng	multiclass	svc	0.1	multiclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.295995	0.259479
+eng	multiclass	svc	0.1	multiclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.296028	0.259479
+eng	multiclass	svc	0.1	multiclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.295489	0.259479
+eng	multiclass	svc	0.1	multiclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.296028	0.259479
+eng	multiclass	svc	0.1	multiclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.29598	0.259479
+eng	multiclass	svc	1	multiclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.308571	0.263735
+eng	multiclass	svc	1	multiclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.307347	0.263997
+eng	multiclass	svc	1	multiclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.308099	0.263735
+eng	multiclass	svc	1	multiclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.307284	0.265886
+eng	multiclass	svc	1	multiclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.308812	0.261162
+eng	multiclass	svc	1	multiclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.308616	0.261162
+eng	multiclass	svc	1	multiclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.308812	0.261162
+eng	multiclass	svc	1	multiclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.309119	0.263997
+eng	multiclass	svc	10	multiclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.326751	0.319258
+eng	multiclass	svc	10	multiclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.326798	0.321585
+eng	multiclass	svc	10	multiclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.326817	0.319258
+eng	multiclass	svc	10	multiclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.326562	0.323934
+eng	multiclass	svc	10	multiclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.327881	0.325259
+eng	multiclass	svc	10	multiclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.327928	0.325259
+eng	multiclass	svc	10	multiclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.327881	0.325259
+eng	multiclass	svc	10	multiclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.328172	0.327712
+eng	multiclass	svc	100	multiclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.332936	0.317289
+eng	multiclass	svc	100	multiclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.332949	0.317309
+eng	multiclass	svc	100	multiclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.332936	0.31627
+eng	multiclass	svc	100	multiclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.330804	0.31994
+eng	multiclass	svc	100	multiclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.336409	0.318325
+eng	multiclass	svc	100	multiclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.336445	0.318325
+eng	multiclass	svc	100	multiclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.336451	0.318325
+eng	multiclass	svc	100	multiclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.335133	0.316303
+eng	multiclass	svc	1000	multiclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.345677	0.32523
+eng	multiclass	svc	1000	multiclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.345599	0.32523
+eng	multiclass	svc	1000	multiclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.345573	0.32523
+eng	multiclass	svc	1000	multiclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.34599	0.32724
+eng	multiclass	svc	1000	multiclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.360826	0.316993
+eng	multiclass	svc	1000	multiclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.360826	0.316993
+eng	multiclass	svc	1000	multiclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.360826	0.316993
+eng	multiclass	svc	1000	multiclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.361196	0.314279
+eng	multiclass	svc	10000	multiclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.343079	0.320557
+eng	multiclass	svc	10000	multiclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.343625	0.320277
+eng	multiclass	svc	10000	multiclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.344661	0.32111
+eng	multiclass	svc	10000	multiclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.343237	0.321678
+eng	multiclass	svc	10000	multiclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.381837	0.304505
+eng	multiclass	svc	10000	multiclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.38042	0.305173
+eng	multiclass	svc	10000	multiclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.381195	0.304505
+eng	multiclass	svc	10000	multiclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.381085	0.302374
+eng	multiclass	xgboost	None	multiclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.832404	0.342804
+eng	multiclass	xgboost	None	multiclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.95932	0.390364
+eng	multiclass	xgboost	None	multiclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.879612	0.345915
+eng	multiclass	xgboost	None	multiclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.828307	0.328973
+eng	multiclass	xgboost	None	multiclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.787407	0.36409
+eng	multiclass	xgboost	None	multiclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.911536	0.356518
+eng	multiclass	xgboost	None	multiclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.735162	0.364463
+eng	multiclass	xgboost	None	multiclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.859864	0.340636

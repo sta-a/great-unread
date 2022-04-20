@@ -1,0 +1,29 @@
+language	task_type	model	model_param	labels_string	features_string	dimensionality_reduction	drop_columns	mean_train_f1	mean_validation_f1
+ger	multiclass	svc	0.1	multiclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.17784566684157557	0.14470028856167985
+ger	multiclass	svc	0.1	multiclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.1770161860889695	0.14757672721820425
+ger	multiclass	svc	0.1	multiclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.17812824427632032	0.1454866734883305
+ger	multiclass	svc	0.1	multiclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.17654298286813114	0.14724688254442017
+ger	multiclass	svc	1.0	multiclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.25646913238050756	0.224316520610822
+ger	multiclass	svc	1.0	multiclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.25556710379851516	0.22406216715199975
+ger	multiclass	svc	1.0	multiclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.2567634409035698	0.224316520610822
+ger	multiclass	svc	1.0	multiclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.25770788399358435	0.22414230458294743
+ger	multiclass	svc	10.0	multiclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.27516009928668744	0.24998911916517597
+ger	multiclass	svc	10.0	multiclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.2736854840715731	0.24610131786776057
+ger	multiclass	svc	10.0	multiclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.2716789103889169	0.2428047326835715
+ger	multiclass	svc	10.0	multiclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.2716571176898548	0.24224542525983364
+ger	multiclass	svc	100.0	multiclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.2523852278825851	0.20662553451421337
+ger	multiclass	svc	100.0	multiclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.252505288625927	0.20662553451421337
+ger	multiclass	svc	100.0	multiclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.2728012447752691	0.2163040991520872
+ger	multiclass	svc	100.0	multiclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.2739848227060315	0.21634615354092682
+ger	multiclass	svc	1000.0	multiclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.2630252649547757	0.18843702325412826
+ger	multiclass	svc	1000.0	multiclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.26144348110841475	0.18843702325412826
+ger	multiclass	svc	1000.0	multiclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.3028255644649583	0.22007548164991714
+ger	multiclass	svc	1000.0	multiclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.30443580667523257	0.21940558032381424
+ger	multiclass	svc	10000.0	multiclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.253244679771439	0.19659625402665812
+ger	multiclass	svc	10000.0	multiclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.25065009672196004	0.19897660543730802
+ger	multiclass	svc	10000.0	multiclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.31636851775438424	0.2266223389708234
+ger	multiclass	svc	10000.0	multiclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.3173272423455844	0.22784972077964144
+ger	multiclass	xgboost		multiclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.8753009112111557	0.3045156136603429
+ger	multiclass	xgboost		multiclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.8970803936080779	0.28250292955768297
+ger	multiclass	xgboost		multiclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.9343494846653657	0.24868738256714812
+ger	multiclass	xgboost		multiclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.9587538067918395	0.2682601335857856

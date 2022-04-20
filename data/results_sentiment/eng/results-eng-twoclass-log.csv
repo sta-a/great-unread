@@ -1,0 +1,57 @@
+language	task_type	model	model_param	labels_string	features_string	dimensionality_reduction	drop_columns	mean_train_book_acc	mean_validation_book_acc
+eng	twoclass	svc	0.1	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.6869934911781677	0.6861946902654867
+eng	twoclass	svc	0.1	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.6869934911781677	0.6861946902654867
+eng	twoclass	svc	0.1	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.6869934911781677	0.6861946902654867
+eng	twoclass	svc	0.1	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.6869934911781677	0.6861946902654867
+eng	twoclass	svc	0.1	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.6869934911781677	0.6861946902654867
+eng	twoclass	svc	0.1	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.6869934911781677	0.6861946902654867
+eng	twoclass	svc	0.1	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.6869934911781677	0.6861946902654867
+eng	twoclass	svc	0.1	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.6869934911781677	0.6861946902654867
+eng	twoclass	svc	1	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.679361062466469	0.6718423169750604
+eng	twoclass	svc	1	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.679361062466469	0.6718423169750604
+eng	twoclass	svc	1	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.679361062466469	0.6718423169750604
+eng	twoclass	svc	1	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.679361062466469	0.6700241351568785
+eng	twoclass	svc	1	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.6793580256911194	0.6682059533386967
+eng	twoclass	svc	1	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.6793580256911194	0.6682059533386967
+eng	twoclass	svc	1	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.6793580256911194	0.6682059533386967
+eng	twoclass	svc	1	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.6789095951978459	0.6682059533386967
+eng	twoclass	svc	10	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.6771067628987033	0.6718423169750604
+eng	twoclass	svc	10	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.6766583324054297	0.6718423169750604
+eng	twoclass	svc	10	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.6766583324054297	0.6718423169750604
+eng	twoclass	svc	10	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.6766522588547308	0.6700724054706355
+eng	twoclass	svc	10	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.6771097996740527	0.6700724054706355
+eng	twoclass	svc	10	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.6771097996740527	0.6700724054706355
+eng	twoclass	svc	10	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.6771097996740527	0.6700724054706355
+eng	twoclass	svc	10	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.6771097996740527	0.6700724054706355
+eng	twoclass	svc	100	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.6739495287936916	0.6701206757843926
+eng	twoclass	svc	100	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.6744009960623146	0.6701206757843926
+eng	twoclass	svc	100	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.6739495287936916	0.6701206757843926
+eng	twoclass	svc	100	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.673952565569041	0.6719388576025744
+eng	twoclass	svc	100	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.6757584346435331	0.666484312148029
+eng	twoclass	svc	100	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.6757584346435331	0.666484312148029
+eng	twoclass	svc	100	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.6757584346435331	0.666484312148029
+eng	twoclass	svc	100	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.6757584346435331	0.666484312148029
+eng	twoclass	svc	1000	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.6748555001062873	0.6648109412711183
+eng	twoclass	svc	1000	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.6748555001062873	0.6648109412711183
+eng	twoclass	svc	1000	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.6748555001062873	0.6648109412711183
+eng	twoclass	svc	1000	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.6744070696130137	0.6648109412711183
+eng	twoclass	svc	1000	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.6838392938485054	0.6629444891391795
+eng	twoclass	svc	1000	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.6838392938485054	0.6629444891391795
+eng	twoclass	svc	1000	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.6838392938485054	0.6629444891391795
+eng	twoclass	svc	1000	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.6838392938485054	0.6629444891391795
+eng	twoclass	svc	10000	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.6757523610928342	0.6629927594529365
+eng	twoclass	svc	10000	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.6762007915861078	0.6629927594529365
+eng	twoclass	svc	10000	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.6762007915861078	0.6629927594529365
+eng	twoclass	svc	10000	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.6757493243174848	0.6629927594529365
+eng	twoclass	svc	10000	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.7000313800119448	0.6648592115848754
+eng	twoclass	svc	10000	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.6991314822500481	0.6648592115848754
+eng	twoclass	svc	10000	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.6991345190253976	0.6630410297666935
+eng	twoclass	svc	10000	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.7009312777738412	0.6648592115848754
+eng	twoclass	xgboost	None	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.9613985362742815	0.6901206757843925
+eng	twoclass	xgboost	None	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.9403314134164734	0.6811263073209975
+eng	twoclass	xgboost	None	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.9484304932735427	0.6776830249396621
+eng	twoclass	xgboost	None	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.932656469849882	0.64864038616251
+eng	twoclass	xgboost	None	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.9488424824626224	0.6921319388576025
+eng	twoclass	xgboost	None	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.9448217918999079	0.71538213998391
+eng	twoclass	xgboost	None	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.9053811659192824	0.6719871279163314
+eng	twoclass	xgboost	None	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.8754051564445433	0.6524215607401448
