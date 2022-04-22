@@ -46,18 +46,7 @@ class CorpusBasedFeatureExtractor():
             logging.info(f"Downloaded {self.model_name} for Spacy.")
             self.nlp = spacy.load(self.model_name)
 
-
-        word_stat_path = os.path.dirname(doc_paths[0]).replace("/raw_docs", f"/word_stat") + "/word_statistics.pickle"
-        if os.path.exists(word_stat_path):
-            with open(word_stat_path, 'rb') as f:
-                self.word_statistics = pickle.load(f)
-        else:
-            self.word_statistics = self.__get_word_statistics()
-            if not os.path.exists(os.path.dirname(word_stat_path)):
-                os.makedirs(os.path.dirname(word_stat_path))
-            with open(word_stat_path, 'wb') as f:
-                pickle.dump(self.word_statistics, f, -1)
-        
+        self.word_statistics = self.__get_word_statistics()
 
         self.all_average_sbert_sentence_embeddings = []
         self.all_doc2vec_chunk_embeddings = []

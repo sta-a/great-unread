@@ -15,7 +15,7 @@ from sklearn.decomposition import PCA
 from sklearn.impute import KNNImputer
 from sklearn.linear_model import Lasso
 from sklearn.svm import SVR, SVC
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score, accuracy_score, f1_score, confusion_matrix
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score, accuracy_score, f1_score, balanced_accuracy_score
 from sklearn.utils.class_weight import compute_class_weight
 import xgboost
 #  from xgboost import XGBRegressor
@@ -115,9 +115,10 @@ class AuthorSplit():
                     new.extend(self.author_bookname_mapping[author])
                 map_splits.append(new)
 
-            for split in map_splits:
-                split_df = self.df[self.df["book_name"].isin(split)]
-                print('labels per split\n\n', split_df['y'].value_counts())
+            if self.stratified == True:
+                for split in map_splits:
+                    split_df = self.df[self.df["book_name"].isin(split)]
+                    print('labels per split\n\n', split_df['y'].value_counts())
         else:
             # Return indices of book_names in split
             book_name_idx_mapping = dict((book_name, index) for index, book_name in enumerate(self.book_names))
@@ -305,7 +306,7 @@ class Regression():
         df = df.merge(right=self.labels, on="book_name", how="inner", validate="many_to_one")
         return df
 
-    def prepare_dfs(self, split, df):
+    def _prepare_dfs(self, split, df):
         # Prapare data
         train_df = df[~df["book_name"].isin(split)]
         train_X = train_df.drop(columns=["y", "book_name"], inplace=False).values
@@ -320,7 +321,7 @@ class Regression():
         train_X, validation_X = self._reduce_dimensions(train_X, train_y, validation_X)
         #if self.verbose:
         #    print(f"train_X.shape after {self.dimensionality_reduction}: {train_X.shape}, validation_X.shape after {self.dimensionality_reduction}: {validation_X.shape}")
-            
+
         train_labels = deepcopy(train_df[["book_name", "y"]])
         validation_labels = deepcopy(validation_df[["book_name", "y"]])
         #if self.verbose:
@@ -352,10 +353,10 @@ class Regression():
 
         df = self.df
         df = self._combine_df_labels(df)
-        book_names_split = AuthorSplit(language=self.language, df=df, nr_splits=1, seed=1, return_indices=False).split()
+        book_names_split = AuthorSplit(language=self.language, df=df, nr_splits=10, seed=1, return_indices=False).split()
         
         for index, split in enumerate(book_names_split):
-            train_df, train_X, train_y, validation_X, train_labels, validation_labels = self.prepare_dfs(split, df)
+            train_df, train_X, train_y, validation_X, train_labels, validation_labels = self._prepare_dfs(split, df)
             # Train model
             if self.model == "xgboost":
                 train_book_names = train_df["book_name"].values.reshape(-1, 1)
@@ -438,10 +439,6 @@ class Regression():
         mean_p_value = self._get_pvalue(validation_corr_pvalues)
         
         if self.verbose:
-            if self.language == 'eng':
-                color = 'm'
-            else:
-                color = 'teal'
             print(f"""TrainMSE: {np.round(mean_train_mse, 3)}, 
                 TrainRMSE: {np.round(mean_train_rmse, 3)}, 
                 TrainMAE: {np.round(mean_train_mae, 3)}, 
@@ -454,14 +451,19 @@ class Regression():
                 ValCorr: {np.round(mean_validation_corr, 3)}, 
                 ValCorrPValue: {np.round(mean_p_value, 3)}""")
             print("\n---------------------------------------------------\n")
+            if self.language == 'eng':
+                color = 'm'
+            else:
+                color = 'teal'
             plt.figure(figsize=(4,4))
-            plt.xticks(fontsize=15)
-            plt.yticks(fontsize=15)
-            plt.xlim([min(all_labels), max(all_labels)])
-            plt.ylim([min(all_predictions), max(all_predictions)])
+            plt.xticks(fontsize=10)
+            plt.yticks(fontsize=10)
+            #plt.xlim([min(all_labels) - 0.01, max(all_labels) + 0.01])
+            #plt.ylim([min(all_predictions) - 0.01, max(all_predictions) + 0.01])
+            plt.xticks(np.arange(round(min(all_labels),2) - 0.01, round(max(all_labels),2) + 0.01, 0.03))
             plt.scatter(x=all_labels, y=all_predictions, s=6, c=color)
-            plt.xlabel("True Scores", fontsize=20)
-            plt.ylabel("Predicted Scores", fontsize=20)
+            plt.xlabel("True Scores", fontsize=15)
+            plt.ylabel("Predicted Scores", fontsize=15)
             plt.savefig(f"{self.results_dir}{self.model_info_string}.png", dpi=400, bbox_inches="tight")
             plt.show();
 
@@ -500,42 +502,26 @@ class TwoclassClassification(Regression):
         df = df.loc[book_year>=min(review_year)]
         return df
     
-    def _aggregate_chunk_predictions(self, df):
-        g = df.groupby("book_name")
-        
-        # Majority vote
-        # If one value is more common, assign it to every chunk
-        # Therefore, accuracy is either 0 or 1
-        # If both values are equally likely, leave them unchanged, and accuracy is 0.5
-        def _get_mode_accuracy(group):
-            counts = group["yhat"].value_counts()
-            if len(counts) == 1:
-                mode_acc = counts.index[0]
-            else:
-                mode_acc = 0.5
-            return mode_acc
-        mode_accs = g.apply(_get_mode_accuracy).rename("mode_acc").reset_index()
-        mode_acc = mode_accs["mode_acc"].mean()
-        
-        # Average accuracy within book
-        book_acc = g.apply(lambda group: accuracy_score(group["y"], group["yhat"])).mean()
-        return {"mode_acc": mode_acc, "book_acc": book_acc}
+    def _get_accuracy(self, df):
+        return [accuracy_score(df["y"], df["yhat"]), balanced_accuracy_score(df["y"], df["yhat"])] 
 
     def _make_crosstabs(self, all_validation_labels):
         crosstab = pd.crosstab(all_validation_labels["y"], all_validation_labels["yhat"], rownames=['True'], colnames=['Predicted'], margins=True)
-        crosstab.to_csv(f"{self.results_dir}crosstab-{self.model_info_string}.csv", index=True)
+        crosstab.to_csv(f"{self.results_dir}crosstab_{self.model_info_string}.csv", index=True)
         print('--------------------------\nCrosstab\n', crosstab, '\n--------------------------')
                     
     def run(self):
         train_accs = []
+        train_balanced_accs = []
         validation_accs = []
+        validation_balanced_accs = []
         df = self.df
         df = self._combine_df_labels(df)
         book_names_split_stratified = AuthorSplit(language=self.language, df=df, nr_splits=5, seed=1, stratified=True, return_indices=False).split()
         all_validation_labels = []
 
         for index, split in enumerate(book_names_split_stratified):
-            train_df, train_X, train_y, validation_X, train_labels, validation_labels = self.prepare_dfs(split, df)
+            train_df, train_X, train_y, validation_X, train_labels, validation_labels = self._prepare_dfs(split, df)
             
             # Train model
             if self.model == "xgboost":
@@ -565,27 +551,25 @@ class TwoclassClassification(Regression):
             all_validation_labels.append(validation_labels)
 
             # Evaluate
-            # Dicts with mode_acc, book_acc
-            train_acc = self._aggregate_chunk_predictions(train_labels)###############################
-            validation_acc = self._aggregate_chunk_predictions(validation_labels)
+            train_acc, train_balanced_acc = self._get_accuracy(train_labels)
+            validation_acc, validation_balanced_acc = self._get_accuracy(validation_labels)
             
             train_accs.append(train_acc)
+            train_balanced_accs.append(train_balanced_acc)
             validation_accs.append(validation_acc)
+            validation_balanced_accs.append(validation_balanced_acc)
         
         # Save y and y_pred for examples
         all_validation_labels = self._concat_and_save_examples(all_validation_labels)
 
         self._make_crosstabs(all_validation_labels)
 
-        train_accs = pd.DataFrame(train_accs)
-        validation_accs = pd.DataFrame(validation_accs)
+        mean_train_acc = statistics.mean(train_accs)
+        mean_train_balanced_acc = statistics.mean(train_balanced_accs)
+        mean_validation_acc = statistics.mean(validation_accs)
+        mean_validation_balanced_acc = statistics.mean(validation_balanced_accs)
 
-        #mean_train_mode_acc = train_accs["mode_acc"].mean()
-        mean_train_book_acc = train_accs["book_acc"].mean()
-        #mean_validation_mode_acc = validation_accs["mode_acc"].mean()
-        mean_validation_book_acc = validation_accs["book_acc"].mean()
-
-        return [round(mean_train_book_acc, 3),round(mean_validation_book_acc, 3)]
+        return [round(mean_train_acc, 3), round(mean_train_balanced_acc, 3), round(mean_validation_acc, 3), round(mean_validation_balanced_acc, 3)]
 
 class MulticlassClassification(TwoclassClassification):
     '''Classify into not reviewed/negative/not classified/positive.'''
@@ -598,7 +582,7 @@ class MulticlassClassification(TwoclassClassification):
         assert self.labels_string in ['multiclass']
                 
     def _get_f1_score(self, df):
-        score = f1_score(df["y"], df["yhat"], average='macro')
+        score = f1_score(df["y"], df["yhat"], average='macro') ###########3
         return score
         
     def run(self):
@@ -611,7 +595,7 @@ class MulticlassClassification(TwoclassClassification):
         all_validation_labels = []
 
         for index, split in enumerate(book_names_split_stratified):
-            train_df, train_X, train_y, validation_X, train_labels, validation_labels = self.prepare_dfs(split, df)
+            train_df, train_X, train_y, validation_X, train_labels, validation_labels = self._prepare_dfs(split, df)
     
             if self.model == "xgboost":
                 train_book_names = train_df["book_name"].values.reshape(-1, 1)

@@ -1,29 +1,29 @@
 language	task_type	model	model_param	labels_string	features_string	dimensionality_reduction	drop_columns	mean_train_book_acc	mean_validation_book_acc
-ger	twoclass	svc	0.1	twoclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.621	0.61
-ger	twoclass	svc	0.1	twoclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.619	0.612
-ger	twoclass	svc	0.1	twoclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.62	0.61
-ger	twoclass	svc	0.1	twoclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.619	0.61
-ger	twoclass	svc	1.0	twoclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.603	0.601
-ger	twoclass	svc	1.0	twoclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.602	0.601
-ger	twoclass	svc	1.0	twoclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.601	0.605
-ger	twoclass	svc	1.0	twoclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.601	0.601
-ger	twoclass	svc	10.0	twoclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.597	0.583
-ger	twoclass	svc	10.0	twoclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.598	0.589
-ger	twoclass	svc	10.0	twoclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.601	0.59
-ger	twoclass	svc	10.0	twoclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.601	0.592
-ger	twoclass	svc	100.0	twoclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.595	0.581
-ger	twoclass	svc	100.0	twoclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.594	0.581
-ger	twoclass	svc	100.0	twoclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.603	0.577
-ger	twoclass	svc	100.0	twoclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.602	0.577
-ger	twoclass	svc	1000.0	twoclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.601	0.588
-ger	twoclass	svc	1000.0	twoclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.601	0.59
-ger	twoclass	svc	1000.0	twoclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.61	0.587
-ger	twoclass	svc	1000.0	twoclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.612	0.59
-ger	twoclass	svc	10000.0	twoclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.599	0.583
-ger	twoclass	svc	10000.0	twoclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.6	0.583
-ger	twoclass	svc	10000.0	twoclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.622	0.58
-ger	twoclass	svc	10000.0	twoclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.622	0.58
-ger	twoclass	xgboost		twoclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding']	1.0	0.616
 ger	twoclass	xgboost		twoclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.993	0.638
 ger	twoclass	xgboost		twoclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.998	0.623
-ger	twoclass	xgboost		twoclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	1.0	0.605
+ger	twoclass	xgboost		twoclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding']	1	0.616
+ger	twoclass	svc	0.1	twoclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.619	0.612
+ger	twoclass	svc	0.1	twoclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.621	0.61
+ger	twoclass	svc	0.1	twoclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.62	0.61
+ger	twoclass	svc	0.1	twoclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.619	0.61
+ger	twoclass	svc	1	twoclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.601	0.605
+ger	twoclass	xgboost		twoclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	1	0.605
+ger	twoclass	svc	1	twoclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.603	0.601
+ger	twoclass	svc	1	twoclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.602	0.601
+ger	twoclass	svc	1	twoclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.601	0.601
+ger	twoclass	svc	10	twoclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.601	0.592
+ger	twoclass	svc	10	twoclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.601	0.59
+ger	twoclass	svc	1000	twoclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.601	0.59
+ger	twoclass	svc	1000	twoclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.612	0.59
+ger	twoclass	svc	10	twoclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.598	0.589
+ger	twoclass	svc	1000	twoclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.601	0.588
+ger	twoclass	svc	1000	twoclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.61	0.587
+ger	twoclass	svc	10	twoclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.597	0.583
+ger	twoclass	svc	10000	twoclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.599	0.583
+ger	twoclass	svc	10000	twoclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.6	0.583
+ger	twoclass	svc	100	twoclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.595	0.581
+ger	twoclass	svc	100	twoclass	book		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.594	0.581
+ger	twoclass	svc	10000	twoclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.622	0.58
+ger	twoclass	svc	10000	twoclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.622	0.58
+ger	twoclass	svc	100	twoclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.603	0.577
+ger	twoclass	svc	100	twoclass	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.602	0.577
