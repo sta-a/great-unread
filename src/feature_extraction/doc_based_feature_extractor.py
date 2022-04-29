@@ -6,7 +6,6 @@ import logging
 import textstat
 from tqdm import tqdm
 from pathlib import Path
-import pickle
 from scipy.stats import entropy
 from unidecode import unidecode
 from sentence_transformers import SentenceTransformer
@@ -43,55 +42,55 @@ class DocBasedFeatureExtractor():
         self.char_unigram_counts = char_unigram_counts
 
         # Spacy
-        if self.language == "eng":
+        if self.language == 'eng':
             self.model_name = 'en_core_web_sm'
-        elif self.language == "ger":
+        elif self.language == 'ger':
             self.model_name = 'de_core_news_sm'
         else:
-            raise Exception(f"Not a valid language {self.language}")
+            raise Exception(f'Not a valid language {self.language}')
         try:
             self.nlp = spacy.load(self.model_name)
         except OSError:
-            logging.info(f"Downloading {self.model_name} for Spacy...")
-            os.system(f"python3 -m spacy download {self.model_name}")
-            logging.info(f"Downloaded {self.model_name} for Spacy.")
+            logging.info(f'Downloading {self.model_name} for Spacy...')
+            os.system(f'python3 -m spacy download {self.model_name}')
+            logging.info(f'Downloaded {self.model_name} for Spacy.')
             self.nlp = spacy.load(self.model_name)
 
-        ## Preprocess or load data
-        tokenized_sentences_path = doc_path.replace("/raw_docs", f"/tokenized_sentences")
+        # Preprocess or load data
+        tokenized_sentences_path = doc_path.replace('/raw_docs', f'/tokenized_sentences')
         if os.path.exists(tokenized_sentences_path):
-            self.tokenized_sentences = load_list_of_lines(tokenized_sentences_path, "str")
+            self.tokenized_sentences = load_list_of_lines(tokenized_sentences_path, 'str')
         else:
             self.sentence_tokenizer = SentenceTokenizer(self.language)
             self.tokenized_sentences = self.sentence_tokenizer.tokenize(doc_path)
-            save_list_of_lines(self.tokenized_sentences, tokenized_sentences_path, "str")
+            save_list_of_lines(self.tokenized_sentences, tokenized_sentences_path, 'str')
 
-        sbert_sentence_embeddings_path = doc_path.replace("/raw_docs", f"/sbert_sentence_embeddings") + ".npz"
+        sbert_sentence_embeddings_path = doc_path.replace('/raw_docs', f'/sbert_sentence_embeddings') + '.npz'
         if os.path.exists(sbert_sentence_embeddings_path):
-            self.sbert_sentence_embeddings = load_list_of_lines(sbert_sentence_embeddings_path, "np")
+            self.sbert_sentence_embeddings = load_list_of_lines(sbert_sentence_embeddings_path, 'np')
         else:
-            if self.language == "eng":
+            if self.language == 'eng':
                 self.sentence_encoder = SentenceTransformer('stsb-mpnet-base-v2')
-            elif self.language == "ger":
+            elif self.language == 'ger':
                 self.sentence_encoder = SentenceTransformer('paraphrase-xlm-r-multilingual-v1')
             self.sbert_sentence_embeddings = list(self.sentence_encoder.encode(self.tokenized_sentences))
-            save_list_of_lines(self.sbert_sentence_embeddings, sbert_sentence_embeddings_path, "np")
+            save_list_of_lines(self.sbert_sentence_embeddings, sbert_sentence_embeddings_path, 'np')
 
-        doc2vec_chunk_embeddings_path = doc_path.replace("/raw_docs", f"/doc2vec_chunk_embeddings_spc_{self.sentences_per_chunk}") + ".npz"
+        doc2vec_chunk_embeddings_path = doc_path.replace('/raw_docs', f'/doc2vec_chunk_embeddings_spc_{self.sentences_per_chunk}') + '.npz'
         if os.path.exists(doc2vec_chunk_embeddings_path):
-            self.doc2vec_chunk_embeddings = load_list_of_lines(doc2vec_chunk_embeddings_path, "np")
+            self.doc2vec_chunk_embeddings = load_list_of_lines(doc2vec_chunk_embeddings_path, 'np')
         else:
-            raise Exception(f"Could not find Doc2Vec chunk embeddings for chunk size {self.sentences_per_chunk}.")
+            raise Exception(f'Could not find Doc2Vec chunk embeddings for chunk size {self.sentences_per_chunk}.')
 
         self.chunks = self.__get_chunks()
 
     def __get_chunks(self):
-        book_name = get_bookname(self.doc_path)
+        file_name = get_bookname(self.doc_path)
         if self.sentences_per_chunk is None:
             return [Chunk(
                 sentences_per_chunk = self.sentences_per_chunk,
                 doc_path = self.doc_path,
-                chunk_id = "None",
+                chunk_id = 'None',
                 tokenized_sentences = self.tokenized_sentences,
                 sbert_sentence_embeddings = self.sbert_sentence_embeddings,
                 doc2vec_chunk_embedding = self.doc2vec_chunk_embeddings[0],
@@ -130,52 +129,45 @@ class DocBasedFeatureExtractor():
 
     def get_all_features(self):
         chunk_feature_mapping = {
-            "ratio_of_punctuation_marks": self.get_ratio_of_punctuation_marks,
-            "ratio_of_whitespaces": self.get_ratio_of_whitespaces,
-            "ratio_of_digits": self.get_ratio_of_digits,
-            "ratio_of_exclamation_marks": self.get_ratio_of_exclamation_marks,
-            "ratio_of_question_marks": self.get_ratio_of_question_marks,
-            "ratio_of_commas": self.get_ratio_of_commas,
-            "ratio_of_uppercase_letters": self.get_ratio_of_uppercase_letters,
-            "average_number_of_words_in_sentence": self.get_average_number_of_words_in_sentence,
-            "maximum_number_of_words_in_sentence": self.get_maximum_number_of_words_in_sentence,
-            "ratio_of_unique_unigrams": self.get_ratio_of_unique_unigrams,
-            "ratio_of_unique_bigrams": self.get_ratio_of_unique_bigrams,
-            "ratio_of_unique_trigrams": self.get_ratio_of_unique_trigrams,
-            "text_length": self.get_text_length,
-            "average_word_length": self.get_average_word_length,
-            "bigram_entropy": self.get_bigram_entropy,
-            "trigram_entropy": self.get_trigram_entropy,
-            "type_token_ratio": self.get_type_token_ratio,
-
-            ## Features in the list
-            "flesch_reading_ease_score": self.get_flesch_reading_ease_score, # readability
-            "unigram_entropy": self.get_unigram_entropy, # second order redundancy
-            "average_paragraph_length": self.get_average_paragraph_length, # structural features
+            'ratio_of_punctuation_marks': self.get_ratio_of_punctuation_marks,
+            'ratio_of_whitespaces': self.get_ratio_of_whitespaces,
+            'ratio_of_digits': self.get_ratio_of_digits,
+            'ratio_of_exclamation_marks': self.get_ratio_of_exclamation_marks,
+            'ratio_of_question_marks': self.get_ratio_of_question_marks,
+            'ratio_of_commas': self.get_ratio_of_commas,
+            'ratio_of_uppercase_letters': self.get_ratio_of_uppercase_letters,
+            'average_number_of_words_in_sentence': self.get_average_number_of_words_in_sentence,
+            'maximum_number_of_words_in_sentence': self.get_maximum_number_of_words_in_sentence,
+            'ratio_of_unique_unigrams': self.get_ratio_of_unique_unigrams,
+            'ratio_of_unique_bigrams': self.get_ratio_of_unique_bigrams,
+            'ratio_of_unique_trigrams': self.get_ratio_of_unique_trigrams,
+            'text_length': self.get_text_length,
+            'average_word_length': self.get_average_word_length,
+            'bigram_entropy': self.get_bigram_entropy,
+            'trigram_entropy': self.get_trigram_entropy,
+            'type_token_ratio': self.get_type_token_ratio,
+            'flesch_reading_ease_score': self.get_flesch_reading_ease_score, # readability
+            'unigram_entropy': self.get_unigram_entropy, # second order redundancy
+            'average_paragraph_length': self.get_average_paragraph_length, # structural features
             0: self.get_average_sbert_sentence_embedding,
-            1: self.get_doc2vec_chunk_embedding,
-            # skipped greetings since this is not e-mail(structural features)
-            # skipped types of signature since this is not e-mail(structural features)
-            # skipped content specific features. added BERT average sentence embedding instead.
-
-            #######
+            1: self.get_doc2vec_chunk_embedding
         }
 
         book_feature_mapping = {
-            "doc2vec_intra_textual_variance": self.get_doc2vec_intra_textual_variance,
-            "sbert_intra_textual_variance": self.get_sbert_intra_textual_variance,
-            "doc2vec_stepwise_distance": self.get_doc2vec_stepwise_distance,
-            "sbert_stepwise_distance": self.get_sbert_stepwise_distance
+            'doc2vec_intra_textual_variance': self.get_doc2vec_intra_textual_variance,
+            'sbert_intra_textual_variance': self.get_sbert_intra_textual_variance,
+            'doc2vec_stepwise_distance': self.get_doc2vec_stepwise_distance,
+            'sbert_stepwise_distance': self.get_sbert_stepwise_distance
         }
 
         # extract chunk based features
         chunk_features = []
         for chunk in self.chunks:
             if self.sentences_per_chunk is not None:
-                chunk_name = chunk.book_name + "_" + str(chunk.chunk_id)
+                chunk_name = chunk.file_name + '_' + str(chunk.chunk_id)
             else:
-                chunk_name = chunk.book_name
-            current_features = {"book_name": chunk_name}
+                chunk_name = chunk.file_name
+            current_features = {'file_name': chunk_name}
             for feature_name, feature_function in chunk_feature_mapping.items():
                 if isinstance(feature_name, int):
                     current_features.update(feature_function(chunk))
@@ -188,7 +180,7 @@ class DocBasedFeatureExtractor():
         if self.sentences_per_chunk is not None:
             book_features = {}
             for feature_name, feature_function in book_feature_mapping.items():
-                book_features["book_name"] = self.doc_path.split("/")[-1][:-4]
+                book_features['file_name'] = self.doc_path.split('/')[-1][:-4]
                 book_features[feature_name] = feature_function(self.chunks)
 
         #Return sbert embeddings by averageing across sentences belonging to a chunk 
@@ -234,16 +226,16 @@ class DocBasedFeatureExtractor():
         return num_upper / num_alpha
 
     def get_average_paragraph_length(self, chunk):
-        split_lengths = [len(curr_split) for curr_split in chunk.raw_text.split("\n")]
+        split_lengths = [len(curr_split) for curr_split in chunk.raw_text.split('\n')]
         return np.mean(split_lengths)
 
     def get_average_sbert_sentence_embedding(self, chunk):
         average_sentence_embedding = np.array(chunk.sbert_sentence_embeddings).mean(axis=0)
-        average_sentence_embedding_features = dict((f"average_sentence_embedding_{index+1}", embedding_part) for index, embedding_part in enumerate(average_sentence_embedding))
+        average_sentence_embedding_features = dict((f'average_sentence_embedding_{index+1}', embedding_part) for index, embedding_part in enumerate(average_sentence_embedding))
         return average_sentence_embedding_features
 
     def get_doc2vec_chunk_embedding(self, chunk):
-        doc2vec_chunk_embedding_features = dict((f"doc2vec_chunk_embedding_{index+1}", embedding_part) for index, embedding_part in enumerate(chunk.doc2vec_chunk_embedding))
+        doc2vec_chunk_embedding_features = dict((f'doc2vec_chunk_embedding_{index+1}', embedding_part) for index, embedding_part in enumerate(chunk.doc2vec_chunk_embedding))
         return doc2vec_chunk_embedding_features
 
     def get_average_number_of_words_in_sentence(self, chunk):
@@ -297,7 +289,7 @@ class DocBasedFeatureExtractor():
         temp_dict = {}
         for trigram, count in chunk.trigram_counts.items():
             trigram = trigram.split()
-            left_and_middle = trigram[0] + " " + trigram[1]
+            left_and_middle = trigram[0] + ' ' + trigram[1]
             if left_and_middle in temp_dict.keys():
                 temp_dict[left_and_middle].append(count)
             else:
@@ -317,49 +309,47 @@ class DocBasedFeatureExtractor():
         return textstat.flesch_reading_ease(chunk.unidecoded_raw_text)
 
     def get_gunning_fog(self, chunk):
-        """
-        Not implemented for German. If we can find "easy words" in German, then we can implement it ourselves.
-        """
+        '''''''''
+        Not implemented for German. If we can find 'easy words' in German, then we can implement it ourselves.
+        '''
         return textstat.gunning_fog(chunk.unidecoded_raw_text)
 
-    ######
-    ## book based features
-    ######
+    # book-based features
     def __get_intra_textual_variance(self, chunks, embedding_type):
         chunk_embeddings = []
         for chunk in chunks:
-            if embedding_type == "doc2vec":
+            if embedding_type == 'doc2vec':
                 chunk_embeddings.append(chunk.doc2vec_chunk_embedding)
-            elif embedding_type == "sbert":
+            elif embedding_type == 'sbert':
                 chunk_embeddings.append(np.array(chunk.sbert_sentence_embeddings).mean(axis=0)) 
             else:
-                raise Exception(f"Not a valid embedding type {embedding_type}")
+                raise Exception(f'Not a valid embedding type {embedding_type}')
         average_chunk_embedding = np.array(chunk_embeddings).mean(axis=0)
         euclidean_distances = [np.linalg.norm(average_chunk_embedding - chunk_embedding) for chunk_embedding in chunk_embeddings]
         return np.mean(euclidean_distances)
 
     def get_doc2vec_intra_textual_variance(self, chunks):
-        return self.__get_intra_textual_variance(chunks, "doc2vec")
+        return self.__get_intra_textual_variance(chunks, 'doc2vec')
 
     def get_sbert_intra_textual_variance(self, chunks):
-        return self.__get_intra_textual_variance(chunks, "sbert")
+        return self.__get_intra_textual_variance(chunks, 'sbert')
 
     def __get_stepwise_distance(self, chunks, embedding_type):
         euclidean_distances = []
         for chunk_idx in range(1, len(chunks)):
-            if embedding_type == "doc2vec":
+            if embedding_type == 'doc2vec':
                 current_chunk_embedding = chunks[chunk_idx].doc2vec_chunk_embedding
                 previous_chunk_embedding = chunks[chunk_idx - 1].doc2vec_chunk_embedding
-            elif embedding_type == "sbert":
+            elif embedding_type == 'sbert':
                 current_chunk_embedding = np.array(chunks[chunk_idx].sbert_sentence_embeddings).mean(axis=0)
                 previous_chunk_embedding = np.array(chunks[chunk_idx - 1].sbert_sentence_embeddings).mean(axis=0)
             else:
-                raise Exception(f"Not a valid embedding type {embedding_type}")
+                raise Exception(f'Not a valid embedding type {embedding_type}')
             euclidean_distances.append(np.linalg.norm(current_chunk_embedding - previous_chunk_embedding))
         return np.mean(euclidean_distances)
 
     def get_doc2vec_stepwise_distance(self, chunks):
-        return self.__get_stepwise_distance(chunks, "doc2vec")
+        return self.__get_stepwise_distance(chunks, 'doc2vec')
 
     def get_sbert_stepwise_distance(self, chunks):
-        return self.__get_stepwise_distance(chunks, "sbert")
+        return self.__get_stepwise_distance(chunks, 'sbert')

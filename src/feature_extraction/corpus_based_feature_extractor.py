@@ -2,13 +2,11 @@ from code import compile_command
 from hashlib import new
 import os
 import sys
-import time
 import numpy as np
 import pandas as pd
 import logging
 logging.basicConfig(level=logging.DEBUG)
 from tqdm import tqdm
-import pickle
 from pydoc import doc
 from xml.sax.handler import feature_namespace_prefixes
 from collections import Counter
@@ -31,19 +29,19 @@ class CorpusBasedFeatureExtractor():
         self.sentences_per_chunk = sentences_per_chunk
         self.nr_features = nr_features
 
-        if self.language == "eng":
+        if self.language == 'eng':
             self.model_name = 'en_core_web_sm'
-        elif self.language == "ger":
+        elif self.language == 'ger':
             self.model_name = 'de_core_news_sm'
         else:
-            raise Exception(f"Not a valid language {self.language}")
+            raise Exception(f'Not a valid language {self.language}')
 
         try:
             self.nlp = spacy.load(self.model_name)
         except OSError:
-            logging.info(f"Downloading {self.model_name} for Spacy...")
-            os.system(f"python3 -m spacy download {self.model_name}")
-            logging.info(f"Downloaded {self.model_name} for Spacy.")
+            logging.info(f'Downloading {self.model_name} for Spacy...')
+            os.system(f'python3 -m spacy download {self.model_name}')
+            logging.info(f'Downloaded {self.model_name} for Spacy.')
             self.nlp = spacy.load(self.model_name)
 
         self.word_statistics = self.__get_word_statistics()
@@ -86,7 +84,7 @@ class CorpusBasedFeatureExtractor():
             book_bigram_counts = {}
             book_trigram_counts = {}
             for chunk in doc_chunks:
-                book_name = chunk.book_name
+                file_name = chunk.file_name
 
                 for unigram, counts in chunk.unigram_counts.items():
                     if unigram in book_unigram_counts:
@@ -105,9 +103,9 @@ class CorpusBasedFeatureExtractor():
                         book_trigram_counts[trigram] += counts
                     else:
                         book_trigram_counts[trigram] = counts
-            book_unigram_mapping[book_name] = book_unigram_counts
-            book_bigram_mapping[book_name] = book_bigram_counts
-            book_trigram_mapping[book_name] = book_trigram_counts
+            book_unigram_mapping[file_name] = book_unigram_counts
+            book_bigram_mapping[file_name] = book_bigram_counts
+            book_trigram_mapping[file_name] = book_trigram_counts
             total_unigram_counts.update(book_unigram_counts)
             total_bigram_counts.update(book_bigram_counts)
             total_trigram_counts.update(book_trigram_counts)
@@ -135,50 +133,50 @@ class CorpusBasedFeatureExtractor():
 
         word_statistics = {
             # {unigram: count}
-            "total_unigram_counts": total_unigram_counts,
-            "total_bigram_counts": total_bigram_counts,
-            "total_trigram_counts": total_trigram_counts,
-            # {book_name: {unigram: count}
-            "book_unigram_mapping": book_unigram_mapping,
-            "book_bigram_mapping": book_bigram_mapping_,
-            "book_trigram_mapping": book_trigram_mapping_}
+            'total_unigram_counts': total_unigram_counts,
+            'total_bigram_counts': total_bigram_counts,
+            'total_trigram_counts': total_trigram_counts,
+            # {file_name: {unigram: count}
+            'book_unigram_mapping': book_unigram_mapping,
+            'book_bigram_mapping': book_bigram_mapping_,
+            'book_trigram_mapping': book_trigram_mapping_}
         return word_statistics
 
 
     def __tag_chunks(self, tag_type, gram_type):
         def __tag_sentence(sentence_tags, gram_type):
-            if gram_type == "unigram":
+            if gram_type == 'unigram':
                 return sentence_tags
-            elif gram_type == "bigram":
-                tokens_bigram_temp = ["BOS"] + sentence_tags + ["EOS"]
-                tokens_bigram = ["_".join([tokens_bigram_temp[i], tokens_bigram_temp[i+1]]) for i in range(len(tokens_bigram_temp)-1)]
+            elif gram_type == 'bigram':
+                tokens_bigram_temp = ['BOS'] + sentence_tags + ['EOS']
+                tokens_bigram = ['_'.join([tokens_bigram_temp[i], tokens_bigram_temp[i+1]]) for i in range(len(tokens_bigram_temp)-1)]
                 return tokens_bigram
-            elif gram_type == "trigram":
-                tokens_trigram_temp = ["BOS", "BOS"] + sentence_tags + ["EOS", "EOS"]
-                tokens_trigram = ["_".join([tokens_trigram_temp[i], tokens_trigram_temp[i+1], tokens_trigram_temp[i+2]]) for i in range(len(tokens_trigram_temp)-2)]
+            elif gram_type == 'trigram':
+                tokens_trigram_temp = ['BOS', 'BOS'] + sentence_tags + ['EOS', 'EOS']
+                tokens_trigram = ['_'.join([tokens_trigram_temp[i], tokens_trigram_temp[i+1], tokens_trigram_temp[i+2]]) for i in range(len(tokens_trigram_temp)-2)]
                 return tokens_trigram
             else:
-                raise Exception("Not a valid gram_type")
+                raise Exception('Not a valid gram_type')
 
         def __tag_chunk(chunk, tag_type, gram_type):
-            tags_path = chunk.doc_path.replace("/raw_docs", f"/{tag_type}_tags_spc_{self.sentences_per_chunk}").replace(".txt", f"_chunkid_{chunk.chunk_id}.txt")
+            tags_path = chunk.doc_path.replace('/raw_docs', f'/{tag_type}_tags_spc_{self.sentences_per_chunk}').replace('.txt', f'_chunkid_{chunk.chunk_id}.txt')
             if os.path.exists(tags_path):
-                all_sentence_tags = [line for line in load_list_of_lines(tags_path, "str")]
+                all_sentence_tags = [line for line in load_list_of_lines(tags_path, 'str')]
             else:
                 all_sentence_tags = []
                 # Represent sentences as strings of tags
                 for sentence in chunk.tokenized_sentences:
                     doc = self.nlp(sentence)
-                    if tag_type == "pos":
-                        sentence_tags = [token.pos_.replace(" ", "") for token in doc]
-                    elif tag_type == "tag":
-                        sentence_tags = [token.tag_.replace(" ", "") for token in doc]
-                    elif tag_type == "dep":
-                        sentence_tags = [token.dep_.replace(" ", "") for token in doc]
+                    if tag_type == 'pos':
+                        sentence_tags = [token.pos_.replace(' ', '') for token in doc]
+                    elif tag_type == 'tag':
+                        sentence_tags = [token.tag_.replace(' ', '') for token in doc]
+                    elif tag_type == 'dep':
+                        sentence_tags = [token.dep_.replace(' ', '') for token in doc]
                     else:
-                        raise Exception("Not a valid tag_type")
-                    all_sentence_tags.append(" ".join(sentence_tags))
-                save_list_of_lines(all_sentence_tags, tags_path, "str")
+                        raise Exception('Not a valid tag_type')
+                    all_sentence_tags.append(' '.join(sentence_tags))
+                save_list_of_lines(all_sentence_tags, tags_path, 'str')
             
             # Count number of occurrences of tags
             chunk_tag_counter = Counter()
@@ -192,7 +190,7 @@ class CorpusBasedFeatureExtractor():
         for doc_chunks in self.__generate_chunks():
             for chunk in doc_chunks:
                 chunk_tag_counter = __tag_chunk(chunk, tag_type, gram_type)
-                tagged_chunks[chunk.book_name + "_" + str(chunk.chunk_id)] = chunk_tag_counter
+                tagged_chunks[chunk.file_name + '_' + str(chunk.chunk_id)] = chunk_tag_counter
                 corpus_tag_counter.update(chunk_tag_counter)
 
         # get first k tags of corpus_tag_counter
@@ -204,11 +202,11 @@ class CorpusBasedFeatureExtractor():
         # get first k tags of each chunk_tag_counter
         for chunk_name, tagged_chunk in tagged_chunks.items():
             # create label
-            current_chunk_chosen_tag_counts = dict([(tag_type + "_" + gram_type + "_" + tag_name, tagged_chunk[tag_name]) for tag_name in corpus_tag_counter])
+            current_chunk_chosen_tag_counts = dict([(tag_type + '_' + gram_type + '_' + tag_name, tagged_chunk[tag_name]) for tag_name in corpus_tag_counter])
             # relative counts
             current_chunk_chosen_tag_counts_sum = sum([count for tag, count in current_chunk_chosen_tag_counts.items()])
             current_chunk_chosen_tag_counts = dict([(tag, count/current_chunk_chosen_tag_counts_sum) for tag, count in current_chunk_chosen_tag_counts.items()])
-            current_chunk_chosen_tag_counts["book_name"] = chunk_name
+            current_chunk_chosen_tag_counts['file_name'] = chunk_name
             data.append(current_chunk_chosen_tag_counts)
 
         df = pd.DataFrame(data)
@@ -222,7 +220,7 @@ class CorpusBasedFeatureExtractor():
                 if result_df is None:
                     result_df = current_df
                 else:
-                    result_df = result_df.merge(current_df, on='book_name')
+                    result_df = result_df.merge(current_df, on='file_name')
         return result_df
 
     def __get_book_production_counts(self, book, pre):
@@ -233,16 +231,16 @@ class CorpusBasedFeatureExtractor():
         return chunk_production_counter
 
     def get_production_distribution(self):
-        """
+        '''
         Returns an empty dataframe if the language is German. Reason is explained in
         docstring of ProductionRuleExtractor.
-        """
-        if self.language == "ger":
-            raise Exception("Not implemented for German.")
-        elif self.language == "eng":
+        '''
+        if self.language == 'ger':
+            raise Exception('Not implemented for German.')
+        elif self.language == 'eng':
             pass
         else:
-            raise Exception("Not a valid language")
+            raise Exception('Not a valid language')
 
         pre = ProductionRuleExtractor()
         chunk_production_counters = {}
@@ -251,7 +249,7 @@ class CorpusBasedFeatureExtractor():
         for doc_chunks in self.__generate_chunks():
             for chunk in doc_chunks:
                 chunk_production_counter = self.__get_book_production_counts(chunk.tokenized_sentences, pre)
-                chunk_production_counters[chunk.book_name + "_" + str(chunk.chunk_id)] = chunk_production_counter
+                chunk_production_counters[chunk.file_name + '_' + str(chunk.chunk_id)] = chunk_production_counter
                 corpus_production_counter.update(chunk_production_counter)
 
         # get first k tags of corpus_tag_counter
@@ -265,19 +263,19 @@ class CorpusBasedFeatureExtractor():
             current_chunks_chosen_production_counts = dict([(production_type, chunk_prodution_counter[production_type]) for production_type in corpus_production_counter])
             current_chunks_chosen_production_counts_sum = sum([count for tag, count in current_chunks_chosen_production_counts.items()])
             current_chunks_chosen_production_counts = dict([(tag, count/current_chunks_chosen_production_counts_sum) for tag, count in current_chunks_chosen_production_counts.items()])
-            current_chunks_chosen_production_counts["book_name"] = chunk_name
+            current_chunks_chosen_production_counts['file_name'] = chunk_name
             data.append(current_chunks_chosen_production_counts)
 
         df = pd.DataFrame(data)
         return df
 
     def get_overlap_score(self, embedding_type):
-        if embedding_type == "doc2vec":
+        if embedding_type == 'doc2vec':
             all_embeddings = self.all_doc2vec_chunk_embeddings
-        elif embedding_type == "sbert":
+        elif embedding_type == 'sbert':
             all_embeddings = self.all_average_sbert_sentence_embeddings
         else:
-            raise Exception(f"Not a valid embedding_type {embedding_type}.")
+            raise Exception(f'Not a valid embedding_type {embedding_type}.')
 
         cluster_means = []
         for index, current_list_of_embeddings in enumerate(all_embeddings):
@@ -299,42 +297,42 @@ class CorpusBasedFeatureExtractor():
         labels = np.array(labels)
         predictions = np.array(predictions)
 
-        book_names = []
+        file_names = []
         overlap_scores = []
         for label_index, doc_path in enumerate(self.doc_paths):
-            book_name = get_bookname(doc_path)
+            file_name = get_bookname(doc_path)
             indices = np.argwhere(labels == label_index).ravel()
             current_predictions = predictions[indices]
             incorrect_prediction_indices = np.argwhere(current_predictions != label_index)
             # fraction of nearest chunks that are part of other books
             overlap_score = len(incorrect_prediction_indices) / len(current_predictions)
-            book_names.append(book_name)
+            file_names.append(file_name)
             overlap_scores.append(overlap_score)
-        return pd.DataFrame.from_dict({"book_name": book_names, f"overlap_score_{embedding_type}": overlap_scores})
+        return pd.DataFrame.from_dict({'file_name': file_names, f'overlap_score_{embedding_type}': overlap_scores})
 
     def get_overlap_score_doc2vec(self):
-        return self.get_overlap_score("doc2vec")
+        return self.get_overlap_score('doc2vec')
 
     def get_overlap_score_sbert(self):
-        return self.get_overlap_score("sbert")
+        return self.get_overlap_score('sbert')
 
     def get_outlier_score(self, embedding_type):
-        if embedding_type == "doc2vec":
+        if embedding_type == 'doc2vec':
             all_embeddings = self.all_doc2vec_chunk_embeddings
-        elif embedding_type == "sbert":
+        elif embedding_type == 'sbert':
             all_embeddings = self.all_average_sbert_sentence_embeddings
         else:
-            raise Exception(f"Not a valid embedding_type {embedding_type}.")
+            raise Exception(f'Not a valid embedding_type {embedding_type}.')
 
         cluster_means = []
         for index, current_list_of_embeddings in enumerate(all_embeddings):
             cluster_means.append(np.array(current_list_of_embeddings).mean(axis=0))
 
         outlier_scores = []
-        book_names = []
+        file_names = []
         for current_index, current_cluster_mean in enumerate(cluster_means):
             doc_path = self.doc_paths[current_index]
-            book_name = get_bookname(doc_path)
+            file_name = get_bookname(doc_path)
             nearest_distance = np.inf
             for other_index, other_cluster_mean in enumerate(cluster_means):
                 if current_index == other_index:
@@ -343,25 +341,25 @@ class CorpusBasedFeatureExtractor():
                 if current_distance < nearest_distance:
                     nearest_distance = current_distance
             outlier_scores.append(nearest_distance)
-            book_names.append(book_name)
-        return pd.DataFrame.from_dict({"book_name": book_names, f"outlier_score_{embedding_type}": outlier_scores})
+            file_names.append(file_name)
+        return pd.DataFrame.from_dict({'file_name': file_names, f'outlier_score_{embedding_type}': outlier_scores})
         
     def get_outlier_score_doc2vec(self):
-        return self.get_outlier_score("doc2vec")
+        return self.get_outlier_score('doc2vec')
 
     def get_outlier_score_sbert(self):
-        return self.get_outlier_score("sbert")
+        return self.get_outlier_score('sbert')
 
     def filter_document_term_matrix(self, dtm, min_nr_documents=None, min_percent_documents=None, max_nr_documents=None, max_percent_documents=None):
         if min_nr_documents is None and min_percent_documents is None and max_nr_documents is None and max_percent_documents is None:
-            raise Exception("Specify at least one filtering criterion.")
+            raise Exception('Specify at least one filtering criterion.')
         min_columns = []
         max_columns = []
         document_frequency = dtm.astype(bool).sum(axis=0)
 
         #Filter minimum
         if min_nr_documents is not None and min_percent_documents is not None:
-            raise Exception("Specify either the the minimum number or the minimum percentage of documents in which a term must occur.")
+            raise Exception('Specify either the the minimum number or the minimum percentage of documents in which a term must occur.')
         elif min_percent_documents is not None:
             min_nr_documents = round(min_percent_documents/100 * dtm.shape[0])
         if min_nr_documents is not None:
@@ -369,7 +367,7 @@ class CorpusBasedFeatureExtractor():
 
         #Filter maximum
         if max_nr_documents is not None and max_percent_documents is not None:
-            raise Exception("Specify either the the maximum number or the maximum percentage of documents in which a term can occur.")
+            raise Exception('Specify either the the maximum number or the maximum percentage of documents in which a term can occur.')
         elif max_percent_documents is not None:
             max_nr_documents = round(max_percent_documents/100 * dtm.shape[0])
         if max_nr_documents is not None:
@@ -405,8 +403,8 @@ class CorpusBasedFeatureExtractor():
                 # Corpus counts without the counts from the chunk
                 curr_corpus_vector = list(np.subtract(np.array(corpus_vector), np.array(chunk_vector)))
                 cosine_distance = scipy.spatial.distance.cosine(curr_corpus_vector, chunk_vector)
-                distances[chunk.book_name + "_" + str(chunk.chunk_id)] = cosine_distance
-        distances = df_from_dict(d=distances, keys_as_index=False, keys_column_name='book_name', values_column_value=f"{ngram_type}_distance")
+                distances[chunk.file_name + '_' + str(chunk.chunk_id)] = cosine_distance
+        distances = df_from_dict(d=distances, keys_as_index=False, keys_column_name='file_name', values_column_value=f'{ngram_type}_distance')
         return distances 
 
     def get_unigram_distance(self):
@@ -416,7 +414,7 @@ class CorpusBasedFeatureExtractor():
     def get_unigram_distance_limited(self):
         #Filter for mid-frequency words
         distances = self.get_distance_from_corpus(ngram_type='unigram', min_percent_documents=5, max_percent_documents=50)
-        distances = distances.rename(columns={"unigram_distance": "unigram_distance_limited"})
+        distances = distances.rename(columns={'unigram_distance': 'unigram_distance_limited'})
         return distances
 
     def get_bigram_distance(self):
@@ -445,24 +443,18 @@ class CorpusBasedFeatureExtractor():
         corpus_chunk_features = None
         for feature_function in corpus_chunk_feature_mapping:
             print(feature_function)
-            start = time.time()
             if  corpus_chunk_features is None:
                 corpus_chunk_features = feature_function()
             else:
-                corpus_chunk_features = corpus_chunk_features.merge(feature_function(), how='inner', on="book_name", validate='one_to_one')
-            end = time.time()
-            print(f'\nTime for corpus_chunk_feature_mapping {feature_function}: {end-start}')
+                corpus_chunk_features = corpus_chunk_features.merge(feature_function(), how='inner', on='file_name', validate='one_to_one')
         if self.sentences_per_chunk is None:
-            corpus_chunk_features['book_name'] = corpus_chunk_features['book_name'].str.split('_').str[:4].str.join('_')
+            corpus_chunk_features['file_name'] = corpus_chunk_features['file_name'].str.split('_').str[:4].str.join('_')
 
         corpus_book_features = None
         if self.sentences_per_chunk is not None:
             for feature_function in corpus_book_feature_mapping:
-                start = time.time()
                 if corpus_book_features is None:
                     corpus_book_features = feature_function()
                 else:
-                    corpus_book_features = corpus_book_features.merge(feature_function(), how='inner', on="book_name", validate='one_to_one')
-                end = time.time()
-                print(f'Time for {feature_function}: {end-start}')
+                    corpus_book_features = corpus_book_features.merge(feature_function(), how='inner', on='file_name', validate='one_to_one')
         return corpus_chunk_features, corpus_book_features
