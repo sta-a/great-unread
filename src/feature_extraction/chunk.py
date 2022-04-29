@@ -20,7 +20,7 @@ class Chunk():
 
         self.sentences_per_chunk = sentences_per_chunk
         self.doc_path = doc_path
-        self.book_name = get_bookname(self.doc_path)
+        self.file_name = get_bookname(self.doc_path)
         self.chunk_id = chunk_id
         self.tokenized_sentences = tokenized_sentences
         self.sbert_sentence_embeddings = sbert_sentence_embeddings
@@ -66,11 +66,11 @@ class Chunk():
     def __find_bigram_counts(self):
         if type(self.processed_sentences) == bool:
             self.processed_sentences = self.__preprocess_sentences()
-        processed_text = "<BOS> " + " <EOS> <BOS> ".join(self.processed_sentences) + " <EOS>"
+        processed_text = '<BOS> ' + ' <EOS> <BOS> '.join(self.processed_sentences) + ' <EOS>'
         processed_text_split = processed_text.split()
         bigram_counts = {}
         for i in range(len(processed_text_split) - 1):
-            current_bigram = processed_text_split[i] + " " + processed_text_split[i+1]
+            current_bigram = processed_text_split[i] + ' ' + processed_text_split[i+1]
             if current_bigram in bigram_counts:
                 bigram_counts[current_bigram] += 1
             else:
@@ -80,11 +80,11 @@ class Chunk():
     def __find_trigram_counts(self):
         if type(self.processed_sentences) == bool:
             self.processed_sentences = self.__preprocess_sentences()
-        processed_text = "<BOS> <BOS> " + " <EOS> <EOS> <BOS> <BOS> ".join(self.processed_sentences) + " <EOS> <EOS>"
+        processed_text = '<BOS> <BOS> ' + ' <EOS> <EOS> <BOS> <BOS> '.join(self.processed_sentences) + ' <EOS> <EOS>'
         processed_text_split = processed_text.split()
         trigram_counts = {}
         for i in range(len(processed_text_split) - 2):
-            current_trigram = processed_text_split[i] + " " + processed_text_split[i+1] + " " + processed_text_split[i+2]
+            current_trigram = processed_text_split[i] + ' ' + processed_text_split[i+1] + ' ' + processed_text_split[i+2]
             if current_trigram in trigram_counts.keys():
                 trigram_counts[current_trigram] += 1
             else:
@@ -92,7 +92,7 @@ class Chunk():
         return trigram_counts
 
     def __get_raw_text(self):
-        return " ".join(self.tokenized_sentences)
+        return ' '.join(self.tokenized_sentences)
 
     def __unidecode_raw_text(self):
         if type(self.raw_text) == bool:
@@ -114,7 +114,7 @@ class Chunk():
     def __eq__(self, other):
         return (self.sentences_per_chunk == other.sentences_per_chunk) and \
                 (self.doc_path == other.doc_path) and \
-                (self.book_name == other.book_name) and \
+                (self.file_name == other.file_name) and \
                 (self.chunk_id == other.chunk_id) and \
                 (self.tokenized_sentences == other.tokenized_sentences) and \
                 (all([np.array_equal(x,y) for x,y in zip(self.sbert_sentence_embeddings, other.sbert_sentence_embeddings)])) and \
