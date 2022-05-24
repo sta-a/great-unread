@@ -12,7 +12,7 @@ import re
 def get_bookname(doc_path):
     return doc_path.split('/')[-1][:-4]
 
-def get_doc_paths(docs_dir, lang):
+def get_doc_paths(docs_dir):
     doc_paths = [os.path.join(docs_dir, doc_name) for doc_name in os.listdir(docs_dir) if doc_name[-4:] == '.txt']
     return doc_paths
 
@@ -55,16 +55,15 @@ def save_list_of_lines(lst, path, line_type):
         raise Exception(f'Not a valid line_type {line_type}')
 
 
-def read_canon_labels(labels_dir):
-    labels = pd.read_csv(os.path.join(labels_dir, '210907_regression_predict_02_setp3_FINAL.csv'), sep=';')[['file_name', 'm3']]
-    labels = labels.rename(columns={'m3': 'y'})
-    labels = labels.sort_values(by='file_name', axis=0, ascending=True, na_position='first')
-    return labels
-
-
-def get_labels(lang, sentiscores_dir, metadata_dir, label_type):
-    if label_type == 'library':
-        if lang == 'eng':
+def get_labels(label_type, language, canonscores_dir=None, sentiscores_dir=None, metadata_dir=None):
+    if label_type == 'canon':
+        canon_file = '210907_regression_predict_02_setp3_FINAL.csv'
+        labels = pd.read_csv(canonscores_dir + canon_file, sep=';')[['file_name', 'm3']]
+        labels = labels.rename(columns={'m3': 'y'})
+        labels = labels.sort_values(by='file_name', axis=0, ascending=True, na_position='first')
+        
+    elif label_type == 'library':
+        if language == 'eng':
             library_file = 'ENG_texts_circulating-libs.csv'
         else:
             library_file = 'GER_texts_circulating-libs.csv'
@@ -76,14 +75,14 @@ def get_labels(lang, sentiscores_dir, metadata_dir, label_type):
 
         # Combine all labels and filenames in one file
         # File with sentiment scores for both tools
-        if lang == 'eng':
+        if language == 'eng':
             scores_file = 'ENG_reviews_senti_FINAL.csv'
         else:
             scores_file = 'GER_reviews_senti_FINAL.csv'
         score_labels = pd.read_csv(sentiscores_dir + scores_file, sep=';', header=0)
 
         # File with class labels
-        if lang == 'eng':
+        if language == 'eng':
             class_file = 'ENG_reviews_senti_classified.csv'
         else:
             class_file = 'GER_reviews_senti_classified.csv'
@@ -146,6 +145,8 @@ def get_labels(lang, sentiscores_dir, metadata_dir, label_type):
             
     labels = labels.sort_values(by='file_name', axis=0, ascending=True, na_position='first')
     labels = labels.drop_duplicates(subset='file_name')
+    if label_type == 'canon':
+        labels = labels.rename(columns={'m3': 'y'})
     if label_type == 'textblob':
         labels = labels[['file_name', 'sentiment_Textblob']].rename(columns={'sentiment_Textblob': 'y'})
     elif label_type == 'sentiart':

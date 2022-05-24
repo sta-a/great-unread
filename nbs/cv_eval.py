@@ -13,44 +13,34 @@ from copy import deepcopy
 sys.path.insert(0, '../src/')
 import os
 import pandas as pd
-get_ipython().run_line_magic('matplotlib', 'inline')
+
+#get_ipython().run_line_magic('matplotlib', 'inline')
+#%matplotlib inline
 import matplotlib.pyplot as plt
 
 from utils import get_labels
 from cross_validation import Regression, TwoclassClassification, MulticlassClassification
 
 features_dir = f'../data/features/{language}/'
-results_dir = f'../data/results_sentiment_testing/{language}/'
+results_dir = f'../data/results/{language}/'
 sentiscores_dir = '../data/sentiscores/'
-#metadata_dir = '../data/metadata/'
-#metadata_dir = '/home/annina/Downloads/JCLS2022_Modeling-and-Predicting-Lit-Reception/metadata/'
-metadata_dir = '/home/annina/Downloads/'
+metadata_dir = '../data/metadata/'
+canonscores_dir = '../data/canonscores/'
 
 if not os.path.exists(results_dir):
     os.makedirs(results_dir)
 
 # %%
-df = pd.read_csv(metadata_dir + 'GER_texts_circulating-libs.csv', sep=';')
-df
-
-# %%
 '''
 Get data
 '''
-textblob_labels = get_labels(language, sentiscores_dir, metadata_dir, 'textblob')
-sentiart_labels = get_labels(language, sentiscores_dir, metadata_dir, 'sentiart')
-combined_labels = get_labels(language, sentiscores_dir, metadata_dir, 'combined')
-twoclass_labels = get_labels(language, sentiscores_dir, metadata_dir, 'twoclass')
-multiclass_labels = get_labels(language, sentiscores_dir, metadata_dir, 'multiclass')
-
-# %%
-metadata_dir
-
-# %%
-twoclass_labels['y'].value_counts()
-
-# %%
-library_labels = get_labels(language, sentiscores_dir, metadata_dir, 'library')
+canon_labels = get_labels('canon', language, canonscores_dir, None, None)
+textblob_labels = get_labels('textblob', language, None, sentiscores_dir, metadata_dir)
+sentiart_labels = get_labels('sentiart', language, None, sentiscores_dir, metadata_dir)
+combined_labels = get_labels('combined', language, None, sentiscores_dir, metadata_dir)
+twoclass_labels = get_labels('twoclass', language, None, sentiscores_dir, metadata_dir)
+multiclass_labels = get_labels('multiclass', language, None, sentiscores_dir, metadata_dir)
+library_labels = get_labels('library', language, None, sentiscores_dir, metadata_dir)
 #twoclass_labels['y'].plot.hist(grid=True, bins=50)
            
 book_df = pd.read_csv(f'{features_dir}book_df.csv').rename(columns = {'book_name': 'file_name'})
@@ -59,21 +49,18 @@ chunk_df = pd.read_csv(f'{features_dir}chunk_df.csv').rename(columns = {'book_na
 chunk_and_copied_book_df = pd.read_csv(f'{features_dir}chunk_and_copied_book_df.csv').rename(columns = {'book_name': 'file_name'})
 
 # %%
-library_labels
 
-# %%
+# All paramters
 '''
-All paramters
-
 models: 'svr', 'lasso', 'xgboost', 'svc'
-dimensionality_reduction: 'ss_pca_0_95', 'k_best_f_reg_0_10', 'k_best_mutual_info_0_10', None
-labels: 'textblob', 'sentiart', 'combined', 'twoclass', 'multiclass', 'library'
+dimensionality_reduction: 'ss_pca_0_95', 'k_best_f_reg_0_10', 'k_best_mutual_info_0_10', 'rfe', None
+labels: 'canon', textblob', 'sentiart', 'combined', 'twoclass', 'multiclass', 'library'
 '''
 model_params_dict = {'svr': [1], 'lasso': [1, 4], 'xgboost': [None], 'svc': [0.1, 1, 10, 100, 1000, 10000]} 
 features_list = ['book', 'chunk', 'baac', 'cacb']
 features_dict = {'book': book_df, 'chunk': chunk_df, 'baac': book_and_averaged_chunk_df, 
                  'cacb': chunk_and_copied_book_df}
-labels_dict = {'textblob': textblob_labels, 'sentiart': sentiart_labels, 'combined': combined_labels, 
+labels_dict = {'canon': canon_labels, 'textblob': textblob_labels, 'sentiart': sentiart_labels, 'combined': combined_labels, 
           'twoclass': twoclass_labels, 'multiclass': multiclass_labels, 'library': library_labels}
 drop_columns_list = [
     ['average_sentence_embedding', 'doc2vec_chunk_embedding'],
@@ -125,9 +112,11 @@ testing_reg_dict = {
     'model': ['xgboost'], 
     'dimensionality_reduction': [None], 
     'features': ['book'],
-    'labels': ['combined'],
-    'drop_columns': [drop_columns_list[-1]],
+    'labels': ['sentiart'],
+    'drop_columns': [['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']],
     'model_cols': regression_cols}
+
+
 testing_twoclass_dict = {
     'model': ['xgboost', 'svc'], #xgboost
     'dimensionality_reduction': [None], 
@@ -144,15 +133,7 @@ testing_multiclass_dict = {
     'labels': ['multiclass'],
     'drop_columns': [drop_columns_list[-1]],
     'model_cols': multiclass_cols}
-testing_twoclass_dict = { # best results balanced acc
-    'model': ['svc'], #xgboost
-    'dimensionality_reduction': [None], 
-    'features': ['book'], #'baac'
-    'labels': ['twoclass'],
-    'drop_columns': [drop_columns_list[0]],
-    'model_cols': twoclass_cols}
 
-# %%
 '''
 Run Cross-Validation
 '''  
@@ -176,17 +157,16 @@ if testing == 'True':
     elif task_type == 'library':
         param_dict = testing_library_dict
 
+
 # %%
 results = []
 with open(f'{results_dir}results-{language}-{task_type}-log.csv', 'a') as f:
     f.write('\t'.join(param_dict['model_cols']) + '\n')
 for model in param_dict['model']:
     model_param = model_params_dict[model]
-    for model_param in [10]:
-    #for model_param in model_param:############################################3
+    for model_param in model_param:
         for labels_string in param_dict['labels']:
             labels = deepcopy(labels_dict[labels_string])
-            print(labels.value_counts())
             for features_string in param_dict['features']:
                 df = deepcopy(features_dict[features_string])
                 for dimensionality_reduction in param_dict['dimensionality_reduction']:
@@ -249,11 +229,11 @@ for model in param_dict['model']:
 
 
 results_df = pd.DataFrame(results, columns=param_dict['model_cols'])
-results_df.to_csv(f'{results_dir}results-{language}-{task_type}-final.csv', index=False, sep='\t')
 
 # %% [markdown]
 # Hoffmansthal_Hugo-von_Ein-Brief_1902
 # Hoffmansthal_Hugo_Ein-Brief_1902
+#results_df.to_csv(f'{results_dir}results-{language}-{task_type}-final.csv', index=False, sep='\t')
 
 # %%
 

@@ -1,5 +1,3 @@
-from code import compile_command
-from hashlib import new
 import os
 import sys
 import numpy as np
@@ -7,17 +5,12 @@ import pandas as pd
 import logging
 logging.basicConfig(level=logging.DEBUG)
 from tqdm import tqdm
-from pydoc import doc
-from xml.sax.handler import feature_namespace_prefixes
 from collections import Counter
-from spellchecker import SpellChecker
-from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer, _document_frequency
 import scipy
 import spacy
-from gensim.models import LdaMulticore
-from gensim.matutils import Sparse2Corpus
-from corpus_toolkit import corpus_tools as ct
-from utils import load_list_of_lines, save_list_of_lines, df_from_dict, get_bookname
+
+sys.path.insert(0, '../src/')
+from ..utils import load_list_of_lines, save_list_of_lines, df_from_dict, get_bookname
 from .production_rule_extractor import ProductionRuleExtractor
 from .doc_based_feature_extractor import DocBasedFeatureExtractor
 
