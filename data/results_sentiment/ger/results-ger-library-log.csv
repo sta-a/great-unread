@@ -1,29 +1,29 @@
-language	task_type	model	model_param	labels_string	features_string	dimensionality_reduction	drop_columns	mean_train_book_acc	mean_validation_book_acc
-ger	library	svc	0.1	library	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.562	0.565
-ger	library	svc	0.1	library	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.564	0.565
-ger	library	svc	0.1	library	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.562	0.565
-ger	library	svc	0.1	library	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.563	0.565
-ger	library	svc	1	library	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.593	0.583
-ger	library	svc	1	library	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.593	0.583
-ger	library	svc	1	library	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.593	0.583
-ger	library	svc	1	library	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.593	0.583
-ger	library	svc	10	library	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.6	0.579
-ger	library	svc	10	library	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.6	0.579
-ger	library	svc	10	library	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.6	0.579
-ger	library	svc	10	library	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.599	0.579
-ger	library	svc	100	library	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.601	0.574
-ger	library	svc	100	library	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.602	0.574
-ger	library	svc	100	library	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.602	0.576
-ger	library	svc	100	library	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.601	0.574
-ger	library	svc	1000	library	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.595	0.585
-ger	library	svc	1000	library	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.596	0.583
-ger	library	svc	1000	library	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.597	0.568
-ger	library	svc	1000	library	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.597	0.566
-ger	library	svc	10000	library	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.604	0.59
-ger	library	svc	10000	library	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.604	0.59
-ger	library	svc	10000	library	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.605	0.572
-ger	library	svc	10000	library	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.607	0.572
-ger	library	xgboost	None	library	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.827	0.535
-ger	library	xgboost	None	library	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.741	0.528
-ger	library	xgboost	None	library	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.912	0.487
-ger	library	xgboost	None	library	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.754	0.522
+language	task_type	model	model_param	labels_string	features_string	dimensionality_reduction	drop_columns	mean_train_acc	mean_train_balanced_acc	mean_validation_acc	mean_validation_balanced_acc
+ger	library	svc	0.1	library	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.575	0.591	0.56	0.576
+ger	library	svc	0.1	library	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.576	0.591	0.558	0.574
+ger	library	svc	0.1	library	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.574	0.59	0.56	0.576
+ger	library	svc	0.1	library	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.575	0.591	0.56	0.576
+ger	library	svc	1	library	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.594	0.604	0.571	0.58
+ger	library	svc	1	library	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.594	0.604	0.571	0.58
+ger	library	svc	1	library	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.595	0.604	0.571	0.58
+ger	library	svc	1	library	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.595	0.604	0.569	0.578
+ger	library	svc	10	library	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.596	0.604	0.59	0.595
+ger	library	svc	10	library	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.596	0.603	0.59	0.595
+ger	library	svc	10	library	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.596	0.604	0.591	0.597
+ger	library	svc	10	library	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.596	0.604	0.59	0.595
+ger	library	svc	100	library	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.594	0.603	0.573	0.582
+ger	library	svc	100	library	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.595	0.604	0.577	0.585
+ger	library	svc	100	library	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.594	0.603	0.573	0.582
+ger	library	svc	100	library	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.594	0.603	0.573	0.582
+ger	library	svc	1000	library	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.598	0.605	0.582	0.588
+ger	library	svc	1000	library	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.599	0.606	0.582	0.588
+ger	library	svc	1000	library	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.599	0.607	0.575	0.582
+ger	library	svc	1000	library	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.6	0.607	0.575	0.582
+ger	library	svc	10000	library	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.601	0.607	0.588	0.592
+ger	library	svc	10000	library	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.601	0.606	0.588	0.592
+ger	library	svc	10000	library	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.602	0.608	0.582	0.588
+ger	library	svc	10000	library	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.603	0.609	0.582	0.588
+ger	library	xgboost	None	library	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.897	0.897	0.524	0.52
+ger	library	xgboost	None	library	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.752	0.753	0.531	0.53
+ger	library	xgboost	None	library	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.864	0.863	0.537	0.529
+ger	library	xgboost	None	library	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.744	0.738	0.557	0.553
