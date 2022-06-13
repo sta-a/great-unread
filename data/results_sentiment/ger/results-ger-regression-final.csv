@@ -1,2 +1,0 @@
-language	task_type	model	model_param	labels_string	features_string	dimensionality_reduction	drop_columns	mean_train_mse	mean_train_rmse	mean_train_mae	mean_train_r2	mean_train_corr	mean_validation_mse	mean_validation_rmse	mean_validation_mae	mean_validation_r2	mean_validation_corr	mean_p_value
-ger	regression	xgboost		combined	baac		['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.0	0.001	0.0	1.0	1.0	0.001	0.028	0.022	-0.315	0.07	0.045

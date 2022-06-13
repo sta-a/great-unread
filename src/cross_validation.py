@@ -350,7 +350,6 @@ class Regression():
         validation_corr_pvalues = []
 
         df = self.df
-        print('df', df)
         df = self._combine_df_labels(df)
         file_names_split = AuthorSplit(language=self.language, df=df, nr_splits=10, seed=1, return_indices=False).split()
         
@@ -492,13 +491,21 @@ class TwoclassClassification(Regression):
         
     def _combine_df_labels(self, df):
         #Reviews zum englischen Korpus beginnnen mit 1759 und decken alles bis 1914 ab
+        df['file_name'].to_csv('test.txt')
         df = df.merge(right=self.labels, on='file_name', how='left', validate='many_to_one')
+        #print('df value counts', df['y'].value_counts())
+        df_filenames = df[df['y']==1]['file_name']
+        labels_filenames = self.labels['file_name']
+        print(set(labels_filenames) - set(df_filenames))
+        #[print(x) if x not in df_filenames else '' for x in labels_filenames]
+        #print('labels value counts', self.labels['y'].value_counts())
         df['y'] = df['y'].fillna(value=0)
         #Select books written after year of first review)
         book_year = df['file_name'].str.replace('-', '_').str.split('_').str[-1].astype('int64')
         review_year = book_year[df['y'] != 0]
         # Keep only those texts that that were published after the first review had appeared
         df = df.loc[book_year>=min(review_year)]
+        #print(df['y'].value_counts())
         return df
     
     def _get_accuracy(self, df):
