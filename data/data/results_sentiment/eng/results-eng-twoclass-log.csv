@@ -1,0 +1,57 @@
+language	task_type	model	model_param	labels_string	features_string	dimensionality_reduction	drop_columns	mean_train_acc	mean_train_balanced_acc	mean_validation_acc	mean_validation_balanced_acc
+eng	twoclass	svc	0.1	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.687	0.719	0.686	0.718
+eng	twoclass	svc	0.1	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.687	0.719	0.686	0.718
+eng	twoclass	svc	0.1	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.687	0.719	0.686	0.718
+eng	twoclass	svc	0.1	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.687	0.719	0.686	0.718
+eng	twoclass	svc	0.1	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.687	0.719	0.686	0.718
+eng	twoclass	svc	0.1	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.687	0.719	0.686	0.718
+eng	twoclass	svc	0.1	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.687	0.719	0.686	0.718
+eng	twoclass	svc	0.1	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.687	0.719	0.686	0.718
+eng	twoclass	svc	1	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.679	0.727	0.672	0.72
+eng	twoclass	svc	1	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.679	0.727	0.672	0.72
+eng	twoclass	svc	1	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.679	0.727	0.672	0.72
+eng	twoclass	svc	1	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.679	0.727	0.67	0.719
+eng	twoclass	svc	1	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.679	0.727	0.668	0.716
+eng	twoclass	svc	1	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.679	0.727	0.668	0.716
+eng	twoclass	svc	1	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.679	0.727	0.668	0.716
+eng	twoclass	svc	1	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.679	0.727	0.668	0.716
+eng	twoclass	svc	10	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.677	0.733	0.672	0.726
+eng	twoclass	svc	10	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.677	0.733	0.672	0.726
+eng	twoclass	svc	10	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.677	0.733	0.672	0.726
+eng	twoclass	svc	10	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.677	0.733	0.67	0.725
+eng	twoclass	svc	10	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.677	0.734	0.67	0.725
+eng	twoclass	svc	10	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.677	0.734	0.67	0.725
+eng	twoclass	svc	10	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.677	0.734	0.67	0.725
+eng	twoclass	svc	10	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.677	0.734	0.67	0.725
+eng	twoclass	svc	100	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.674	0.733	0.67	0.729
+eng	twoclass	svc	100	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.674	0.733	0.67	0.729
+eng	twoclass	svc	100	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.674	0.733	0.67	0.729
+eng	twoclass	svc	100	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.674	0.733	0.672	0.732
+eng	twoclass	svc	100	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.676	0.734	0.666	0.723
+eng	twoclass	svc	100	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.676	0.734	0.666	0.723
+eng	twoclass	svc	100	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.676	0.734	0.666	0.723
+eng	twoclass	svc	100	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.676	0.734	0.666	0.723
+eng	twoclass	svc	1000	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.675	0.734	0.665	0.725
+eng	twoclass	svc	1000	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.675	0.734	0.665	0.725
+eng	twoclass	svc	1000	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.675	0.734	0.665	0.725
+eng	twoclass	svc	1000	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.674	0.733	0.665	0.725
+eng	twoclass	svc	1000	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.684	0.738	0.663	0.717
+eng	twoclass	svc	1000	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.684	0.738	0.663	0.717
+eng	twoclass	svc	1000	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.684	0.738	0.663	0.717
+eng	twoclass	svc	1000	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.684	0.738	0.663	0.717
+eng	twoclass	svc	10000	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.676	0.732	0.663	0.721
+eng	twoclass	svc	10000	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.676	0.733	0.663	0.721
+eng	twoclass	svc	10000	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.676	0.733	0.663	0.721
+eng	twoclass	svc	10000	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.676	0.732	0.663	0.721
+eng	twoclass	svc	10000	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.7	0.748	0.665	0.713
+eng	twoclass	svc	10000	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.699	0.747	0.665	0.714
+eng	twoclass	svc	10000	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.699	0.747	0.663	0.71
+eng	twoclass	svc	10000	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.701	0.749	0.665	0.714
+eng	twoclass	xgboost	None	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.961	0.968	0.69	0.685
+eng	twoclass	xgboost	None	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.94	0.952	0.681	0.677
+eng	twoclass	xgboost	None	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.948	0.957	0.678	0.68
+eng	twoclass	xgboost	None	twoclass	book	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.933	0.945	0.649	0.654
+eng	twoclass	xgboost	None	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding']	0.949	0.958	0.692	0.674
+eng	twoclass	xgboost	None	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']	0.945	0.955	0.715	0.704
+eng	twoclass	xgboost	None	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->']	0.905	0.922	0.672	0.682
+eng	twoclass	xgboost	None	twoclass	baac	None	['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']	0.875	0.889	0.652	0.662
