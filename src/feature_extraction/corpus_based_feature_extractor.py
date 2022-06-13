@@ -10,7 +10,7 @@ import scipy
 import spacy
 
 sys.path.insert(0, '../src/')
-from ..utils import load_list_of_lines, save_list_of_lines, df_from_dict, get_bookname
+from utils import load_list_of_lines, save_list_of_lines, df_from_dict, get_bookname
 from .production_rule_extractor import ProductionRuleExtractor
 from .doc_based_feature_extractor import DocBasedFeatureExtractor
 
