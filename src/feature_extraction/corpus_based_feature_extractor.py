@@ -1,5 +1,4 @@
 import os
-import sys
 import numpy as np
 import pandas as pd
 import logging
@@ -8,11 +7,10 @@ from tqdm import tqdm
 from collections import Counter
 import scipy
 import spacy
-
-sys.path.insert(0, '../src/')
 from utils import load_list_of_lines, save_list_of_lines, df_from_dict, get_bookname
 from .production_rule_extractor import ProductionRuleExtractor
 from .doc_based_feature_extractor import DocBasedFeatureExtractor
+
 
 class CorpusBasedFeatureExtractor():
     '''Get features for which the whole corpus needs to be considered.'''
@@ -49,6 +47,7 @@ class CorpusBasedFeatureExtractor():
                 curr_doc2vec.append(chunk.doc2vec_chunk_embedding)
             self.all_average_sbert_sentence_embeddings.append(curr_sbert)
             self.all_doc2vec_chunk_embeddings.append(curr_doc2vec)
+
 
     def __generate_chunks(self,         
             processed_sentences=False, 
@@ -446,6 +445,7 @@ class CorpusBasedFeatureExtractor():
         corpus_book_features = None
         if self.sentences_per_chunk is not None:
             for feature_function in corpus_book_feature_mapping:
+                print(feature_function)
                 if corpus_book_features is None:
                     corpus_book_features = feature_function()
                 else:

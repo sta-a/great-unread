@@ -15,17 +15,17 @@ raw_docs_dir = '../data/raw_docs/'
 labels_dir = '../data/labels/'
 
 
-def get_doc_paths(docs_dir, lang):
-    doc_paths = [os.path.join(docs_dir, lang, doc_name) for doc_name in os.listdir(os.path.join(docs_dir, lang)) if doc_name[-4:] == '.txt']
+def get_doc_paths(docs_dir, language):
+    doc_paths = [os.path.join(docs_dir, language, doc_name) for doc_name in os.listdir(os.path.join(docs_dir, language)) if doc_name[-4:] == '.txt']
     return doc_paths
 
-def get_pickle_paths(pickles_dir, lang):
-    pickle_paths = [os.path.join(pickles_dir, lang, pickle_name) for pickle_name in os.listdir(os.path.join(pickles_dir, lang)) if pickle_name[-7:] == '.pickle']
+def get_pickle_paths(pickles_dir, language):
+    pickle_paths = [os.path.join(pickles_dir, language, pickle_name) for pickle_name in os.listdir(os.path.join(pickles_dir, language)) if pickle_name[-7:] == '.pickle']
     return pickle_paths
 
-def read_labels(lang):
-    labels_df = pd.read_csv(os.path.join(labels_dir, lang, 'canonisation_scores.csv'), sep=';')
-    if lang == 'eng':
+def read_labels(language):
+    labels_df = pd.read_csv(os.path.join(labels_dir, language, 'canonisation_scores.csv'), sep=';')
+    if language == 'eng':
         file_name_mapper = {
             'The Wild Irish Girl': 'Owenson_Sydney_The-Wild-Irish-Girl_1806',
             'Somerville-Ross_The-Real-Charlotte_1894': 'Somerville-Ross_Edith-Martin_The-Real-Charlotte_1894',
@@ -45,7 +45,7 @@ def read_labels(lang):
             'Surtees_Robert_Jorrocks-Jaunts-and-Jollities_1831'
         ]
         labels = dict(labels_df[~labels_df['file_name'].isin(extra_file_names)][['file_name', 'percent']].values)
-    elif lang == 'ger':
+    elif language == 'ger':
         file_name_mapper = {
             'Ebner-Eschenbach_Marie-von_Bozena_1876': 'Ebner-Eschenbach_Marie_Bozena_1876',
             'Ebner-Eschenbach_Marie-von_Das-Gemeindekind_1887': 'Ebner-Eschenbach_Marie_Das-Gemeindekind_1887',
@@ -71,9 +71,9 @@ def read_labels(lang):
 # # Process Data
 
 # %%
-lang = 'eng'
-raw_doc_paths = get_doc_paths(raw_docs_dir, lang)
-bp = BertProcessor(lang=lang, pad=False)
+language = 'eng'
+raw_doc_paths = get_doc_paths(raw_docs_dir, language)
+bp = BertProcessor(language=language, pad=False)
 bp.process(raw_doc_paths)
 
 # %% [markdown]
@@ -82,12 +82,12 @@ bp.process(raw_doc_paths)
 # %%
 from vectorizer import BertVectorizer
 
-lang = 'eng'
-bv = BertVectorizer(lang=lang, sentence_to_doc_agg='first')
-pickle_paths = get_pickle_paths('../data/processed_bert_512_tokens_not_padded/', lang)
+language = 'eng'
+bv = BertVectorizer(language=language, sentence_to_doc_agg='first')
+pickle_paths = get_pickle_paths('../data/processed_bert_512_tokens_not_padded/', language)
 bv.fit(pickle_paths)
 df = bv.get_doc_vectors()
-labels = read_labels(lang)
+labels = read_labels(language)
 df['y'] = df['pickle_path'].apply(lambda x: labels[x.split('/')[-1][:-7]])
 df['file_name'] = df['pickle_path'].apply(lambda x: x.split('/')[-1][:-7])
 

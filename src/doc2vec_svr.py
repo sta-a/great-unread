@@ -21,35 +21,35 @@ labels_dir = '../data/labels/'
 # # Process data
 
 # %%
-lang = 'eng'
-raw_doc_paths = get_doc_paths(raw_docs_dir, lang)
-dp = Doc2VecProcessor(lang=lang, processed_chunk_sentence_count=None, stride=None)
+language = 'eng'
+raw_doc_paths = get_doc_paths(raw_docs_dir, language)
+dp = Doc2VecProcessor(language=language, processed_chunk_sentence_count=None, stride=None)
 dp.process(raw_doc_paths)
 
 # %%
-lang = 'ger'
-raw_doc_paths = get_doc_paths(raw_docs_dir, lang)
-dp = Doc2VecProcessor(lang=lang, processed_chunk_sentence_count=None, stride=None)
+language = 'ger'
+raw_doc_paths = get_doc_paths(raw_docs_dir, language)
+dp = Doc2VecProcessor(language=language, processed_chunk_sentence_count=None, stride=None)
 dp.process(raw_doc_paths)
 
 # %%
-lang = 'eng'
-raw_doc_paths = get_doc_paths(raw_docs_dir, lang)
-dp = Doc2VecProcessor(lang=lang, processed_chunk_sentence_count=500, stride=500)
+language = 'eng'
+raw_doc_paths = get_doc_paths(raw_docs_dir, language)
+dp = Doc2VecProcessor(language=language, processed_chunk_sentence_count=500, stride=500)
 dp.process(raw_doc_paths)
 
 # %%
-lang = 'ger'
-raw_doc_paths = get_doc_paths(raw_docs_dir, lang)
-dp = Doc2VecProcessor(lang=lang, processed_chunk_sentence_count=500, stride=500)
+language = 'ger'
+raw_doc_paths = get_doc_paths(raw_docs_dir, language)
+dp = Doc2VecProcessor(language=language, processed_chunk_sentence_count=500, stride=500)
 dp.process(raw_doc_paths)
 
 # %% [markdown]
 # # Full documents + Doc2VecDMM + SVR
 
 # %%
-lang = 'eng'
-processed_full_doc_paths = get_doc_paths('../data/processed_doc2vec_full/', lang)
+language = 'eng'
+processed_full_doc_paths = get_doc_paths('../data/processed_doc2vec_full/', language)
 d2vv = Doc2VecVectorizer(dm=1, dm_mean=1)
 d2vv.fit(processed_full_doc_paths)
 df = d2vv.get_doc_vectors()
@@ -104,8 +104,8 @@ plt.show();
 # # Chunks of 500 Sentences + Doc2VecDMM + SVR
 
 # %%
-lang = 'eng'
-processed_sc_500_st_500_doc_paths = get_doc_paths('../data/processed_doc2vec_sc_500_st_500/', lang)
+language = 'eng'
+processed_sc_500_st_500_doc_paths = get_doc_paths('../data/processed_doc2vec_sc_500_st_500/', language)
 d2vv = Doc2VecVectorizer(dm=1, dm_mean=1)
 d2vv.fit(processed_sc_500_st_500_doc_paths)
 df = d2vv.get_doc_vectors()
@@ -155,8 +155,8 @@ plt.scatter(all_labels, all_predictions)
 # # Full documents + Doc2VecDBOW + SVR
 
 # %%
-lang = 'eng'
-processed_full_doc_paths = get_doc_paths('../data/processed_doc2vec_full/', lang)
+language = 'eng'
+processed_full_doc_paths = get_doc_paths('../data/processed_doc2vec_full/', language)
 d2vv = Doc2VecVectorizer(dm=0, dm_mean=0)
 d2vv.fit(processed_full_doc_paths)
 df = d2vv.get_doc_vectors()

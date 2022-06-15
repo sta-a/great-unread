@@ -1,7 +1,7 @@
 # %%
 %load_ext autoreload
 %autoreload 2
-lang = 'eng'
+language = 'eng'
 
 import sys
 sys.path.insert(0, '../src/')
@@ -9,8 +9,8 @@ import numpy as np
 import pandas as pd
 import os
 
-features_dir = f'../data/features_30/{lang}/'
-results_dir = f'../data/results_canon/{lang}/'
+features_dir = f'../data/features_30/{language}/'
+results_dir = f'../data/results_canon/{language}/'
 sentiment_dir = '../data/labels_sentiment/'
 canonization_labels_dir = '../data/labels_canon/'
 
@@ -367,7 +367,7 @@ drop_columns_list = [
     ['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding'],
     ['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', 'pos'],
     ]
-if lang == 'eng':
+if language == 'eng':
     drop_columns_list.extend([
         ['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', '->'], 
         ['average_sentence_embedding', '100_most_common_', 'doc2vec_chunk_embedding', '->', 'pos']
@@ -408,17 +408,17 @@ book_df = book_df.loc[book_df['file_name'] != 'Defoe_Daniel_Roxana_1724'] ######
 # chunk_and_copied_book_df = chunk_and_copied_book_df.loc[chunk_and_copied_book_df['file_name'] != 'Defoe_Daniel_Roxana_1724']
 
 
-for lang in [lang]:
+for language in [language]:
     for model in [param_dict['model']]:
         model_param = model_params[model]
         for model_param in model_param:
             for dimensionality_reduction in [param_dict['dimensionality_reduction']]:
                 for features in param_dict['features']:
                     for drop_columns in [drop_columns_list[3]]:
-                        print(params_to_use, lang, model, features, drop_columns, dimensionality_reduction, 'param=', model_param)
+                        print(params_to_use, language, model, features, drop_columns, dimensionality_reduction, 'param=', model_param)
                         try:
                             experiment = Regression(
-                                language=lang,
+                                language=language,
                                 features=features,
                                 drop_columns=drop_columns,
                                 dimensionality_reduction = dimensionality_reduction,
@@ -427,16 +427,16 @@ for lang in [lang]:
                                 verbose=True,
                                 params_to_use = params_to_use)
                             returned_values = experiment.run()
-                            results.append((lang, model, features, drop_columns, dimensionality_reduction, model_param) + returned_values)
+                            results.append((language, model, features, drop_columns, dimensionality_reduction, model_param) + returned_values)
                         except Exception as e:
-                            print(f'Error in {lang}, {model}, {features}, {drop_columns}, {dimensionality_reduction}')
+                            print(f'Error in {language}, {model}, {features}, {drop_columns}, {dimensionality_reduction}')
                             print(e)
                             raise e
-    results_df = pd.DataFrame(results, columns=['lang', 'model', 'features', 'drop_columns', 
+    results_df = pd.DataFrame(results, columns=['language', 'model', 'features', 'drop_columns', 
     'dimensionality_reduction', 'model_param', 'mean_train_mse', 'mean_train_rmse', 
     'mean_train_mae', 'mean_train_r2', 'mean_train_corr', 'mean_validation_mse', 'mean_validation_rmse',
     'mean_validation_mae', 'mean_validation_r2', 'mean_validation_corr', 'mean_p_value', 'best_features'])
-    results_df.to_csv(f'{results_dir}results-{lang}-{params_to_use}.csv', index=False)
+    results_df.to_csv(f'{results_dir}results-{language}-{params_to_use}.csv', index=False)
 
 # %%
 # Get distances based on best features

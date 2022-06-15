@@ -1,27 +1,34 @@
 # %%
 %load_ext autoreload
 %autoreload 2
-# 'eng' , 'ger'
-language = 'ger'
-# 'regression', 'twoclass', 'library', 'multiclass'
-task_type = 'library' 
-# True, False
-testing = 'True'
+from_commandline = False
 
+import argparse
 import sys
-from copy import deepcopy
-sys.path.insert(0, '../src/')
 import os
 import pandas as pd
-
+from copy import deepcopy
 #get_ipython().run_line_magic('matplotlib', 'inline')
 #%matplotlib inline
 import matplotlib.pyplot as plt
 
 from utils import get_labels
-from cross_validation import Regression, TwoclassClassification, MulticlassClassification
+from cross_validation import Regression, TwoclassClassification, MulticlassClassification ################################
 
-features_dir = f'../data/features/{language}/'
+if from_commandline:
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--language', default='eng')
+    parser.add_argument('--task_type', default='regression')
+    parser.add_argument('--testing', default='False')
+    args = parser.parse_args()
+    language = args.language
+else:
+    # Don't use defaults because VSC interactive can't handle command line arguments
+    language = 'eng' #'eng', 'ger'
+    task_type = 'regression' #'regression', 'twoclass', 'library', 'multiclass'
+    testing = 'True' #True, False
+
+features_dir = f'../data/features_test/{language}/' ###########################
 results_dir = f'../data/results/{language}/'
 sentiscores_dir = '../data/sentiscores/'
 metadata_dir = '../data/metadata/'
@@ -108,15 +115,13 @@ multiclass_dict = {
     'model_cols': multiclass_cols}
 
 # Test CV with only one paramter combination
-testing_reg_dict = {
+testing_reg_dict_rfe = {
     'model': ['xgboost'], 
     'dimensionality_reduction': [None], 
     'features': ['book'],
-    'labels': ['sentiart'],
-    'drop_columns': [['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']],
+    'labels': ['combined'],
+    'drop_columns': [drop_columns_list[-1]],
     'model_cols': regression_cols}
-
-
 testing_twoclass_dict = {
     'model': ['xgboost', 'svc'], #xgboost
     'dimensionality_reduction': [None], 
@@ -134,6 +139,7 @@ testing_multiclass_dict = {
     'drop_columns': [drop_columns_list[-1]],
     'model_cols': multiclass_cols}
 
+# %%
 '''
 Run Cross-Validation
 '''  
@@ -146,7 +152,7 @@ elif task_type == 'twoclass':
 elif task_type == 'multiclass':
     param_dict = multiclass_dict
 
-##Overwrite for testing 
+# Overwrite for testing 
 if testing == 'True':
     if task_type == 'regression':
         param_dict = testing_reg_dict
@@ -157,7 +163,6 @@ if testing == 'True':
     elif task_type == 'library':
         param_dict = testing_library_dict
 
-
 # %%
 results = []
 with open(f'{results_dir}results-{language}-{task_type}-log.csv', 'a') as f:
@@ -167,6 +172,7 @@ for model in param_dict['model']:
     for model_param in model_param:
         for labels_string in param_dict['labels']:
             labels = deepcopy(labels_dict[labels_string])
+            print(labels.value_counts())
             for features_string in param_dict['features']:
                 df = deepcopy(features_dict[features_string])
                 for dimensionality_reduction in param_dict['dimensionality_reduction']:
@@ -229,25 +235,4 @@ for model in param_dict['model']:
 
 
 results_df = pd.DataFrame(results, columns=param_dict['model_cols'])
-
-# %% [markdown]
-# Hoffmansthal_Hugo-von_Ein-Brief_1902
-# Hoffmansthal_Hugo_Ein-Brief_1902
-#results_df.to_csv(f'{results_dir}results-{language}-{task_type}-final.csv', index=False, sep='\t')
-
-# %%
-
-
-# %%
-
-
-# %%
-
-
-# %%
-
-
-# %%
-
-
-
+results_df.to_csv(f'{results_dir}results-{language}-{task_type}-final.csv', index=False, sep='\t')

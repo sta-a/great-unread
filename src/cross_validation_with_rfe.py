@@ -13,7 +13,7 @@ features_dir = '../data/features/'
 results_dir = '../data/results_canon/'
 sentiment_dir = '../data/labels_sentiment/'
 canonization_labels_dir = '../data/labels_canon/'
-lang = 'eng'
+language = 'eng'
 
 # %%
 from sklearn.feature_selection import SelectKBest, f_regression, mutual_info_regression
@@ -420,7 +420,7 @@ class Experiment(object):
             plt.scatter(all_labels, all_predictions)
             plt.xlabel('Canonization Scores', fontsize=20)
             plt.ylabel('Predicted Scores', fontsize=20)
-            plt.savefig('../data/results/figures/' + lang + '-' + self.model + '-' + self.dimensionality_reduction + '-' + self.features + '-' + self.include_data + '-' + 'author_split' + '.png', dpi=400)
+            plt.savefig('../data/results/figures/' + language + '-' + self.model + '-' + self.dimensionality_reduction + '-' + self.features + '-' + self.include_data + '-' + 'author_split' + '.png', dpi=400)
             plt.show();
         return mean_train_mse, mean_train_mae, mean_validation_mse, mean_validation_rmse, mean_validation_mae, mean_validation_r2
 
@@ -431,17 +431,17 @@ results = []
 eng_params = {'features': ['book_and_averaged_chunk']}
 ger_params = {'features': ['chunk']}
 
-for lang in ['eng', 'ger']: 
-    print('Language', lang)
-    if lang == 'eng':
+for language in ['eng', 'ger']: 
+    print('Language', language)
+    if language == 'eng':
         param_dir = eng_params
     else:
         param_dir = ger_params
         
-    book_df = pd.read_csv(f'{features_dir}/{lang}/book_df.csv')
-    book_and_averaged_chunk_df = pd.read_csv(f'{features_dir}/{lang}/book_and_averaged_chunk_df.csv')
-    chunk_df = pd.read_csv(f'{features_dir}/{lang}/chunk_df.csv')
-    chunk_and_copied_book_df = pd.read_csv(f'{features_dir}/{lang}/chunk_and_copied_book_df.csv')
+    book_df = pd.read_csv(f'{features_dir}/{language}/book_df.csv')
+    book_and_averaged_chunk_df = pd.read_csv(f'{features_dir}/{language}/book_and_averaged_chunk_df.csv')
+    chunk_df = pd.read_csv(f'{features_dir}/{language}/chunk_df.csv')
+    chunk_and_copied_book_df = pd.read_csv(f'{features_dir}/{language}/chunk_and_copied_book_df.csv')
 
     for model in ['xgboost']:
         for features in ['book', 'chunk', 'book_and_averaged_chunk', 'chunk_and_copied_book']: #param_dir['features']: #
@@ -461,10 +461,10 @@ for lang in ['eng', 'ger']:
                                 verbose=True
                             )
                             mean_train_mse, mean_train_mae, mean_validation_mse, mean_validation_rmse, mean_validation_mae, mean_validation_r2 = experiment.run()
-                            results.append((lang, model, features, drop_columns_including, dimensionality_reduction, include_data, mean_train_mse, mean_train_mae, mean_validation_mse, mean_validation_rmse, mean_validation_mae, mean_validation_r2))
-                            print(lang, model, features, drop_columns_including, dimensionality_reduction, include_data, mean_train_mse, mean_train_mae, mean_validation_mse, mean_validation_rmse, mean_validation_mae, mean_validation_r2)
+                            results.append((language, model, features, drop_columns_including, dimensionality_reduction, include_data, mean_train_mse, mean_train_mae, mean_validation_mse, mean_validation_rmse, mean_validation_mae, mean_validation_r2))
+                            print(language, model, features, drop_columns_including, dimensionality_reduction, include_data, mean_train_mse, mean_train_mae, mean_validation_mse, mean_validation_rmse, mean_validation_mae, mean_validation_r2)
                         except Exception as e:
-                            print(f'Error in {lang}, {model}, {features}, {drop_columns_including}, {dimensionality_reduction}, {include_data}')
+                            print(f'Error in {language}, {model}, {features}, {drop_columns_including}, {dimensionality_reduction}, {include_data}')
                             print(e)
                             raise e
 

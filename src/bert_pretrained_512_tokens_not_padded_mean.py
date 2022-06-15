@@ -20,24 +20,24 @@ labels_dir = '../data/labels/'
 # # Process Data
 
 # %%
-lang = 'eng'
-raw_doc_paths = get_doc_paths(raw_docs_dir, lang)
-bp = BertProcessor(lang=lang, pad=False)
+language = 'eng'
+raw_doc_paths = get_doc_paths(raw_docs_dir, language)
+bp = BertProcessor(language=language, pad=False)
 bp.process(raw_doc_paths)
 
 # %% [markdown]
 # # Create Bert Document Vectors
 
 # %%
-lang = 'eng'
-bv = BertVectorizer(lang=lang, sentence_to_doc_agg='mean')
-pickle_paths = get_pickle_paths('../data/processed_bert_512_tokens_not_padded/', lang)
+language = 'eng'
+bv = BertVectorizer(language=language, sentence_to_doc_agg='mean')
+pickle_paths = get_pickle_paths('../data/processed_bert_512_tokens_not_padded/', language)
 bv.fit(pickle_paths)
 doc_vectors = bv.get_doc_vectors()
 
 # %%
 df = doc_vectors.copy()
-labels = read_labels(lang)
+labels = read_labels(language)
 df['y'] = df['pickle_path'].apply(lambda x: labels[x.split('/')[-1][:-7]])
 df['file_name'] = df['pickle_path'].apply(lambda x: x.split('/')[-1][:-7])
 
