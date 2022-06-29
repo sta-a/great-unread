@@ -1,6 +1,9 @@
 import heapq
+from collections import Counter
+import random
+random.seed(56)
 
-class CVFolds():
+class AuthorCV():
     '''
     Split book names into n folds.
     All works of an author are put into the same fold.
@@ -46,7 +49,7 @@ class CVFolds():
         works_per_author = Counter(authors)
         return author_bookname_mapping, works_per_author
     
-    def split(self):
+    def get_folds(self):
         splits = [[] for _ in range(0,self.n_folds)]
 
         if self.stratified == True:

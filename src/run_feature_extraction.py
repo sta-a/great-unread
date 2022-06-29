@@ -16,6 +16,7 @@ from feature_extraction.doc_based_feature_extractor import DocBasedFeatureExtrac
 from feature_extraction.corpus_based_feature_extractor import CorpusBasedFeatureExtractor
 from utils import get_doc_paths
 
+# %%
 if from_commandline:
     parser = argparse.ArgumentParser()
     parser.add_argument('--language', default='eng')
@@ -30,7 +31,7 @@ features_dir = f'../data/features_test/{language}/' ############################
 if not os.path.exists(features_dir):
     os.makedirs(features_dir)
 
-doc_paths = get_doc_paths(raw_docs_dir)[:2] #######################
+doc_paths = get_doc_paths(raw_docs_dir)[:20] #######################
 sentences_per_chunk = 200
 
 # %%
