@@ -5,8 +5,11 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 from tqdm import tqdm
 from collections import Counter
+from functools import wraps, reduce
+import multiprocessing
 import scipy
 import spacy
+import time
 from utils import load_list_of_lines, save_list_of_lines, df_from_dict, get_bookname
 from .production_rule_extractor import ProductionRuleExtractor
 from .doc_based_feature_extractor import DocBasedFeatureExtractor
@@ -418,36 +421,89 @@ class CorpusBasedFeatureExtractor():
         return distances
 
     def get_all_features(self):
-        corpus_chunk_feature_mapping = [
-                                self.get_unigram_distance,
-                                self.get_unigram_distance_limited,
-                                self.get_bigram_distance,
-                                self.get_trigram_distance,
-                                self.get_tag_distribution]
+
+        def multiprocessing_decorator(queue):
+            def inner_decorator(func):
+                @wraps(func)
+                def wrapper(*args, **kwargs):
+                    print(f'Starting {multiprocessing.current_process().name}.')
+                    features = func()
+                    queue.put(features)
+                return wrapper
+            return inner_decorator
+
+        chunk_queue = multiprocessing.Queue()
+        book_queue = multiprocessing.Queue()
+
+        chunk_functions = [self.get_unigram_distance,
+                            self.get_unigram_distance_limited,
+                            self.get_bigram_distance,
+                            self.get_trigram_distance,
+                            self.get_tag_distribution]
         if self.language == 'eng':
-            corpus_chunk_feature_mapping.append(self.get_production_distribution)
-        corpus_book_feature_mapping = [
-                                self.get_overlap_score_doc2vec,
-                                self.get_overlap_score_sbert,
-                                self.get_outlier_score_doc2vec,
-                                self.get_outlier_score_sbert]
+            chunk_functions.append(self.get_production_distribution)
+        book_functions = [self.get_overlap_score_doc2vec,
+                            self.get_overlap_score_sbert,
+                            self.get_outlier_score_doc2vec,
+                             self.get_outlier_score_sbert]
 
-        corpus_chunk_features = None
-        for feature_function in corpus_chunk_feature_mapping:
-            print(feature_function)
-            if  corpus_chunk_features is None:
-                corpus_chunk_features = feature_function()
-            else:
-                corpus_chunk_features = corpus_chunk_features.merge(feature_function(), how='inner', on='file_name', validate='one_to_one')
+        
+        # Reverse chunk_functions to start get_tag_distribution() and get_production_distribution() first
+        chunk_functions = reversed([multiprocessing_decorator(chunk_queue)(func) for func in chunk_functions])
+        book_functions = [multiprocessing_decorator(book_queue)(func) for func in book_functions]
+        
+        # Create new process for every function
+        chunk_processes = [multiprocessing.Process(target=func, name=func.__name__) for func in chunk_functions]
+        book_processes = [multiprocessing.Process(target=func, name=func.__name__) for func in book_functions]
         if self.sentences_per_chunk is None:
-            corpus_chunk_features['file_name'] = corpus_chunk_features['file_name'].str.split('_').str[:4].str.join('_')
+            book_processes = []
+        processes = chunk_processes + book_processes
 
-        corpus_book_features = None
+
+        def _start_process(p):
+            # Limit the number of cores that are used
+            alive = sum([p.is_alive() for p in processes])
+            if alive <= (multiprocessing.cpu_count() -1):
+                p.start()
+            else:
+                time.sleep(15)
+                _start_process(p)
+        for p in processes:
+            _start_process(p)
+
+        chunk_features = []
+        book_features = []
+        while True:
+            alive = any([p.is_alive() for p in processes])
+            if not chunk_queue.empty():
+                chunk_features.append(chunk_queue.get())
+            if not book_queue.empty():
+                book_features.append(book_queue.get())
+            if not alive:
+                break
+            
+        for p in processes:
+            p.join()
+
+        chunk_features = reduce(lambda df1, df2: df1.merge(df2, how='inner', on='file_name', validate='one_to_one'), chunk_features)
         if self.sentences_per_chunk is not None:
-            for feature_function in corpus_book_feature_mapping:
-                print(feature_function)
-                if corpus_book_features is None:
-                    corpus_book_features = feature_function()
-                else:
-                    corpus_book_features = corpus_book_features.merge(feature_function(), how='inner', on='file_name', validate='one_to_one')
-        return corpus_chunk_features, corpus_book_features
+            book_features = reduce(lambda df1, df2: df1.merge(df2, how='inner', on='file_name', validate='one_to_one'), book_features)
+
+
+        # # chunk_features = None
+        # # for feature_function in chunk_functions:
+        # #     features = feature_function()
+        # #     if  chunk_features is None:
+        # #         chunk_features = featuresd.concat(chunk_features, axis=1)
+
+        # # book_features = None
+        # # if self.sentences_per_chunk is not None:
+        # #     for feature_function in book_functions:
+        # #         if book_features is None:
+        # #             book_features = feature_function()
+        # #         else:
+        # #             book_features = 
+
+        if self.sentences_per_chunk is None:
+            chunk_features['file_name'] = chunk_features['file_name'].str.split('_').str[:4].str.join('_')
+        return chunk_features, book_features

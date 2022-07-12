@@ -149,7 +149,7 @@ class DocBasedFeatureExtractor():
             'flesch_reading_ease_score': self.get_flesch_reading_ease_score, # readability
             'unigram_entropy': self.get_unigram_entropy, # second order redundancy
             'average_paragraph_length': self.get_average_paragraph_length, # structural features
-            0: self.get_average_sbert_sentence_embedding,
+            0: self.get_average_sbert_sentence_embedding, 
             1: self.get_doc2vec_chunk_embedding
         }
 

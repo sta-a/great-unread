@@ -85,7 +85,7 @@ class HyperParameterOptimizer(object):
                             early_stopping_rounds=5,
                             verbose_eval=False
                         )
-                        print(train_X.shape[1], max_depth, learning_rate, colsample_bytree, min_child_weight, np.round(float(cv_results['test-r2-mean'].iloc[len(cv_results['test-r2-mean'])-1]), 4))
+                        print(train_X.shape[1], max_depth, learning_rate, colsample_bytree, min_child_weight, round(float(cv_results['test-r2-mean'].iloc[len(cv_results['test-r2-mean'])-1]), 4))
                         all_results.append((max_depth, learning_rate, colsample_bytree, min_child_weight, cv_results))
         all_results_df = pd.DataFrame(all_results, columns=['max_depth', 'learning_rate', 'colsample_bytree', 'min_child_weight', 'cv_results'])
         all_results_df['best_validation_r2'] = all_results_df['cv_results'].apply(lambda x: x.iloc[len(x)-1]['test-r2-mean'])
@@ -103,7 +103,7 @@ class HyperParameterOptimizer(object):
         print('Current best colsample_bytree:', best_colsample_bytree)
         print('Current best min_child_weight:', best_min_child_weight)
         print('Current best num_boost_round:', best_num_boost_round)
-        print(f'Current best validation r2 score is {np.round(best_validation_r2, 4)}')
+        print(f'Current best validation r2 score is {round(best_validation_r2, 4)}')
         print('############################')
         params = {'max_depth': best_max_depth, 'learning_rate': best_learning_rate, 'colsample_bytree': best_colsample_bytree, 'min_child_weight': best_min_child_weight, 'n_jobs': -1}
         
@@ -398,7 +398,7 @@ class Experiment(object):
             validation_r2s.append(validation_r2)
             
             #if self.verbose:
-                #print(f'Fold: {index+1}, TrainMSE: {np.round(train_mse, 3)}, TrainMAE: {np.round(train_mae, 3)}, ValMSE: {np.round(validation_mse, 3)}, ValMAE: {np.round(validation_mae, 3)}, ValR2: {np.round(validation_r2, 3)}')
+                #print(f'Fold: {index+1}, TrainMSE: {round(train_mse, 3)}, TrainMAE: {round(train_mae, 3)}, ValMSE: {round(validation_mse, 3)}, ValMAE: {round(validation_mae, 3)}, ValR2: {round(validation_r2, 3)}')
         all_labels = np.array(all_labels)
         all_predictions = np.array(all_predictions)
 
@@ -412,7 +412,7 @@ class Experiment(object):
         
         if self.verbose:
             print('----------------------')
-            print(f'Mean scores, TrainMSE: {np.round(mean_train_mse, 3)}, TrainMAE: {np.round(mean_train_mae, 3)}, ValMSE: {np.round(mean_validation_mse, 3)}, ValRMSE: {np.round(mean_validation_rmse, 3)}, ValMAE: {np.round(mean_validation_mae, 3)}, ValR2: {np.round(mean_validation_r2, 3)}')
+            print(f'Mean scores, TrainMSE: {round(mean_train_mse, 3)}, TrainMAE: {round(mean_train_mae, 3)}, ValMSE: {round(mean_validation_mse, 3)}, ValRMSE: {round(mean_validation_rmse, 3)}, ValMAE: {round(mean_validation_mae, 3)}, ValR2: {round(mean_validation_r2, 3)}')
 
             plt.figure(figsize=(8, 8))
             plt.xticks(fontsize=20)

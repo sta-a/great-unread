@@ -303,8 +303,8 @@ if not os.path.exists(results_dir):
             validation_corr_pvalues.append(p_value)
             
             if self.verbose:
-                print(f'Fold: {index+1}, TrainMSE: {np.round(train_mse, 3)}, TrainMAE: {np.round(train_mae, 3)}, ValMSE: {np.round(validation_mse, 3)},'
-                    f'ValMAE: {np.round(validation_mae, 3)}, ValR2: {np.round(validation_r2, 3)}, ValCorr: {np.round(validation_corr, 3)}')
+                print(f'Fold: {index+1}, TrainMSE: {round(train_mse, 3)}, TrainMAE: {round(train_mae, 3)}, ValMSE: {round(validation_mse, 3)},'
+                    f'ValMAE: {round(validation_mae, 3)}, ValR2: {round(validation_r2, 3)}, ValCorr: {round(validation_corr, 3)}')
         print('loop finished')
         all_labels = np.array(all_labels)
         all_predictions = np.array(all_predictions)
@@ -327,9 +327,9 @@ if not os.path.exists(results_dir):
         mean_p_value = self._get_pvalue(validation_corr_pvalues)
         
         if self.verbose:
-            print(f'TrainMSE: {np.round(mean_train_mse, 3)}, TrainRMSE: {np.round(mean_train_rmse, 3)}, TrainMAE: {np.round(mean_train_mae, 3)}, TrainR2: {np.round(mean_train_r2, 3)},'
-                    f'TrainCorr: {np.round(mean_train_corr, 3)}, ValMSE: {np.round(mean_validation_mse, 3)}, ValRMSE: {np.round(mean_validation_rmse, 3)}, ValMAE: {np.round(mean_validation_mae, 3)},'
-                    f'ValR2: {np.round(mean_validation_r2, 3)}, ValCorr: {np.round(mean_validation_corr, 3)}, ValCorrPValue: {np.round(mean_p_value, 3)}')
+            print(f'TrainMSE: {round(mean_train_mse, 3)}, TrainRMSE: {round(mean_train_rmse, 3)}, TrainMAE: {round(mean_train_mae, 3)}, TrainR2: {round(mean_train_r2, 3)},'
+                    f'TrainCorr: {round(mean_train_corr, 3)}, ValMSE: {round(mean_validation_mse, 3)}, ValRMSE: {round(mean_validation_rmse, 3)}, ValMAE: {round(mean_validation_mae, 3)},'
+                    f'ValR2: {round(mean_validation_r2, 3)}, ValCorr: {round(mean_validation_corr, 3)}, ValCorrPValue: {round(mean_p_value, 3)}')
             plt.figure(figsize=(4,4))
             plt.xticks(fontsize=15)
             plt.yticks(fontsize=15)

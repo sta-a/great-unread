@@ -2,9 +2,9 @@
 # Create plots from examples file
 import numpy as np
 import pandas as pd
-get_ipython().run_line_magic('matplotlib', 'inline')
+#get_ipython().run_line_magic('matplotlib', 'inline')
 import matplotlib.pyplot as plt
-presentation = True
+import os
 
 out_dir = '/home/annina/scripts/great_unread_nlp/data/results/plots_ccls/'
 
@@ -26,10 +26,10 @@ results_ger = [('ger_regression_xgboost_param-None_label-sentiart_feat-book_dimr
 # %%
 min_y = 0
 max_y = 0
-min_yhat = 0
-max_yhat = 0
+min_ypred = 0
+max_ypred = 0
 for language in ['eng', 'ger']:
-    results_dir = f'/home/annina/scripts/great_unread_nlp/data_archive/results_jcls_conference/{language}/'
+    results_dir = os.path.join('/home/annina/scripts/great_unread_nlp/data_archive/results_jcls_conference', language)
     if language == 'eng':
         results = results_eng
     else:
@@ -37,29 +37,29 @@ for language in ['eng', 'ger']:
         
     for result in results:
         filename = result[0]
-        df = pd.read_csv(results_dir + 'examples-' + filename + '.csv')
+        df = pd.read_csv(os.path.join(results_dir, 'examples-', filename, '.csv'))
         curr_min_y = df['y'].min()
         curr_max_y = df['y'].max()
-        curr_min_yhat = df['yhat'].min()
-        curr_max_yhat = df['yhat'].max()
+        curr_min_ypred = df['ypred'].min()
+        curr_max_ypred = df['ypred'].max()
         min_y = min(min_y, curr_min_y)
         max_y = max(max_y, curr_max_y)
-        min_yhat = min(min_yhat, curr_min_yhat)
-        max_yhat = max(max_yhat, curr_max_yhat)
-        print(min_y,max_y,min_yhat,max_yhat)
+        min_ypred = min(min_ypred, curr_min_ypred)
+        max_ypred = max(max_ypred, curr_max_ypred)
+        print(min_y,max_y,min_ypred,max_ypred)
 
-# y on x-axis, yhat on y-axis
+# y on x-axis, ypred on y-axis
 x_axis_limit = max(abs(min_y), max_y)
-y_axis_limit = max(abs(min_yhat), max_yhat)
+y_axis_limit = max(abs(min_ypred), max_ypred)
 x_axis_limit = max(x_axis_limit, y_axis_limit)
 y_axis_limit = max(x_axis_limit, y_axis_limit)
 
 # %%
-print(min_y,max_y,min_yhat,max_yhat, x_axis_limit, y_axis_limit)
+print(min_y,max_y,min_ypred,max_ypred, x_axis_limit, y_axis_limit)
 
 # %%
 for language in ['eng', 'ger']:
-    results_dir = f'/home/annina/scripts/great_unread_nlp/data_archive/results_jcls_conference/{language}/'
+    results_dir = os.path.join('/home/annina/scripts/great_unread_nlp/data_archive/results_jcls_conference', language)
     if language == 'eng':
         results = results_eng
         color = 'm'
@@ -72,11 +72,11 @@ for language in ['eng', 'ger']:
         stepsize = result[1]
         correlation = result[2]
         significance = result[3]
-        df = pd.read_csv(results_dir + 'examples-' + filename + '.csv')
+        df = pd.read_csv(os.path.join(results_dir, 'examples-', filename, '.csv'))
 
         fig = plt.figure(figsize = (4,4)) 
         ax = fig.add_subplot(111)
-        ax.scatter(x=df['y'], y=df['yhat'], s=9, c=color)
+        ax.scatter(x=df['y'], y=df['ypred'], s=9, c=color)
         #ax.grid()
         
         ax.set_xbound(lower=-x_axis_limit,upper= x_axis_limit + 0.01)

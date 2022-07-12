@@ -1,6 +1,7 @@
 from copy import deepcopy
 import pandas as pd
 import numpy as np
+import os
 import random
 random.seed(2)
 from scipy.stats import pearsonr
@@ -18,6 +19,8 @@ from sklearn.svm import SVR, SVC
 from sklearn.linear_model import Lasso
 
 from .split import AuthorCV
+from tabulate import tabulate
+
 
 class Regression():
     '''Predict sentiment scores.'''
@@ -36,11 +39,6 @@ class Regression():
         self.results_dir = kwargs['results_dir']
         self.task_type = kwargs['task_type']
         self.verbose = kwargs['verbose']
-
-        if self.task_type == 'regression':
-            self.outer_cv_split = AuthorCV(df=self.df, n_folds=10, seed=1, return_indices=False).get_folds()
-        else:
-            self.outer_cv_split = AuthorCV(df=self.df, n_folds=5, seed=1, stratified=True, return_indices=False).get_folds()
 
         assert isinstance(self.drop_columns, list)
         for i in self.drop_columns:
@@ -62,7 +60,7 @@ class Regression():
 
     def _concat_and_save_predicted_labels(self,all_validation_book_label_mapping):
         all_validation_book_label_mapping = pd.concat(all_validation_book_label_mapping)
-        all_validation_book_label_mapping.to_csv(f'{self.results_dir}examples-{self.info_string}.csv', index=False)
+        all_validation_book_label_mapping.to_csv(os.path.join(self.results_dir, 'examples_', self.info_string, '.csv'), index=False)
         return all_validation_book_label_mapping
 
     def _custom_pca(self, train_X):
@@ -96,14 +94,16 @@ class Regression():
 
         if self.model == 'svr':
             estimator = SVR()
-            param_grid={'C': [1]}
+            param_grid = {'C': [1]}
         elif self.model == 'lasso': # [1, 4]
             estimator =  Lasso()
-            param_grid={'alpha': [1]}
+            param_grid = {'alpha': [1]}
         elif self.model == 'svc':
-            estimator=SVC(class_weight='balanced'),
-            param_grid={'C': [0.1, 1, 10, 100, 1000]}
+            estimator = SVC(class_weight='balanced')
+            param_grid = {'C': [0.1, 1, 10, 100, 1000]}
         elif self.model == 'xgboost':
+            print('get classifier')
+
             param_grid = {'max_depth': [2], #4, 6, 8],  ###############################################3
                         'learning_rate': [None], #0.01, 0.033, 0.1],
                         'colsample_bytree': [0.33]} #, 0.60, 0.75]}
@@ -112,11 +112,11 @@ class Regression():
                 params = {'objective': 'reg:squarederror', 'random_state': 42}# if classification, maximize f1/acc score. ###################
                 estimator = XGBRegressor().set_params(**params)
             elif self.task_type == 'binary' or self.task_type == 'library':
-                params = {'objective': 'binary:logistic', 'random_state': 42}
-                estimator=XGBClassifier().set_params(**params)
+                params = {'objective': 'binary:logistic', 'random_state': 42, 'use_label_encoder': False}
+                estimator = XGBClassifier().set_params(**params)
             elif self.task_type == 'multiclass':
-                params = {'objective': 'multi:softmax', 'num_class': 4, 'random_state': 42}
-                estimator=XGBClassifier().set_params(**params)
+                params = {'objective': 'multi:softmax', 'num_class': 4, 'random_state': 42, 'use_label_encoder': False}
+                estimator = XGBClassifier().set_params(**params)
             
         clf = GridSearchCV(
             estimator=estimator,
@@ -133,11 +133,14 @@ class Regression():
         return clf
         
     
-    def _get_pvalue(self, validation_corr_pvalues):
+    def _get_pvalue(self, pvalues):
         # Harmonic mean p-value
-        denominator = sum([1/x for x in validation_corr_pvalues])
-        mean_p_value = len(validation_corr_pvalues)/denominator
-        return mean_p_value
+        try:
+            denominator = sum([1/x for x in pvalues])
+        except ZeroDivisionError:
+            print('Could not calculate harmonic p-value because cv p-values contain 0.')
+        else:
+            return len(pvalues)/denominator
 
     def _impute(self, train_X, validation_X):
         imputer = KNNImputer()
@@ -153,12 +156,13 @@ class Regression():
 
         validation_df = df[df['file_name'].isin(split)]
         validation_X = validation_df.drop(columns=['y', 'file_name'], inplace=False).values
-        return train_df, train_X, train_y, validation_df, validation_X
+        validation_y = validation_df['y'].values.ravel()
+        return train_df, train_X, train_y, validation_df, validation_X, validation_y
 
 
     def _prepare_dfs(self, df, split):
         # Split data into train and validation set
-        train_df, train_X, train_y, validation_df, validation_X = self._split_df(df, split)
+        train_df, train_X, train_y, validation_df, validation_X, validation_y = self._split_df(df, split)
 
         # Impute missing values
         train_X, validation_X = self._impute(train_X, validation_X)
@@ -175,7 +179,7 @@ class Regression():
         validation_book_label_mapping = deepcopy(validation_df[['file_name', 'y']])
         #if self.verbose:
             #print('Class distribution over train and validation set :', train_df['y'].value_counts()'\n', validation_df['y'].value_counts())
-        return train_df, train_X, train_y, validation_X, train_book_label_mapping, validation_book_label_mapping
+        return train_df, train_X, train_y, validation_X, validation_y, train_book_label_mapping, validation_book_label_mapping
 
     def _reduce_dimensions(self, train_X, train_y, validation_X):
         if self.dimensionality_reduction == 'ss_pca_0_95':
@@ -196,76 +200,83 @@ class Regression():
             pass
         return train_X, validation_X
 
-    def _score_task(self, y, y_hat):
+    def _score_task(self, estimator, X, y):
+        y_pred = estimator.predict(X)
         '''
         Calculate task-specific evaluation metrics.
         '''
-        corr, corr_p_value= pearsonr(y,y_hat)
-        r2 = r2_score(y, y_hat)
-        rmse = sqrt(mean_squared_error(y, y_hat))
-        mae = mean_absolute_error(y, y_hat)
+        corr, corr_pvalue= pearsonr(y, y_pred)
+        r2 = r2_score(y, y_pred)
+        rmse = sqrt(mean_squared_error(y, y_pred))
+        mae = mean_absolute_error(y, y_pred)
         
         return {'corr': corr,
-                'corr_p_value': corr_p_value,
+                'corr_pvalue': corr_pvalue,
                 'r2': r2,
                 'rmse': rmse,
                 'mae': mae}
-    
+
+
     def run(self):
         all_validation_book_label_mapping = []
         all_train_scores = []
         all_validation_scores = []
 
         df = self._combine_df_labels(self.df)
+
+        if self.task_type == 'regression':
+            outer_cv_split = AuthorCV(df=df, n_folds=3, seed=1, return_indices=False).get_folds() ##############3##############
+        else:
+            outer_cv_split = AuthorCV(df=df, n_folds=5, seed=1, stratified=True, return_indices=False).get_folds()
         #-----------------------------------------------------------------------------------------------------------------------------
         # Outer CV
-        for index, split in enumerate(self.outer_cv_split):
+        for index, split in enumerate(outer_cv_split):
 
             # Split df
-            train_df, train_X, train_y, validation_X, train_book_label_mapping, validation_book_label_mapping = self._prepare_dfs(df, split) ########3 delete train_df
+            train_df, train_X, train_y, validation_X, validation_y, train_book_label_mapping, validation_book_label_mapping = self._prepare_dfs(df, split) ########3 delete train_df
             
             # Train model
             clf = self._get_model(train_df, train_X, train_y)
             
             # Predict           
-            train_book_label_mapping['yhat'] = clf.predict(train_X)
-            validation_book_label_mapping['yhat'] = clf.predict(validation_X)
+            train_book_label_mapping['ypred'] = clf.predict(train_X)
+            validation_book_label_mapping['ypred'] = clf.predict(validation_X)
             
             # Evaluate
             train_book_label_mapping = train_book_label_mapping.groupby('file_name').mean()
             validation_book_label_mapping = validation_book_label_mapping.groupby('file_name').mean()
             all_validation_book_label_mapping.append(validation_book_label_mapping.reset_index())
                       
-            train_scores = self._score_task(train_book_label_mapping['y'].tolist(), train_book_label_mapping['yhat'].tolist())
-            validation_scores = self._score_task(validation_book_label_mapping['y'].tolist(), validation_book_label_mapping['yhat'].tolist())
+            train_scores = self._score_task(clf, train_X, train_y)
+            validation_scores = self._score_task(clf, validation_X, validation_y)
 
             all_train_scores.append(train_scores)
             all_validation_scores.append(validation_scores)
                       
             if self.verbose:
-                print(f'Fold: {index+1}')
-                print(train_scores)
-                print(validation_scores)
+                print(f'Outer CV fold: {index+1}')
         #-----------------------------------------------------------------------------------------------------------------------------
         
         all_validation_book_label_mapping = self._concat_and_save_predicted_labels(all_validation_book_label_mapping)
-        if self.task_type != 'regression':
-            self._make_crosstabs(all_validation_book_label_mapping)
+        
         all_train_scores = pd.DataFrame(all_train_scores).add_prefix('train_')
         all_validation_scores = pd.DataFrame(all_validation_scores).add_prefix('validation_')
 
-        mean_train_scores = all_train_scores.mean(axis=1)
         if self.task_type == 'regression':
-            mean_train_scores['mean_p_value'] = self._get_pvalue(all_train_scores['train_corr_p_value'])
-        mean_train_scores.round(3)
+            all_train_scores = all_train_scores.drop('train_corr_pvalue', axis=1)
+        else:
+            self._make_crosstabs(all_validation_book_label_mapping)
 
-        mean_validation_scores = all_validation_scores.mean(axis=1)
-        mean_validation_scores['mean_p_value'] = self._get_pvalue(all_validation_scores['validation_corr_p_value'])
-        mean_validation_scores.round(3)
+        mean_train_scores = all_train_scores.mean(axis=0).to_frame().T.round(3)
+        mean_validation_scores = all_validation_scores.mean(axis=0).to_frame().T
+        if self.task_type == 'regression':
+            mean_validation_scores['harmonic_validation_corr_pvalue'] = self._get_pvalue(all_validation_scores['validation_corr_pvalue']) ################33
+        mean_validation_scores = mean_validation_scores.round(3)
         
+        # Pretty print
         if self.verbose:
-            print(mean_train_scores.to_string())
-            print(mean_validation_scores.to_string())
+            print('train scores\n', tabulate(mean_train_scores, headers='keys', tablefmt='fancy_grid'))
+            print('validation scores\n', tabulate(mean_validation_scores, headers='keys', tablefmt='fancy_grid'))
 
         return [mean_train_scores, mean_validation_scores]
 
@@ -281,32 +292,25 @@ class BinaryClassification(Regression):
         assert self.labels_name in ['binary', 'library']
 
     def _combine_df_labels(self, df):
-        #Reviews zum englischen Korpus beginnnen mit 1759 und decken alles bis 1914 ab
-        df['file_name'].to_csv('test.txt')
+        # Reviews zum englischen Korpus beginnnen mit 1759 und decken alles bis 1914 ab
         df = df.merge(right=self.labels, on='file_name', how='left', validate='many_to_one')
-        #print('df value counts', df['y'].value_counts())
-        df_filenames = df[df['y']==1]['file_name']
-        labels_filenames = self.labels['file_name']
-        print(set(labels_filenames) - set(df_filenames))
-        #[print(x) if x not in df_filenames else '' for x in labels_filenames]
-        #print('labels value counts', self.labels['y'].value_counts())
         df['y'] = df['y'].fillna(value=0)
         #Select books written after year of first review)
         book_year = df['file_name'].str.replace('-', '_').str.split('_').str[-1].astype('int64')
         review_year = book_year[df['y'] != 0]
         # Keep only those texts that that were published after the first review had appeared
         df = df.loc[book_year>=min(review_year)]
-        #print(df['y'].value_counts())
         return df
 
     def _make_crosstabs(self, all_validation_book_label_mapping):
-        crosstab = pd.crosstab(all_validation_book_label_mapping['y'], all_validation_book_label_mapping['yhat'], rownames=['True'], colnames=['Predicted'], margins=True)
-        crosstab.to_csv(f'{self.results_dir}crosstab_{self.info_string}.csv', index=True)
+        crosstab = pd.crosstab(all_validation_book_label_mapping['y'], all_validation_book_label_mapping['ypred'], rownames=['True'], colnames=['Predicted'], margins=True)
+        crosstab.to_csv(os.path.join(self.results_dir, 'crosstab_', self.info_string, '.csv'), index=True)
         print('--------------------------\nCrosstab\n', crosstab, '\n--------------------------')
     
-    def _score_task(y, y_hat):
-        acc = accuracy_score(y, y_hat)
-        balanced_acc = balanced_accuracy_score(y, y_hat)
+    def _score_task(self, estimator, X, y):
+        y_pred = estimator.predict(X)
+        acc = accuracy_score(y, y_pred)
+        balanced_acc = balanced_accuracy_score(y, y_pred)
         return {'acc': acc,
                 'balanced_acc': balanced_acc}
                             
@@ -322,6 +326,7 @@ class MulticlassClassification(BinaryClassification):
         assert self.features_name in ['book', 'baac']
         assert self.labels_name in ['multiclass']
 
-    def _score_task(y, y_hat):
-        f1 = f1_score(y, y_hat, average='macro')
+    def _score_task(self, estimator, X, y):
+        y_pred = estimator.predict(X)
+        f1 = f1_score(y, y_pred, average='macro')
         return {'f1': f1}

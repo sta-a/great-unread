@@ -118,7 +118,7 @@ def get_labels(label_type, language, canonscores_dir=None, sentiscores_dir=None,
             labels['combined'] = labels.apply(lambda row: _aggregate_scores(row), axis=1)
             #labels['combined'].sort_values().plot(kind='bar', figsize=(10, 5))
 
-        elif (label_type == 'multiclass') or (label_type == 'twoclass'):
+        elif (label_type == 'multiclass') or (label_type == 'binary'):
             #Assign one class label per work
             grouped_docs = labels.groupby('file_name')
             single_review = grouped_docs.filter(lambda x: len(x)==1)
@@ -139,7 +139,7 @@ def get_labels(label_type, language, canonscores_dir=None, sentiscores_dir=None,
             labels = pd.concat([single_review, multiple_reviews])
             labels['classified'] = labels['classified'].replace(to_replace={'positive': 3, 'not_classified': 2, 'negative': 1})
 
-            if label_type =='twoclass':
+            if label_type =='binary':
                 # Create label reviewed/not reviewed
                 labels['classified'] = 1
             
@@ -151,7 +151,7 @@ def get_labels(label_type, language, canonscores_dir=None, sentiscores_dir=None,
         labels = labels[['file_name', 'sentiment_Textblob']].rename(columns={'sentiment_Textblob': 'y'})
     elif label_type == 'sentiart':
         labels = labels[['file_name', 'sentiscore_average']].rename(columns={'sentiscore_average': 'y'})
-    elif (label_type == 'multiclass') or (label_type == 'twoclass'):
+    elif (label_type == 'multiclass') or (label_type == 'binary'):
         labels = labels[['file_name', 'classified']].rename(columns={'classified': 'y'})
     elif label_type == 'combined':
         labels = labels[['file_name', 'combined']].rename(columns={'combined': 'y'})

@@ -54,10 +54,10 @@ class AuthorCV():
 
         if self.stratified == True:
             rare_labels = sorted(self.df['y'].unique().tolist())[1:]
-            splits_counter = [0 for _ in range(0,self.n_folds)]
+            splits_counter = [0 for _ in range(0, self.n_folds)]
             for rare_label in rare_labels:
                 # If stratified, first distribute authors that have rarest label over split so that the author is assigned to the split with the smallest number or rarest labels
-                counts = [(0,i) for i in range (0,self.n_folds)]
+                counts = [(0,i) for i in range (0, self.n_folds)]
                 # heapify based on first element of tuple, inplace
                 heapq.heapify(counts)
                 for author in list(self.works_per_author.keys()):
