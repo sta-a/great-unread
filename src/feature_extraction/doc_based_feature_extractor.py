@@ -15,7 +15,7 @@ from utils import load_list_of_lines, save_list_of_lines, get_bookname
 
 
 class DocBasedFeatureExtractor():
-    '''Get features that can be calculated from a single document.'''
+    '''Get features that can be calculated from a single doc.'''
     def __init__(self, 
         language, 
         doc_path, 

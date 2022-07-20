@@ -14,17 +14,17 @@ from tqdm import tqdm
 import pickle
 import time
 from itertools import repeat
-from multiprocessing import Pool
+from multiprocessing import Pool, cpu_count
 from feature_extraction.doc2vec_chunk_vectorizer import Doc2VecChunkVectorizer
 from feature_extraction.doc_based_feature_extractor import DocBasedFeatureExtractor
 from feature_extraction.corpus_based_feature_extractor import CorpusBasedFeatureExtractor
 from utils import get_doc_paths
 
-# %%
+
 if from_commandline:
     parser = argparse.ArgumentParser()
     parser.add_argument('--language', default='eng')
-    parser.add_argument('--data_dir', default='/cluster/scratch/stahla/data/')
+    parser.add_argument('--data_dir', default='../data')
     args = parser.parse_args()
     language = args.language
     data_dir = args.data_dir
@@ -38,10 +38,11 @@ features_dir = os.path.join(data_dir, 'features', language)
 if not os.path.exists(features_dir):
     os.makedirs(features_dir)
 
-doc_paths = get_doc_paths(raw_docs_dir)[:2]
+nr_texts = 30 ################################################
+doc_paths = get_doc_paths(raw_docs_dir)[:nr_texts]
 sents_per_chunk = 200
 
-# %%
+
 def _create_doc2vec_embeddings():
     for curr_sentences_per_chunk in [sents_per_chunk, None]:
         doc2vec_chunk_embeddings_dir = raw_docs_dir.replace('/raw_docs', f'/doc2vec_chunk_embeddings_spc_{curr_sentences_per_chunk}')
@@ -57,7 +58,8 @@ def _get_doc_features(sentences_per_chunk, chunk_features_filename, book_feature
     all_chunk_features = []
     all_book_features = [] 
 
-    with Pool() as pool:
+    nr_processes = max(cpu_count() - 2, 1)
+    with Pool(processes=nr_processes) as pool:
         res = pool.starmap(_get_doc_features_helper, zip(doc_paths, repeat(language), repeat(sentences_per_chunk)))
         for doc_features in res:
             all_chunk_features.extend(doc_features[0])
@@ -108,11 +110,10 @@ def _merge_features(doc_chunk_features,
     book_and_averaged_chunk_df = book_df.merge(chunk_df.groupby('file_name').mean().reset_index(drop=False), on='file_name')
     chunk_and_copied_book_df = chunk_df.merge(right=book_df, on='file_name', how='outer', validate='many_to_one')
 
-    dfs = {'book_df': book_df, 'book_and_averaged_chunk_df': book_and_averaged_chunk_df, 'chunk_df': chunk_df, 'chunk_and_copied_book_df': chunk_and_copied_book_df}
+    dfs = {'book': book_df, 'baac': book_and_averaged_chunk_df, 'chunk': chunk_df, 'cacb': chunk_and_copied_book_df}
     for name, df in dfs.items():
         df = df.sort_values(by='file_name', axis=0, ascending=True, na_position='first')
-        file_path = os.path.join(features_dir, f'{name}.csv')
-        print(file_path)
+        file_path = os.path.join(features_dir, f'{name}_features.csv')
         df.to_csv(file_path, index=False)
         
         #print(df.isnull().values.any())
@@ -135,8 +136,9 @@ if __name__ == '__main__':
     # with open(os.path.join(features_dir, 'corpus_chunk_features_fulltext.pkl'), 'rb') as f:
     #     corpus_chunk_features_fulltext = pickle.load(f)
 
+    start = time.time()
     _create_doc2vec_embeddings()
-    # Document-based features
+    # doc-based features
     doc_chunk_features, doc_book_features = _get_doc_features(sents_per_chunk, 'doc_chunk_features', 'doc_book_features')
     # Recalculate the chunk features for the whole book, which is treated as one chunk
     doc_chunk_features_fulltext, _ = _get_doc_features(None, 'doc_chunk_features_fulltext', None)
@@ -151,8 +153,9 @@ if __name__ == '__main__':
                     corpus_chunk_features, 
                     corpus_book_features, 
                     corpus_chunk_features_fulltext)
-
-# %%
-
-
+    runtime = time.time() - start
+    print('Runtime with multiprocessing for {nr_texts} texts:', runtime)
+    with open('runtime_tracker.txt', 'a') as f:
+        #f.write(f'nr_texts,runtime\n')
+        f.write(f'{nr_texts},{round(runtime, 2)}\n')
 # %%

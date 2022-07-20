@@ -6,7 +6,7 @@ logging.basicConfig(level=logging.DEBUG)
 from tqdm import tqdm
 from collections import Counter
 from functools import wraps, reduce
-import multiprocessing
+from multiprocessing import current_process, Queue, Process, cpu_count
 import scipy
 import spacy
 import time
@@ -345,28 +345,28 @@ class CorpusBasedFeatureExtractor():
     def get_outlier_score_sbert(self):
         return self.get_outlier_score('sbert')
 
-    def filter_document_term_matrix(self, dtm, min_nr_documents=None, min_percent_documents=None, max_nr_documents=None, max_percent_documents=None):
-        if min_nr_documents is None and min_percent_documents is None and max_nr_documents is None and max_percent_documents is None:
+    def filter_doc_term_matrix(self, dtm, min_nr_docs=None, min_percent_docs=None, max_nr_docs=None, max_percent_docs=None):
+        if min_nr_docs is None and min_percent_docs is None and max_nr_docs is None and max_percent_docs is None:
             raise Exception('Specify at least one filtering criterion.')
         min_columns = []
         max_columns = []
-        document_frequency = dtm.astype(bool).sum(axis=0)
+        doc_frequency = dtm.astype(bool).sum(axis=0)
 
         #Filter minimum
-        if min_nr_documents is not None and min_percent_documents is not None:
-            raise Exception('Specify either the the minimum number or the minimum percentage of documents in which a term must occur.')
-        elif min_percent_documents is not None:
-            min_nr_documents = round(min_percent_documents/100 * dtm.shape[0])
-        if min_nr_documents is not None:
-            min_columns = [dtm.columns[x] for x in range(0,len(dtm.columns)) if document_frequency[x]>=min_nr_documents]
+        if min_nr_docs is not None and min_percent_docs is not None:
+            raise Exception('Specify either the the minimum number or the minimum percentage of docs in which a term must occur.')
+        elif min_percent_docs is not None:
+            min_nr_docs = round(min_percent_docs/100 * dtm.shape[0])
+        if min_nr_docs is not None:
+            min_columns = [dtm.columns[x] for x in range(0,len(dtm.columns)) if doc_frequency[x]>=min_nr_docs]
 
         #Filter maximum
-        if max_nr_documents is not None and max_percent_documents is not None:
-            raise Exception('Specify either the the maximum number or the maximum percentage of documents in which a term can occur.')
-        elif max_percent_documents is not None:
-            max_nr_documents = round(max_percent_documents/100 * dtm.shape[0])
-        if max_nr_documents is not None:
-            max_columns = [dtm.columns[x] for x in range(0,len(dtm.columns)) if document_frequency[x]<=max_nr_documents]
+        if max_nr_docs is not None and max_percent_docs is not None:
+            raise Exception('Specify either the the maximum number or the maximum percentage of docs in which a term can occur.')
+        elif max_percent_docs is not None:
+            max_nr_docs = round(max_percent_docs/100 * dtm.shape[0])
+        if max_nr_docs is not None:
+            max_columns = [dtm.columns[x] for x in range(0,len(dtm.columns)) if doc_frequency[x]<=max_nr_docs]
 
         if min_columns and max_columns:
             dtm_reduced = dtm[list(set(min_columns).intersection(max_columns))]
@@ -376,9 +376,9 @@ class CorpusBasedFeatureExtractor():
             dtm_reduced = dtm[max_columns]
         return dtm_reduced
 
-    def get_distance_from_corpus(self, ngram_type, min_nr_documents=None, min_percent_documents=None, max_nr_documents=None, max_percent_documents=None):
+    def get_distance_from_corpus(self, ngram_type, min_nr_docs=None, min_percent_docs=None, max_nr_docs=None, max_percent_docs=None):
         dtm = pd.DataFrame(self.word_statistics[f'book_{ngram_type}_mapping']).fillna(0).T
-        dtm = self.filter_document_term_matrix(dtm, min_nr_documents, min_percent_documents, max_nr_documents, max_percent_documents)
+        dtm = self.filter_doc_term_matrix(dtm, min_nr_docs, min_percent_docs, max_nr_docs, max_percent_docs)
         dtm = list(set(dtm.columns.tolist()))
         corpus_counts = self.word_statistics[f'total_{ngram_type}_counts']
         corpus_vector = [corpus_counts[key] if key in corpus_counts else 0 for key in dtm]
@@ -403,21 +403,21 @@ class CorpusBasedFeatureExtractor():
         return distances 
 
     def get_unigram_distance(self):
-        distances = self.get_distance_from_corpus(ngram_type='unigram', min_nr_documents=2)
+        distances = self.get_distance_from_corpus(ngram_type='unigram', min_nr_docs=2)
         return distances
 
     def get_unigram_distance_limited(self):
         #Filter for mid-frequency words
-        distances = self.get_distance_from_corpus(ngram_type='unigram', min_percent_documents=5, max_percent_documents=50)
+        distances = self.get_distance_from_corpus(ngram_type='unigram', min_percent_docs=5, max_percent_docs=50)
         distances = distances.rename(columns={'unigram_distance': 'unigram_distance_limited'})
         return distances
 
     def get_bigram_distance(self):
-        distances = self.get_distance_from_corpus(ngram_type='bigram', min_nr_documents=2)
+        distances = self.get_distance_from_corpus(ngram_type='bigram', min_nr_docs=2)
         return distances
 
     def get_trigram_distance(self):
-        distances = self.get_distance_from_corpus(ngram_type='trigram', min_nr_documents=2)
+        distances = self.get_distance_from_corpus(ngram_type='trigram', min_nr_docs=2)
         return distances
 
     def get_all_features(self):
@@ -426,14 +426,14 @@ class CorpusBasedFeatureExtractor():
             def inner_decorator(func):
                 @wraps(func)
                 def wrapper(*args, **kwargs):
-                    print(f'Starting {multiprocessing.current_process().name}.')
+                    print(f'Starting process: {current_process().name}.')
                     features = func()
                     queue.put(features)
                 return wrapper
             return inner_decorator
 
-        chunk_queue = multiprocessing.Queue()
-        book_queue = multiprocessing.Queue()
+        chunk_queue = Queue()
+        book_queue = Queue()
 
         chunk_functions = [self.get_unigram_distance,
                             self.get_unigram_distance_limited,
@@ -448,31 +448,36 @@ class CorpusBasedFeatureExtractor():
                              self.get_outlier_score_sbert]
 
         
+        # Decorate functions to make them useable for multiprocessing
         # Reverse chunk_functions to start get_tag_distribution() and get_production_distribution() first
         chunk_functions = reversed([multiprocessing_decorator(chunk_queue)(func) for func in chunk_functions])
         book_functions = [multiprocessing_decorator(book_queue)(func) for func in book_functions]
         
         # Create new process for every function
-        chunk_processes = [multiprocessing.Process(target=func, name=func.__name__) for func in chunk_functions]
-        book_processes = [multiprocessing.Process(target=func, name=func.__name__) for func in book_functions]
+        chunk_processes = [Process(target=func, name=func.__name__) for func in chunk_functions]
+        book_processes = [Process(target=func, name=func.__name__) for func in book_functions]
         if self.sentences_per_chunk is None:
             book_processes = []
         processes = chunk_processes + book_processes
 
-
+        nr_processes = max(cpu_count() - 2, 1)
         def _start_process(p):
-            # Limit the number of cores that are used
+            # Limit the number of cores used to avoid oversubscription
             alive = sum([p.is_alive() for p in processes])
-            if alive <= (multiprocessing.cpu_count() -1):
+            print('nr alive proc', alive)
+            if alive <= (nr_processes):
                 p.start()
             else:
                 time.sleep(15)
                 _start_process(p)
         for p in processes:
+            print('nr alive proc', sum([p.is_alive() for p in processes]))
             _start_process(p)
 
         chunk_features = []
         book_features = []
+
+        # Take elements from queues before joining processes
         while True:
             alive = any([p.is_alive() for p in processes])
             if not chunk_queue.empty():
@@ -489,20 +494,59 @@ class CorpusBasedFeatureExtractor():
         if self.sentences_per_chunk is not None:
             book_features = reduce(lambda df1, df2: df1.merge(df2, how='inner', on='file_name', validate='one_to_one'), book_features)
 
+        if self.sentences_per_chunk is None:
+            chunk_features['file_name'] = chunk_features['file_name'].str.split('_').str[:4].str.join('_')
+        return chunk_features, book_features
 
-        # # chunk_features = None
-        # # for feature_function in chunk_functions:
-        # #     features = feature_function()
-        # #     if  chunk_features is None:
-        # #         chunk_features = featuresd.concat(chunk_features, axis=1)
 
-        # # book_features = None
-        # # if self.sentences_per_chunk is not None:
-        # #     for feature_function in book_functions:
-        # #         if book_features is None:
-        # #             book_features = feature_function()
-        # #         else:
-        # #             book_features = 
+    # def get_all_features(self):
+
+    #     chunk_functions = [self.get_unigram_distance,
+    #                         self.get_unigram_distance_limited,
+    #                         self.get_bigram_distance,
+    #                         self.get_trigram_distance,
+    #                         self.get_tag_distribution]
+    #     if self.language == 'eng':
+    #         chunk_functions.append(self.get_production_distribution)
+    #     book_functions = [self.get_overlap_score_doc2vec,
+    #                         self.get_overlap_score_sbert,
+    #                         self.get_outlier_score_doc2vec,
+    #                          self.get_outlier_score_sbert]
+
+        
+    #     # Reverse chunk_functions to start get_tag_distribution() and get_production_distribution() first
+    #     chunk_functions = reversed(chunk_functions)
+    #     chunk_features = []
+    #     book_features = []
+
+    #     def helper(x):
+    #         chunk_features.append(x)
+        
+    #     '''
+    #     Doesnt work because functions are bound 
+    #     '''
+    #     nr_processes = cpu_count() -1 or 1
+    #     print(nr_processes)
+    #     # with Pool(processes = nr_processes) as pool:
+    #     #     for func in chunk_functions:
+    #     #         pool.apply_async(func, callback=helper)#, callback=lambda x: chunk_features.append(x))
+    #         # for func in book_functions:
+    #         #     pool.apply_async(func, callback=lambda x: book_features.append(x))
+
+
+    #     pool = Pool(processes = nr_processes)
+    #     for func in chunk_functions:
+    #         pool.apply_async(func, callback=helper)#, callback=lambda x: chunk_features.append(x))
+
+
+
+        print(chunk_features, book_features)
+
+        chunk_features = reduce(lambda df1, df2: df1.merge(df2, how='inner', on='file_name', validate='one_to_one'), chunk_features)
+        if self.sentences_per_chunk is not None:
+            book_features = reduce(lambda df1, df2: df1.merge(df2, how='inner', on='file_name', validate='one_to_one'), book_features)
+
+
 
         if self.sentences_per_chunk is None:
             chunk_features['file_name'] = chunk_features['file_name'].str.split('_').str[:4].str.join('_')
