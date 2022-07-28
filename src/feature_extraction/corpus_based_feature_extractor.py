@@ -9,7 +9,10 @@ from functools import wraps, reduce
 from multiprocessing import current_process, Queue, Process, cpu_count
 import scipy
 import spacy
+from pathlib import Path
+import pickle
 import time
+from sklearn.neighbors import BallTree
 from utils import load_list_of_lines, save_list_of_lines, df_from_dict, get_bookname
 from .production_rule_extractor import ProductionRuleExtractor
 from .doc_based_feature_extractor import DocBasedFeatureExtractor
@@ -67,74 +70,87 @@ class CorpusBasedFeatureExtractor():
 
 
     def __get_word_statistics(self):
-        total_unigram_counts = Counter()
-        total_bigram_counts = Counter()
-        total_trigram_counts = Counter()
-        book_unigram_mapping = {}
-        book_bigram_mapping = {}
-        book_trigram_mapping = {}
 
-        for doc_chunks in self.__generate_chunks(unigram_counts=True, bigram_counts=True, trigram_counts=True):
-            book_unigram_counts = {}
-            book_bigram_counts = {}
-            book_trigram_counts = {}
-            for chunk in doc_chunks:
-                file_name = chunk.file_name
+        wordstat_path = os.path.join(Path(str(self.doc_paths[0].replace('raw_docs', 'wordstat'))).parent, 'word_statistics.pkl')
+        if os.path.exists(wordstat_path):
+            with open(wordstat_path, 'rb') as f:
+                word_statistics = pickle.load(f)
 
-                for unigram, counts in chunk.unigram_counts.items():
-                    if unigram in book_unigram_counts:
-                        book_unigram_counts[unigram] += counts
-                    else:
-                        book_unigram_counts[unigram] = counts
+        else:
+            total_unigram_counts = Counter()
+            total_bigram_counts = Counter()
+            total_trigram_counts = Counter()
+            book_unigram_mapping = {}
+            book_bigram_mapping = {}
+            book_trigram_mapping = {}
 
-                for bigram, counts in chunk.bigram_counts.items():
-                    if bigram in book_bigram_counts:
-                        book_bigram_counts[bigram] += counts
-                    else:
-                        book_bigram_counts[bigram] = counts
+            for doc_chunks in self.__generate_chunks(unigram_counts=True, bigram_counts=True, trigram_counts=True):
+                book_unigram_counts = {}
+                book_bigram_counts = {}
+                book_trigram_counts = {}
+                for chunk in doc_chunks:
+                    file_name = chunk.file_name
 
-                for trigram, counts in chunk.trigram_counts.items():
-                    if trigram in book_trigram_counts:
-                        book_trigram_counts[trigram] += counts
-                    else:
-                        book_trigram_counts[trigram] = counts
-            book_unigram_mapping[file_name] = book_unigram_counts
-            book_bigram_mapping[file_name] = book_bigram_counts
-            book_trigram_mapping[file_name] = book_trigram_counts
-            total_unigram_counts.update(book_unigram_counts)
-            total_bigram_counts.update(book_bigram_counts)
-            total_trigram_counts.update(book_trigram_counts)
+                    for unigram, counts in chunk.unigram_counts.items():
+                        if unigram in book_unigram_counts:
+                            book_unigram_counts[unigram] += counts
+                        else:
+                            book_unigram_counts[unigram] = counts
 
-        total_unigram_counts = dict(sorted(list(total_unigram_counts.items()), key=lambda x: -x[1])) #all words
-        total_bigram_counts = dict(sorted(list(total_bigram_counts.items()), key=lambda x: -x[1])[:2000]) 
-        total_trigram_counts = dict(sorted(list(total_trigram_counts.items()), key=lambda x: -x[1])[:2000])
-        
-        # keep only counts of the 2000 most frequent bi- and trigrams
-        book_bigram_mapping_ = {}
-        for book, book_dict in book_bigram_mapping.items():
-            book_dict_ = {}
-            for ngram in set(total_bigram_counts.keys()):
-                if ngram in book_dict:
-                    book_dict_[ngram] = book_dict[ngram]
-            book_bigram_mapping_[book] = book_dict_
+                    for bigram, counts in chunk.bigram_counts.items():
+                        if bigram in book_bigram_counts:
+                            book_bigram_counts[bigram] += counts
+                        else:
+                            book_bigram_counts[bigram] = counts
 
-        book_trigram_mapping_ = {}
-        for book, book_dict in book_trigram_mapping.items():
-            book_dict_ = {}
-            for ngram in set(total_trigram_counts.keys()):
-                if ngram in book_dict:
-                    book_dict_[ngram] = book_dict[ngram]
-            book_trigram_mapping_[book] = book_dict_
+                    for trigram, counts in chunk.trigram_counts.items():
+                        if trigram in book_trigram_counts:
+                            book_trigram_counts[trigram] += counts
+                        else:
+                            book_trigram_counts[trigram] = counts
+                book_unigram_mapping[file_name] = book_unigram_counts
+                book_bigram_mapping[file_name] = book_bigram_counts
+                book_trigram_mapping[file_name] = book_trigram_counts
+                total_unigram_counts.update(book_unigram_counts)
+                total_bigram_counts.update(book_bigram_counts)
+                total_trigram_counts.update(book_trigram_counts)
 
-        word_statistics = {
-            # {unigram: count}
-            'total_unigram_counts': total_unigram_counts,
-            'total_bigram_counts': total_bigram_counts,
-            'total_trigram_counts': total_trigram_counts,
-            # {file_name: {unigram: count}
-            'book_unigram_mapping': book_unigram_mapping,
-            'book_bigram_mapping': book_bigram_mapping_,
-            'book_trigram_mapping': book_trigram_mapping_}
+            total_unigram_counts = dict(sorted(list(total_unigram_counts.items()), key=lambda x: -x[1])) #all words
+            total_bigram_counts = dict(sorted(list(total_bigram_counts.items()), key=lambda x: -x[1])[:2000]) 
+            total_trigram_counts = dict(sorted(list(total_trigram_counts.items()), key=lambda x: -x[1])[:2000])
+            
+            # keep only counts of the 2000 most frequent bi- and trigrams
+            book_bigram_mapping_ = {}
+            for book, book_dict in book_bigram_mapping.items():
+                book_dict_ = {}
+                for ngram in set(total_bigram_counts.keys()):
+                    if ngram in book_dict:
+                        book_dict_[ngram] = book_dict[ngram]
+                book_bigram_mapping_[book] = book_dict_
+
+            book_trigram_mapping_ = {}
+            for book, book_dict in book_trigram_mapping.items():
+                book_dict_ = {}
+                for ngram in set(total_trigram_counts.keys()):
+                    if ngram in book_dict:
+                        book_dict_[ngram] = book_dict[ngram]
+                book_trigram_mapping_[book] = book_dict_
+
+            word_statistics = {
+                # {unigram: count}
+                'total_unigram_counts': total_unigram_counts,
+                'total_bigram_counts': total_bigram_counts,
+                'total_trigram_counts': total_trigram_counts,
+                # {file_name: {unigram: count}
+                'book_unigram_mapping': book_unigram_mapping,
+                'book_bigram_mapping': book_bigram_mapping_,
+                'book_trigram_mapping': book_trigram_mapping_}
+
+            wordstat_dir = Path(wordstat_path).parent
+            if not os.path.exists(wordstat_dir):
+                wordstat_dir.mkdir(parents=True, exist_ok=True)
+            with open(wordstat_path, 'wb') as f:
+                pickle.dump(word_statistics, f, -1)
         return word_statistics
 
 
@@ -264,6 +280,7 @@ class CorpusBasedFeatureExtractor():
         df = pd.DataFrame(data)
         return df
 
+
     def get_overlap_score(self, embedding_type):
         if embedding_type == 'doc2vec':
             all_embeddings = self.all_doc2vec_chunk_embeddings
@@ -272,38 +289,54 @@ class CorpusBasedFeatureExtractor():
         else:
             raise Exception(f'Not a valid embedding_type {embedding_type}.')
 
+        # Centroid of chunks making up a text
         cluster_means = []
-        for index, current_list_of_embeddings in enumerate(all_embeddings):
-            cluster_means.append(np.array(current_list_of_embeddings).mean(axis=0)) #average of all sentenfces
+        n_chunks_per_doc = []
+        for embeddings_per_doc in all_embeddings:
+            cluster_means.append(np.array(embeddings_per_doc).mean(axis=0)) #average of all sentences
+            n_chunks_per_doc.append(len(embeddings_per_doc))
 
+        all_labels = []
+        for i in range(0, len(n_chunks_per_doc)):
+            all_labels.append(list(range(sum(n_chunks_per_doc[:i]), sum(n_chunks_per_doc[:i+1]))))
+
+        # Get list of chunk arrays
         labels = []
-        predictions = []
-        for label_index, current_list_of_embeddings in list(enumerate(all_embeddings)):
-            for current_embedding in current_list_of_embeddings:
-                labels.append(label_index)
-                best_cluster = None
-                smallest_distance = np.inf
-                for prediction_index, cluster_mean in enumerate(cluster_means):
-                    current_distance = np.linalg.norm(current_embedding - cluster_mean)
-                    if current_distance < smallest_distance:
-                        smallest_distance = current_distance
-                        best_cluster = prediction_index
-                predictions.append(best_cluster)
-        labels = np.array(labels)
-        predictions = np.array(predictions)
+        chunk_embeddings_list = []
+        for embeddings_per_doc in all_embeddings:
+            for chunk_embedding in embeddings_per_doc:
+                chunk_embeddings_list.append(chunk_embedding)
+
+        # Find centroid that has the smallest distance to current chunk embedding (nearest neighbour)
+        # BallTree algorithm (Cranenburgh2019)
+        # Find k nearest neighbours to each centroid, with k being the number of chunks in a text
+        all_predictions = []
+        tree = BallTree(chunk_embeddings_list)
+        for cluster_mean, curr_n_chunks_per_doc in zip(cluster_means, n_chunks_per_doc):
+            # indices of k nearest neighbors of centroid
+            indices = tree.query(X=cluster_mean.reshape(1,-1), k=curr_n_chunks_per_doc, return_distance=False).tolist()
+            indices = [int(index) for inner_list in indices for index in inner_list]
+            all_predictions.append(list(indices))
 
         file_names = []
         overlap_scores = []
-        for label_index, doc_path in enumerate(self.doc_paths):
+        for doc_path, labels, predictions in zip(self.doc_paths, all_labels, all_predictions):
+            if not len(labels) == len(predictions):
+                raise Exception(f'Number true and predicted values are not the same.')
             file_name = get_bookname(doc_path)
-            indices = np.argwhere(labels == label_index).ravel()
-            current_predictions = predictions[indices]
-            incorrect_prediction_indices = np.argwhere(current_predictions != label_index)
-            # fraction of nearest chunks that are part of other books
-            overlap_score = len(incorrect_prediction_indices) / len(current_predictions)
+            correct = 0
+            incorrect = 0
+            for prediction in predictions:
+                if prediction in labels:
+                    correct += 1
+                else:
+                    incorrect += 1
+            # Fraction of nearest chunks that are part of other books
+            overlap_score = incorrect / (incorrect + correct)
             file_names.append(file_name)
             overlap_scores.append(overlap_score)
         return pd.DataFrame.from_dict({'file_name': file_names, f'overlap_score_{embedding_type}': overlap_scores})
+
 
     def get_overlap_score_doc2vec(self):
         return self.get_overlap_score('doc2vec')
@@ -320,8 +353,8 @@ class CorpusBasedFeatureExtractor():
             raise Exception(f'Not a valid embedding_type {embedding_type}.')
 
         cluster_means = []
-        for index, current_list_of_embeddings in enumerate(all_embeddings):
-            cluster_means.append(np.array(current_list_of_embeddings).mean(axis=0))
+        for index, embeddings_per_doc in enumerate(all_embeddings):
+            cluster_means.append(np.array(embeddings_per_doc).mean(axis=0))
 
         outlier_scores = []
         file_names = []
@@ -436,16 +469,17 @@ class CorpusBasedFeatureExtractor():
         book_queue = Queue()
 
         chunk_functions = [self.get_unigram_distance,
-                            self.get_unigram_distance_limited,
-                            self.get_bigram_distance,
-                            self.get_trigram_distance,
-                            self.get_tag_distribution]
-        if self.language == 'eng':
-            chunk_functions.append(self.get_production_distribution)
+                             self.get_unigram_distance_limited,]
+                            # self.get_bigram_distance,
+                            # self.get_trigram_distance,
+                            # self.get_tag_distribution]
+        # if self.language == 'eng':
+        #     chunk_functions.append(self.get_production_distribution)
+            
         book_functions = [self.get_overlap_score_doc2vec,
                             self.get_overlap_score_sbert,
                             self.get_outlier_score_doc2vec,
-                             self.get_outlier_score_sbert]
+                            self.get_outlier_score_sbert]
 
         
         # Decorate functions to make them useable for multiprocessing
@@ -491,63 +525,11 @@ class CorpusBasedFeatureExtractor():
             p.join()
 
         chunk_features = reduce(lambda df1, df2: df1.merge(df2, how='inner', on='file_name', validate='one_to_one'), chunk_features)
-        if self.sentences_per_chunk is not None:
-            book_features = reduce(lambda df1, df2: df1.merge(df2, how='inner', on='file_name', validate='one_to_one'), book_features)
-
         if self.sentences_per_chunk is None:
             chunk_features['file_name'] = chunk_features['file_name'].str.split('_').str[:4].str.join('_')
-        return chunk_features, book_features
-
-
-    # def get_all_features(self):
-
-    #     chunk_functions = [self.get_unigram_distance,
-    #                         self.get_unigram_distance_limited,
-    #                         self.get_bigram_distance,
-    #                         self.get_trigram_distance,
-    #                         self.get_tag_distribution]
-    #     if self.language == 'eng':
-    #         chunk_functions.append(self.get_production_distribution)
-    #     book_functions = [self.get_overlap_score_doc2vec,
-    #                         self.get_overlap_score_sbert,
-    #                         self.get_outlier_score_doc2vec,
-    #                          self.get_outlier_score_sbert]
-
-        
-    #     # Reverse chunk_functions to start get_tag_distribution() and get_production_distribution() first
-    #     chunk_functions = reversed(chunk_functions)
-    #     chunk_features = []
-    #     book_features = []
-
-    #     def helper(x):
-    #         chunk_features.append(x)
-        
-    #     '''
-    #     Doesnt work because functions are bound 
-    #     '''
-    #     nr_processes = cpu_count() -1 or 1
-    #     print(nr_processes)
-    #     # with Pool(processes = nr_processes) as pool:
-    #     #     for func in chunk_functions:
-    #     #         pool.apply_async(func, callback=helper)#, callback=lambda x: chunk_features.append(x))
-    #         # for func in book_functions:
-    #         #     pool.apply_async(func, callback=lambda x: book_features.append(x))
-
-
-    #     pool = Pool(processes = nr_processes)
-    #     for func in chunk_functions:
-    #         pool.apply_async(func, callback=helper)#, callback=lambda x: chunk_features.append(x))
-
-
-
-        print(chunk_features, book_features)
-
-        chunk_features = reduce(lambda df1, df2: df1.merge(df2, how='inner', on='file_name', validate='one_to_one'), chunk_features)
-        if self.sentences_per_chunk is not None:
+        else:
             book_features = reduce(lambda df1, df2: df1.merge(df2, how='inner', on='file_name', validate='one_to_one'), book_features)
 
 
-
-        if self.sentences_per_chunk is None:
-            chunk_features['file_name'] = chunk_features['file_name'].str.split('_').str[:4].str.join('_')
         return chunk_features, book_features
+
