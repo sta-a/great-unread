@@ -1,4 +1,12 @@
 # %%
+
+    # def _concat_and_save_predicted_labels(self,all_validation_book_label_mapping):
+    #     all_validation_book_label_mapping = pd.concat(all_validation_book_label_mapping)
+    #     all_validation_book_label_mapping.to_csv(os.path.join(self.results_dir, 'examples_', self.info_string, '.csv'), index=False)
+    #     return all_validation_book_label_mapping
+
+# For an imbalanced binary classification dataset, the negative class refers to the majority class (class 0) and the positive class refers to the minority class (class 1).
+
 # Create plots from examples file
 import numpy as np
 import pandas as pd
