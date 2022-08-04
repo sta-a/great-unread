@@ -30,7 +30,7 @@ else:
     language = 'eng'
     data_dir = '../data/'
 
-nr_texts = 150    ################################################
+nr_texts = None    ################################################
 raw_docs_dir = os.path.join(data_dir, 'raw_docs', language)
 features_dir = os.path.join(data_dir, f'features_{nr_texts}', language)
 if not os.path.exists(features_dir):
@@ -40,6 +40,7 @@ print(features_dir)
 if os.path.exists('/home/annina/scripts/great_unread_nlp/data/wordstat/eng/word_statistics.pkl'):
     os.remove('/home/annina/scripts/great_unread_nlp/data/wordstat/eng/word_statistics.pkl')
 doc_paths = get_doc_paths(raw_docs_dir)[:nr_texts]  # errors in doc [13:14]
+print(len(doc_paths))
 sents_per_chunk = 200
 
 
