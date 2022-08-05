@@ -1,4 +1,3 @@
-from calendar import c
 import warnings
 warnings.filterwarnings("error", category=UserWarning)
 import pandas as pd
@@ -6,7 +5,6 @@ import statistics
 import os
 import numpy as np
 from copy import deepcopy
-from collections import Counter
 from decimal import Decimal
 import random
 random.seed(3)
@@ -15,6 +13,7 @@ from math import sqrt
 from scipy.stats import pearsonr
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score, accuracy_score, f1_score, balanced_accuracy_score
 from xgboost import XGBClassifier
+from sklearn.decomposition import PCA
 from sklearn.utils.class_weight import compute_sample_weight
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.model_selection import StratifiedGroupKFold
@@ -23,27 +22,18 @@ from sklearn.svm import SVR, SVC
 from sklearn.linear_model import Lasso
 from xgboost import XGBRegressor, XGBClassifier
 from sklearn.preprocessing import StandardScaler
-from sklearn import preprocessing
 
 # All columns averaged chunk df have 1 value per file name:  False
 # Check if several features have value 0 ################################
 def average_chunk_features(X):
-    print('X before averaging chunks: ', X.shape)
     X_av = X.groupby(X.index).mean()
     X_new = X.merge(X_av, how='left', left_index=True, right_index=True, suffixes=('_unchanged', '_average'), validate='many_to_one')
     X_new = ColumnTransformer(columns_to_drop=['_unchanged']).fit_transform(X_new, None)
-    print('X after averaging chunks: ', X_new.shape)
-
-
     n_texts = X.index.nunique()
     n_unique_in_cols = X_new.apply(lambda col: True if col.nunique() == n_texts else False)
-    print('All columns averaged chunk df have 1 value per file name: ', n_unique_in_cols.all())
-    print(n_unique_in_cols)
-    print(n_unique_in_cols.value_counts())
-    print('Cols that have more different values (fulltext features): ', n_unique_in_cols.index[~n_unique_in_cols])
-
+    #print('All columns averaged chunk df have 1 value per file name: ', n_unique_in_cols.all())
+    #print('Cols that have more different values (fulltext features): ', n_unique_in_cols.index[~n_unique_in_cols])
     return X_new
-
 
 
 def refit_regression(cv_results):
@@ -63,10 +53,11 @@ def refit_regression(cv_results):
         if row['harmonic_pvalue'] < significance_threshold:
             best_corr = row['mean_test_corr']
             best_idxs = df.index[(df['mean_test_corr'] == best_corr) & (df['harmonic_pvalue']<significance_threshold)].tolist()
+            print('best indices', best_idxs)
             if len(best_idxs) > 1:
                 print(f'More than 1 model has the highest correlation coefficient and a significant harmonic p-value. Only one model is returned')
             else:
-                print('Only one model has highest correlation coefficient and significant harmonic p-value.')
+                print('Only one model has highest correlation coefficient and a significant harmonic p-value.')
             best_index = best_idxs[0]
             break
     else:
@@ -84,7 +75,6 @@ def get_pvalue(row):
     # Harmonic mean p-value
     # Takes row from GridSearchCV.cv_results_ as input
     # Match columns that contain test pvalues for each split
-    print(row[row.index.str.contains('split._test_corr_pvalue', regex=True)])
     pvalues = row[row.index.str.contains('split._test_corr_pvalue', regex=True)]
     try:
         denominator = sum([Decimal(1)/Decimal(x) for x in pvalues])
@@ -149,26 +139,6 @@ class ColumnTransformer(BaseEstimator, TransformerMixin):
         # print(f'Dropped {len(columns_before_drop - columns_after_drop)} columns.') 
         return X_new
 
-# def custom_pca(X):
-#     X = StandardScaler().fit_transform(X)
-#     max_components = min(X.shape)
-#     for i in range(5, X.shape[1], int((X.shape[1] - 5) / 10)):
-#         if i < max_components:
-#             pca = PCA(n_components=i)
-#             X_trans = pca.fit_transform(X)
-#             if pca.explained_variance_ratio_.sum() >= 0.95:
-#                 break
-#         else:
-#             pca = PCA(n_components=max_components)
-#             X_trans = pca.fit_transform(X)
-#             return X_trans
-
-
-# from sklearn.impute import KNNImputer
-# def _impute(X):
-#     imputer = KNNImputer()
-#     X = imputer.fit_transform(X)
-#     return X
 
 def get_min_fold_size(cv):
     min_fold_size = 100000
@@ -354,7 +324,7 @@ def get_data(task_type, language, label_type, features_dir, canonscores_dir, sen
 #     return X, y
 
 
-class XGBClassifierMulticlassImbalanced(XGBClassifier):
+class CustomXGBClassifier(XGBClassifier):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -364,6 +334,15 @@ class XGBClassifierMulticlassImbalanced(XGBClassifier):
 
         return self
 
+class CustomPCA(PCA):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def fit(self, X, y=None):
+        # Using scaler here instead of pipeline is less complicated
+        new_X = StandardScaler().fit_transform(X)
+        super().fit(new_X, y)
+        return self
 
 class CustomGroupKFold():
     '''
@@ -394,7 +373,8 @@ class CustomGroupKFold():
         indices = []
         if self.stratified:
             cv = StratifiedGroupKFold(n_splits=self.n_splits)
-            # All labels must be represented in all classes. XGBClassifier throws an error if labels do not go from 0 to num_classes-1.
+            # All labels must be represented in all classes. 
+            # XGBClassifier throws an error if labels do not go from 0 to num_classes-1.
             try:
                 splits = cv.split(X, y, groups=authors['author'])
             except UserWarning as e:
@@ -433,7 +413,7 @@ def get_model(task_type, testing):
         {'clf': (SVC(class_weight='balanced'),),
         'clf__C': [0.1, 1, 10, 100, 1000],
         'scaler': ['passthrough']},
-        {'clf': (XGBClassifierMulticlassImbalanced(objective='binary:logistic', random_state=7, use_label_encoder=False),),
+        {'clf': (CustomXGBClassifier(objective='binary:logistic', random_state=7, use_label_encoder=False),),
         'clf__max_depth': [2,4,6,8, 20],
         'clf__learning_rate': [None, 0.01, 0.033, 0.1],
         'clf__colsample_bytree': [0.33, 0.60, 0.75],
@@ -444,7 +424,7 @@ def get_model(task_type, testing):
         {'clf': (SVC(class_weight='balanced'),),
         'clf__C': [0.1, 1, 10, 100, 1000],
         'scaler': [StandardScaler()]},
-        {'clf': (XGBClassifierMulticlassImbalanced(objective='multi:softmax', random_state=7, use_label_encoder=False),),
+        {'clf': (CustomXGBClassifier(objective='multi:softmax', random_state=7, use_label_encoder=False),),
         'clf__max_depth': [2,4,6,8, 20],
         'clf__learning_rate': [None, 0.01, 0.033, 0.1],
         'clf__colsample_bytree': [0.33, 0.60, 0.75],
@@ -474,7 +454,7 @@ def get_model(task_type, testing):
             {'clf': (SVC(class_weight='balanced'),),
             'clf__C': [1],
             'scaler': ['passthrough']},
-            {'clf': (XGBClassifierMulticlassImbalanced(objective='binary:logistic', random_state=666, use_label_encoder=False),),
+            {'clf': (CustomXGBClassifier(objective='binary:logistic', random_state=666, use_label_encoder=False),),
             'clf__max_depth': [20],
             'clf__learning_rate': [0.1],
             'clf__colsample_bytree': [0.75],
@@ -485,7 +465,7 @@ def get_model(task_type, testing):
             {'clf': (SVC(class_weight='balanced'),),
             'clf__C': [1],
             'scaler': ['passthrough']},
-            {'clf': (XGBClassifierMulticlassImbalanced(objective='multi:softmax', random_state=777, use_label_encoder=False),),
+            {'clf': (CustomXGBClassifier(objective='multi:softmax', random_state=777, use_label_encoder=False),),
             'clf__max_depth': [20],
             'clf__learning_rate': [0.1],
             'clf__colsample_bytree': [0.75],

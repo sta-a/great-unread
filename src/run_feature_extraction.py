@@ -1,14 +1,13 @@
 # %%
 # %load_ext autoreload
 # %autoreload 2
-from_commandline = True
+from_commandline = False
 
 import argparse
 import chunk
 import os
 import numpy as np
 import pandas as pd
-import pickle
 import time
 from itertools import repeat
 from multiprocessing import Pool, cpu_count
@@ -27,19 +26,17 @@ if from_commandline:
     data_dir = args.data_dir
 else:
     # Don't use defaults because VSC interactive can't handle command line arguments
-    language = 'eng'
+    language = 'ger'
     data_dir = '../data/'
 
-nr_texts = None    ################################################
+# Select number of texts to work with
+nr_texts = 5 # None for all texts
 raw_docs_dir = os.path.join(data_dir, 'raw_docs', language)
 features_dir = os.path.join(data_dir, f'features_{nr_texts}', language)
 if not os.path.exists(features_dir):
     os.makedirs(features_dir)
 
-print(features_dir)
-if os.path.exists('/home/annina/scripts/great_unread_nlp/data/wordstat/eng/word_statistics.pkl'):
-    os.remove('/home/annina/scripts/great_unread_nlp/data/wordstat/eng/word_statistics.pkl')
-doc_paths = get_doc_paths(raw_docs_dir)[:nr_texts]  # errors in doc [13:14]
+doc_paths = get_doc_paths(raw_docs_dir)[:nr_texts]
 print(len(doc_paths))
 sents_per_chunk = 200
 
@@ -68,24 +65,14 @@ def _get_doc_features(sentences_per_chunk, chunk_features_filename, book_feature
             all_book_features.append(doc_features[1])
             
     print(len(all_chunk_features), len(all_book_features))
-    with open(os.path.join(features_dir, f'{chunk_features_filename}.pkl'), 'wb') as f:
-        pickle.dump(all_chunk_features, f, -1)
     # Save book features only once (not when running with fulltext chunks)
-    if sentences_per_chunk != None:
-        with open(os.path.join(features_dir, f'{book_features_filename}.pkl'), 'wb') as f:
-            pickle.dump(all_book_features, f, -1)
     return all_chunk_features, all_book_features
 
 def _get_corpus_features(sentences_per_chunk, chunk_features_filename, book_features_filename):
     cbfe = CorpusBasedFeatureExtractor(language, doc_paths, sentences_per_chunk=sentences_per_chunk, nr_features=100)
     chunk_features, book_features = cbfe.get_all_features()
 
-    with open(os.path.join(features_dir, f'{chunk_features_filename}.pkl'), 'wb') as f:
-        pickle.dump(chunk_features, f, -1)
     # Save book features only once (not when running with fulltext chunks)
-    if sentences_per_chunk != None:
-        with open(os.path.join(features_dir, f'{book_features_filename}.pkl'), 'wb') as f:
-            pickle.dump(book_features, f, -1)
     return chunk_features, book_features
 
 
@@ -135,23 +122,7 @@ def _merge_features(doc_chunk_features,
     return dfs
 
             
-# %%
 if __name__ == '__main__':
-
-    # #Load
-    # with open(os.path.join(features_dir, 'doc_chunk_features.pkl'), 'rb') as f:
-    #     doc_chunk_features = pickle.load(f)
-    # with open(os.path.join(features_dir, 'doc_book_features.pkl'), 'rb') as f:
-    #     doc_book_features = pickle.load(f)
-    # with open(os.path.join(features_dir, 'doc_chunk_features_fulltext.pkl'), 'rb') as f:
-    #     doc_chunk_features_fulltext = pickle.load(f)
-    # with open(os.path.join(features_dir, 'corpus_chunk_features.pkl'), 'rb') as f:
-    #     corpus_chunk_features = pickle.load(f)
-    # with open(os.path.join(features_dir, 'corpus_book_features.pkl'), 'rb') as f:
-    #     corpus_book_features = pickle.load(f)
-    # with open(os.path.join(features_dir, 'corpus_chunk_features_fulltext.pkl'), 'rb') as f:
-    #     corpus_chunk_features_fulltext = pickle.load(f)
-
     start = time.time()
     _create_doc2vec_embeddings()
     # doc-based features
@@ -177,7 +148,7 @@ if __name__ == '__main__':
         #f.write(f'nr_texts,runtime\n')
         f.write(f'{nr_texts},{round(runtime, 2)}\n')
 
-# %%
+  # %%
 features_dir = os.path.join(data_dir, f'features_{nr_texts}', language)
 
 from_file = True
