@@ -1,5 +1,3 @@
-import warnings
-warnings.filterwarnings("error", category=UserWarning)
 import pandas as pd
 import statistics
 import os
@@ -18,21 +16,46 @@ from sklearn.utils.class_weight import compute_sample_weight
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.model_selection import StratifiedGroupKFold
 from sklearn.model_selection import GroupKFold
+from sklearn.metrics import precision_recall_curve, roc_curve
 from sklearn.svm import SVR, SVC
 from sklearn.linear_model import Lasso
 from xgboost import XGBRegressor, XGBClassifier
-from sklearn.preprocessing import StandardScaler
 
-# All columns averaged chunk df have 1 value per file name:  False
-# Check if several features have value 0 ################################
+def analyze_cv(X, cv):
+    X_fulltext = ColumnTransformer(columns_to_drop='_chunk').fit_transform(X, None)
+    for train_idxs, test_idxs in cv:
+        groups = get_author_groups(X_fulltext)
+        X_train = X_fulltext.iloc[train_idxs]
+        groups_train = groups.iloc[train_idxs]
+        X_test = X_fulltext.iloc[test_idxs]
+        groups_test = groups.iloc[test_idxs]
+        dfs = {'X_train': X_train, 'X_test': X_test} #'groups_train': groups_train, 'groups_test': groups_test
+        for name, df in dfs.items():
+            print(f'Shape of {name} before removing duplicate rows: {df.shape}')
+            dfs[name] = df = df[~df.index.duplicated(keep="first")]
+            print(f'Shape of {name} after removing duplicate rows: {df.shape}')
+
+
+def get_document_features(X):
+    print('X before taking docu features,', X.shape)
+    X_new = ColumnTransformer(columns_to_drop=['_chunk']).fit_transform(X, None).drop_duplicates()
+    print('X after taking docu features,', X.shape)
+    return X_new
+
+
 def average_chunk_features(X):
+    '''
+    Average over chunk features for each document. Result is one value per feature and document.
+    # All columns averaged chunk df have 1 value per file name:  False
+    # Check if several features have value 0
+    '''
     X_av = X.groupby(X.index).mean()
     X_new = X.merge(X_av, how='left', left_index=True, right_index=True, suffixes=('_unchanged', '_average'), validate='many_to_one')
-    X_new = ColumnTransformer(columns_to_drop=['_unchanged']).fit_transform(X_new, None)
+    X_new = ColumnTransformer(columns_to_drop=['_unchanged']).fit_transform(X_new, None).drop_duplicates()
     n_texts = X.index.nunique()
     n_unique_in_cols = X_new.apply(lambda col: True if col.nunique() == n_texts else False)
-    #print('All columns averaged chunk df have 1 value per file name: ', n_unique_in_cols.all())
-    #print('Cols that have more different values (fulltext features): ', n_unique_in_cols.index[~n_unique_in_cols])
+    print('All columns averaged chunk df have 1 value per file name: ', n_unique_in_cols.all())
+    print('Cols that have more different values (fulltext features): ', n_unique_in_cols.index[~n_unique_in_cols])
     return X_new
 
 
@@ -41,8 +64,7 @@ def refit_regression(cv_results):
     # find highest correlation coefficiant that has a significant harmonic p-value
     df = pd.DataFrame(cv_results)
     significance_threshold = 0.1
-    df['harmonic_pvalue'] = df.apply(get_pvalue, axis=1)
-    print('cv results', df)
+    df['harmonic_pvalue'] = df.apply(apply_harmonic_pvalue, axis=1)
     nr_max_corr = (df['mean_test_corr'].values == df['mean_test_corr'].max()).sum()
     print('nr max corr: ', nr_max_corr)
     df = df.sort_values(by='mean_test_corr', axis=0, ascending=False)
@@ -53,7 +75,6 @@ def refit_regression(cv_results):
         if row['harmonic_pvalue'] < significance_threshold:
             best_corr = row['mean_test_corr']
             best_idxs = df.index[(df['mean_test_corr'] == best_corr) & (df['harmonic_pvalue']<significance_threshold)].tolist()
-            print('best indices', best_idxs)
             if len(best_idxs) > 1:
                 print(f'More than 1 model has the highest correlation coefficient and a significant harmonic p-value. Only one model is returned')
             else:
@@ -71,7 +92,7 @@ def refit_regression(cv_results):
     return best_index
     
 
-def get_pvalue(row):
+def apply_harmonic_pvalue(row):
     # Harmonic mean p-value
     # Takes row from GridSearchCV.cv_results_ as input
     # Match columns that contain test pvalues for each split
@@ -88,7 +109,8 @@ def get_pvalue(row):
 
 def score_regression(estimator, X, y):
     '''
-    Calculate task-specific evaluation metrics.
+    Multiple evaluation metrics for regression.
+    Callable for the 'scoring' parameter in GridSearchCV. 
     '''
 
     y_pred = estimator.predict(X)
@@ -104,6 +126,10 @@ def score_regression(estimator, X, y):
             'mae': mae}
 
 def score_binary(estimator, X, y):
+    '''
+    Multiple evaluation metrics for binary classification.
+    Callable for the 'scoring' parameter in GridSearchCV. 
+    '''
     y_pred = estimator.predict(X)
     acc = accuracy_score(y, y_pred)
     balanced_acc = balanced_accuracy_score(y, y_pred)
@@ -112,9 +138,21 @@ def score_binary(estimator, X, y):
 
 
 def score_multiclass(estimator, X, y):
+    '''
+    Multiple evaluation metrics for multiclass classification.
+    Callable for the 'scoring' parameter in GridSearchCV. 
+    '''
     y_pred = estimator.predict(X)
-    f1 = f1_score(y, y_pred, average='macro')# !!!!!!!!!!!!!!!!!!!#############################3
-    return {'f1': f1}
+    y_prob = estimator.predict_proba(X)
+    f1_macro = f1_score(y, y_pred, average='macro')
+    f1_weighted = f1_score(y, y_pred, average='weighted')
+
+    # PR AUC
+    precision, recall, thresholds = precision_recall_curve(y, y_prob)
+    pr_auc = auc(recall, precision)
+    return {'f1_macro': f1_macro,
+            'f1_weighted': f1_weighted,
+            'PR_AUC': pr_auc}
 
 
 class ColumnTransformer(BaseEstimator, TransformerMixin):
@@ -139,14 +177,6 @@ class ColumnTransformer(BaseEstimator, TransformerMixin):
         # print(f'Dropped {len(columns_before_drop - columns_after_drop)} columns.') 
         return X_new
 
-
-def get_min_fold_size(cv):
-    min_fold_size = 100000
-    for tup in cv:
-        for inner_list in tup:
-            if len(inner_list) < min_fold_size:
-                min_fold_size = len(inner_list)
-    return min_fold_size
 
 def permute_params(model, **kwargs):
     '''
@@ -271,11 +301,24 @@ def get_labels(label_type, language, canonscores_dir=None, sentiscores_dir=None,
     return labels
 
 
-def get_data(task_type, language, label_type, features_dir, canonscores_dir, sentiscores_dir, metadata_dir): 
+def get_data(task, language, label_type, features_dir, canonscores_dir, sentiscores_dir, metadata_dir): 
+    '''
+    The following file names had inconsistent spelling between versions of the data, check if errors.
+    'Hegeler_Wilhelm_Mutter-Bertha_1893': 'Hegelers_Wilhelm_Mutter-Bertha_1893',
+    'Hoffmansthal_Hugo_Ein-Brief_1902': 'Hoffmansthal_Hugo-von_Ein-Brief_1902'
+        '''
+    print('task get data', task)
     X = pd.read_csv(os.path.join(features_dir, 'cacb_features.csv'))
+    print(f'Nr chunks for {language}: {X.shape[0]}')
+    print(f'Nr texts for {language}: {len(X.file_name.unique())}')
     y = get_labels(label_type, language, canonscores_dir, sentiscores_dir, metadata_dir)
+    
+    print(y)
+    # For english regression, 1 label is duplicated
+    print(f'Nr labels for {language} {task}: {y.shape}, {y.y.nunique()}')
+    #y_before_merge = set(y['file_name'])
 
-    if task_type == 'regression':
+    if task == 'regression':
         df = X.merge(right=y, on='file_name', how='inner', validate='many_to_one')
     else:
         # Select books written after year of first review
@@ -285,9 +328,17 @@ def get_data(task_type, language, label_type, features_dir, canonscores_dir, sen
         book_year = df['file_name'].str.replace('-', '_').str.split('_').str[-1].astype('int64')
         review_year = book_year[df['y'] != 0]
         df = df.loc[book_year>=min(review_year)]
+        print('Min review year', min(review_year))
+
+    print(f'Nr texts for {language} after combining with labels: {df.file_name.nunique()}')
+    print(f'Nr labels for {language} {task} after combining with features: {df.y.shape}')
+    # y_after_merge = set(df['file_name'])
+    # print('labels difference', list(y_before_merge - y_after_merge))
 
     X = df.drop(labels=['y'], axis=1, inplace=False).set_index('file_name', drop=True)
-    y = df[['y']].reset_index(drop=True)
+    # y = df[['file_name', 'y']].set_index('file_name', drop=True)
+    y = df[['y', 'file_name']].set_index('file_name', drop=True)
+
 
     print('NaN in X: ', X.isnull().values.any())
     print('NaN in y: ', y.isnull().values.any())
@@ -296,35 +347,11 @@ def get_data(task_type, language, label_type, features_dir, canonscores_dir, sen
     return X, y
 
 
-# def get_data(task_type, language, features_type, label_type, features_dir, canonscores_dir, sentiscores_dir, metadata_dir): 
-#     X = pd.read_csv(os.path.join(features_dir, f'{features_type}_features.csv'))
-#     y = get_labels(label_type, language, canonscores_dir, sentiscores_dir, metadata_dir)
-
-#     if task_type == 'regression':
-#         df = X.merge(right=y, on='file_name', how='inner', validate='many_to_one')
-#         y = df[['y']].values.ravel()
-#     else:
-#         # Select books written after year of first review
-#         # Keep only those texts that that were published after the first review had appeared
-#         df = X.merge(right=y, on='file_name', how='left', validate='many_to_one')
-#         df['y'] = df['y'].fillna(value=0)
-#         book_year = df['file_name'].str.replace('-', '_').str.split('_').str[-1].astype('int64')
-#         review_year = book_year[df['y'] != 0]
-#         df = df.loc[book_year>=min(review_year)]
-#         y = preprocessing.LabelEncoder().fit_transform(df['y'])
-#         #y = df[['y']].values.ravel().astype(int)
-
-#     X = df.drop(labels=['y'], axis=1, inplace=False).set_index('file_name', drop=True)
-    
-
-#     # print('NaN in X: ', X.isnull().values.any())
-#     # print('NaN in y: ', y.isnull().values.any())
-#     # print('X, y shape', X.shape, y.shape)
-
-#     return X, y
-
-
 class CustomXGBClassifier(XGBClassifier):
+    '''
+    XGBClassifier that sets sample_weights parameter in fit()
+    To be used in pipeline & grid search because fit() has common interface for all estimators
+    '''
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -334,142 +361,121 @@ class CustomXGBClassifier(XGBClassifier):
 
         return self
 
-class CustomPCA(PCA):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
 
-    def fit(self, X, y=None):
-        # Using scaler here instead of pipeline is less complicated
-        new_X = StandardScaler().fit_transform(X)
-        super().fit(new_X, y)
-        return self
+def get_author_groups(X):
+    '''
+    Create column with author name so that all texts by one author belong to the same group
+    Account for different spelling versions of author name
+    '''
+    alias_dict = {
+    'Hoffmansthal_Hugo': ['Hoffmansthal_Hugo-von'], 
+    'Schlaf_Johannes': ['Holz-Schlaf_Arno-Johannes'],
+    'Arnim_Bettina': ['Arnim-Arnim_Bettina-Gisela'],
+    'Stevenson_Robert-Louis': ['Stevenson-Grift_Robert-Louis-Fanny-van-de', 
+                                'Stevenson-Osbourne_Robert-Louis-Lloyde']}
+
+    authors = X.index.to_frame(name='file_name')
+    authors['author'] = authors['file_name'].str.split('_').str[:2].str.join('_')
+
+    for author, aliases in alias_dict.items():
+        for alias in aliases:
+            authors['author'].replace(to_replace=alias, value=author, inplace=True)
+    return authors['author']
+
 
 class CustomGroupKFold():
     '''
     Split book names into n folds.
     All works of an author are put into the same fold.
     If stratified==True, the folds are created so that each fold contains approximately the same number of samples from each class.
+    For classification, all labels must be represented in all classes. XGBClassifier throws an error if labels do not go from 0 to num_classes-1.
     '''
     def __init__(self, n_splits, stratified=False):
         self.n_splits = n_splits
         self.stratified = stratified
-        self.alias_dict = {'Hoffmansthal_Hugo': ['Hoffmansthal_Hugo-von'], 
-            'Schlaf_Johannes': ['Holz-Schlaf_Arno-Johannes'],
-            'Arnim_Bettina': ['Arnim-Arnim_Bettina-Gisela'],
-            'Stevenson_Robert-Louis': ['Stevenson-Grift_Robert-Louis-Fanny-van-de', 
-                                        'Stevenson-Osbourne_Robert-Louis-Lloyde']}
-
 
     def split(self, X, y):
-        authors = X.index.to_frame(name='file_name')
-        authors['author'] = authors['file_name'].str.split('_').str[:2].str.join('_')
-
-        print(authors['author'].nunique())
-        for author, aliases in self.alias_dict.items():
-            for alias in aliases:
-                authors['author'].replace(to_replace=alias, value=author, inplace=True)
-        print(authors['author'].nunique())
-
+        author_groups = get_author_groups(X)
+        print(author_groups)
         indices = []
         if self.stratified:
             cv = StratifiedGroupKFold(n_splits=self.n_splits)
-            # All labels must be represented in all classes. 
-            # XGBClassifier throws an error if labels do not go from 0 to num_classes-1.
-            try:
-                splits = cv.split(X, y, groups=authors['author'])
-            except UserWarning as e:
-                print(e)
+            splits = cv.split(X, y, groups=author_groups)
         else:
             cv = GroupKFold(n_splits=self.n_splits)
-            splits = cv.split(X, y, groups=authors['author'])
-
-
+            splits = cv.split(X, y, groups=author_groups)
         for train_idxs, test_idxs in splits:
             indices.append((train_idxs, test_idxs))
 
         return indices
 
-def get_model(task_type, testing):
+def get_model(task, testing):
     # All paramters
     # Separate grids for conditional parameters
     param_grid_regression = [
         {'clf': (SVR(),),
         'clf__C': [0.1, 1],
-        'clf__epsilon': [0.001, 0.01],
-        'scaler': [StandardScaler()]},
+        'clf__epsilon': [0.001, 0.01]},
         {'clf': (Lasso(),),
         'clf__alpha': [1,10, 100, 1000],
         'clf__tol': [0.0001], # default
-        'clf__max_iter': [1000], # default
-        'scaler': ['passthrough']},
+        'clf__max_iter': [1000]}, # default
         {'clf': (XGBRegressor(objective='reg:squarederror', random_state=7),),
         'clf__max_depth': [2,4,6,8, 20],
         'clf__learning_rate': [None, 0.033, 0.1, 1], #0.01 does not produce result
-        'clf__colsample_bytree': [0.33, 0.60, 0.75],
-        'scaler': ['passthrough']}, 
+        'clf__colsample_bytree': [0.33, 0.60, 0.75]}, 
         ]
 
     param_grid_binary = [
         {'clf': (SVC(class_weight='balanced'),),
-        'clf__C': [0.1, 1, 10, 100, 1000],
-        'scaler': ['passthrough']},
+        'clf__C': [0.1, 1, 10, 100, 1000]},
         {'clf': (CustomXGBClassifier(objective='binary:logistic', random_state=7, use_label_encoder=False),),
         'clf__max_depth': [2,4,6,8, 20],
         'clf__learning_rate': [None, 0.01, 0.033, 0.1],
-        'clf__colsample_bytree': [0.33, 0.60, 0.75],
-        'scaler': ['passthrough']}, 
+        'clf__colsample_bytree': [0.33, 0.60, 0.75]}, 
         ]
 
     param_grid_multiclass= [
         {'clf': (SVC(class_weight='balanced'),),
-        'clf__C': [0.1, 1, 10, 100, 1000],
-        'scaler': [StandardScaler()]},
+        'clf__C': [0.1, 1, 10, 100, 1000]},
         {'clf': (CustomXGBClassifier(objective='multi:softmax', random_state=7, use_label_encoder=False),),
         'clf__max_depth': [2,4,6,8, 20],
         'clf__learning_rate': [None, 0.01, 0.033, 0.1],
-        'clf__colsample_bytree': [0.33, 0.60, 0.75],
-        'scaler': ['passthrough']}, 
+        'clf__colsample_bytree': [0.33, 0.60, 0.75]}, 
         ]
 
     if testing:
-        print('Use testing param grid.')
+        print('Using testing param grid.')
         param_grid_regression = [
             {'clf': (SVR(),),
-            'clf__C': [0.1, 1],
-            'clf__epsilon': [0.001, 0.01],
-            'scaler': [StandardScaler()]},
-            # {'clf': (Lasso(),),
-            # 'clf__alpha': [1,10, 100, 1000],
-            # 'clf__tol': [0.0001], # default
-            # 'clf__max_iter': [1000], # default
-            # 'scaler': ['passthrough']},
-            # {'clf': (XGBRegressor(objective='reg:squarederror', random_state=7),),
-            # 'clf__max_depth': [2,4,6,8, 20],
-            # 'clf__learning_rate': [None, 0.033, 0.1, 1],
-            # 'clf__colsample_bytree': [0.33, 0.60, 0.75],
-            # 'scaler': ['passthrough']}, 
+            'clf__C': [0.1],
+            'clf__epsilon': [0.001]},
+            {'clf': (Lasso(),),
+            'clf__alpha': [1],
+            'clf__tol': [0.0001], # default
+            'clf__max_iter': [1000]}, # default
+            {'clf': (XGBRegressor(objective='reg:squarederror', random_state=7),),
+            'clf__max_depth': [20],
+            'clf__learning_rate': [0.033],
+            'clf__colsample_bytree': [0.33]}, 
             ]
 
         param_grid_binary = [
             {'clf': (SVC(class_weight='balanced'),),
-            'clf__C': [1],
-            'scaler': ['passthrough']},
+            'clf__C': [1]},
             {'clf': (CustomXGBClassifier(objective='binary:logistic', random_state=666, use_label_encoder=False),),
             'clf__max_depth': [20],
             'clf__learning_rate': [0.1],
-            'clf__colsample_bytree': [0.75],
-            'scaler': ['passthrough']}, 
+            'clf__colsample_bytree': [0.75]}, 
             ]
 
         param_grid_multiclass= [
             {'clf': (SVC(class_weight='balanced'),),
-            'clf__C': [1],
-            'scaler': ['passthrough']},
+            'clf__C': [1]},
             {'clf': (CustomXGBClassifier(objective='multi:softmax', random_state=777, use_label_encoder=False),),
             'clf__max_depth': [20],
             'clf__learning_rate': [0.1],
-            'clf__colsample_bytree': [0.75],
-            'scaler': ['passthrough']}, 
+            'clf__colsample_bytree': [0.75]}, 
             ]
 
     models = {
@@ -479,7 +485,7 @@ def get_model(task_type, testing):
             'refit': refit_regression,
             'stratified': False,
             'param_grid': param_grid_regression,
-            'param_data_subset': ['passthrough', ColumnTransformer(columns_to_drop=['_fulltext'])] #Use chunk features 
+            'param_data_subset': ['passthrough', ColumnTransformer(columns_to_drop=['_fulltext'])] #Use chunk features, drop fulltext features
             },
         'binary': {
             'labels': ['binary'],
@@ -488,16 +494,19 @@ def get_model(task_type, testing):
             'stratified': True,
             'param_grid': param_grid_binary,
             'param_data_subset': [] # Don't use chunk features
+            },
+        'multiclass':{
+            'labels': ['multiclass'],
+            'refit': 'f1',
+            'scoring': score_multiclass,
+            'stratified': True,
+            'param_grid': param_grid_multiclass,
+            'param_data_subset': [] # Don't use chunk features
             }
         }
 
     models['library'] = deepcopy(models['binary'])
     models['library']['labels'] = ['library']
-    models['multiclass'] = deepcopy(models['binary'])
-    models['multiclass']['labels'] = ['multiclass']
-    models['multiclass']['refit'] = 'f1'
-    models['multiclass']['scoring'] = score_multiclass
-    models['multiclass']['param_grid'] = param_grid_multiclass
 
     # Overwrite for testing 
     if testing:
@@ -507,4 +516,4 @@ def get_model(task_type, testing):
         models['library']['features'] = ['book']
         models['multiclass']['features'] = ['book']
 
-    return models[task_type]
+    return models[task]
