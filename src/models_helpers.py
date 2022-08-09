@@ -16,7 +16,6 @@ from sklearn.utils.class_weight import compute_sample_weight
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.model_selection import StratifiedGroupKFold
 from sklearn.model_selection import GroupKFold
-from sklearn.metrics import precision_recall_curve, roc_curve
 from sklearn.svm import SVR, SVC
 from sklearn.linear_model import Lasso
 from xgboost import XGBRegressor, XGBClassifier
@@ -36,57 +35,33 @@ def analyze_cv(X, cv):
             print(f'Shape of {name} after removing duplicate rows: {df.shape}')
 
 
-def get_document_features(X):
-    print('X before taking docu features,', X.shape)
-    X_new = ColumnTransformer(columns_to_drop=['_chunk']).fit_transform(X, None).drop_duplicates()
-    print('X after taking docu features,', X.shape)
-    return X_new
-
-
-def average_chunk_features(X):
-    '''
-    Average over chunk features for each document. Result is one value per feature and document.
-    # All columns averaged chunk df have 1 value per file name:  False
-    # Check if several features have value 0
-    '''
-    X_av = X.groupby(X.index).mean()
-    X_new = X.merge(X_av, how='left', left_index=True, right_index=True, suffixes=('_unchanged', '_average'), validate='many_to_one')
-    X_new = ColumnTransformer(columns_to_drop=['_unchanged']).fit_transform(X_new, None).drop_duplicates()
-    n_texts = X.index.nunique()
-    n_unique_in_cols = X_new.apply(lambda col: True if col.nunique() == n_texts else False)
-    print('All columns averaged chunk df have 1 value per file name: ', n_unique_in_cols.all())
-    print('Cols that have more different values (fulltext features): ', n_unique_in_cols.index[~n_unique_in_cols])
-    return X_new
-
-
-def refit_regression(cv_results):
+def refit_regression(cv_results): #################
     # refit using a callable
     # find highest correlation coefficiant that has a significant harmonic p-value
     df = pd.DataFrame(cv_results)
-    significance_threshold = 0.1
+    print('cv result before dropping',df.index)
+    
+    # Add harmonic p-value
+    significance_threshold = Decimal(0.1)
     df['harmonic_pvalue'] = df.apply(apply_harmonic_pvalue, axis=1)
-    nr_max_corr = (df['mean_test_corr'].values == df['mean_test_corr'].max()).sum()
-    print('nr max corr: ', nr_max_corr)
-    df = df.sort_values(by='mean_test_corr', axis=0, ascending=False)
-    print(df.index)
 
-    best_corr = 0
-    for index, row in df.iterrows():
-        if row['harmonic_pvalue'] < significance_threshold:
-            best_corr = row['mean_test_corr']
-            best_idxs = df.index[(df['mean_test_corr'] == best_corr) & (df['harmonic_pvalue']<significance_threshold)].tolist()
-            if len(best_idxs) > 1:
-                print(f'More than 1 model has the highest correlation coefficient and a significant harmonic p-value. Only one model is returned')
-            else:
-                print('Only one model has highest correlation coefficient and a significant harmonic p-value.')
-            best_index = best_idxs[0]
-            break
+    # Filter df
+    df = df[~df['harmonic_pvalue'].isna()]
+    df = df[df['harmonic_pvalue']<significance_threshold]
+    print('cv result after dropping',df.index)
+
+    # Check if there is any model with significant correlation coefficient
+    if df.shape[0] == 0:
+        print(f'No model has a significant hamonic p-value. Model with the highest correlation coefficient is returned.')
+        unfiltered_df = pd.DataFrame(cv_results)
+        best_index = unfiltered_df['mean_test_corr'].idxmax()
     else:
-    # Run when no break occurs
-        print(f'No model has a hamonic p value below {significance_threshold}. Model with the highest correlation coefficient is returned.')
-        best_index = df['mean_test_corr'].idxmax()
+        # Check how many models have the highest correlation coefficent
+        nr_max_corr = (df['mean_test_corr'].values == df['mean_test_corr'].max()).sum()
+        print('Number of models that have the highest correlation coefficient and significant p-value: ', nr_max_corr)
 
-    print(f'Best score:{best_corr}')
+        # Find index of maximum correlation
+        best_index = df['mean_test_corr'].idxmax()
     print(f'Best index:{best_index}')
 
     return best_index
@@ -147,12 +122,8 @@ def score_multiclass(estimator, X, y):
     f1_macro = f1_score(y, y_pred, average='macro')
     f1_weighted = f1_score(y, y_pred, average='weighted')
 
-    # PR AUC
-    precision, recall, thresholds = precision_recall_curve(y, y_prob)
-    pr_auc = auc(recall, precision)
     return {'f1_macro': f1_macro,
-            'f1_weighted': f1_weighted,
-            'PR_AUC': pr_auc}
+            'f1_weighted': f1_weighted}
 
 
 class ColumnTransformer(BaseEstimator, TransformerMixin):
@@ -197,7 +168,7 @@ def permute_params(model, **kwargs):
     return all_models
 
 
-def get_labels(label_type, language, canonscores_dir=None, sentiscores_dir=None, metadata_dir=None):
+def get_labels(language, label_type, canonscores_dir=None, sentiscores_dir=None, metadata_dir=None):
     if label_type == 'canon':
         canon_file = '210907_regression_predict_02_setp3_FINAL.csv'
         labels = pd.read_csv(os.path.join(canonscores_dir, canon_file), sep=';')[['file_name', 'm3']]
@@ -301,18 +272,17 @@ def get_labels(label_type, language, canonscores_dir=None, sentiscores_dir=None,
     return labels
 
 
-def get_data(task, language, label_type, features_dir, canonscores_dir, sentiscores_dir, metadata_dir): 
+def get_data(language, task, label_type, features, features_dir, canonscores_dir, sentiscores_dir, metadata_dir):
     '''
     The following file names had inconsistent spelling between versions of the data, check if errors.
     'Hegeler_Wilhelm_Mutter-Bertha_1893': 'Hegelers_Wilhelm_Mutter-Bertha_1893',
     'Hoffmansthal_Hugo_Ein-Brief_1902': 'Hoffmansthal_Hugo-von_Ein-Brief_1902'
         '''
     print('task get data', task)
-    X = pd.read_csv(os.path.join(features_dir, 'cacb_features.csv'))
+    X = pd.read_csv(os.path.join(features_dir, f'{features}_features.csv'))
     print(f'Nr chunks for {language}: {X.shape[0]}')
     print(f'Nr texts for {language}: {len(X.file_name.unique())}')
-    y = get_labels(label_type, language, canonscores_dir, sentiscores_dir, metadata_dir)
-    
+    y = get_labels(language, label_type, canonscores_dir, sentiscores_dir, metadata_dir)
     print(y)
     # For english regression, 1 label is duplicated
     print(f'Nr labels for {language} {task}: {y.shape}, {y.y.nunique()}')
@@ -485,7 +455,7 @@ def get_model(task, testing):
             'refit': refit_regression,
             'stratified': False,
             'param_grid': param_grid_regression,
-            'param_data_subset': ['passthrough', ColumnTransformer(columns_to_drop=['_fulltext'])] #Use chunk features, drop fulltext features
+            'features': ['baac', 'book', 'cacb', 'chunk'],
             },
         'binary': {
             'labels': ['binary'],
@@ -493,7 +463,7 @@ def get_model(task, testing):
             'scoring': score_binary,
             'stratified': True,
             'param_grid': param_grid_binary,
-            'param_data_subset': [] # Don't use chunk features
+            'features': ['baac', 'book'],
             },
         'multiclass':{
             'labels': ['multiclass'],
@@ -501,7 +471,7 @@ def get_model(task, testing):
             'scoring': score_multiclass,
             'stratified': True,
             'param_grid': param_grid_multiclass,
-            'param_data_subset': [] # Don't use chunk features
+            'features': ['baac', 'book'],
             }
         }
 

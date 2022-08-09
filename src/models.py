@@ -3,7 +3,6 @@
 %autoreload 2
 from_commandline = False
 
-from tokenize import group
 import warnings
 warnings.simplefilter('once', RuntimeWarning)
 import argparse
@@ -20,7 +19,7 @@ from sklearn.feature_selection import SelectPercentile, f_regression, mutual_inf
 from sklearn.svm import SVR
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
-from models_helpers import get_data, permute_params, ColumnTransformer, CustomGroupKFold, apply_harmonic_pvalue, get_model, average_chunk_features, analyze_cv, get_document_features
+from models_helpers import get_data, permute_params, ColumnTransformer, CustomGroupKFold, apply_harmonic_pvalue, get_model, analyze_cv
 
 start = time.time()
 if from_commandline:
@@ -40,8 +39,8 @@ else:
     # Don't use defaults because VSC interactive mode can't handle command line arguments
     languages = ['eng'] # ['eng', 'ger']
     data_dir = '/home/annina/scripts/great_unread_nlp/data'
-    tasks = ['multiclass'] #['regression', 'binary', 'library', 'multiclass']
-    testing = True #True, False
+    tasks = ['regression', 'binary', 'library', 'multiclass']
+    testing = True
 print(languages, data_dir, tasks, testing )
 
 
@@ -69,13 +68,11 @@ for language in languages:
     for task in tasks:
         print('Task: ', task)
         model = get_model(task, testing)
-        print('stratified', model['stratified'])
-        for features_type in model['features']:
-
-            # Copy param grid for every combination 
-            for label_type in model['labels']: ##########################
+        for label_type in model['labels']:
+            model_results = []
+            for features in model['features']:
                 # Get data, set 'file_name' column as index
-                X, y = get_data(task, language, label_type, features_dir, canonscores_dir, sentiscores_dir, metadata_dir)
+                X, y = get_data(language, task, label_type, features, features_dir, canonscores_dir, sentiscores_dir, metadata_dir)
                 cv = CustomGroupKFold(n_splits=5, stratified=model['stratified']).split(X, y.values.ravel())
                 # analyze_cv(X, cv)
                 
@@ -83,10 +80,6 @@ for language in languages:
                 # Params that are constant between grids
                 # Permute_params() to create separate instance of transformers for every parameter combination
                 constant_param_grid = {
-                    'data_subset': 
-                        [FunctionTransformer(get_document_features)] + # For all models, run without chunk features
-                        [FunctionTransformer(average_chunk_features)] + # For all models, run with averaged chunk features
-                        model['param_data_subset'], # Add model-specific feature levels # For regression, also run chunk features
                     'drop_columns__columns_to_drop': 
                         columns_list,
                     'dimred': # Pass transformers as parameters because of 'passthrough' option
@@ -105,25 +98,12 @@ for language in languages:
 
                 ## Pipeline
                 pipe = Pipeline(steps=[
-                    ('data_subset', ColumnTransformer()),
                     ('drop_columns', ColumnTransformer()),
                     ('scaler', StandardScaler()),
                     ('dimred', SelectPercentile()),
                     ('clf', SVR())
                     ])    
                 
-                ## Grid Search
-                # gs = GridSearchCV(
-                #     estimator=pipe,
-                #     param_grid=param_grid,
-                #     scoring=model['scoring'],
-                #     n_jobs=-1, ############################################################
-                #     refit=model['refit'],
-                #     cv=cv,
-                #     verbose=3,
-                #     return_train_score=False
-                #     #pre_dispatch= 
-                # )
                 
                 n_iter = 500
                 randsearch = RandomizedSearchCV(
@@ -134,7 +114,7 @@ for language in languages:
                     n_jobs=-1, ############################################################
                     refit=model['refit'],
                     cv=cv,
-                    verbose=2,
+                    verbose=1,
                     random_state=4,
                     return_train_score=False
                 )
@@ -143,16 +123,20 @@ for language in languages:
                 print('Best estimator: ', randsearch.best_estimator_)
                 print('Best params: ' , randsearch.best_params_)
                 cv_results = pd.DataFrame(randsearch.cv_results_)
+                cv_results.insert(0, 'features', features)
 
                 if task == 'regression':
                     cv_results['harmonic_pvalue'] = cv_results.apply(apply_harmonic_pvalue, axis=1)
                 else:
                     print(f'Best CV score={randsearch.best_score_}')
+                
+                model_results.append(cv_results)
+                with open(os.path.join(gridsearch_dir, f'randsearch-object_{language}_{task}_{label_type}_{features}_niter-{n_iter}.pkl'), 'wb') as f:
+                    pickle.dump(randsearch, f, -1)
 
-                if not testing:
-                    cv_results.to_csv(os.path.join(gridsearch_dir, f'cv-results_{language}_{task}_{label_type}_niter-{n_iter}.csv'), index=False)
-                    with open(os.path.join(gridsearch_dir, f'randsearch-object_{language}_{task}_{label_type}_niter-{n_iter}.pkl'), 'wb') as f:
-                        pickle.dump(randsearch, f, -1)
-                    print(f'Time for running regression for 1 language: {time.time()-start}') # 10985s for multiclass
+            #if not testing:
+            cv_results = pd.concat(model_results)
+            cv_results.to_csv(os.path.join(gridsearch_dir, f'cv-results_{language}_{task}_{label_type}_niter-{n_iter}.csv'), index=False, na_rep='NaN')
+            print(f'Time for running regression for 1 language: {time.time()-start}') # 10985s for multiclass
 
 # %%
