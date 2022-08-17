@@ -16,9 +16,41 @@ from sklearn.utils.class_weight import compute_sample_weight
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.model_selection import StratifiedGroupKFold
 from sklearn.model_selection import GroupKFold
+from sklearn.feature_selection import SelectPercentile, f_regression, mutual_info_regression
 from sklearn.svm import SVR, SVC
 from sklearn.linear_model import Lasso
 from xgboost import XGBRegressor, XGBClassifier
+
+class ColumnTransformer(BaseEstimator, TransformerMixin):
+    def __init__(self, columns_to_drop=None):
+        self. columns_to_drop = columns_to_drop
+        print('columns to drop', self. columns_to_drop)
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X, y=None):
+
+        def _drop_column(column):
+            for string in self.columns_to_drop:
+                if string in column:
+                    return True
+            return False
+        if self.columns_to_drop == None:
+            return X
+        else:
+            print(self.columns_to_drop)
+            X_new = X[[column for column in X.columns if not _drop_column(column)]]
+
+            columns_before_drop = set(X.columns)
+            columns_after_drop = set(X_new.columns)
+            print(f'Dropped {len(columns_before_drop - columns_after_drop)} columns.') 
+
+            res = [''.join(ele) for ele in self.columns_to_drop]
+            x = '_'.join([elem for elem in res]) 
+            X_new.to_csv(f'dropcols_{x}.csv', index=False, na_rep='NaN')
+            return X_new
+
 
 def analyze_cv(X, cv):
     X_fulltext = ColumnTransformer(columns_to_drop='_chunk').fit_transform(X, None)
@@ -35,20 +67,19 @@ def analyze_cv(X, cv):
             print(f'Shape of {name} after removing duplicate rows: {df.shape}')
 
 
-def refit_regression(cv_results): #################
+def refit_regression(cv_results):
     # refit using a callable
     # find highest correlation coefficiant that has a significant harmonic p-value
     df = pd.DataFrame(cv_results)
-    print('cv result before dropping',df.index)
     
     # Add harmonic p-value
-    significance_threshold = Decimal(0.1)
-    df['harmonic_pvalue'] = df.apply(apply_harmonic_pvalue, axis=1)
+    if not 'harmonic_pvalue' in df.columns:
+        df['harmonic_pvalue'] = df.apply(apply_harmonic_pvalue, axis=1)
 
     # Filter df
+    significance_threshold = 0.1
     df = df[~df['harmonic_pvalue'].isna()]
     df = df[df['harmonic_pvalue']<significance_threshold]
-    print('cv result after dropping',df.index)
 
     # Check if there is any model with significant correlation coefficient
     if df.shape[0] == 0:
@@ -118,36 +149,11 @@ def score_multiclass(estimator, X, y):
     Callable for the 'scoring' parameter in GridSearchCV. 
     '''
     y_pred = estimator.predict(X)
-    y_prob = estimator.predict_proba(X)
     f1_macro = f1_score(y, y_pred, average='macro')
     f1_weighted = f1_score(y, y_pred, average='weighted')
 
     return {'f1_macro': f1_macro,
             'f1_weighted': f1_weighted}
-
-
-class ColumnTransformer(BaseEstimator, TransformerMixin):
-    def __init__(self, columns_to_drop=None):
-        self. columns_to_drop = columns_to_drop
-
-    def fit(self, X, y=None):
-        return self
-
-    def transform(self, X, y=None):
-
-        def _drop_column(column):
-            for string in self.columns_to_drop:
-                if string in column:
-                    return True
-            return False
-
-        if self.columns_to_drop != None:
-            X_new = X[[column for column in X.columns if not _drop_column(column)]]# .reset_index(drop=True)##########
-        # columns_before_drop = set(X.columns)
-        # columns_after_drop = set(X_new.columns)
-        # print(f'Dropped {len(columns_before_drop - columns_after_drop)} columns.') 
-        return X_new
-
 
 def permute_params(model, **kwargs):
     '''
@@ -272,18 +278,32 @@ def get_labels(language, label_type, canonscores_dir=None, sentiscores_dir=None,
     return labels
 
 
+def upsample_data(df):
+    upsampled_data = []
+    groups = df.groupby('file_name')
+    max_nr_chunks = max(groups.size())
+    for name, group in groups:
+        chunks_per_text = group.shape[0]
+        quotient, mod = divmod(max_nr_chunks, chunks_per_text)
+        quotient_groups = [group] * quotient
+        mod_groups = group.sample(n=mod)
+        upsampled_group = pd.concat(quotient_groups + [mod_groups])
+        upsampled_data.append(upsampled_group)
+    upsampled_data = pd.concat(upsampled_data)
+    return upsampled_data
+
+
 def get_data(language, task, label_type, features, features_dir, canonscores_dir, sentiscores_dir, metadata_dir):
     '''
     The following file names had inconsistent spelling between versions of the data, check if errors.
     'Hegeler_Wilhelm_Mutter-Bertha_1893': 'Hegelers_Wilhelm_Mutter-Bertha_1893',
     'Hoffmansthal_Hugo_Ein-Brief_1902': 'Hoffmansthal_Hugo-von_Ein-Brief_1902'
         '''
-    print('task get data', task)
     X = pd.read_csv(os.path.join(features_dir, f'{features}_features.csv'))
+
     print(f'Nr chunks for {language}: {X.shape[0]}')
     print(f'Nr texts for {language}: {len(X.file_name.unique())}')
     y = get_labels(language, label_type, canonscores_dir, sentiscores_dir, metadata_dir)
-    print(y)
     # For english regression, 1 label is duplicated
     print(f'Nr labels for {language} {task}: {y.shape}, {y.y.nunique()}')
     #y_before_merge = set(y['file_name'])
@@ -304,6 +324,12 @@ def get_data(language, task, label_type, features, features_dir, canonscores_dir
     print(f'Nr labels for {language} {task} after combining with features: {df.y.shape}')
     # y_after_merge = set(df['file_name'])
     # print('labels difference', list(y_before_merge - y_after_merge))
+
+    # if (features == 'cacb') or (features == 'chunk'):
+    #     print('##############################################')
+    #     print('Nr unique texts:', df['file_name'].value_counts())
+    #     df = upsample_data(df)
+    #     print('Value counts after upsampling:', pd.unique(df['file_name'].value_counts()))
 
     X = df.drop(labels=['y'], axis=1, inplace=False).set_index('file_name', drop=True)
     # y = df[['file_name', 'y']].set_index('file_name', drop=True)
@@ -366,7 +392,6 @@ class CustomGroupKFold():
 
     def split(self, X, y):
         author_groups = get_author_groups(X)
-        print(author_groups)
         indices = []
         if self.stratified:
             cv = StratifiedGroupKFold(n_splits=self.n_splits)
@@ -379,17 +404,17 @@ class CustomGroupKFold():
 
         return indices
 
-def get_model(task, testing):
+def get_task_params(task, testing):
     # All paramters
     # Separate grids for conditional parameters
     param_grid_regression = [
         {'clf': (SVR(),),
         'clf__C': [0.1, 1],
         'clf__epsilon': [0.001, 0.01]},
-        {'clf': (Lasso(),),
-        'clf__alpha': [1,10, 100, 1000],
-        'clf__tol': [0.0001], # default
-        'clf__max_iter': [1000]}, # default
+        # {'clf': (Lasso(),),
+        # 'clf__alpha': [1,10, 100, 1000],
+        # 'clf__tol': [0.0001], # default
+        # 'clf__max_iter': [1000]}, # default
         {'clf': (XGBRegressor(objective='reg:squarederror', random_state=7),),
         'clf__max_depth': [2,4,6,8, 20],
         'clf__learning_rate': [None, 0.033, 0.1, 1], #0.01 does not produce result
@@ -420,10 +445,10 @@ def get_model(task, testing):
             {'clf': (SVR(),),
             'clf__C': [0.1],
             'clf__epsilon': [0.001]},
-            {'clf': (Lasso(),),
-            'clf__alpha': [1],
-            'clf__tol': [0.0001], # default
-            'clf__max_iter': [1000]}, # default
+            # {'clf': (Lasso(),),
+            # 'clf__alpha': [1],
+            # 'clf__tol': [0.0001], # default
+            # 'clf__max_iter': [1000]}, # default
             {'clf': (XGBRegressor(objective='reg:squarederror', random_state=7),),
             'clf__max_depth': [20],
             'clf__learning_rate': [0.033],
@@ -448,7 +473,18 @@ def get_model(task, testing):
             'clf__colsample_bytree': [0.75]}, 
             ]
 
-    models = {
+    # # Params for feature selection that are constant between grids
+    # # Permute_params() to create separate instance of transformers for every parameter combination
+    # constant_param_grid = {
+    #     'dimred':
+    #         ['passthrough'] + 
+    #         permute_params(SelectPercentile, percentile=list(range(10, 60, 10)), score_func=[f_regression, mutual_info_regression]) +  # try between 10 and 50 % of features
+    #         permute_params(PCA, n_components=[None] + list(np.arange(0.81, 1.05, 0.06).tolist())) # try None and between 81 % to 99 % of the variance
+    #     }
+
+    # [d.update(constant_param_grid) for d in param_grid]
+
+    task_params_list = {
         'regression': {
             'labels': ['textblob', 'sentiart', 'combined'],
             'scoring': score_regression,
@@ -467,7 +503,7 @@ def get_model(task, testing):
             },
         'multiclass':{
             'labels': ['multiclass'],
-            'refit': 'f1',
+            'refit': 'f1_macro',
             'scoring': score_multiclass,
             'stratified': True,
             'param_grid': param_grid_multiclass,
@@ -475,15 +511,15 @@ def get_model(task, testing):
             }
         }
 
-    models['library'] = deepcopy(models['binary'])
-    models['library']['labels'] = ['library']
+    task_params_list['library'] = deepcopy(task_params_list['binary'])
+    task_params_list['library']['labels'] = ['library']
 
     # Overwrite for testing 
     if testing:
-        #models['regression']['features'] = ['book', 'chunk']
-        models['regression']['labels'] = ['sentiart']
-        #models['binary']['features'] = ['book']
-        models['library']['features'] = ['book']
-        models['multiclass']['features'] = ['book']
+        #task_params_list['regression']['features'] = ['book', 'chunk']
+        task_params_list['regression']['labels'] = ['sentiart']
+        task_params_list['binary']['features'] = ['book']
+        task_params_list['library']['features'] = ['book']
+        task_params_list['multiclass']['features'] = ['book']
 
-    return models[task]
+    return task_params_list[task]

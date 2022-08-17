@@ -1,10 +1,9 @@
 # %%
 # %load_ext autoreload
 # %autoreload 2
-from_commandline = False
+from_commandline = True
 
 import argparse
-import chunk
 import os
 import numpy as np
 import pandas as pd
@@ -30,7 +29,7 @@ else:
     data_dir = '../data/'
 
 # Select number of texts to work with
-nr_texts = 5 # None for all texts
+nr_texts = None # None for all texts
 raw_docs_dir = os.path.join(data_dir, 'raw_docs', language)
 features_dir = os.path.join(data_dir, f'features_{nr_texts}', language)
 if not os.path.exists(features_dir):
@@ -149,26 +148,26 @@ if __name__ == '__main__':
         f.write(f'{nr_texts},{round(runtime, 2)}\n')
 
   # %%
-features_dir = os.path.join(data_dir, f'features_{nr_texts}', language)
+# features_dir = os.path.join(data_dir, f'features_{nr_texts}', language)
 
-from_file = True
-if from_file:
-    df = pd.read_csv(os.path.join(features_dir, 'cacb_features.csv'))
-    # Check if df has missing values
-    print('NaN in df: ', df.isna().values.any())
-    print('Cols with NaNs in them: ', df.columns[df.isna().any()].tolist())
-    # Number unique values in columns
-    unique_vals_per_col = df.nunique(axis=0)
-    unique_vals_per_col.sort_values().to_csv('unique_vals_per_col')
-    print('Unique values per col: ', unique_vals_per_col)
-    print('Frequency of unique values per col: ', unique_vals_per_col.value_counts(),)
-    # constant columns
-    print('Constant cols: ', df.loc[:,df.apply(pd.Series.nunique) == 1])
+# from_file = True
+# if from_file:
+#     df = pd.read_csv(os.path.join(features_dir, 'cacb_features.csv'))
+#     # Check if df has missing values
+#     print('NaN in df: ', df.isna().values.any())
+#     print('Cols with NaNs in them: ', df.columns[df.isna().any()].tolist())
+#     # Number unique values in columns
+#     unique_vals_per_col = df.nunique(axis=0)
+#     unique_vals_per_col.sort_values().to_csv('unique_vals_per_col')
+#     print('Unique values per col: ', unique_vals_per_col)
+#     print('Frequency of unique values per col: ', unique_vals_per_col.value_counts(),)
+#     # constant columns
+#     print('Constant cols: ', df.loc[:,df.apply(pd.Series.nunique) == 1])
 
-# %%
-df[['doc2vec_stepwise_distance']].count_values()
-# %%
+# # %%
+# df[['doc2vec_stepwise_distance']].count_values()
+# # %%
 
-# %%
-df[['S->NP_PP_NP_fulltext']]
-# %%
+# # %%
+# df[['S->NP_PP_NP_fulltext']]
+# # %%

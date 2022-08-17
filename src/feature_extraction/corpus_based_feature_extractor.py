@@ -63,7 +63,7 @@ class CorpusBasedFeatureExtractor():
             raw_text=False, 
             unidecoded_raw_text=False, 
             char_unigram_counts=False):
-        for doc_path in tqdm(self.doc_paths):
+        for doc_path in self.doc_paths:
             doc_chunks = DocBasedFeatureExtractor(self.language, doc_path, self.sentences_per_chunk, processed_sentences, unigram_counts, bigram_counts, trigram_counts, raw_text, 
                 unidecoded_raw_text, char_unigram_counts).chunks
             yield doc_chunks
@@ -462,18 +462,18 @@ class CorpusBasedFeatureExtractor():
         book_queue = Queue()
 
         chunk_functions = [self.get_unigram_distance,
-                             self.get_unigram_distance_limited,]
-                            # self.get_bigram_distance,
-                            # self.get_trigram_distance,
-                            # self.get_tag_distribution]
-        # if self.language == 'eng':
-        #     chunk_functions.append(self.get_production_distribution)
+                            self.get_unigram_distance_limited,
+                            self.get_bigram_distance,
+                            self.get_trigram_distance,
+                            self.get_tag_distribution]
+        if self.language == 'eng':
+            chunk_functions.append(self.get_production_distribution)
             
         book_functions = [self.get_overlap_score_doc2vec,
                             self.get_overlap_score_sbert,
                             self.get_outlier_score_doc2vec,
                             self.get_outlier_score_sbert]
-
+        print('chunk functions', chunk_functions)
         
         # Decorate functions to make them useable for multiprocessing
         # Reverse chunk_functions to start get_tag_distribution() and get_production_distribution() first
