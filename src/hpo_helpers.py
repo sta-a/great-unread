@@ -30,6 +30,17 @@ def run_gridsearch(gridsearch_dir, language, task, label_type, features, fold, c
     print(f'Inner CV: X {X_train.shape}, y {y_train.shape}')
     # Get data, set 'file_name' column as index
     cv = CustomGroupKFold(n_splits=5, stratified=task_params['stratified']).split(X_train, y_train.values.ravel())
+
+
+    # for outer_fold, (train_idx, test_idx) in enumerate(cv):
+        # X_train_outer, X_test_outer = X_train.iloc[train_idx], X_train.iloc[test_idx]
+        # y_train_outer, y_test_outer = y_train.iloc[train_idx], y_train.iloc[test_idx]
+        # print(f'\n Inner CV: X_train_outer{X_train_outer.shape}, X_test_outer{X_test_outer.shape},  y_train_outer{y_train_outer.shape}, y_test_outer{y_test_outer.shape}')
+        # dfs = {'X_train_outer': X_train_outer, 'X_test_outer': X_test_outer, 'y_train_outer': y_train_outer, 'y_test_outer': y_test_outer}
+        # for name, df in dfs.items():
+        #     df1 = df.reset_index()[['file_name']]
+        #     print(df1['file_name'].nunique())
+
     
     ## Parameter Grid
     # Params that are constant between grids
@@ -65,11 +76,14 @@ def run_gridsearch(gridsearch_dir, language, task, label_type, features, fold, c
     if task == 'regression':
         cv_results['harmonic_pvalue'] = cv_results.apply(apply_harmonic_pvalue, axis=1)
 
-    cv_results.to_csv(os.path.join(gridsearch_dir, f'inner-cv-result_{language}_{task}_{label_type}_{features}_fold-{fold}.csv'), index=False, na_rep='NaN')
+    cv_results.to_csv(
+        os.path.join(gridsearch_dir, f'inner-cv_{language}_{task}_{label_type}_{features}_fold-{fold}.csv'), 
+        index=False, 
+        na_rep='NaN')
     with open(os.path.join(gridsearch_dir, f'gridsearch-object_{language}_{task}_{label_type}_{features}_fold-{fold}.pkl'), 'wb') as f:
         pickle.dump(gridsearch, f, -1)
 
-    return gridsearch.best_estimator_
+    return gridsearch
 
 
 class ColumnTransformer(BaseEstimator, TransformerMixin):
@@ -90,6 +104,7 @@ class ColumnTransformer(BaseEstimator, TransformerMixin):
             return X
         else:
             X_new = X[[column for column in X.columns if not _drop_column(column)]]
+            dropped_cols = [column for column in X.columns if _drop_column(column)]
 
             # columns_before_drop = set(X.columns)
             # columns_after_drop = set(X_new.columns)
@@ -116,7 +131,9 @@ def refit_regression(cv_results):
     # refit using a callable
     # find highest correlation coefficiant that has a significant harmonic p-value
     df = pd.DataFrame(cv_results)
-    
+    df_unfiltered = df.copy(deep=True)
+
+    refit_file_path = '/home/annina/scripts/great_unread_nlp/data/nested_gridsearch/eng/best-models-in-refit.csv' #############################################3
     # Add harmonic p-value
     if not 'harmonic_pvalue' in df.columns:
         df['harmonic_pvalue'] = df.apply(apply_harmonic_pvalue, axis=1)
@@ -129,18 +146,32 @@ def refit_regression(cv_results):
     # Check if there is any model with significant correlation coefficient
     if df.shape[0] == 0:
         print(f'No model has a significant hamonic p-value. Model with the highest correlation coefficient is returned.')
-        unfiltered_df = pd.DataFrame(cv_results)
-        best_index = unfiltered_df['mean_test_corr'].idxmax()
+        best_idx = df_unfiltered['mean_test_corr'].idxmax()
     else:
         # Check how many models have the highest correlation coefficent
-        nr_max_corr = (df['mean_test_corr'].values == df['mean_test_corr'].max()).sum()
-        print('Number of models that have the highest correlation coefficient and significant p-value: ', nr_max_corr)
+        max_metric = df['mean_test_corr'].max()
+        # Find index of maximum correlation
+        best_models = df.loc[df['mean_test_corr'] == max_metric]
+        print('best models', best_models)
+        if best_models.shape[0] > 1:
+            print('Number of models that have the highest correlation coefficient and significant p-value: ', best_models.shape[0])
+            with open(refit_file_path, 'a') as f:
+                f.write(f'\nBest models\n')
+            best_models.to_csv(refit_file_path, mode='a', header=True, index=True)
 
         # Find index of maximum correlation
-        best_index = df['mean_test_corr'].idxmax()
-    print(f'Best index:{best_index}')
+        best_idxs = df_unfiltered.index[df_unfiltered['mean_test_corr'] == max_metric].tolist()
+        best_idx = int(best_idxs[0])
+        print('best idxs', best_idxs, 'best index', best_idx)
 
-    return best_index
+    best_idx_df = df_unfiltered.iloc[best_idx].to_frame().T
+    print('best index df', type(best_idx_df), best_idx_df)
+    with open(refit_file_path, 'a') as f:
+        f.write(f'\nBest model with best index\n')
+    best_idx_df.to_csv(refit_file_path, mode='a', header=True, index=False)
+    print(f'Best index:{best_idx}')
+
+    return best_idx
     
 
 def apply_harmonic_pvalue(row):
@@ -456,23 +487,25 @@ def get_task_params(task, testing):
     param_grid_regression = [
         {'clf': (SVR(),),
         'clf__C': [0.1, 1],
-        'clf__epsilon': [0.001, 0.01]},
+        'clf__epsilon': [0.001, 0.01],
+        'scaler': [StandardScaler()]},
         # {'clf': (Lasso(),),
         # 'clf__alpha': [1,10, 100, 1000],
         # 'clf__tol': [0.0001], # default
         # 'clf__max_iter': [1000]}, # default
         {'clf': (XGBRegressor(objective='reg:squarederror', random_state=7, n_jobs=1),),
-        'clf__max_depth': [2,4,6,8, 20],
-        'clf__learning_rate': [None, 0.033, 0.1, 1], #0.01 does not produce result
-        'clf__colsample_bytree': [0.33, 0.60, 0.75]}, 
+        'clf__max_depth': [2, 4, 6, 8],
+        'clf__learning_rate': [0.033, 0.1, 0.3], #0.01 does not produce result, default=0.3
+        'clf__colsample_bytree': [0.33, 0.60, 0.75],
+        'scaler': ['passthrough']}, 
         ]
 
     param_grid_binary = [
         {'clf': (SVC(class_weight='balanced'),),
         'clf__C': [0.1, 1, 10, 100, 1000]},
         {'clf': (CustomXGBClassifier(objective='binary:logistic', random_state=7, use_label_encoder=False, eval_metric='logloss', n_jobs=1),),
-        'clf__max_depth': [2,4,6,8, 20],
-        'clf__learning_rate': [None, 0.01, 0.033, 0.1],
+        'clf__max_depth': [2, 4, 6, 8],
+        'clf__learning_rate': [0.01, 0.033, 0.1, 0.3],
         'clf__colsample_bytree': [0.33, 0.60, 0.75]}, 
         ]
 
@@ -480,8 +513,8 @@ def get_task_params(task, testing):
         {'clf': (SVC(class_weight='balanced'),),
         'clf__C': [0.1, 1, 10, 100, 1000]},
         {'clf': (CustomXGBClassifier(objective='multi:softmax', random_state=7, use_label_encoder=False, eval_metric='mlogloss', n_jobs=1),),
-        'clf__max_depth': [2,4,6,8, 20],
-        'clf__learning_rate': [None, 0.01, 0.033, 0.1],
+        'clf__max_depth': [2, 4, 6, 8],
+        'clf__learning_rate': [0.01, 0.033, 0.1, 0.3],
         'clf__colsample_bytree': [0.33, 0.60, 0.75]}, 
         ]
 
@@ -490,15 +523,17 @@ def get_task_params(task, testing):
         param_grid_regression = [
             {'clf': (SVR(),),
             'clf__C': [0.1],
-            'clf__epsilon': [0.001]},
+            'clf__epsilon': [0.001, 0.01],
+            'scaler': [StandardScaler()]},
             # {'clf': (Lasso(),),
             # 'clf__alpha': [1],
             # 'clf__tol': [0.0001], # default
             # 'clf__max_iter': [1000]}, # default
             {'clf': (XGBRegressor(objective='reg:squarederror', random_state=7, n_jobs=1),),
-            'clf__max_depth': [20],
+            'clf__max_depth': [20], #20
             'clf__learning_rate': [0.033],
-            'clf__colsample_bytree': [0.33]}, 
+            'clf__colsample_bytree': [0.33, 0.60, 0.75],
+            'scaler': ['passthrough']}, 
             ]
 
         param_grid_binary = [

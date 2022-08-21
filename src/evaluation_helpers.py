@@ -38,7 +38,7 @@ def get_best_model_across_features(task, best_inner_models, eval_metric_col, n_o
 
     # Check if best model has significant harmonic p-value
     if task == 'regression':
-        nonsignificant = best_model_across_features.loc[best_model_across_features['harmonic_pvalue'] < significance_threshold]
+        nonsignificant = best_model_across_features.loc[best_model_across_features['harmonic_pvalue'] >= significance_threshold]
         if nonsignificant.shape[0] != 0:
             print(f'{nonsignificant.shape[0]} best inner models have a non-significant harmonic p-value. \
                 This means that no model had a significant harmonic pvalue and model with smalles pvalue was returned instead.')
@@ -88,14 +88,15 @@ def get_best_models(cv_results, task, significance_threshold, eval_metric_col):
     # Return models with highest evaluation metric
 
     if task == 'regression':
-        model_smallest_pval = cv_results['harmonic_pvalue'].idxmin() # Return if no model has significant harmonic pvalue
+
+        model_smallest_pval = cv_results[cv_results['harmonic_pvalue'] == cv_results['harmonic_pvalue'].min()] # Return if no model has significant harmonic pvalue
         # Adapted from to refit_regression()
         cv_results = cv_results[~cv_results['harmonic_pvalue'].isna()]
         cv_results = cv_results[cv_results['harmonic_pvalue']<significance_threshold]
 
         # Check if there is any model with significant correlation coefficient
         if cv_results.shape[0] == 0:
-            print(f'No model has a significant hamonic p-value. Model with the highest correlation coefficient is returned.')
+            print(f'No model has a significant hamonic p-value. Model with the smalles p-value is returned.')
             return model_smallest_pval
 
     # Check how many models have the highest correlation coefficent
