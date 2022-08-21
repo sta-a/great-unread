@@ -1,4 +1,5 @@
 import pandas as pd
+import pickle
 import statistics
 import os
 import numpy as np
@@ -10,21 +11,70 @@ from itertools import product
 from math import sqrt
 from scipy.stats import pearsonr
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score, accuracy_score, f1_score, balanced_accuracy_score
-from xgboost import XGBClassifier
-from sklearn.decomposition import PCA
 from sklearn.utils.class_weight import compute_sample_weight
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.model_selection import StratifiedGroupKFold
 from sklearn.model_selection import GroupKFold
 from sklearn.feature_selection import SelectPercentile, f_regression, mutual_info_regression
+from sklearn.decomposition import PCA
 from sklearn.svm import SVR, SVC
 from sklearn.linear_model import Lasso
 from xgboost import XGBRegressor, XGBClassifier
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import FunctionTransformer
+from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
+from sklearn.preprocessing import StandardScaler
+
+
+def run_gridsearch(gridsearch_dir, language, task, label_type, features, fold, columns_list, task_params, X_train, y_train):
+    print(f'Inner CV: X {X_train.shape}, y {y_train.shape}')
+    # Get data, set 'file_name' column as index
+    cv = CustomGroupKFold(n_splits=5, stratified=task_params['stratified']).split(X_train, y_train.values.ravel())
+    
+    ## Parameter Grid
+    # Params that are constant between grids
+    constant_param_grid = {'drop_columns__columns_to_drop': columns_list}
+    param_grid = deepcopy(task_params['param_grid'])  
+    [d.update(constant_param_grid) for d in param_grid]
+
+    ## Pipeline
+    pipe = Pipeline(steps=[
+        ('drop_columns', ColumnTransformer()),
+        ('scaler', StandardScaler()),
+        #('dimred', SelectPercentile()),
+        ('clf', SVR())
+        ])
+
+    gridsearch = GridSearchCV(
+        estimator=pipe,
+        param_grid=param_grid,
+        scoring=task_params['scoring'],
+        n_jobs=-1,
+        refit=task_params['refit'],
+        cv=cv,
+        verbose=1,
+        error_score='raise', #np.nan
+        return_train_score=False
+    )
+    gridsearch.fit(X_train, y_train.values.ravel())
+
+    cv_results = pd.DataFrame(gridsearch.cv_results_)
+    cv_results.insert(0, 'features', features)
+    cv_results.insert(0, 'fold', fold)
+
+    if task == 'regression':
+        cv_results['harmonic_pvalue'] = cv_results.apply(apply_harmonic_pvalue, axis=1)
+
+    cv_results.to_csv(os.path.join(gridsearch_dir, f'inner-cv-result_{language}_{task}_{label_type}_{features}_fold-{fold}.csv'), index=False, na_rep='NaN')
+    with open(os.path.join(gridsearch_dir, f'gridsearch-object_{language}_{task}_{label_type}_{features}_fold-{fold}.pkl'), 'wb') as f:
+        pickle.dump(gridsearch, f, -1)
+
+    return gridsearch.best_estimator_
+
 
 class ColumnTransformer(BaseEstimator, TransformerMixin):
     def __init__(self, columns_to_drop=None):
         self. columns_to_drop = columns_to_drop
-        print('columns to drop', self. columns_to_drop)
 
     def fit(self, X, y=None):
         return self
@@ -39,16 +89,11 @@ class ColumnTransformer(BaseEstimator, TransformerMixin):
         if self.columns_to_drop == None:
             return X
         else:
-            print(self.columns_to_drop)
             X_new = X[[column for column in X.columns if not _drop_column(column)]]
 
-            columns_before_drop = set(X.columns)
-            columns_after_drop = set(X_new.columns)
-            print(f'Dropped {len(columns_before_drop - columns_after_drop)} columns.') 
-
-            res = [''.join(ele) for ele in self.columns_to_drop]
-            x = '_'.join([elem for elem in res]) 
-            X_new.to_csv(f'dropcols_{x}.csv', index=False, na_rep='NaN')
+            # columns_before_drop = set(X.columns)
+            # columns_after_drop = set(X_new.columns)
+            # print(f'Dropped {len(columns_before_drop - columns_after_drop)} columns.') 
             return X_new
 
 
@@ -305,7 +350,7 @@ def get_data(language, task, label_type, features, features_dir, canonscores_dir
     print(f'Nr texts for {language}: {len(X.file_name.unique())}')
     y = get_labels(language, label_type, canonscores_dir, sentiscores_dir, metadata_dir)
     # For english regression, 1 label is duplicated
-    print(f'Nr labels for {language} {task}: {y.shape}, {y.y.nunique()}')
+    print(f'Nr labels for {language} {task}: {y.shape}, {y.nunique()}')
     #y_before_merge = set(y['file_name'])
 
     if task == 'regression':
@@ -322,6 +367,7 @@ def get_data(language, task, label_type, features, features_dir, canonscores_dir
 
     print(f'Nr texts for {language} after combining with labels: {df.file_name.nunique()}')
     print(f'Nr labels for {language} {task} after combining with features: {df.y.shape}')
+    
     # y_after_merge = set(df['file_name'])
     # print('labels difference', list(y_before_merge - y_after_merge))
 
@@ -415,7 +461,7 @@ def get_task_params(task, testing):
         # 'clf__alpha': [1,10, 100, 1000],
         # 'clf__tol': [0.0001], # default
         # 'clf__max_iter': [1000]}, # default
-        {'clf': (XGBRegressor(objective='reg:squarederror', random_state=7),),
+        {'clf': (XGBRegressor(objective='reg:squarederror', random_state=7, n_jobs=1),),
         'clf__max_depth': [2,4,6,8, 20],
         'clf__learning_rate': [None, 0.033, 0.1, 1], #0.01 does not produce result
         'clf__colsample_bytree': [0.33, 0.60, 0.75]}, 
@@ -424,7 +470,7 @@ def get_task_params(task, testing):
     param_grid_binary = [
         {'clf': (SVC(class_weight='balanced'),),
         'clf__C': [0.1, 1, 10, 100, 1000]},
-        {'clf': (CustomXGBClassifier(objective='binary:logistic', random_state=7, use_label_encoder=False),),
+        {'clf': (CustomXGBClassifier(objective='binary:logistic', random_state=7, use_label_encoder=False, eval_metric='logloss', n_jobs=1),),
         'clf__max_depth': [2,4,6,8, 20],
         'clf__learning_rate': [None, 0.01, 0.033, 0.1],
         'clf__colsample_bytree': [0.33, 0.60, 0.75]}, 
@@ -433,7 +479,7 @@ def get_task_params(task, testing):
     param_grid_multiclass= [
         {'clf': (SVC(class_weight='balanced'),),
         'clf__C': [0.1, 1, 10, 100, 1000]},
-        {'clf': (CustomXGBClassifier(objective='multi:softmax', random_state=7, use_label_encoder=False),),
+        {'clf': (CustomXGBClassifier(objective='multi:softmax', random_state=7, use_label_encoder=False, eval_metric='mlogloss', n_jobs=1),),
         'clf__max_depth': [2,4,6,8, 20],
         'clf__learning_rate': [None, 0.01, 0.033, 0.1],
         'clf__colsample_bytree': [0.33, 0.60, 0.75]}, 
@@ -449,7 +495,7 @@ def get_task_params(task, testing):
             # 'clf__alpha': [1],
             # 'clf__tol': [0.0001], # default
             # 'clf__max_iter': [1000]}, # default
-            {'clf': (XGBRegressor(objective='reg:squarederror', random_state=7),),
+            {'clf': (XGBRegressor(objective='reg:squarederror', random_state=7, n_jobs=1),),
             'clf__max_depth': [20],
             'clf__learning_rate': [0.033],
             'clf__colsample_bytree': [0.33]}, 
@@ -458,7 +504,7 @@ def get_task_params(task, testing):
         param_grid_binary = [
             {'clf': (SVC(class_weight='balanced'),),
             'clf__C': [1]},
-            {'clf': (CustomXGBClassifier(objective='binary:logistic', random_state=666, use_label_encoder=False),),
+            {'clf': (CustomXGBClassifier(objective='binary:logistic', random_state=666, use_label_encoder=False, eval_metric='logloss', n_jobs=1),),
             'clf__max_depth': [20],
             'clf__learning_rate': [0.1],
             'clf__colsample_bytree': [0.75]}, 
@@ -467,7 +513,7 @@ def get_task_params(task, testing):
         param_grid_multiclass= [
             {'clf': (SVC(class_weight='balanced'),),
             'clf__C': [1]},
-            {'clf': (CustomXGBClassifier(objective='multi:softmax', random_state=777, use_label_encoder=False),),
+            {'clf': (CustomXGBClassifier(objective='multi:softmax', random_state=777, use_label_encoder=False, eval_metric='mlogloss', n_jobs=1),),
             'clf__max_depth': [20],
             'clf__learning_rate': [0.1],
             'clf__colsample_bytree': [0.75]}, 
@@ -486,7 +532,7 @@ def get_task_params(task, testing):
 
     task_params_list = {
         'regression': {
-            'labels': ['textblob', 'sentiart', 'combined'],
+            'labels': ['sentiart', 'textblob', 'combined'],
             'scoring': score_regression,
             'refit': refit_regression,
             'stratified': False,
@@ -516,7 +562,7 @@ def get_task_params(task, testing):
 
     # Overwrite for testing 
     if testing:
-        #task_params_list['regression']['features'] = ['book', 'chunk']
+        task_params_list['regression']['features'] = ['baac']
         task_params_list['regression']['labels'] = ['sentiart']
         task_params_list['binary']['features'] = ['book']
         task_params_list['library']['features'] = ['book']
