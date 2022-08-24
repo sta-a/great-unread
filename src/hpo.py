@@ -35,6 +35,7 @@ else:
     tasks = ['regression', 'binary', 'library', 'multiclass'] # 
     testing = False
 print(languages, data_dir, tasks, testing )
+n_outer_folds = 5
 
 
 for language in languages:
@@ -45,8 +46,6 @@ for language in languages:
     canonscores_dir = os.path.join(data_dir, 'canonscores', language)
     features_dir = features_dir = os.path.join(data_dir, 'features_None', language)
     gridsearch_dir = os.path.join(data_dir, 'nested_gridsearch', language)
-    if testing == True:
-            gridsearch_dir = os.path.join(data_dir, 'nested_gridsearch', language)
     if not os.path.exists(gridsearch_dir):
         os.makedirs(gridsearch_dir, exist_ok=True)
 
@@ -87,20 +86,13 @@ for language in languages:
                 cv_outer = CustomGroupKFold(n_splits=5, stratified=task_params['stratified']).split(X, y.values.ravel())
                 X_ = X.copy(deep=True)
                 y_ = y.copy(deep=True)
-                with open(os.path.join(gridsearch_dir, f'best-models-in-refit.csv'), 'a')as f:
-                    f.write(f'\n{language},{task},{label_type},{features}\n')
 
                 for outer_fold, (train_idx, test_idx) in enumerate(cv_outer):
-                    with open(os.path.join(gridsearch_dir, f'best-models-in-refit.csv'), 'a')as f:
-                        f.write(f'fold_{outer_fold}')
                     X_train_outer, X_test_outer = X_.iloc[train_idx], X_.iloc[test_idx]
                     y_train_outer, y_test_outer = y_.iloc[train_idx], y_.iloc[test_idx]
                     print(f'\nX_train_outer{X_train_outer.shape}, X_test_outer{X_test_outer.shape},  y_train_outer{y_train_outer.shape}, y_test_outer{y_test_outer.shape}')
 
                     dfs = {'X_train_outer': X_train_outer, 'X_test_outer': X_test_outer, 'y_train_outer': y_train_outer, 'y_test_outer': y_test_outer}
-                    for name, df in dfs.items():
-                        df1 = df.reset_index()[['file_name']]
-                        # print(df1['file_name'].nunique())
                     
                     gridsearch_object = run_gridsearch(
                         gridsearch_dir=gridsearch_dir, 

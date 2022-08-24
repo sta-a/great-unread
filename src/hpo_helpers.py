@@ -133,7 +133,6 @@ def refit_regression(cv_results):
     df = pd.DataFrame(cv_results)
     df_unfiltered = df.copy(deep=True)
 
-    refit_file_path = '/home/annina/scripts/great_unread_nlp/data/nested_gridsearch/eng/best-models-in-refit.csv' #############################################3
     # Add harmonic p-value
     if not 'harmonic_pvalue' in df.columns:
         df['harmonic_pvalue'] = df.apply(apply_harmonic_pvalue, axis=1)
@@ -152,12 +151,8 @@ def refit_regression(cv_results):
         max_metric = df['mean_test_corr'].max()
         # Find index of maximum correlation
         best_models = df.loc[df['mean_test_corr'] == max_metric]
-        print('best models', best_models)
         if best_models.shape[0] > 1:
             print('Number of models that have the highest correlation coefficient and significant p-value: ', best_models.shape[0])
-            with open(refit_file_path, 'a') as f:
-                f.write(f'\nBest models\n')
-            best_models.to_csv(refit_file_path, mode='a', header=True, index=True)
 
         # Find index of maximum correlation
         best_idxs = df_unfiltered.index[df_unfiltered['mean_test_corr'] == max_metric].tolist()
@@ -166,9 +161,6 @@ def refit_regression(cv_results):
 
     best_idx_df = df_unfiltered.iloc[best_idx].to_frame().T
     print('best index df', type(best_idx_df), best_idx_df)
-    with open(refit_file_path, 'a') as f:
-        f.write(f'\nBest model with best index\n')
-    best_idx_df.to_csv(refit_file_path, mode='a', header=True, index=False)
     print(f'Best index:{best_idx}')
 
     return best_idx
@@ -494,28 +486,32 @@ def get_task_params(task, testing):
         # 'clf__tol': [0.0001], # default
         # 'clf__max_iter': [1000]}, # default
         {'clf': (XGBRegressor(objective='reg:squarederror', random_state=7, n_jobs=1),),
-        'clf__max_depth': [2, 4, 6, 8],
-        'clf__learning_rate': [0.033, 0.1, 0.3], #0.01 does not produce result, default=0.3
+        'clf__max_depth': [2, 4, 6, 8, 20],
+        'clf__learning_rate': [0.033, 0.1, 0.3], #0.01 does not produce result, 0.015 does sometimes not produce result default=0.3
         'clf__colsample_bytree': [0.33, 0.60, 0.75],
         'scaler': ['passthrough']}, 
         ]
 
     param_grid_binary = [
         {'clf': (SVC(class_weight='balanced'),),
-        'clf__C': [0.1, 1, 10, 100, 1000]},
+        'clf__C': [0.1, 1, 10, 100, 1000],
+        'scaler': [StandardScaler()]},
         {'clf': (CustomXGBClassifier(objective='binary:logistic', random_state=7, use_label_encoder=False, eval_metric='logloss', n_jobs=1),),
-        'clf__max_depth': [2, 4, 6, 8],
-        'clf__learning_rate': [0.01, 0.033, 0.1, 0.3],
-        'clf__colsample_bytree': [0.33, 0.60, 0.75]}, 
+        'clf__max_depth': [2, 4, 6, 8, 20],
+        'clf__learning_rate': [0.033, 0.1, 0.3],
+        'clf__colsample_bytree': [0.33, 0.60, 0.75],
+        'scaler': ['passthrough']},  
         ]
 
     param_grid_multiclass= [
         {'clf': (SVC(class_weight='balanced'),),
-        'clf__C': [0.1, 1, 10, 100, 1000]},
+        'clf__C': [0.1, 1, 10, 100, 1000],
+        'scaler': [StandardScaler()]},
         {'clf': (CustomXGBClassifier(objective='multi:softmax', random_state=7, use_label_encoder=False, eval_metric='mlogloss', n_jobs=1),),
-        'clf__max_depth': [2, 4, 6, 8],
-        'clf__learning_rate': [0.01, 0.033, 0.1, 0.3],
-        'clf__colsample_bytree': [0.33, 0.60, 0.75]}, 
+        'clf__max_depth': [2, 4, 6, 8, 20],
+        'clf__learning_rate': [0.033, 0.1, 0.3],
+        'clf__colsample_bytree': [0.33, 0.60, 0.75],
+        'scaler': ['passthrough']},  
         ]
 
     if testing:
@@ -523,35 +519,39 @@ def get_task_params(task, testing):
         param_grid_regression = [
             {'clf': (SVR(),),
             'clf__C': [0.1],
-            'clf__epsilon': [0.001, 0.01],
+            'clf__epsilon': [0.01],
             'scaler': [StandardScaler()]},
             # {'clf': (Lasso(),),
             # 'clf__alpha': [1],
             # 'clf__tol': [0.0001], # default
             # 'clf__max_iter': [1000]}, # default
             {'clf': (XGBRegressor(objective='reg:squarederror', random_state=7, n_jobs=1),),
-            'clf__max_depth': [20], #20
+            'clf__max_depth': [20],
             'clf__learning_rate': [0.033],
-            'clf__colsample_bytree': [0.33, 0.60, 0.75],
+            'clf__colsample_bytree': [0.33],
             'scaler': ['passthrough']}, 
             ]
 
         param_grid_binary = [
             {'clf': (SVC(class_weight='balanced'),),
-            'clf__C': [1]},
+            'clf__C': [1],
+            'scaler': [StandardScaler()]},
             {'clf': (CustomXGBClassifier(objective='binary:logistic', random_state=666, use_label_encoder=False, eval_metric='logloss', n_jobs=1),),
             'clf__max_depth': [20],
             'clf__learning_rate': [0.1],
-            'clf__colsample_bytree': [0.75]}, 
+            'clf__colsample_bytree': [0.75],
+            'scaler': ['passthrough']},  
             ]
 
         param_grid_multiclass= [
             {'clf': (SVC(class_weight='balanced'),),
-            'clf__C': [1]},
+            'clf__C': [1],
+            'scaler': [StandardScaler()]},
             {'clf': (CustomXGBClassifier(objective='multi:softmax', random_state=777, use_label_encoder=False, eval_metric='mlogloss', n_jobs=1),),
             'clf__max_depth': [20],
             'clf__learning_rate': [0.1],
-            'clf__colsample_bytree': [0.75]}, 
+            'clf__colsample_bytree': [0.75],
+            'scaler': ['passthrough']},  
             ]
 
     # # Params for feature selection that are constant between grids
