@@ -15,8 +15,8 @@ from hpo_helpers import get_data
 
 
 def get_best_model_across_features(task, best_inner_models, eval_metric_col, n_outer_folds, significance_threshold):
-    mean_score_innercv = {}
     # Find feature level which has the highest mean inner cv score across folds of outer cv
+    mean_score_innercv = {}
     for features, group in best_inner_models.groupby('features'):
         # Only keep one model per inner fold since all rows belonging to the same fold have the same mean inner cv score (they are all best models)
         group = group.drop_duplicates('fold')
@@ -108,3 +108,17 @@ def get_best_models(cv_results, task, significance_threshold, eval_metric_col):
         print('Number of models that have the highest correlation coefficient and significant p-value: ', best_models.shape[0])
 
     return best_models
+
+def load_outer_scores(gridsearch_dir, language, task, label_type, features, outer_fold):
+    print('load outer scorespath', os.path.join(gridsearch_dir, f'y-pred_{language}_{task}_{label_type}_{features}_fold-{outer_fold}.csv'))
+    y_pred = pd.read_csv(
+        os.path.join(gridsearch_dir, f'y-pred_{language}_{task}_{label_type}_{features}_fold-{outer_fold}.csv'), 
+        header=0)
+    y_pred = y_pred.rename(columns={'fold': 'fold_pred'})
+
+    y_true = pd.read_csv(
+        os.path.join(gridsearch_dir, f'y-true_{language}_{task}_{label_type}_{features}_fold-{outer_fold}.csv'), 
+        header=0)
+    y_true = y_true.rename(columns={'fold': 'fold_true'})
+    df = pd.concat([y_pred, y_true], axis=1)
+    return df

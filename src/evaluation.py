@@ -10,17 +10,17 @@ from hpo_helpers import get_task_params, refit_regression
 from evaluation_helpers import *
 languages = ['eng'] #'eng', 'ger'
 tasks = ['regression']# ['regression', '', 'library', 'multiclass']
-testing = False ##############################3
+testing = False
 data_dir = '/home/annina/scripts/great_unread_nlp/data'
 significance_threshold = 0.1
 n_outer_folds = 5
 
-
+# %%
 # Outer cv evaluation from single files
 for language in languages:
 
     features_dir = features_dir = os.path.join(data_dir, 'features_None', language)
-    gridsearch_dir = os.path.join(data_dir, 'nested_gridsearch', language) ######################3
+    gridsearch_dir = os.path.join(data_dir, 'nested_gridsearch', language)
     sentiscores_dir = os.path.join(data_dir, 'sentiscores', language)
     metadata_dir = os.path.join(data_dir, 'metadata', language)
     canonscores_dir = os.path.join(data_dir, 'canonscores', language)
@@ -40,16 +40,7 @@ for language in languages:
                 print(language, task, label_type, features)
                 outer_scores = []
                 for outer_fold in range(0, n_outer_folds):
-                    y_pred = pd.read_csv(
-                        os.path.join(gridsearch_dir, f'y-pred_{language}_{task}_{label_type}_{features}_fold-{outer_fold}.csv'), 
-                        header=0)
-                    y_pred = y_pred.rename(columns={'fold': 'fold_pred'})
-
-                    y_true = pd.read_csv(
-                        os.path.join(gridsearch_dir, f'y-true_{language}_{task}_{label_type}_{features}_fold-{outer_fold}.csv'), 
-                        header=0)
-                    y_true = y_true.rename(columns={'fold': 'fold_true'})
-                    df = pd.concat([y_pred, y_true], axis=1)
+                    outer_scores = load_outer_scores(language, task, label_type, features, outer_fold)
                     outer_scores.append(df)
                 df = pd.concat(outer_scores)
                 df = df[['file_name', 'fold_true', 'fold_pred', 'y_true', 'y_pred']]
@@ -186,4 +177,79 @@ for language in languages:
 
 
         X_unlabeled = get_unlabeled_data(language, task, label_type, features, features_dir, canonscores_dir, sentiscores_dir, metadata_dir)
+
+
+# %%
+# Chose best feature level for each fold
+for language in languages:
+
+    features_dir = os.path.join(data_dir, 'features_None', language)
+    gridsearch_dir = os.path.join(data_dir, 'nested_gridsearch', language)
+    sentiscores_dir = os.path.join(data_dir, 'sentiscores', language)
+    metadata_dir = os.path.join(data_dir, 'metadata', language)
+    canonscores_dir = os.path.join(data_dir, 'canonscores', language)
+    results_dir = os.path.join(data_dir, 'results', language)
+    if not os.path.exists(results_dir):
+        os.makedirs(results_dir, exist_ok=True)
+
+
+    for task in ['regression']: #tasks: #######################33
+        print('Task: ', task)
+        task_params = get_task_params(task, testing)
+        if task == 'regression':
+            eval_metric_col = 'mean_test_corr'
+        else:
+            eval_metric_col = 'mean_test_' + task_params['refit']
+
+        for label_type in task_params['labels']:
+            ## Find best model(s) for each feature level for each fold of the outer cv
+            all_inner_cvs = []
+            for features in task_params['features']:
+                print('\n##############################\n', language, task, label_type, features)
+                for outer_fold in range(0, n_outer_folds):
+                    fold_results = pd.read_csv(
+                        os.path.join(gridsearch_dir, f'inner-cv_{language}_{task}_{label_type}_{features}_fold-{outer_fold}.csv'), 
+                        header=0)
+                    all_inner_cvs.append(fold_results)
+            all_inner_cvs = pd.concat(all_inner_cvs)
+            all_inner_cvs.to_csv(
+                os.path.join(results_dir, f'all-inner-cvs_{language}_{task}_{label_type}.csv'), 
+                header=True, 
+                index=False)
+
+            best_models = []
+            for name, group in all_inner_cvs.groupby('fold'):
+                best_model = get_best_models(group, task, significance_threshold, eval_metric_col)
+                if best_model.shape[0] != 1:
+                    if best_model['features'].nunique() != 1:
+                        print('There are best models of different feature levels.')
+                    else:
+                        best_model = best_model.iloc[[0]]
+                best_models.append(best_model)
+            best_models = pd.concat(best_models)
+            best_models.to_csv(
+                os.path.join(results_dir, f'best-models-all-features_{language}_{task}_{label_type}.csv'), 
+                header=True, 
+                index=False)
+            all_fold_scores = []
+            for outer_fold in range(0, n_outer_folds):
+                # Check if all y_true are the same
+                best_features = best_models.loc[best_models['fold']==outer_fold, 'features'].item()
+                print(type(best_features), best_features)
+
+                best_fold_scores = load_outer_scores(gridsearch_dir, language, task, label_type, best_features, outer_fold)
+                print(best_fold_scores)
+                all_fold_scores.append(best_fold_scores)
+            all_fold_scores = pd.concat(all_fold_scores)
+
+            all_fold_scores = all_fold_scores[['file_name', 'fold_true', 'fold_pred', 'y_true', 'y_pred']]
+            print('Pearsons R', pearsonr(all_fold_scores['y_true'], all_fold_scores['y_pred']))
+
+
+            all_fold_scores.to_csv(
+                os.path.join(results_dir, f'outer-cv-predicted-all-features_{language}_{task}_{label_type}.csv'), 
+                header=True, 
+                index=False)
+
+
 # %%

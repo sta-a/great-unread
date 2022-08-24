@@ -10,7 +10,7 @@ import time
 import os
 import pandas as pd
 import numpy as np
-from hpo_helpers import get_data, CustomGroupKFold, get_task_params, run_gridsearch
+from hpo_helpers import get_data, CustomGroupKFold, get_task_params, run_gridsearch, make_cv_splits
 from scipy.stats import pearsonr
 
 
@@ -35,6 +35,7 @@ else:
     tasks = ['regression', 'binary', 'library', 'multiclass'] # 
     testing = False
 print(languages, data_dir, tasks, testing )
+n_outer_folds = 5
 
 
 for language in languages:
@@ -45,10 +46,12 @@ for language in languages:
     canonscores_dir = os.path.join(data_dir, 'canonscores', language)
     features_dir = features_dir = os.path.join(data_dir, 'features_None', language)
     gridsearch_dir = os.path.join(data_dir, 'nested_gridsearch', language)
-    if testing == True:
-            gridsearch_dir = os.path.join(data_dir, 'nested_gridsearch', language)
+    cv_dir = os.path.join(data_dir, 'cv', language)
     if not os.path.exists(gridsearch_dir):
         os.makedirs(gridsearch_dir, exist_ok=True)
+    if not os.path.exists(cv_dir):
+        os.makedirs(cv_dir, exist_ok=True)
+    print(cv_dir)
 
     columns_list = [
     ['average_sentence_embedding', 'doc2vec_chunk_embedding'],
@@ -66,42 +69,34 @@ for language in languages:
         for label_type in task_params['labels']:
             for features in task_params['features']:
                 print(f'\n\n##################################\n Task: {task}, label_type {label_type}, features {features}\n')
-                X, y = get_data(language, task, label_type, features, features_dir, canonscores_dir, sentiscores_dir, metadata_dir)
-
-                # Run grid search on full data for final model
-                # Just do this for best results ####################################################3
-                # estimator = run_gridsearch(
-                #     gridsearch_dir=gridsearch_dir, 
-                #     language=language, 
-                #     task=task, 
-                #     label_type=label_type, 
-                #     features=features, 
-                #     fold='fulldata', 
-                #     columns_list=columns_list, 
-                #     task_params=task_params, 
-                #     X_train=X.copy(deep=True),
-                #     y_train=y.copy(deep=True))
-
-
-                # Run grid search for nested cv
-                cv_outer = CustomGroupKFold(n_splits=5, stratified=task_params['stratified']).split(X, y.values.ravel())
-                X_ = X.copy(deep=True)
-                y_ = y.copy(deep=True)
                 with open(os.path.join(gridsearch_dir, f'best-models-in-refit.csv'), 'a')as f:
                     f.write(f'\n{language},{task},{label_type},{features}\n')
-
-                for outer_fold, (train_idx, test_idx) in enumerate(cv_outer):
+                X, y = get_data(language, task, label_type, features, features_dir, canonscores_dir, sentiscores_dir, metadata_dir)
+                  
+                # Run grid search for nested cv
+                for outer_fold in range(0, n_outer_folds):
                     with open(os.path.join(gridsearch_dir, f'best-models-in-refit.csv'), 'a')as f:
                         f.write(f'fold_{outer_fold}')
-                    X_train_outer, X_test_outer = X_.iloc[train_idx], X_.iloc[test_idx]
-                    y_train_outer, y_test_outer = y_.iloc[train_idx], y_.iloc[test_idx]
-                    print(f'\nX_train_outer{X_train_outer.shape}, X_test_outer{X_test_outer.shape},  y_train_outer{y_train_outer.shape}, y_test_outer{y_test_outer.shape}')
 
-                    dfs = {'X_train_outer': X_train_outer, 'X_test_outer': X_test_outer, 'y_train_outer': y_train_outer, 'y_test_outer': y_test_outer}
-                    for name, df in dfs.items():
-                        df1 = df.reset_index()[['file_name']]
-                        # print(df1['file_name'].nunique())
+                    train_idxs_path = os.path.join(cv_dir, f'train_{language}_{task}_{label_type}_fold-{outer_fold}.csv')
+                    test_idxs_path = os.path.join(cv_dir, f'test_{language}_{task}_{label_type}_fold-{outer_fold}.csv')
+
+                    X_ = X.copy(deep=True)
+                    y_ = y.copy(deep=True)
                     
+                    # Load cv idxs
+                    if not os.path.exists(train_idxs_path):
+                        make_cv_splits(language, task, label_type, features_dir, canonscores_dir, sentiscores_dir, metadata_dir, cv_dir, n_outer_folds, task_params)
+                    train_idxs = [line.strip() for line in open(train_idxs_path, 'r')]
+                    test_idxs = [line.strip() for line in open(test_idxs_path, 'r')]
+
+                    X_train_outer = X_.loc[X_.index.isin(train_idxs)]
+                    X_test_outer = X_.loc[X_.index.isin(test_idxs)]
+                    y_train_outer = y_.loc[y_.index.isin(train_idxs)]
+                    y_test_outer = y_.loc[y_.index.isin(test_idxs)]
+                    print(f'\nX_train_outer{X_train_outer.shape}, X_test_outer{X_test_outer.shape},  y_train_outer{y_train_outer.shape}, y_test_outer{y_test_outer.shape}')
+                    print(f'\nX_train_outer: {X_train_outer.index.nunique()}, X_test_outer: {X_test_outer.index.nunique()}, y_train_outer: {y_train_outer.index.nunique()}, y_test_outer: {y_test_outer.index.nunique()}')
+
                     gridsearch_object = run_gridsearch(
                         gridsearch_dir=gridsearch_dir, 
                         language=language, 
