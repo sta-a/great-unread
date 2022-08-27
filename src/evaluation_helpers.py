@@ -153,15 +153,19 @@ def evaluate_classification(results_dir, language, task, label_type, best_featur
 def score_task(task, y_true, y_pred):
     if task == 'regression':
         corr, corr_pvalue = pearsonr(y_true, y_pred)
-        return {'corr': corr, 
+        result = {'corr': corr, 
                 'corr_pvalue': corr_pvalue}
     elif (task == 'binary') or (task == 'library'):
-        return {'balanced_acc': balanced_accuracy_score(y_true, y_pred)}
+        result = {'balanced_acc': balanced_accuracy_score(y_true, y_pred)}
     else:
         f1_macro = f1_score(y_true, y_pred, average='macro')
         f1_weighted = f1_score(y_true, y_pred, average='weighted')
-        return {'f1_macro': f1_macro,
+        result = {'f1_macro': f1_macro,
                 'f1_weighted': f1_weighted}
+    for key, value in result.items():
+        result[key] = round(value, 3)
+    print(result)
+    return result
                 
 
 def get_best_models(cv_results, task, significance_threshold, eval_metric_col):

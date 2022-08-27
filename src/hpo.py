@@ -33,7 +33,7 @@ else:
     languages = ['eng', 'ger']
     data_dir = '/home/annina/scripts/great_unread_nlp/data'
     tasks = ['regression', 'binary', 'library', 'multiclass'] # 
-    testing = False
+    testing = True
 print(languages, data_dir, tasks, testing )
 n_outer_folds = 5
 

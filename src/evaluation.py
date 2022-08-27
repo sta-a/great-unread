@@ -8,7 +8,7 @@ import pandas as pd
 import numpy as np
 from hpo_helpers import get_task_params
 from evaluation_helpers import *
-languages = ['ger'] #'eng', 'ger'
+languages = ['eng','ger'] #'eng', 'ger'
 tasks = ['regression', 'binary', 'library', 'multiclass']
 testing = False
 data_dir = '/home/annina/scripts/great_unread_nlp/data'
@@ -50,7 +50,7 @@ for language in languages:
                     header=True,
                     index=False)
 
-
+# %%
 # Find best model for each task
 # For regression, each label type is a separate task
 for language in languages:

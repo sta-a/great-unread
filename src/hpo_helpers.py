@@ -1,3 +1,4 @@
+from pydoc import replace
 import pandas as pd
 import pickle
 import statistics
@@ -362,48 +363,103 @@ def upsample_data(df):
 
 
 def get_data(language, task, label_type, features, features_dir, canonscores_dir, sentiscores_dir, metadata_dir):
-    '''
-    The following file names had inconsistent spelling between versions of the data, check if errors.
-    'Hegeler_Wilhelm_Mutter-Bertha_1893': 'Hegelers_Wilhelm_Mutter-Bertha_1893',
-    'Hoffmansthal_Hugo_Ein-Brief_1902': 'Hoffmansthal_Hugo-von_Ein-Brief_1902'
-        '''
     X = pd.read_csv(os.path.join(features_dir, f'{features}_features.csv'))
 
     print(f'Nr chunks for {language}: {X.shape[0]}')
     print(f'Nr texts for {language}: {len(X.file_name.unique())}')
     y = get_labels(language, label_type, canonscores_dir, sentiscores_dir, metadata_dir)
     # For english regression, 1 label is duplicated
-    print(f'Nr labels for {language} {task}: {y.shape}, {y.nunique()}')
-    #y_before_merge = set(y['file_name'])
+    print(f'Nr labels for {language} {task}: {y.shape}, \n\n{y.nunique()}')
 
     if task == 'regression':
+        # y_before_merge = set(y['file_name'])
         df = X.merge(right=y, on='file_name', how='inner', validate='many_to_one')
     else:
-        # Select books written after year of first review
-        # Keep only those texts that that were published after the first review had appeared
+        if language == 'eng':
+            first_library_year = 1809
+            last_library_year = 1907
+            first_review_year = 1771
+            last_review_year = 1914
+            library_file = 'ENG_texts_circulating-libs.csv'
+         
+        else:
+            first_library_year = 1790
+            last_library_year =  1901
+            first_review_year = 1785
+            last_review_year = 1915 # Journal searched until 1915
+            library_file = 'GER_texts_circulating-libs.csv'
+
+        def replace_filenames_in_libraryfile(df):
+            df['file_name'] = df['file_name'].replace(to_replace={
+                # new -- old
+                # library_file has new name for these texts
+                'Moerike_Eduard_Maler-Nolten_1836': 'Moerike_Eduard_Maler-Bolten_1836',
+                'Storm_Theodor_Immensee_1850': 'Storm_Theodor_Immersee_1850',
+                'Tieck_Ludwig_Abdallah_1792': 'Tieck_Ludwig_Adbdallah_1792',
+                'Hoffmansthal_Hugo_Reitergeschichte_1899': 'Hoffmansthal_Hugo-von_Reitergeschichte_1899',
+                'Fontane_Theodor_Die-Poggenpuhls_1896': 'Fontane_Theodor_Die-Poppenpuhls_1896',
+                'Schoenherr_Karl_Allerhand-Kreuzkoepf_1895': 'Schoenherr_Karl_Allerhand-Krezkoepf_1895',
+                'Hunold_Christian-Friedrich_Die-liebenswuerdige-Adalie_1702': 'Hunold_Christian-Friedrich_Die-liebenswuerdige-Adalie_1681',
+
+                # library_file has old name for these texts
+                # 'Gerstaecker_Friedrich_Die-Flusspiraten-vom-Mississipi_1848': 'Gerstaecker_Friedrich_Die-Flusspiraten-vom-Mississipi_1838',
+                # 'Jacobi_Friedrich_Aus-Eduard-Allwills-Papieren_1775': 'Jacobi_Friedrich_Aus-Eduard-Allwills-Papieren_1743',
+                # 'Jacobi_Friedrich_Woldemar_1779': 'Jacobi_Friedrich_Woldemar_1743',
+                # 'Kuernberger_Ferdinand_Der-Drache_1861': 'Kuernberger_Ferdinand_Der-Drache_1910',
+                # 'Mann_Heinrich_Der-Untertan_1911': 'Mann_Heinrich_Der-Untertan_1918',
+                # 'Reventlow_Franziska_Herrn-Dames-Aufzeichnungen_1913': 'Reventlow_Franziska_Herrn-Dames-Aufzeichnungen_1912',
+                # 'Wezel_Johann-Karl_Der-Streit-ueber-das-Gnaseg-Chub_1777': 'Wezel_Johann-Karl_Der-Streit-ueber-das-Gnaseg-Chub_1747',
+                # 'Wezel_Johann-Karl_Die-Erziehung-der-Moahi_1777': 'Wezel_Johann-Karl_Die-Erziehung-der-Moahi_1747',
+                # 'Wezel_Johann-Karl_Die-Unglueckliche-Schwaeche_1777': 'Wezel_Johann-Karl_Die-Unglueckliche-Schwaeche_1747',
+                # 'Wezel_Johann-Karl_Einige-Gedanken-und-Grundsaetze-meines-Lehrers_1777': 'Wezel_Johann-Karl_Einige-Gedanken-und-Grundsaetze-meines-Lehrers_1747',
+                # 'Wezel_Johann-Karl_Johannes-Duec_1777': 'Wezel_Johann-Karl_Johannes-Duec_1747',
+                # 'Wezel_Johann-Karl_Silvans-Bibliothek_1777': 'Wezel_Johann-Karl_Silvans-Bibliothek_1747',
+                # 'Rilke_Rainer-Maria_Malte-Laurids-Brigge_1919': 'Rilke_Rainer-Maria_Malte-Laurids-Brigge_1910',
+                })
+            return df['file_name']
+
+        # Replace file names that are inconsistent between versions of the data
+        y['file_name'] = replace_filenames_in_libraryfile(y)
+        # y_before_merge = set(y['file_name'])
+
+        pub_year = pd.read_csv(os.path.join(metadata_dir, library_file), sep=';', header=0)[['file_name', 'pub_year']]
+        pub_year['file_name'] = replace_filenames_in_libraryfile(pub_year)
+
+        # Merge features and labels and publication year
         df = X.merge(right=y, on='file_name', how='left', validate='many_to_one')
         df['y'] = df['y'].fillna(value=0)
-        book_year = df['file_name'].str.replace('-', '_').str.split('_').str[-1].astype('int64')
-        review_year = book_year[df['y'] != 0]
-        df = df.loc[book_year>=min(review_year)]
-        print('Min review year', min(review_year))
+        print('df after merge y', df.shape)
+        df = df.merge(right=pub_year, on='file_name', how='left', validate='many_to_one')
+        print('df after merge pub year', df.shape)
+        print(f'Nr texts for {language} after combining with labels: {df.file_name.nunique()}')
+        print(f'Nr labels for {language} {task} after combining with features: {df.y.shape}')
+        
+        #y_after_merge = set(df['file_name'])
+        #print('labels difference', list(y_before_merge - y_after_merge))
 
-    print(f'Nr texts for {language} after combining with labels: {df.file_name.nunique()}')
-    print(f'Nr labels for {language} {task} after combining with features: {df.y.shape}')
-    
-    # y_after_merge = set(df['file_name'])
-    # print('labels difference', list(y_before_merge - y_after_merge))
+        # The oldest reviewed texts in the corpus were published in 1771 for English and in 1785 for German.
+        # Der erste eng. Katalog ist von 1809 (der letzte von 1907), der erste deutsche von 1790 (der letzte von 1901).
+        if task == 'library':
+          
+            # Exclude texts that were published after the last library catalogue
+            # Eng: 57 texts were published after 1907, 548 texts after filtering
+            # Ger: 64 texts published after 1901, 482 texts after filtering
+            # Take publication year from pub_year in lib file, not from file_name column
+            excluded_texts = df.loc[df['pub_year'] > last_library_year]
+            df = df.loc[df['pub_year'] <= last_library_year]
+            df.to_csv('library_after_filtering')
+            print('df after filtering years', df.shape)
 
-    # if (features == 'cacb') or (features == 'chunk'):
-    #     print('##############################################')
-    #     print('Nr unique texts:', df['file_name'].value_counts())
-    #     df = upsample_data(df)
-    #     print('Value counts after upsampling:', pd.unique(df['file_name'].value_counts()))
+        else:
+            # Exclude texts that were published before the year of the first review
+            # Exclude texts that were published after the year of the last review
+            excluded_texts = pd.concat([df.loc[df['pub_year'] < first_review_year], df.loc[df['pub_year'] > last_review_year]])
+            df = df.loc[df['pub_year'] >= first_review_year]
+            df = df.loc[df['pub_year'] <= last_review_year]
+        print('Nr excluded texts', excluded_texts.shape)
 
-    X = df.drop(labels=['y'], axis=1, inplace=False).set_index('file_name', drop=True)
-    # y = df[['file_name', 'y']].set_index('file_name', drop=True)
+    X = df.drop(labels=['y', 'pub_year'], axis=1, inplace=False).set_index('file_name', drop=True)
     y = df[['y', 'file_name']].set_index('file_name', drop=True)
-
 
     print('NaN in X: ', X.isnull().values.any())
     print('NaN in y: ', y.isnull().values.any())
@@ -517,14 +573,6 @@ def get_task_params(task, testing):
     if testing:
         print('Using testing param grid.')
         param_grid_regression = [
-            {'clf': (SVR(),),
-            'clf__C': [0.1],
-            'clf__epsilon': [0.01],
-            'scaler': [StandardScaler()]},
-            # {'clf': (Lasso(),),
-            # 'clf__alpha': [1],
-            # 'clf__tol': [0.0001], # default
-            # 'clf__max_iter': [1000]}, # default
             {'clf': (XGBRegressor(objective='reg:squarederror', random_state=7, n_jobs=1),),
             'clf__max_depth': [20],
             'clf__learning_rate': [0.033],
