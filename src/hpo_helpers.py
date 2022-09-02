@@ -376,18 +376,17 @@ def get_data(language, task, label_type, features, features_dir, canonscores_dir
         df = X.merge(right=y, on='file_name', how='inner', validate='many_to_one')
     else:
         if language == 'eng':
-            first_library_year = 1809
-            last_library_year = 1907
-            first_review_year = 1771
-            last_review_year = 1914
+            oldest_reviewed_text = 1771
+            youngest_reviewed_text = 1914
+            youngest_library_text = 1907
             library_file = 'ENG_texts_circulating-libs.csv'
          
         else:
-            first_library_year = 1790
-            last_library_year =  1901
-            first_review_year = 1785
-            last_review_year = 1915 # Journal searched until 1915
+            oldest_reviewed_text = 1785
+            youngest_reviewed_text = 1915 # Journal searched until 1915
+            youngest_library_text = 1901
             library_file = 'GER_texts_circulating-libs.csv'
+
 
         def replace_filenames_in_libraryfile(df):
             df['file_name'] = df['file_name'].replace(to_replace={
@@ -442,23 +441,23 @@ def get_data(language, task, label_type, features, features_dir, canonscores_dir
         if task == 'library':
           
             # Exclude texts that were published after the last library catalogue
-            # Eng: 57 texts were published after 1907, 548 texts after filtering
-            # Ger: 64 texts published after 1901, 482 texts after filtering
+            # Eng: 56 texts were published after 1907, 549 texts after filtering
+            # Ger: 64 texts published after 1901, 483 texts after filtering
             # Take publication year from pub_year in lib file, not from file_name column
-            excluded_texts = df.loc[df['pub_year'] > last_library_year]
-            df = df.loc[df['pub_year'] <= last_library_year]
-            df.to_csv('library_after_filtering')
+            excluded_texts = df.loc[df['pub_year'] > youngest_library_text]
+            df = df.loc[df['pub_year'] <= youngest_library_text]
             print('df after filtering years', df.shape)
 
         else:
             # Exclude texts that were published before the year of the first review
             # Exclude texts that were published after the year of the last review
-            excluded_texts = pd.concat([df.loc[df['pub_year'] < first_review_year], df.loc[df['pub_year'] > last_review_year]])
-            df = df.loc[df['pub_year'] >= first_review_year]
-            df = df.loc[df['pub_year'] <= last_review_year]
+            excluded_texts = pd.concat([df.loc[df['pub_year'] < oldest_reviewed_text], df.loc[df['pub_year'] > youngest_reviewed_text]])
+            df = df.loc[df['pub_year'] >= oldest_reviewed_text]
+            df = df.loc[df['pub_year'] <= youngest_reviewed_text]
         print('Nr excluded texts', excluded_texts.shape)
+        X = df.drop(labels=['pub_year'], axis=1, inplace=False)
 
-    X = df.drop(labels=['y', 'pub_year'], axis=1, inplace=False).set_index('file_name', drop=True)
+    X = df.drop(labels=['y'], axis=1, inplace=False).set_index('file_name', drop=True)
     y = df[['y', 'file_name']].set_index('file_name', drop=True)
 
     print('NaN in X: ', X.isnull().values.any())

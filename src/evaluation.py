@@ -1,6 +1,6 @@
 # %%
-# %load_ext autoreload
-# %autoreload 2
+%load_ext autoreload
+%autoreload 2
 
 import warnings
 warnings.simplefilter('once', RuntimeWarning)
@@ -8,6 +8,7 @@ import pandas as pd
 import numpy as np
 from hpo_helpers import get_task_params
 from evaluation_helpers import *
+from copy import deepcopy
 languages = ['eng','ger'] #'eng', 'ger'
 tasks = ['regression', 'binary', 'library', 'multiclass']
 testing = False
@@ -15,7 +16,7 @@ data_dir = '/home/annina/scripts/great_unread_nlp/data'
 significance_threshold = 0.1
 n_outer_folds = 5
 
-
+# %%
 # Outer cv evaluation from single files
 for language in languages:
 
@@ -43,7 +44,6 @@ for language in languages:
                 df = pd.concat(outer_scores)
                 df = df[['file_name', 'fold_true', 'fold_pred', 'y_true', 'y_pred']]
                 scores = score_task(task, df['y_true'], df['y_pred'])
-                print(scores)
                 df.to_csv(
                     os.path.join(results_dir, 
                     f'outer-cv-predicted_{language}_{task}_{label_type}_{features}.csv'), 
@@ -53,6 +53,7 @@ for language in languages:
 # %%
 # Find best model for each task
 # For regression, each label type is a separate task
+results_for_plotting = []
 for language in languages:
 
     features_dir = os.path.join(data_dir, 'features_None', language)
@@ -78,10 +79,9 @@ for language in languages:
 
             ## Find best model(s) for each feature level and fold of the outer cv
             for features in task_params['features']:
-                print('\n##############################\n', language, task, label_type, features)
+                print('----------------------------', language, task, label_type, features)
                 best_models = []
                 for outer_fold in range(0, n_outer_folds):
-                    print('Fold ', outer_fold)
                     fold_results = pd.read_csv(
                         os.path.join(gridsearch_dir, f'inner-cv_{language}_{task}_{label_type}_{features}_fold-{outer_fold}.csv'), 
                         header=0)
@@ -107,13 +107,14 @@ for language in languages:
                 na_rep='NaN')
 
             ## Keep only feature level with highest mean inner cv score across folds of outer cv          
-            best_model_across_features, best_features = get_best_model_across_features(
+            best_model_across_features, best_features, mean_inner_scores = get_best_model_across_features(
                 task, 
                 best_inner_models, 
                 eval_metric_col, 
                 n_outer_folds, 
                 significance_threshold)
-            print('best features', best_features)
+            print(best_features)
+            
             best_model_across_features.to_csv(
                 os.path.join(results_dir, f'best-inner-model_{language}_{task}_{label_type}.csv'), 
                 index=False, 
@@ -128,21 +129,35 @@ for language in languages:
             
             y_true = outer_cv_result['y_true']
             y_pred = outer_cv_result['y_pred']
+  
             outer_scores = score_task(task, y_true, y_pred)
             outer_results_dict = {
                 'language': language, 
                 'task': task, 
                 'label_type': label_type, 
-                'best_features': best_features}
+                'best_features': best_features,
+                'mean_inner_scores': mean_inner_scores}
+            results_for_plotting_dict = deepcopy(outer_results_dict)
             outer_results_dict.update(outer_scores)
             outer_results.append(pd.DataFrame.from_dict([outer_results_dict]))
-            if task != 'regression':
+            if task == 'regression':
+                results_for_plotting_dict['y_true'] = y_true
+                results_for_plotting_dict['y_pred'] = y_pred
+                results_for_plotting_dict['min_y_true'] = y_true.min()
+                results_for_plotting_dict['max_y_true'] = y_true.max()
+                results_for_plotting_dict['min_y_pred'] = y_pred.min()
+                results_for_plotting_dict['max_y_pred'] = y_pred.max()
+                results_for_plotting.append(results_for_plotting_dict)
+            else:
                 evaluate_classification(results_dir, language, task, label_type, best_features, y_true, y_pred)
+
     outer_results = pd.concat(outer_results)
     outer_results.to_csv(
         os.path.join(results_dir, f'outer-scores_{language}.csv'), 
         header=True, 
         index=False)
+
+plot_regression(results_dir, results_for_plotting)
 
 
 # %%
