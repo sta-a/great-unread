@@ -31,18 +31,7 @@ def run_gridsearch(gridsearch_dir, language, task, label_type, features, fold, c
     print(f'Inner CV: X {X_train.shape}, y {y_train.shape}')
     # Get data, set 'file_name' column as index
     cv = CustomGroupKFold(n_splits=5, stratified=task_params['stratified']).split(X_train, y_train.values.ravel())
-
-
-    # for outer_fold, (train_idx, test_idx) in enumerate(cv):
-        # X_train_outer, X_test_outer = X_train.iloc[train_idx], X_train.iloc[test_idx]
-        # y_train_outer, y_test_outer = y_train.iloc[train_idx], y_train.iloc[test_idx]
-        # print(f'\n Inner CV: X_train_outer{X_train_outer.shape}, X_test_outer{X_test_outer.shape},  y_train_outer{y_train_outer.shape}, y_test_outer{y_test_outer.shape}')
-        # dfs = {'X_train_outer': X_train_outer, 'X_test_outer': X_test_outer, 'y_train_outer': y_train_outer, 'y_test_outer': y_test_outer}
-        # for name, df in dfs.items():
-        #     df1 = df.reset_index()[['file_name']]
-        #     print(df1['file_name'].nunique())
-
-    
+   
     ## Parameter Grid
     # Params that are constant between grids
     constant_param_grid = {'drop_columns__columns_to_drop': columns_list}

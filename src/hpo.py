@@ -31,8 +31,8 @@ if from_commandline:
 else:
     # Don't use defaults because VSC interactive mode can't handle command line arguments
     languages = ['eng', 'ger']
-    data_dir = '/home/annina/scripts/great_unread_nlp/data'
-    tasks = ['regression', 'binary', 'library', 'multiclass'] # 
+    data_dir = '../data'
+    tasks = ['regression', 'binary', 'library', 'multiclass']
     testing = True
 print(languages, data_dir, tasks, testing )
 n_outer_folds = 5
@@ -64,7 +64,7 @@ for language in languages:
         task_params = get_task_params(task, testing)
         for label_type in task_params['labels']:
             for features in task_params['features']:
-                print(f'\n\n##################################\n Task: {task}, Label_type: {label_type}, Features: {features}\n')
+                print(f'Task: {task}, Label_type: {label_type}, Features: {features}\n')
                 X, y = get_data(language, task, label_type, features, features_dir, canonscores_dir, sentiscores_dir, metadata_dir)
 
                 # Run grid search for nested cv

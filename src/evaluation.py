@@ -9,10 +9,11 @@ import numpy as np
 from hpo_helpers import get_task_params
 from evaluation_helpers import *
 from copy import deepcopy
+
 languages = ['eng','ger'] #'eng', 'ger'
 tasks = ['regression', 'binary', 'library', 'multiclass']
 testing = False
-data_dir = '/home/annina/scripts/great_unread_nlp/data'
+data_dir = '../data'
 significance_threshold = 0.1
 n_outer_folds = 5
 
@@ -158,6 +159,3 @@ for language in languages:
         index=False)
 
 plot_regression(results_dir, results_for_plotting)
-
-
-# %%
