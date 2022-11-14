@@ -10,8 +10,7 @@ import time
 import os
 import pandas as pd
 import numpy as np
-from hpo_helpers import get_data, CustomGroupKFold, get_task_params, run_gridsearch
-from scipy.stats import pearsonr
+from hpo_functions import get_data, CustomGroupKFold, get_task_params, run_gridsearch
 
 
 start = time.time()
@@ -32,8 +31,8 @@ else:
     # Don't use defaults because VSC interactive mode can't handle command line arguments
     languages = ['eng', 'ger']
     data_dir = '../data'
-    tasks = ['regression', 'binary', 'library', 'multiclass']
-    testing = True
+    tasks = ['regression']
+    testing = False
 print(languages, data_dir, tasks, testing )
 n_outer_folds = 5
 
@@ -43,7 +42,7 @@ for language in languages:
     # Use full features set for classification to avoid error with underrepresented classes
     sentiscores_dir = os.path.join(data_dir, 'sentiscores', language)
     metadata_dir = os.path.join(data_dir, 'metadata', language)
-    canonscores_dir = os.path.join(data_dir, 'canonscores', language)
+    canonscores_dir = os.path.join(data_dir, 'canonscores')
     features_dir = features_dir = os.path.join(data_dir, 'features_None', language)
     gridsearch_dir = os.path.join(data_dir, 'nested_gridsearch', language)
     if not os.path.exists(gridsearch_dir):
@@ -75,7 +74,6 @@ for language in languages:
                 for outer_fold, (train_idx, test_idx) in enumerate(cv_outer):
                     X_train_outer, X_test_outer = X_.iloc[train_idx], X_.iloc[test_idx]
                     y_train_outer, y_test_outer = y_.iloc[train_idx], y_.iloc[test_idx]
-                    print(f'\nX_train_outer{X_train_outer.shape}, X_test_outer{X_test_outer.shape},  y_train_outer{y_train_outer.shape}, y_test_outer{y_test_outer.shape}')
                     
                     gridsearch_object = run_gridsearch(
                         gridsearch_dir=gridsearch_dir, 

@@ -1,7 +1,7 @@
 # %%
 # %load_ext autoreload
 # %autoreload 2
-from_commandline = True
+from_commandline = False
 
 import argparse
 import os
@@ -29,7 +29,7 @@ else:
     data_dir = '../data/'
 
 # Select number of texts to work with
-nr_texts = None # None for all texts
+nr_texts = 5 # None for all texts
 raw_docs_dir = os.path.join(data_dir, 'raw_docs', language)
 features_dir = os.path.join(data_dir, f'features_{nr_texts}', language)
 if not os.path.exists(features_dir):
@@ -143,3 +143,4 @@ if __name__ == '__main__':
     # with open('runtime_tracker.txt', 'a') as f:
         # f.write(f'nr_texts,runtime\n')
         # f.write(f'{nr_texts},{round(runtime, 2)}\n')
+# %%

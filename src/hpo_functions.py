@@ -28,7 +28,6 @@ from sklearn.preprocessing import StandardScaler
 
 
 def run_gridsearch(gridsearch_dir, language, task, label_type, features, fold, columns_list, task_params, X_train, y_train):
-    print(f'Inner CV: X {X_train.shape}, y {y_train.shape}')
     # Get data, set 'file_name' column as index
     cv = CustomGroupKFold(n_splits=5, stratified=task_params['stratified']).split(X_train, y_train.values.ravel())
    
@@ -118,8 +117,8 @@ def analyze_cv(X, cv):
 
 
 def refit_regression(cv_results):
-    # refit using a callable
-    # find highest correlation coefficiant that has a significant harmonic p-value
+    # Refit using a callable
+    # Find index of the model with the highest correlation coefficient that has a significant harmonic p-value
     df = pd.DataFrame(cv_results)
     df_unfiltered = df.copy(deep=True)
 
@@ -127,46 +126,49 @@ def refit_regression(cv_results):
     if not 'harmonic_pvalue' in df.columns:
         df['harmonic_pvalue'] = df.apply(apply_harmonic_pvalue, axis=1)
 
-    # Filter df
+    # Keep only models that have significant p-value
     significance_threshold = 0.1
     df = df[~df['harmonic_pvalue'].isna()]
     df = df[df['harmonic_pvalue']<significance_threshold]
 
-    # Check if there is any model with significant correlation coefficient
+    # Check if there is any model with significant p-value
     if df.shape[0] == 0:
-        print(f'No model has a significant hamonic p-value. Model with the highest correlation coefficient is returned.')
+        print(f'No model has a significant hamonic p-value during refit. Model with the highest correlation coefficient is returned.')
         best_idx = df_unfiltered['mean_test_corr'].idxmax()
     else:
-        # Check how many models have the highest correlation coefficent
+        # Find highest correlation coefficient in filtered df
         max_metric = df['mean_test_corr'].max()
-        # Find index of maximum correlation
-        best_models = df.loc[df['mean_test_corr'] == max_metric]
-        if best_models.shape[0] > 1:
-            print('Number of models that have the highest correlation coefficient and significant p-value: ', best_models.shape[0])
 
-        # Find index of maximum correlation
-        best_idxs = df_unfiltered.index[df_unfiltered['mean_test_corr'] == max_metric].tolist()
+        # Find index of model with maximum correlation and significatn p-value in the original cv_results
+        best_idxs = df_unfiltered.index[
+            (df_unfiltered['mean_test_corr'] == max_metric) & 
+            (~df['harmonic_pvalue'].isna()) & 
+            (df['harmonic_pvalue']<significance_threshold)
+            ].tolist()
+        # Check how many models have the highest correlation coefficent and significant p-value
+        if len(best_idxs) > 1:
+            print(f'Number of models that have the highest correlation coefficient and significant p-value: {len(best_idxs)}. Best index is chosen randomly.')
         best_idx = int(best_idxs[0])
         print('best idxs', best_idxs, 'best index', best_idx)
 
-    best_idx_df = df_unfiltered.iloc[best_idx].to_frame().T
-    print('best index df', type(best_idx_df), best_idx_df)
-    print(f'Best index:{best_idx}')
-
+    #best_idx_df = df_unfiltered.iloc[best_idx].to_frame().T
     return best_idx
     
 
 def apply_harmonic_pvalue(row):
     # Harmonic mean p-value
     # Takes row from GridSearchCV.cv_results_ as input
-    # Match columns that contain test pvalues for each split
+    ## Find columns that contain test p-values for each split
     pvalues = row[row.index.str.contains('split._test_corr_pvalue', regex=True)]
     try:
         denominator = sum([Decimal(1)/Decimal(x) for x in pvalues])
+        print('Denominator: ', denominator)
         harmonic_pval = len(pvalues)/denominator
     except ZeroDivisionError:
-        print('Could not calculate harmonic p-value because cv p-values are 0 or approximately 0.')
-        harmonic_pval = np.nan
+        print('Could not calculate harmonic p-value because p-values are 0 or approximately 0.')
+        print('Denominator: ', denominator, 'Harmonic pval: ', harmonic_pval)
+        # harmonic_pval = np.nan
+        harmonic_pval = 0 #############################################
     finally:
         return harmonic_pval
 
@@ -603,7 +605,7 @@ def get_task_params(task, testing):
 
     task_params_list = {
         'regression': {
-            'labels': ['sentiart', 'textblob', 'combined'],
+            'labels': ['canon'],
             'scoring': score_regression,
             'refit': refit_regression,
             'stratified': False,
@@ -634,7 +636,7 @@ def get_task_params(task, testing):
     # Overwrite for testing 
     if testing:
         task_params_list['regression']['features'] = ['baac']
-        task_params_list['regression']['labels'] = ['sentiart']
+        task_params_list['regression']['labels'] = ['canon']
         task_params_list['binary']['features'] = ['book']
         task_params_list['library']['features'] = ['book']
         task_params_list['multiclass']['features'] = ['book']

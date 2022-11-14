@@ -1,4 +1,8 @@
 # %%
+'''
+Find best model among models evaluated with grid search
+'''
+
 %load_ext autoreload
 %autoreload 2
 
@@ -6,19 +10,18 @@ import warnings
 warnings.simplefilter('once', RuntimeWarning)
 import pandas as pd
 import numpy as np
-from hpo_helpers import get_task_params
-from evaluation_helpers import *
+from hpo_functions import get_task_params
+from evaluation_functions import *
 from copy import deepcopy
 
 languages = ['eng','ger'] #'eng', 'ger'
-tasks = ['regression', 'binary', 'library', 'multiclass']
-testing = False
+tasks = ['regression']
+testing = False ###################
 data_dir = '../data'
 significance_threshold = 0.1
 n_outer_folds = 5
 
-# %%
-# Outer cv evaluation from single files
+# Combine predictions of outer folds for each model
 for language in languages:
 
     features_dir = features_dir = os.path.join(data_dir, 'features_None', language)
@@ -34,24 +37,22 @@ for language in languages:
         task_params = get_task_params(task, testing)
         for label_type in task_params['labels']:
             best_inner_models = []
-
-            ## Find best model(s) for each feature level for each fold of the outer cv
+            
             for features in task_params['features']:
                 print(language, task, label_type, features)
-                outer_scores = []
+                all_predictions = []
                 for outer_fold in range(0, n_outer_folds):
-                    scores = load_outer_scores(gridsearch_dir, language, task, label_type, features, outer_fold)
-                    outer_scores.append(scores)
-                df = pd.concat(outer_scores)
+                    predictions = load_fold_predictions(gridsearch_dir, language, task, label_type, features, outer_fold)
+                    all_predictions.append(predictions)
+                df = pd.concat(all_predictions)
                 df = df[['file_name', 'fold_true', 'fold_pred', 'y_true', 'y_pred']]
-                scores = score_task(task, df['y_true'], df['y_pred'])
                 df.to_csv(
                     os.path.join(results_dir, 
                     f'outer-cv-predicted_{language}_{task}_{label_type}_{features}.csv'), 
                     header=True,
                     index=False)
 
-# %%
+
 # Find best model for each task
 # For regression, each label type is a separate task
 results_for_plotting = []
@@ -65,7 +66,6 @@ for language in languages:
     results_dir = os.path.join(data_dir, 'results', language)
     if not os.path.exists(results_dir):
         os.makedirs(results_dir, exist_ok=True)
-
 
     outer_results = []
     for task in tasks:
@@ -159,3 +159,5 @@ for language in languages:
         index=False)
 
 plot_regression(results_dir, results_for_plotting)
+
+# %%

@@ -11,7 +11,7 @@ from matplotlib import pyplot as plt
 from scipy.stats import pearsonr
 from sklearn.metrics import f1_score, balanced_accuracy_score
 from sklearn.metrics import classification_report
-from hpo_helpers import get_data
+from hpo_functions import get_data
 import random
 random.seed(8)
 
@@ -287,7 +287,7 @@ def get_best_models(cv_results, task, significance_threshold, eval_metric_col):
 
     return best_models
 
-def load_outer_scores(gridsearch_dir, language, task, label_type, features, outer_fold):
+def load_fold_predictions(gridsearch_dir, language, task, label_type, features, outer_fold):
     y_pred = pd.read_csv(
         os.path.join(gridsearch_dir, f'y-pred_{language}_{task}_{label_type}_{features}_fold-{outer_fold}.csv'), 
         header=0)

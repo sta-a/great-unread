@@ -70,75 +70,86 @@ class CorpusBasedFeatureExtractor():
 
 
     def __get_word_statistics(self):
+        wordstat_path = os.path.join(Path(str(self.doc_paths[0].replace('raw_docs', 'word_statistics'))).parent, 'word_statistics.pkl')
+        if os.path.exists(wordstat_path):
+            with open(wordstat_path, 'rb') as f:
+                word_statistics = pickle.load(f)
 
-        total_unigram_counts = Counter()
-        total_bigram_counts = Counter()
-        total_trigram_counts = Counter()
-        book_unigram_mapping = {}
-        book_bigram_mapping = {}
-        book_trigram_mapping = {}
+        else:
+            total_unigram_counts = Counter()
+            total_bigram_counts = Counter()
+            total_trigram_counts = Counter()
+            book_unigram_mapping = {}
+            book_bigram_mapping = {}
+            book_trigram_mapping = {}
 
-        for doc_chunks in self.__generate_chunks(unigram_counts=True, bigram_counts=True, trigram_counts=True):
-            book_unigram_counts = {}
-            book_bigram_counts = {}
-            book_trigram_counts = {}
-            for chunk in doc_chunks:
-                file_name = chunk.file_name
+            for doc_chunks in self.__generate_chunks(unigram_counts=True, bigram_counts=True, trigram_counts=True):
+                book_unigram_counts = {}
+                book_bigram_counts = {}
+                book_trigram_counts = {}
+                for chunk in doc_chunks:
+                    file_name = chunk.file_name
 
-                for unigram, counts in chunk.unigram_counts.items():
-                    if unigram in book_unigram_counts:
-                        book_unigram_counts[unigram] += counts
-                    else:
-                        book_unigram_counts[unigram] = counts
+                    for unigram, counts in chunk.unigram_counts.items():
+                        if unigram in book_unigram_counts:
+                            book_unigram_counts[unigram] += counts
+                        else:
+                            book_unigram_counts[unigram] = counts
 
-                for bigram, counts in chunk.bigram_counts.items():
-                    if bigram in book_bigram_counts:
-                        book_bigram_counts[bigram] += counts
-                    else:
-                        book_bigram_counts[bigram] = counts
+                    for bigram, counts in chunk.bigram_counts.items():
+                        if bigram in book_bigram_counts:
+                            book_bigram_counts[bigram] += counts
+                        else:
+                            book_bigram_counts[bigram] = counts
 
-                for trigram, counts in chunk.trigram_counts.items():
-                    if trigram in book_trigram_counts:
-                        book_trigram_counts[trigram] += counts
-                    else:
-                        book_trigram_counts[trigram] = counts
-            book_unigram_mapping[file_name] = book_unigram_counts
-            book_bigram_mapping[file_name] = book_bigram_counts
-            book_trigram_mapping[file_name] = book_trigram_counts
-            total_unigram_counts.update(book_unigram_counts)
-            total_bigram_counts.update(book_bigram_counts)
-            total_trigram_counts.update(book_trigram_counts)
+                    for trigram, counts in chunk.trigram_counts.items():
+                        if trigram in book_trigram_counts:
+                            book_trigram_counts[trigram] += counts
+                        else:
+                            book_trigram_counts[trigram] = counts
+                book_unigram_mapping[file_name] = book_unigram_counts
+                book_bigram_mapping[file_name] = book_bigram_counts
+                book_trigram_mapping[file_name] = book_trigram_counts
+                total_unigram_counts.update(book_unigram_counts)
+                total_bigram_counts.update(book_bigram_counts)
+                total_trigram_counts.update(book_trigram_counts)
 
-        total_unigram_counts = dict(sorted(list(total_unigram_counts.items()), key=lambda x: -x[1])) #all words
-        total_bigram_counts = dict(sorted(list(total_bigram_counts.items()), key=lambda x: -x[1])[:2000]) 
-        total_trigram_counts = dict(sorted(list(total_trigram_counts.items()), key=lambda x: -x[1])[:2000])
-        
-        # keep only counts of the 2000 most frequent bi- and trigrams
-        book_bigram_mapping_ = {}
-        for book, book_dict in book_bigram_mapping.items():
-            book_dict_ = {}
-            for ngram in set(total_bigram_counts.keys()):
-                if ngram in book_dict:
-                    book_dict_[ngram] = book_dict[ngram]
-            book_bigram_mapping_[book] = book_dict_
+            total_unigram_counts = dict(sorted(list(total_unigram_counts.items()), key=lambda x: -x[1])) #all words
+            total_bigram_counts = dict(sorted(list(total_bigram_counts.items()), key=lambda x: -x[1])[:2000]) 
+            total_trigram_counts = dict(sorted(list(total_trigram_counts.items()), key=lambda x: -x[1])[:2000])
+            
+            # keep only counts of the 2000 most frequent bi- and trigrams
+            book_bigram_mapping_ = {}
+            for book, book_dict in book_bigram_mapping.items():
+                book_dict_ = {}
+                for ngram in set(total_bigram_counts.keys()):
+                    if ngram in book_dict:
+                        book_dict_[ngram] = book_dict[ngram]
+                book_bigram_mapping_[book] = book_dict_
 
-        book_trigram_mapping_ = {}
-        for book, book_dict in book_trigram_mapping.items():
-            book_dict_ = {}
-            for ngram in set(total_trigram_counts.keys()):
-                if ngram in book_dict:
-                    book_dict_[ngram] = book_dict[ngram]
-            book_trigram_mapping_[book] = book_dict_
+            book_trigram_mapping_ = {}
+            for book, book_dict in book_trigram_mapping.items():
+                book_dict_ = {}
+                for ngram in set(total_trigram_counts.keys()):
+                    if ngram in book_dict:
+                        book_dict_[ngram] = book_dict[ngram]
+                book_trigram_mapping_[book] = book_dict_
 
-        word_statistics = {
-            # data format: {unigram: count}
-            'total_unigram_counts': total_unigram_counts,
-            'total_bigram_counts': total_bigram_counts,
-            'total_trigram_counts': total_trigram_counts,
-            # data format: {file_name: {unigram: count}
-            'book_unigram_mapping': book_unigram_mapping,
-            'book_bigram_mapping': book_bigram_mapping_,
-            'book_trigram_mapping': book_trigram_mapping_}
+            word_statistics = {
+                # data format: {unigram: count}
+                'total_unigram_counts': total_unigram_counts,
+                'total_bigram_counts': total_bigram_counts,
+                'total_trigram_counts': total_trigram_counts,
+                # data format: {file_name: {unigram: count}
+                'book_unigram_mapping': book_unigram_mapping,
+                'book_bigram_mapping': book_bigram_mapping_,
+                'book_trigram_mapping': book_trigram_mapping_}
+
+            wordstat_dir = Path(wordstat_path).parent
+            if not os.path.exists(wordstat_dir):
+                wordstat_dir.mkdir(parents=True, exist_ok=True)
+            with open(wordstat_path, 'wb') as f:
+                pickle.dump(word_statistics, f, -1)
         return word_statistics
 
 
@@ -491,14 +502,14 @@ class CorpusBasedFeatureExtractor():
         def _start_process(p):
             # Limit the number of cores used to avoid oversubscription
             alive = sum([p.is_alive() for p in processes])
-            print('nr alive proc', alive)
+            print('nr. processes alive', alive)
             if alive <= (nr_processes):
                 p.start()
             else:
                 time.sleep(15)
                 _start_process(p)
         for p in processes:
-            print('nr alive proc', sum([p.is_alive() for p in processes]))
+            print('nr. processes alive', sum([p.is_alive() for p in processes]))
             _start_process(p)
 
         chunk_features = []
