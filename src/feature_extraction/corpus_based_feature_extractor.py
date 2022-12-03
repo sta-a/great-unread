@@ -20,11 +20,12 @@ from .doc_based_feature_extractor import DocBasedFeatureExtractor
 
 class CorpusBasedFeatureExtractor():
     '''Get features for which the whole corpus needs to be considered.'''
-    def __init__(self, language, doc_paths, sentences_per_chunk=200, nr_features=100):
+    def __init__(self, language, doc_paths, sentences_per_chunk=200, nr_features=100, nr_texts=None):
         self.language = language
         self.doc_paths = doc_paths
         self.sentences_per_chunk = sentences_per_chunk
         self.nr_features = nr_features
+        self.nr_texts = nr_texts
 
         if self.language == 'eng':
             self.model_name = 'en_core_web_sm'
@@ -70,7 +71,8 @@ class CorpusBasedFeatureExtractor():
 
 
     def __get_word_statistics(self):
-        wordstat_path = os.path.join(Path(str(self.doc_paths[0].replace('raw_docs', 'word_statistics'))).parent, 'word_statistics.pkl')
+        wordstat_dir = Path(str(self.doc_paths[0].replace('raw_docs', f'word_statistics_{self.nr_texts}'))).parent
+        wordstat_path = os.path.join(wordstat_dir, 'word_statistics.pkl')
         if os.path.exists(wordstat_path):
             with open(wordstat_path, 'rb') as f:
                 word_statistics = pickle.load(f)
@@ -119,13 +121,13 @@ class CorpusBasedFeatureExtractor():
             total_trigram_counts = dict(sorted(list(total_trigram_counts.items()), key=lambda x: -x[1])[:2000])
             
             # keep only counts of the 2000 most frequent bi- and trigrams
-            book_bigram_mapping_ = {}
+            book_unigram_mapping_ = {}
             for book, book_dict in book_bigram_mapping.items():
                 book_dict_ = {}
                 for ngram in set(total_bigram_counts.keys()):
                     if ngram in book_dict:
                         book_dict_[ngram] = book_dict[ngram]
-                book_bigram_mapping_[book] = book_dict_
+                book_unigram_mapping_[book] = book_dict_
 
             book_trigram_mapping_ = {}
             for book, book_dict in book_trigram_mapping.items():
@@ -142,10 +144,9 @@ class CorpusBasedFeatureExtractor():
                 'total_trigram_counts': total_trigram_counts,
                 # data format: {file_name: {unigram: count}
                 'book_unigram_mapping': book_unigram_mapping,
-                'book_bigram_mapping': book_bigram_mapping_,
+                'book_bigram_mapping': book_unigram_mapping_,
                 'book_trigram_mapping': book_trigram_mapping_}
 
-            wordstat_dir = Path(wordstat_path).parent
             if not os.path.exists(wordstat_dir):
                 wordstat_dir.mkdir(parents=True, exist_ok=True)
             with open(wordstat_path, 'wb') as f:
@@ -498,7 +499,7 @@ class CorpusBasedFeatureExtractor():
             book_processes = []
         processes = chunk_processes + book_processes
 
-        nr_processes = max(cpu_count() - 2, 1)
+        nr_processes = max(cpu_count() - 4, 1) ####################     
         def _start_process(p):
             # Limit the number of cores used to avoid oversubscription
             alive = sum([p.is_alive() for p in processes])

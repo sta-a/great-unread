@@ -62,7 +62,7 @@ def run_gridsearch(gridsearch_dir, language, task, label_type, features, fold, c
     cv_results.insert(0, 'features', features)
     cv_results.insert(0, 'fold', fold)
 
-    if task == 'regression':
+    if 'regression' in task:
         cv_results['harmonic_pvalue'] = cv_results.apply(apply_harmonic_pvalue, axis=1)
 
     cv_results.to_csv(
@@ -112,7 +112,7 @@ def analyze_cv(X, cv):
         dfs = {'X_train': X_train, 'X_test': X_test} #'groups_train': groups_train, 'groups_test': groups_test
         for name, df in dfs.items():
             print(f'Shape of {name} before removing duplicate rows: {df.shape}')
-            dfs[name] = df = df[~df.index.duplicated(keep="first")]
+            dfs[name] = df = df[~df.index.duplicated(keep='first')]
             print(f'Shape of {name} after removing duplicate rows: {df.shape}')
 
 
@@ -161,12 +161,13 @@ def apply_harmonic_pvalue(row):
     ## Find columns that contain test p-values for each split
     pvalues = row[row.index.str.contains('split._test_corr_pvalue', regex=True)]
     try:
+        print('-------------------------------\n', 'pvalues', pvalues, len(pvalues))
         denominator = sum([Decimal(1)/Decimal(x) for x in pvalues])
         print('Denominator: ', denominator)
         harmonic_pval = len(pvalues)/denominator
+        print(harmonic_pval)
     except ZeroDivisionError:
         print('Could not calculate harmonic p-value because p-values are 0 or approximately 0.')
-        print('Denominator: ', denominator, 'Harmonic pval: ', harmonic_pval)
         # harmonic_pval = np.nan
         harmonic_pval = 0 #############################################
     finally:
@@ -362,7 +363,7 @@ def get_data(language, task, label_type, features, features_dir, canonscores_dir
     # For english regression, 1 label is duplicated
     print(f'Nr labels for {language} {task}: {y.shape}, \n\n{y.nunique()}')
 
-    if task == 'regression':
+    if 'regression' in task:
         # y_before_merge = set(y['file_name'])
         df = X.merge(right=y, on='file_name', how='inner', validate='many_to_one')
     else:
@@ -519,7 +520,7 @@ class CustomGroupKFold():
 
         return indices
 
-def get_task_params(task, testing):
+def get_task_params(task, testing, language):
     # All paramters
     # Separate grids for conditional parameters
     param_grid_regression = [
@@ -603,14 +604,28 @@ def get_task_params(task, testing):
 
     # [d.update(constant_param_grid) for d in param_grid]
 
+    # Drop different kinds of features
+    columns_list = [
+    ['average_sentence_embedding', 'doc2vec_chunk_embedding'],
+    ['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']]
+    if language == 'eng':
+        columns_list.extend([
+            ['average_sentence_embedding', 'doc2vec_chunk_embedding', '->'], 
+            ['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']])
+    # columns_list.extend([['passthrough']])
+    # if testing:
+    #     columns_list = [columns_list[-1]]
+
+
     task_params_list = {
-        'regression': {
+        'regression-canon': {
             'labels': ['canon'],
             'scoring': score_regression,
             'refit': refit_regression,
             'stratified': False,
             'param_grid': param_grid_regression,
             'features': ['baac', 'book', 'cacb', 'chunk'],
+            'columns_list': columns_list,
             },
         'binary': {
             'labels': ['binary'],
@@ -619,6 +634,7 @@ def get_task_params(task, testing):
             'stratified': True,
             'param_grid': param_grid_binary,
             'features': ['baac', 'book'],
+            'columns_list': columns_list,
             },
         'multiclass':{
             'labels': ['multiclass'],
@@ -627,16 +643,23 @@ def get_task_params(task, testing):
             'stratified': True,
             'param_grid': param_grid_multiclass,
             'features': ['baac', 'book'],
+            'columns_list': columns_list,
             }
         }
 
     task_params_list['library'] = deepcopy(task_params_list['binary'])
     task_params_list['library']['labels'] = ['library']
+    task_params_list['regression-senti'] = deepcopy(task_params_list['regression-canon'])
+    task_params_list['regression-senti']['labels'] = ['sentiart', 'textblob', 'combined']
+    task_params_list['regression-importances'] = deepcopy(task_params_list['regression-canon'])
+    task_params_list['regression-importances']['features'] = ['cacb']
+    task_params_list['regression-importances']['columns_list'] = [['average_sentence_embedding', 'doc2vec_chunk_embedding']]
 
     # Overwrite for testing 
     if testing:
-        task_params_list['regression']['features'] = ['baac']
-        task_params_list['regression']['labels'] = ['canon']
+        task_params_list['regression-canon']['features'] = ['baac']
+        task_params_list['regression-senti']['features'] = ['baac']
+        task_params_list['regression-senti']['labels'] = ['sentiart']
         task_params_list['binary']['features'] = ['book']
         task_params_list['library']['features'] = ['book']
         task_params_list['multiclass']['features'] = ['book']

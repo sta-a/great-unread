@@ -17,7 +17,10 @@ from matplotlib import pyplot as plt
 import time
 
 nr_texts = None
-
+language = 'ger' #['eng', 'ger']
+data_dir = '../data'
+nmfw = 500
+print(delta.functions)
 
 class Distance():
     def __init__(self, language, data_dir):
@@ -33,75 +36,76 @@ class Distance():
         return self.dist_matrix
 
 
-class NgramDistance(Distance):
-    def __init__(self, language, data_dir):
+class WordbasedDistance(Distance):
+    def __init__(self, language, data_dir, nmfw):
         super().__init__(language, data_dir)
-        # nested dict {file_name: {unigram: count}
+        self.nmfw = nmfw
         self.wordstat_dir = os.path.join(self.data_dir, f'word_statistics_{nr_texts}', language)
-        self.unigram_counts_path = os.path.join(self.wordstat_dir, 'book_unigram_mapping.pkl')
-        if not os.path.exists(self.unigram_counts_path):
-            wordstat_path = os.path.join(self.wordstat_dir, 'word_statistics.pkl')
-            word_statistics = self.load_word_statistics(wordstat_path)
-            self.unigram_counts_dict = word_statistics['book_unigram_mapping']
+        self.wordstat_path = os.path.join(self.wordstat_dir, 'word_statistics.pkl')
+        self.mfw_df_path = os.path.join(self.wordstat_dir, f'mfw_{self.nmfw}.csv')
+        self.prepare_mfw_df()
+
+
+    def prepare_mfw_df(self):
+
+        if not os.path.exists(self.mfw_df_path):
+            word_statistics = self.load_word_statistics()
+
+            total_unigram_counts = word_statistics['total_unigram_counts']
+            # nested dict {file_name: {unigram: count}
+            book_unigram_mapping = word_statistics['book_unigram_mapping']
             # Delete to save memory
+
+            mfw = set(
+                    pd.DataFrame([total_unigram_counts], index=['counts']) \
+                    .T \
+                    .sort_values(by='counts', ascending=False) \
+                    .iloc[:self.nmfw, :] \
+                    .index \
+                    .tolist()
+                )
+
+            # keep only counts of the mfw for each book
+            book_unigram_mapping_ = {}
+            # {file_name: {word: count}}
+            for filename, book_dict in book_unigram_mapping.items():
+                book_dict_ = {}
+                for word in mfw:
+                    if word in book_dict:
+                        book_dict_[word] = book_dict[word]
+                book_unigram_mapping_[filename] = book_dict_
             del word_statistics
+            del total_unigram_counts
+            del book_unigram_mapping
 
-            with open(self.unigram_counts_path, 'wb') as f:
-                pickle.dump(self.unigram_counts_dict, f, -1)
+
+            start = time.time()
+            mfw_counts = pd.concat(
+                {k: pd.DataFrame.from_dict(v, 'index').T.reset_index(drop=True, inplace=False) for k, v in book_unigram_mapping_.items()}, 
+                axis=0).droplevel(1).fillna(0).astype('int64')
+            mfw_counts.to_csv(self.mfw_df_path, header=True, index=True)
+            print('Time to make df from nested dict: ', time.time()-start)
         else:
-            with open(self.unigram_counts_path, 'rb') as f:
-                self.unigram_counts_dict = pickle.load(f)
-        self.unigram_counts = self.get_unigram_counts_df()
+            mfw_counts = pd.read_csv(self.mfw_df_path, header=0)
+            print('Loaded mfw table from file.')
+        print(mfw_counts)
 
-
-    def load_word_statistics(self, wordstat_path):
+    def load_word_statistics(self):
         try:
-            with open(wordstat_path, 'rb') as f:
+            with open(self.wordstat_path, 'rb') as f:
                 word_statistics = pickle.load(f)
             return word_statistics
         except FileNotFoundError:
             print('Word statistics file does not exist.')
 
 
-    def get_unigram_counts_df(self):
-
-        start = time.time()
-        i=0
-        wordcounts_path = os.path.join(self.wordstat_dir, 'wordcounts')
-        if not os.path.exists(wordcounts_path):
-            os.mkdir(wordcounts_path)
-        wordlist = []
-        with open(os.path.join(wordcounts_path, 'wordlist.csv'), 'w') as f:
-            for file_name, countdict in self.unigram_counts_dict.items():
-                print(file_name)
-                for word, count in countdict.items():
-                    if word not in wordlist:
-                        wordlist.append(word)
-                        f.write(word + '\n')
-                i+=1
-                print(i, time.time()-start)
-        del wordlist
-        print('Time to make word list; ', time.time()-start)
-        
-        # {file_name: {word: count}}
-        start = time.time()
-        unigram_counts = pd.concat(
-            {k: pd.DataFrame.from_dict(v, 'index').T.reset_index(drop=True, inplace=False) for k, v in self.unigram_counts_dict.items()}, 
-            axis=0).droplevel(1).fillna(0).astype('int64')
-        unigram_counts.to_csv(os.path.join(self.wordstat_dir, 'unigram_counts.csv'), header=True, index=True)
-        print('Time to make df from nested dict: ', time.time()-start)
-        return unigram_counts
-
-n = NgramDistance('ger', '../data')
-# %%
-
-class PydeltaDist(NgramDistance):
-    def __init__(self, language, data_dir):
-        super().__init__(language, data_dir)
-        self.corpus = self.prepare_corpus()
+class PydeltaDist(WordbasedDistance):
+    def __init__(self, language, data_dir, nmfw):
+        super().__init__(language, data_dir, nmfw)
+        self.corpus = self.get_corpus()
 
 
-    def prepare_corpus(self):
+    def get_corpus(self):
         """
         Saves the corpus to a CSV file.
 
@@ -114,84 +118,35 @@ class PydeltaDist(NgramDistance):
             filename (str): The target file.
         """
         # pydelta.Corpus takes string
-        dtm_path = str(pathlib.Path(str(self.unigram_counts_path).replace('book_unigram_mapping.pkl', 'corpus_words.csv')).resolve())
-        if not os.path.exists(dtm_path):
-            self.unigram_counts.T.to_csv(
-                    dtm_path,
-                    encoding="utf-8",
-                    na_rep=0,
-                    quoting=csv.QUOTE_NONNUMERIC)
-
-        corpus = delta.Corpus(file=dtm_path)
+        corpus = delta.Corpus(file=self.mfw_df_path)
         return corpus
 
-
-    def get_corpus(self, n_mfw=500):
-        corpus_topn = self.corpus.top_n(n_mfw)
-        return corpus_topn
-
-
-
-# class Delta(NgramDistance):
-#     def __init__(self, language, data_dir, n_mfw=500):
-#         super().__init__(language, data_dir)
-#         self.n_mfw = n_mfw
-#         self.rel_unigram_freq_mfw, self.std_rel_unigram_freq = self.prepare_data()
-#         self.df = self.rel_unigram_freq_mfw
-    
-#     def prepare_data(self):
-#         # f_i(D)
-#         rel_unigram_freq = self.unigram_counts.div(self.unigram_counts.sum(axis=1), axis=0)
-#         # mu_i
-#         mean_rel_unigram_freq = rel_unigram_freq.mean(axis=0)
-#         # sort according to relative frequency
-#         rel_unigram_freq = rel_unigram_freq.reindex(mean_rel_unigram_freq.sort_values(ascending=False).index, axis=1)
-#         # select n most common words
-#         rel_unigram_freq_mfw = rel_unigram_freq.iloc[:, :self.n_mfw]
-#         # sigma_i
-#         std_rel_unigram_freq = rel_unigram_freq.std(axis=0).iloc[:self.n_mfw]
-#         return rel_unigram_freq_mfw, std_rel_unigram_freq
-
-#     def get_distance_matrix(self):
-#         m = self.calculate_dist_matrix()
-#         m = pd.DataFrame(m, index=self.df.index, columns=self.df.index)
-#         return m
-
-
-# class ClassicDelta(Delta):
-#     # Burrows Delta with Manhattan distance
-#     def __init__(self, language, data_dir, n_mfw=500):
-#         super().__init__(language, data_dir, n_mfw)
-
-#     def calculate_distance(self, row1, row2):
-#         # The callable should take two arrays from X as input and return a value indicating the distance between them.
-#         #diff = (abs((row1 - row2).div(self.std_rel_unigram_freq, axis=0)).sum())#/(1/self.n_mfw)
-#         diff = np.sum(np.absolute(np.divide(minkowski(row1, row2, p=1), self.std_rel_unigram_freq.values)))
-#         return diff
-# d = ClassicDelta(language, data_dir)
-# matrix = d.get_distance_matrix()
 
 # %%
 def is_symmetric(df):
     return df.equals(df.T)
 
-def show_distance_distribution(df):
-   values = df.to_numpy()
-   # lower triangle of array
-   values = np.tril(values).flatten()
-   plt.hist(values, bins = np.arange(0,1.1, 0.01))
-   plt.show()
+def show_distance_distribution(df, nmfw):
+    values = df.to_numpy()
+    # lower triangle of array
+    values = np.tril(values).flatten()
+    values = values[values !=0]
+    print(len(values))
+    if not len(values) == (nmfw*(nmfw-1)/2):
+        print('Incorrect number of values.')
+    print(f'Minimum distance: {min(values)}. Maximum distance: {max(values)}.')
+    plt.hist(values, bins = np.arange(0,max(values) + 0.1, 0.001))
+    plt.show()
 
 
-language = 'ger' #['eng', 'ger']
-data_dir = '../data'
-print(delta.functions)
+pydelta = PydeltaDist(language, data_dir, nmfw=nmfw)
+pydelta_corpus = pydelta.get_corpus()
 
-pydelta = PydeltaDist(language, data_dir)
-burrows_mtrx = delta.functions.burrows(pydelta.get_corpus(n_mfw=500)) #MFW?
+#x = corpus.sum(axis=1).sort_values(ascending=False)
+burrows_mtrx = delta.functions.burrows(pydelta_corpus) #MFW?
 print(is_symmetric(burrows_mtrx))
 
-show_distance_distribution(burrows_mtrx)
+show_distance_distribution(burrows_mtrx, nmfw)
 
 # %%
 # kmedoids = KMedoids(n_clusters=2, metric='precomputed', method='pam', init='build', random_state=8).fit(burrows_mtrx)

@@ -282,8 +282,9 @@ def get_best_models(cv_results, task, significance_threshold, eval_metric_col):
 
     # Find index of maximum correlation
     best_models = cv_results.loc[cv_results[eval_metric_col] == max_metric]
+    print('Number of models that have the highest correlation coefficient and significant p-value: ', best_models.shape[0])
     if best_models.shape[0] > 1:
-        print('Number of models that have the highest correlation coefficient and significant p-value: ', best_models.shape[0])
+        print('More than 1 best model.')
 
     return best_models
 

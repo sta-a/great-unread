@@ -14,8 +14,8 @@ from hpo_functions import get_task_params
 from evaluation_functions import *
 from copy import deepcopy
 
-languages = ['eng','ger'] #'eng', 'ger'
-tasks = ['regression']
+languages = ['eng'] #'eng', 'ger'
+tasks = ['regression-importances']
 testing = False ###################
 data_dir = '../data'
 significance_threshold = 0.1
@@ -24,7 +24,7 @@ n_outer_folds = 5
 # Combine predictions of outer folds for each model
 for language in languages:
 
-    features_dir = features_dir = os.path.join(data_dir, 'features_None', language)
+    features_dir = os.path.join(data_dir, 'features_None', language)
     gridsearch_dir = os.path.join(data_dir, 'nested_gridsearch', language)
     sentiscores_dir = os.path.join(data_dir, 'sentiscores', language)
     metadata_dir = os.path.join(data_dir, 'metadata', language)
@@ -34,12 +34,11 @@ for language in languages:
         os.makedirs(results_dir, exist_ok=True)
 
     for task in tasks:
-        task_params = get_task_params(task, testing)
+        task_params = get_task_params(task, testing, language)
         for label_type in task_params['labels']:
             best_inner_models = []
             
             for features in task_params['features']:
-                print(language, task, label_type, features)
                 all_predictions = []
                 for outer_fold in range(0, n_outer_folds):
                     predictions = load_fold_predictions(gridsearch_dir, language, task, label_type, features, outer_fold)
@@ -69,9 +68,11 @@ for language in languages:
 
     outer_results = []
     for task in tasks:
-        task_params = get_task_params(task, testing)
-        if task == 'regression':
+        print('Task', task)
+        task_params = get_task_params(task, testing, language)
+        if 'regression' in task:
             eval_metric_col = 'mean_test_corr'
+            print('regression in task')
         else:
             eval_metric_col = 'mean_test_' + task_params['refit']
 
@@ -87,7 +88,7 @@ for language in languages:
                         os.path.join(gridsearch_dir, f'inner-cv_{language}_{task}_{label_type}_{features}_fold-{outer_fold}.csv'), 
                         header=0)
                     # Check if there are NaN harmonic p-values
-                    if task == 'regression':
+                    if 'regression' in task:
                         na_pvalue = fold_results[fold_results['harmonic_pvalue'].isnull()]
                         if na_pvalue.shape[0] != 0:
                             print(f'{na_pvalue.shape[0]} models have non-significant harmonic p-value.')
@@ -141,7 +142,7 @@ for language in languages:
             results_for_plotting_dict = deepcopy(outer_results_dict)
             outer_results_dict.update(outer_scores)
             outer_results.append(pd.DataFrame.from_dict([outer_results_dict]))
-            if task == 'regression':
+            if 'regression' in task:
                 results_for_plotting_dict['y_true'] = y_true
                 results_for_plotting_dict['y_pred'] = y_pred
                 results_for_plotting_dict['min_y_true'] = y_true.min()
@@ -154,7 +155,7 @@ for language in languages:
 
     outer_results = pd.concat(outer_results)
     outer_results.to_csv(
-        os.path.join(results_dir, f'outer-scores_{language}.csv'), 
+        os.path.join(results_dir, f'outer-scores_{language}_{task}.csv'), 
         header=True, 
         index=False)
 

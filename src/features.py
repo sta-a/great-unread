@@ -10,6 +10,7 @@ import pandas as pd
 import time
 from itertools import repeat
 from multiprocessing import Pool, cpu_count
+from pathlib import Path
 from feature_extraction.doc2vec_chunk_vectorizer import Doc2VecChunkVectorizer
 from feature_extraction.doc_based_feature_extractor import DocBasedFeatureExtractor
 from feature_extraction.corpus_based_feature_extractor import CorpusBasedFeatureExtractor
@@ -25,11 +26,11 @@ if from_commandline:
     data_dir = args.data_dir
 else:
     # Don't use defaults because VSC interactive can't handle command line arguments
-    language = 'ger'
+    language = 'eng'
     data_dir = '../data/'
 
 # Select number of texts to work with
-nr_texts = 5 # None for all texts
+nr_texts = None # None for all texts
 raw_docs_dir = os.path.join(data_dir, 'raw_docs', language)
 features_dir = os.path.join(data_dir, f'features_{nr_texts}', language)
 if not os.path.exists(features_dir):
@@ -38,6 +39,10 @@ if not os.path.exists(features_dir):
 doc_paths = get_doc_paths(raw_docs_dir)[:nr_texts]
 print(len(doc_paths))
 sents_per_chunk = 200
+
+wordstat_path = os.path.join(Path(str(doc_paths[0].replace('raw_docs', 'word_statistics'))).parent, 'word_statistics.pkl')
+if os.path.exists(wordstat_path):
+    os.remove(wordstat_path)
 
 
 def _create_doc2vec_embeddings():
@@ -71,7 +76,7 @@ def _get_doc_features(sentences_per_chunk):
 
 
 def _get_corpus_features(sentences_per_chunk):
-    cbfe = CorpusBasedFeatureExtractor(language, doc_paths, sentences_per_chunk=sentences_per_chunk, nr_features=100)
+    cbfe = CorpusBasedFeatureExtractor(language, doc_paths, sentences_per_chunk=sentences_per_chunk, nr_features=100, nr_texts=nr_texts)
     chunk_features, book_features = cbfe.get_all_features()
     # Save book features only once (not when running with fulltext chunks)
     return chunk_features, book_features
