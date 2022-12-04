@@ -95,7 +95,7 @@ def get_best_model_across_features(task, best_inner_models, eval_metric_col, n_o
                 Nr best models from {n_outer_folds} folds: {best_model_across_features.shape[0]}.')
 
     # Check if best model has significant harmonic p-value
-    if task == 'regression':
+    if 'regression' in task:
         nonsignificant = best_model_across_features.loc[best_model_across_features['harmonic_pvalue'] >= significance_threshold]
         if nonsignificant.shape[0] != 0:
             print(f'{nonsignificant.shape[0]} best inner models have a non-significant harmonic p-value. \
@@ -248,7 +248,7 @@ def evaluate_classification(results_dir, language, task, label_type, best_featur
 
 
 def score_task(task, y_true, y_pred):
-    if task == 'regression':
+    if 'regression' in task:
         corr, corr_pvalue = pearsonr(y_true, y_pred)
         result = {'corr': corr, 
                 'corr_pvalue': corr_pvalue}
@@ -267,7 +267,7 @@ def score_task(task, y_true, y_pred):
 def get_best_models(cv_results, task, significance_threshold, eval_metric_col):
     # Return models with highest evaluation metric
     # Adapted from refit_regression()
-    if task == 'regression':
+    if 'regression' in task:
         model_smallest_pval = cv_results[cv_results['harmonic_pvalue'] == cv_results['harmonic_pvalue'].min()] # Return if no model has significant harmonic pvalue
         cv_results = cv_results[~cv_results['harmonic_pvalue'].isna()]
         cv_results = cv_results[cv_results['harmonic_pvalue']<significance_threshold]

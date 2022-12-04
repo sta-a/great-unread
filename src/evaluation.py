@@ -15,7 +15,7 @@ from evaluation_functions import *
 from copy import deepcopy
 
 languages = ['eng'] #'eng', 'ger'
-tasks = ['regression-importances']
+tasks = ['regression']
 testing = False ###################
 data_dir = '../data'
 significance_threshold = 0.1
@@ -28,7 +28,7 @@ for language in languages:
     gridsearch_dir = os.path.join(data_dir, 'nested_gridsearch', language)
     sentiscores_dir = os.path.join(data_dir, 'sentiscores', language)
     metadata_dir = os.path.join(data_dir, 'metadata', language)
-    canonscores_dir = os.path.join(data_dir, 'canonscores', language)
+    canonscores_dir = os.path.join(data_dir, 'canonscores')
     results_dir = os.path.join(data_dir, 'results', language)
     if not os.path.exists(results_dir):
         os.makedirs(results_dir, exist_ok=True)
@@ -61,7 +61,7 @@ for language in languages:
     gridsearch_dir = os.path.join(data_dir, 'nested_gridsearch', language)
     sentiscores_dir = os.path.join(data_dir, 'sentiscores', language)
     metadata_dir = os.path.join(data_dir, 'metadata', language)
-    canonscores_dir = os.path.join(data_dir, 'canonscores', language)
+    canonscores_dir = os.path.join(data_dir, 'canonscores')
     results_dir = os.path.join(data_dir, 'results', language)
     if not os.path.exists(results_dir):
         os.makedirs(results_dir, exist_ok=True)

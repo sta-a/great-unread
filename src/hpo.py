@@ -1,7 +1,7 @@
 # %%
-%load_ext autoreload
-%autoreload 2
-from_commandline = False
+# %load_ext autoreload
+# %autoreload 2
+from_commandline = True
 
 import warnings
 warnings.simplefilter('once', RuntimeWarning)
