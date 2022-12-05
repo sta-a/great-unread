@@ -1,16 +1,32 @@
 # %%
+%load_ext autoreload
+%autoreload 2
+
 import pandas as pd
+import numpy as np
+import pickle
 import os
-languages = ['ger']
+from hpo_functions import get_data, ColumnTransformer
+
+
+languages = ['eng', 'ger'] #'eng', 'ger'
+task = 'regression-importances'
+label_type = 'canon'
+# Importances are calculated on cacb features
+features = 'book'
+
+data_dir = '../data'
+canonscores_dir = os.path.join(data_dir, 'canonscores')
+n_outer_folds = 5
+
+
+
+# %%
 # Nr reviewed texts after contradicting labels were removed: 191
-
-
 for language in languages:
-    data_dir = '/home/annina/scripts/great_unread_nlp/data'
     # Use full features set for classification to avoid error with underrepresented classes
     sentiscores_dir = os.path.join(data_dir, 'sentiscores', language)
     metadata_dir = os.path.join(data_dir, 'metadata', language)
-    canonscores_dir = os.path.join(data_dir, 'canonscores', language)
     features_dir = features_dir = os.path.join(data_dir, 'features_None', language)
     gridsearch_dir = os.path.join(data_dir, 'nested_gridsearch', language)
     if not os.path.exists(gridsearch_dir):
@@ -64,4 +80,25 @@ for language in languages:
     new_file_names = pd.read_csv('/home/annina/scripts/great_unread_nlp/src/new_file_names.csv', header=0)[['file_name', 'file_name_new']]
     print(new_file_names)
 
+
+
+# %%
+# Plot canon scores distribution
+import matplotlib.pyplot as plt
+
+for language in languages:
+    sentiscores_dir = os.path.join(data_dir, 'sentiscores', language)
+    metadata_dir = os.path.join(data_dir, 'metadata', language)
+    features_dir = features_dir = os.path.join(data_dir, 'features_None', language)
+
+    X, y = get_data(language, task, label_type, features, features_dir, canonscores_dir, sentiscores_dir, metadata_dir)
+    threshold = 0.5
+    above_threshold = y.loc[y['y'] >= threshold]
+    print(f'Nr texts with canon score above {threshold}: {above_threshold.shape}')
+
+    fig = plt.figure()
+    ax = fig.add_subplot(1,1,1)# Set the title of plot
+    ax.plot(y['y'].sort_values(), label=language)
+    ax.set_title(f'Canon scores distribution {language}')
+    plt.show()
 # %%
