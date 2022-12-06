@@ -9,16 +9,141 @@ import csv
 import logging
 from matplotlib import pyplot as plt
 import sys
+import scipy.cluster.hierarchy as sch
 sys.path.insert(1, '/home/annina/scripts/pydelta')
 import delta
+from hpo_functions import get_author_groups, get_data
+import matplotlib as mpl
+from sklearn.manifold import MDS
+
+class ClusterVis():
+    def __init__(
+            self, 
+            language, 
+            dist_name,
+            dists,
+            group, 
+            distances_dir,
+            sentiscores_dir,
+            metadata_dir,
+            canonscores_dir,
+            features_dir):
+        self.language = language
+        self.dist_name = dist_name
+        self.dists=dists
+        self.group = group
+        self.distances_dir = distances_dir
+        self.sentiscores_dir = sentiscores_dir
+        self.metadata_dir = metadata_dir
+        self.canonscores_dir = canonscores_dir
+        self.features_dir = features_dir
+        self.mx = dists[self.dist_name]['mx']
+        self.file_group_mapping = self._init_colormap()
+        self.nmfw = self.dists[self.dist_name]['nmfw']
+
+    def _relabel_axis(self):
+        labels = self.ax.get_ymajorticklabels()
+        for label in labels:
+            color = self.file_group_mapping.loc[self.file_group_mapping['file_name'] ==label.get_text(), 'group_color']
+            label = label.set_color(str(color.values[0]))
+
+    def save(self,plt, vis_type):
+        plt.savefig(os.path.join(self.distances_dir, f'{vis_type}_{self.dist_name}_{self.group}.png'))
+
+    def draw_dendrogram(self, clustering):
+        plt.clf()
+        plt.figure(figsize=(12,12),dpi=1000)
+        dendro_data = sch.dendrogram(
+            Z=clustering, 
+            orientation='left', 
+            labels=self.mx.index.to_list(),
+            show_leaf_counts=True,
+            leaf_font_size=1)
+        self.ax = plt.gca() 
+        self._relabel_axis()
+        plt.title(f'{self.dist_name}, {self.group}, {self.language}')
+        #plt.xlabel('Samples')
+        #plt.ylabel('Euclidean distances')
+        self.save(plt, 'dendrogram')
+
+    def draw_mds(self, clustering):
+        df = MDS(n_components=2, dissimilarity='precomputed', random_state=8, metric=True).fit_transform(self.mx)
+        df = pd.DataFrame(df, columns=['comp1', 'comp2'], index=self.mx.index)
+        df = df.merge(self.file_group_mapping, how='inner', left_index=True, right_on='file_name', validate='one_to_one')
+        df = df.merge(clustering, how='inner', left_on='file_name', right_index=True, validate='1:1')
+
+        def _group_cluster_color(row):
+            color = None
+            if row['group_color'] == 'b' and row['cluster'] == 0:
+                color = 'darkblue'
+            elif row['group_color'] == 'b' and row['cluster'] == 1:
+                color = 'royalblue'
+            elif row['group_color'] == 'r' and row['cluster'] == 0:
+                color = 'crimson'
+            #elif row['group_color'] == 'r' and row['cluster'] == 0:
+            else:
+                color = 'deeppink'
+            return color
+
+        df['group_cluster_color'] = df.apply(_group_cluster_color, axis=1)
+
+
+        fig = plt.figure(figsize=(5,5))
+        ax = fig.add_subplot(1,1,1)
+        plt.scatter(df['comp1'], df['comp2'], color=df['group_cluster_color'], s=2, label="MDS")
+        plt.title(f'{self.dist_name}, {self.group}, {self.language}')
+        self.save(plt, 'MDS')
+
+    def _init_colormap(self):
+        if self.group == 'author':
+            x = get_author_groups(self.mx)
+            file_group_mapping = pd.DataFrame(x).reset_index().rename({'index': 'file_name'}, axis=1)
+            groups = file_group_mapping['author'].unique()
+            props = mpl.rcParams['axes.prop_cycle']
+            colormap = {x: y['group_color'] for x,y in zip(groups, props())}
+            colormap = pd.DataFrame(colormap, index=['group_color']).T.reset_index().rename({'index': 'author'}, axis=1)
+            file_group_mapping = file_group_mapping.merge(colormap, how='left', on='author', validate='many_to_one')
+
+        elif self.group == 'unread':
+            X, file_group_mapping = get_data(
+                language=self.language, 
+                task='regression-importance', 
+                label_type='canon', 
+                features='book', 
+                features_dir=self.features_dir, 
+                canonscores_dir=self.canonscores_dir, 
+                sentiscores_dir=self.sentiscores_dir, 
+                metadata_dir=self.metadata_dir)
+            threshold = 0.5
+            file_group_mapping = file_group_mapping.reset_index().rename({'index': 'file_name'}, axis=1)
+            file_group_mapping['group_color'] = file_group_mapping['y'].apply(lambda x: 'r' if x > threshold else 'b')
+
+        elif self.group == 'gender':
+            # Combine author metadata and file_name
+            authors = pd.read_csv(os.path.join(self.metadata_dir, 'authors.csv'), header=0, sep=';')[['author_viaf','name', 'first_name', 'gender']]
+            metadata = pd.read_csv(os.path.join(self.metadata_dir, f'{self.language.upper()}_texts_meta.csv'), header=0, sep=';')[['author_viaf', 'file_name']]
+            file_group_mapping = metadata.merge(authors, how='left', on='author_viaf', validate='many_to_one')
+            file_group_mapping['file_name'] = file_group_mapping['file_name'].replace(to_replace={ ############################3
+                # new -- old
+                'Storm_Theodor_Immensee_1850': 'Storm_Theodor_Immersee_1850',
+                'Hoffmansthal_Hugo_Reitergeschichte_1899': 'Hoffmansthal_Hugo-von_Reitergeschichte_1899'
+                })
+            # check if all file names have metadata
+            #ytest = df.merge(self.mx, left_on='file_name', right_index=True, validate='one_to_one', how='outer')
+            file_group_mapping['group_color'] = file_group_mapping['gender'].apply(lambda x: 'r' if x=='f' else 'b')
+            
+        return file_group_mapping
+
+
+
 
 
 class Distance():
     def __init__(self, language, data_dir):
         self.language = language
         self.data_dir = data_dir
-        self.df = None
-        self.mx = None
+        self.df = None ####################
+        self.mx = None ###################################
 
     def calculate_distance(self):
         raise NotImplementedError
@@ -28,11 +153,11 @@ class Distance():
         self.mx = pd.DataFrame(self.mx, index=self.df.index, columns=self.df.index)
 
         if file_name != None:
-            self.save_mx(file_name)
+            self.save_mx(self.mx, file_name)
         return self.mx
 
-    def save_mx(self, file_name):
-        self.mx.to_csv(
+    def save_mx(self, mx, file_name):
+        mx.to_csv(
             os.path.join(self.data_dir, 'distances', self.language, f'{file_name}.csv'),
             header=True, 
             index=True
@@ -77,11 +202,10 @@ class WordbasedDistance(Distance):
     '''
     Distances that are based on words (unigrams).
     '''
-    def __init__(self, language, data_dir, nmfw, nr_texts):
-        # nr_texts is the number of texts for which the features were calculated, None if all features
+    def __init__(self, language, data_dir, nmfw):
         super().__init__(language, data_dir)
         self.nmfw = nmfw
-        self.wordstat_dir = os.path.join(self.data_dir, f'word_statistics_{nr_texts}', language)
+        self.wordstat_dir = os.path.join(self.data_dir, f'word_statistics_None', language)
         self.wordstat_path = os.path.join(self.wordstat_dir, 'word_statistics.pkl')
         self.mfw_df_path = os.path.join(self.wordstat_dir, f'mfw_{self.nmfw}.csv')
         self.prepare_mfw_df()
@@ -141,11 +265,9 @@ class PydeltaDist(WordbasedDistance):
     Calculate distances with Pydelta.
     These are the Burrows' Delta and related measures.
     '''
-    def __init__(self, language, data_dir, nmfw, nr_texts):
-        super().__init__(language, data_dir, nmfw, nr_texts)
+    def __init__(self, language, data_dir, nmfw):
+        super().__init__(language, data_dir, nmfw)
         self.corpus = self.get_corpus()
-        self.mx = self.calculate_mx()
-
 
     def get_corpus(self):
         """
@@ -163,17 +285,28 @@ class PydeltaDist(WordbasedDistance):
         corpus = delta.Corpus(file=self.mfw_df_path)
         return corpus
 
+    def calculate_mx(self, function, file_name=None):
+        mx = None
+        if function == 'burrows':
+            mx = delta.functions.burrows(self.corpus)
+        elif function == 'quadratic':
+            mx = delta.functions.quadratic(self.corpus)
+        elif function == 'eder':
+            mx = delta.functions.eder(self.corpus)
+        elif function == 'edersimple':
+            mx = delta.functions.eder_simple(self.corpus)
+        elif function == 'cosinedelta':
+            mx = delta.functions.cosine_delta(self.corpus)
 
-    def calculate_mx(self, file_name=None):
-        self.mx = delta.functions.burrows(self.corpus)
         if file_name != None:
-            self.save_mx(file_name)
-        return self.mx
+            self.save_mx(mx, file_name)
+        print('pydelta dist matrix', mx)
+        return mx
 
 def is_symmetric(df):
     return df.equals(df.T)
 
-def show_distance_distribution(mx, language):
+def show_distance_distribution(mx, language, filename, data_dir):
     values = mx.to_numpy()
     # lower triangle of array
     values = np.tril(values).flatten()
@@ -188,32 +321,46 @@ def show_distance_distribution(mx, language):
     ax.hist(values, bins = np.arange(0,max(values) + 0.1, 0.001), log=False)
     ax.set_xlabel('Distance')
     ax.set_ylabel('Frequency')
-    ax.set_title(f'Distance frequency {language}')
+    ax.set_title(f'Distance distribution {filename}')
     plt.xticks(np.arange(0, max(values) + 0.1, step=0.5))
     plt.xticks(rotation=90)
 
-    plt.show()
+    plt.savefig(os.path.join(data_dir, 'distances', language, f'distance-dist_{filename}.png'))
+
 
 def get_importances_mx(language, data_dir):
     #----------------------------------------------
     # Get distance based on feature importance
     #----------------------------------------------
     i = ImprtDistance(language, data_dir)
-    imprtmx = i.calculate_mx(file_name='imprtdist')
-    show_distance_distribution(imprtmx, language)
-    return imprtmx
+    mx = i.calculate_mx(file_name='imprtdist')
+    show_distance_distribution(mx, language, 'imprt', data_dir)
+    return mx
 
 
 # %%
-def get_pydelta_mx(language, data_dir, nmfw, nr_texts):
+def get_pydelta_mx(language, data_dir, **kwargs):
     #----------------------------------------------
     # Get Pydelta distances
     #----------------------------------------------
     #print(delta.functions)
-    pydelta = PydeltaDist(language, data_dir, nmfw=nmfw, nr_texts=nr_texts)
+    nmfw = kwargs['nmfw']
+    function = kwargs['function']
+    pydelta = PydeltaDist(language, data_dir, nmfw=nmfw)
     #x = corpus.sum(axis=1).sort_values(ascending=False)
-    burrowsmx = pydelta.calculate_mx(file_name='burrows')
-    # show_distance_distribution(burrowsmx, language)
-    print(burrowsmx.simple_score())
-    return burrowsmx
+    mx = pydelta.calculate_mx(function, file_name=f'pydelta_{function}{nmfw}')
+    show_distance_distribution(mx, language, f'{function}{nmfw}', data_dir)
+    # print(mx.simple_score())
+    return mx
     
+
+def get_mx(distance, language, data_dir, **kwargs):
+    mx = None
+    if distance == 'imprt':
+        mx = get_importances_mx(language, data_dir)
+    elif distance == 'burrows500':
+        mx = get_pydelta_mx(language, data_dir, **kwargs)
+    elif distance == 'burrows1000':
+        mx = get_pydelta_mx(language, data_dir, **kwargs)
+    return mx
+
