@@ -20,4 +20,4 @@ rm -r /home/annina/scripts/great_unread_nlp/data/nested_gridsearch && cd /home/a
 
 # Run locally from command line
 source activate nlp
-rm -r /home/annina/scripts/great_unread_nlp/data/nested_gridsearch && cd /home/annina/scripts/great_unread_nlp/src/ && python hpo.py eng /home/annina/scripts/great_unread_nlp/data regression --testing
+cd /home/annina/scripts/great_unread_nlp/src/ && python hpo.py eng /home/annina/scripts/great_unread_nlp/data regression --testing

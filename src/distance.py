@@ -32,7 +32,7 @@ data_dir = '../data'
 # agglomerative hierarchical clustering, k-means, or density-based clustering (DBSCAN)
 
 
-# %%
+
 class Clustering():
     def __init__(
             self, 
@@ -112,14 +112,13 @@ for language in languages:
     features_dir = os.path.join(data_dir, 'features_None', language)
 
     dists = {}
-    # dists['imprt'] = { ######################################################33
-    #     'mx': get_mx('imprt', language, data_dir),
-    #     'nmfw': None}
+    dists['imprt'] = { ######################################################33
+        'mx': get_mx('imprt', language, data_dir),
+        'nmfw': None}
 
-    pydelta_dists = ['burrows', 'quadratic', 'eder', 'edersimple', 'cosinedelta']
+    pydelta_dists = ['quadratic', 'eder', 'edersimple', 'cosinedelta'] # 'burrows', 
     nmfw_list = [500, 1000, 2000, 5000]
-    pydelta_dists = ['quadratic']
-    nmfw_list = [500]
+    pydelta_dists = ['burrows']
     for dist in pydelta_dists:
         for nmfw in nmfw_list:
             print('----------------------------', dist, nmfw)
@@ -128,24 +127,8 @@ for language in languages:
             'mx': get_mx(dist_name, language, data_dir, nmfw=nmfw, function=dist),
             'nmfw': nmfw}
 
-            print(dists[dist_name]['mx'])
-
 
     for dist_name in dists.keys():
-        for group in ['gender']: #'author', 'unread', 
-            c = Clustering(
-                draw=True,
-                language=language, 
-                dist_name=dist_name, 
-                dists=dists, #######################3
-                group=group,
-                distances_dir = distances_dir,
-                sentiscores_dir = sentiscores_dir,
-                metadata_dir = metadata_dir,
-                canonscores_dir = canonscores_dir,
-                features_dir = features_dir)
-        clusters = c.get_clusters(type='hierarchical')
-
 
         for group in ['unread', 'gender']:
             c = Clustering(
@@ -161,7 +144,16 @@ for language in languages:
                 features_dir = features_dir)
             clusters = c.get_clusters(type='kmedoids')
 
-
-# %%
-
-# Use setter for goup in clustering constuctor
+        # for group in ['gender', 'author', 'unread']: 
+        #     c = Clustering(
+        #         draw=True,
+        #         language=language, 
+        #         dist_name=dist_name, 
+        #         dists=dists, #######################3
+        #         group=group,
+        #         distances_dir = distances_dir,
+        #         sentiscores_dir = sentiscores_dir,
+        #         metadata_dir = metadata_dir,
+        #         canonscores_dir = canonscores_dir,
+        #         features_dir = features_dir)
+        # clusters = c.get_clusters(type='hierarchical')

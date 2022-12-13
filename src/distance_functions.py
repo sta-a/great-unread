@@ -47,8 +47,8 @@ class ClusterVis():
             color = self.file_group_mapping.loc[self.file_group_mapping['file_name'] ==label.get_text(), 'group_color']
             label = label.set_color(str(color.values[0]))
 
-    def save(self,plt, vis_type):
-        plt.savefig(os.path.join(self.distances_dir, f'{vis_type}_{self.dist_name}_{self.group}.png'))
+    def save(self,plt, vis_type, dpi):
+        plt.savefig(os.path.join(self.distances_dir, f'{vis_type}_{self.dist_name}_{self.group}.png'), dpi=dpi)
 
     def draw_dendrogram(self, clustering):
         plt.clf()
@@ -64,10 +64,10 @@ class ClusterVis():
         plt.title(f'{self.dist_name}, {self.group}, {self.language}')
         #plt.xlabel('Samples')
         #plt.ylabel('Euclidean distances')
-        self.save(plt, 'dendrogram')
+        self.save(plt, 'dendrogram', 1000)
 
     def draw_mds(self, clustering):
-        df = MDS(n_components=2, dissimilarity='precomputed', random_state=8, metric=True).fit_transform(self.mx)
+        df = MDS(n_components=2, dissimilarity='precomputed', random_state=6, metric=True).fit_transform(self.mx)
         df = pd.DataFrame(df, columns=['comp1', 'comp2'], index=self.mx.index)
         df = df.merge(self.file_group_mapping, how='inner', left_index=True, right_on='file_name', validate='one_to_one')
         df = df.merge(clustering, how='inner', left_on='file_name', right_index=True, validate='1:1')
@@ -92,7 +92,7 @@ class ClusterVis():
         ax = fig.add_subplot(1,1,1)
         plt.scatter(df['comp1'], df['comp2'], color=df['group_cluster_color'], s=2, label="MDS")
         plt.title(f'{self.dist_name}, {self.group}, {self.language}')
-        self.save(plt, 'MDS')
+        self.save(plt, 'MDS', dpi=500)
 
     def _init_colormap(self):
         if self.group == 'author':
@@ -100,8 +100,9 @@ class ClusterVis():
             file_group_mapping = pd.DataFrame(x).reset_index().rename({'index': 'file_name'}, axis=1)
             groups = file_group_mapping['author'].unique()
             props = mpl.rcParams['axes.prop_cycle']
-            colormap = {x: y['group_color'] for x,y in zip(groups, props())}
-            colormap = pd.DataFrame(colormap, index=['group_color']).T.reset_index().rename({'index': 'author'}, axis=1)
+
+            colormap = {x: y['color'] for x,y in zip(groups, props())}
+            colormap = pd.DataFrame(colormap, index=['group_color']).T.reset_index().rename({'index': 'author', 'color': 'group_color'}, axis=1)
             file_group_mapping = file_group_mapping.merge(colormap, how='left', on='author', validate='many_to_one')
 
         elif self.group == 'unread':
@@ -215,6 +216,7 @@ class WordbasedDistance(Distance):
 
         if not os.path.exists(self.mfw_df_path):
             word_statistics = self.load_word_statistics()
+            print(f'Preparing {self.nmfw} mfw table')
 
             total_unigram_counts = word_statistics['total_unigram_counts']
             # nested dict {file_name: {unigram: count}
@@ -300,7 +302,6 @@ class PydeltaDist(WordbasedDistance):
 
         if file_name != None:
             self.save_mx(mx, file_name)
-        print('pydelta dist matrix', mx)
         return mx
 
 def is_symmetric(df):
@@ -329,9 +330,6 @@ def show_distance_distribution(mx, language, filename, data_dir):
 
 
 def get_importances_mx(language, data_dir):
-    #----------------------------------------------
-    # Get distance based on feature importance
-    #----------------------------------------------
     i = ImprtDistance(language, data_dir)
     mx = i.calculate_mx(file_name='imprtdist')
     show_distance_distribution(mx, language, 'imprt', data_dir)
@@ -340,9 +338,6 @@ def get_importances_mx(language, data_dir):
 
 # %%
 def get_pydelta_mx(language, data_dir, **kwargs):
-    #----------------------------------------------
-    # Get Pydelta distances
-    #----------------------------------------------
     #print(delta.functions)
     nmfw = kwargs['nmfw']
     function = kwargs['function']
@@ -354,13 +349,18 @@ def get_pydelta_mx(language, data_dir, **kwargs):
     return mx
     
 
-def get_mx(distance, language, data_dir, **kwargs):
-    mx = None
-    if distance == 'imprt':
-        mx = get_importances_mx(language, data_dir)
-    elif distance == 'burrows500':
-        mx = get_pydelta_mx(language, data_dir, **kwargs)
-    elif distance == 'burrows1000':
-        mx = get_pydelta_mx(language, data_dir, **kwargs)
+def get_mx(dist_name, language, data_dir, **kwargs):
+    filename = dist_name ############################################# not necessary
+    if 'burrows' in filename:
+        filename = f'pydelta_{filename}'
+    mx_path = os.path.join(data_dir, 'distances', language, f'{filename}.csv')
+    if os.path.exists(filename):
+        mx = pd.read_csv(mx_path, header=0, index_col=0)
+    else:
+        mx = None
+        if dist_name == 'imprt':
+            mx = get_importances_mx(language, data_dir)
+        else:
+            mx = get_pydelta_mx(language, data_dir, **kwargs)
     return mx
 

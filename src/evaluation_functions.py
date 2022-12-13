@@ -42,29 +42,30 @@ def plot_regression(results_dir, results_for_plotting):
 
     for d in results_for_plotting:
         if d['language'] == 'eng':
-            color = 'm'
+            color = 'blue'
         else:
-            color = 'teal'
+            color = 'blue'
         fig = plt.figure(figsize = (4,4)) 
         ax = fig.add_subplot(111)
         ax.scatter(x=d['y_true'], y=d['y_pred'], s=5, c=color, marker='o')
         # ax.grid()
         
         # Set the lower and upper numerical bounds of the x-axis
-        ax.set_xbound(lower=-x_axis_limit,upper= x_axis_limit + 0.01)
-        ax.set_ybound(lower=-y_axis_limit,upper= y_axis_limit + 0.01)
+        #ax.set_xbound(lower=-x_axis_limit,upper= x_axis_limit + 0.01)
+        #ax.set_ybound(lower=-y_axis_limit,upper= y_axis_limit + 0.01)
         plt.draw()
         ax.tick_params(axis='x', which='both', labelsize=12, labelrotation=45)
         ax.tick_params(axis='y', which='both', labelsize=12)
-        ax.xaxis.set_ticks(np.arange(-0.2, 0.25, 0.1))
-        ax.yaxis.set_ticks(np.arange(-0.2, 0.25, 0.1))
+        #ax.xaxis.set_ticks(np.arange(-0.2, 0.25, 0.1))
+        #ax.yaxis.set_ticks(np.arange(-0.2, 0.25, 0.1))
 
         # ax.text(x=-x_axis_limit + 0.02, 
         #         y=y_axis_limit - 0.02,
         #         s=f'r = {correlation}{significance}', 
         #         fontsize=18)
-        ax.set_xlabel('Sentiment Scores', fontsize=15)
+        ax.set_xlabel('True Scores', fontsize=15)
         ax.set_ylabel('Predicted Scores', fontsize=15)
+        print(os.path.join(results_dir, f'plot_{d["language"]}_regression_{d["label_type"]}.png'))
         fig.savefig(
             os.path.join(results_dir, f'plot_{d["language"]}_regression_{d["label_type"]}.png'), 
             dpi=400, 

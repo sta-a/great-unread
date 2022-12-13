@@ -14,8 +14,8 @@ from hpo_functions import get_task_params
 from evaluation_functions import *
 from copy import deepcopy
 
-languages = ['eng'] #'eng', 'ger'
-tasks = ['regression']
+languages = ['eng', 'ger']
+tasks = ['regression-canon']
 testing = False ###################
 data_dir = '../data'
 significance_threshold = 0.1
@@ -159,6 +159,6 @@ for language in languages:
         header=True, 
         index=False)
 
-plot_regression(results_dir, results_for_plotting)
+    plot_regression(results_dir, results_for_plotting)
 
 # %%
