@@ -9,133 +9,10 @@ import csv
 import logging
 from matplotlib import pyplot as plt
 import sys
-import scipy.cluster.hierarchy as sch
 sys.path.insert(1, '/home/annina/scripts/pydelta')
 import delta
-from hpo_functions import get_author_groups, get_data
-import matplotlib as mpl
-from sklearn.manifold import MDS
-
-class ClusterVis():
-    def __init__(
-            self, 
-            language, 
-            dist_name,
-            dists,
-            group, 
-            distances_dir,
-            sentiscores_dir,
-            metadata_dir,
-            canonscores_dir,
-            features_dir):
-        self.language = language
-        self.dist_name = dist_name
-        self.dists=dists
-        self.group = group
-        self.distances_dir = distances_dir
-        self.sentiscores_dir = sentiscores_dir
-        self.metadata_dir = metadata_dir
-        self.canonscores_dir = canonscores_dir
-        self.features_dir = features_dir
-        self.mx = dists[self.dist_name]['mx']
-        self.file_group_mapping = self._init_colormap()
-        self.nmfw = self.dists[self.dist_name]['nmfw']
-
-    def _relabel_axis(self):
-        labels = self.ax.get_ymajorticklabels()
-        for label in labels:
-            color = self.file_group_mapping.loc[self.file_group_mapping['file_name'] ==label.get_text(), 'group_color']
-            label = label.set_color(str(color.values[0]))
-
-    def save(self,plt, vis_type, dpi):
-        plt.savefig(os.path.join(self.distances_dir, f'{vis_type}_{self.dist_name}_{self.group}.png'), dpi=dpi)
-
-    def draw_dendrogram(self, clustering):
-        plt.clf()
-        plt.figure(figsize=(12,12),dpi=1000)
-        dendro_data = sch.dendrogram(
-            Z=clustering, 
-            orientation='left', 
-            labels=self.mx.index.to_list(),
-            show_leaf_counts=True,
-            leaf_font_size=1)
-        self.ax = plt.gca() 
-        self._relabel_axis()
-        plt.title(f'{self.dist_name}, {self.group}, {self.language}')
-        #plt.xlabel('Samples')
-        #plt.ylabel('Euclidean distances')
-        self.save(plt, 'dendrogram', 1000)
-
-    def draw_mds(self, clustering):
-        df = MDS(n_components=2, dissimilarity='precomputed', random_state=6, metric=True).fit_transform(self.mx)
-        df = pd.DataFrame(df, columns=['comp1', 'comp2'], index=self.mx.index)
-        df = df.merge(self.file_group_mapping, how='inner', left_index=True, right_on='file_name', validate='one_to_one')
-        df = df.merge(clustering, how='inner', left_on='file_name', right_index=True, validate='1:1')
-
-        def _group_cluster_color(row):
-            color = None
-            if row['group_color'] == 'b' and row['cluster'] == 0:
-                color = 'darkblue'
-            elif row['group_color'] == 'b' and row['cluster'] == 1:
-                color = 'royalblue'
-            elif row['group_color'] == 'r' and row['cluster'] == 0:
-                color = 'crimson'
-            #elif row['group_color'] == 'r' and row['cluster'] == 0:
-            else:
-                color = 'deeppink'
-            return color
-
-        df['group_cluster_color'] = df.apply(_group_cluster_color, axis=1)
-
-
-        fig = plt.figure(figsize=(5,5))
-        ax = fig.add_subplot(1,1,1)
-        plt.scatter(df['comp1'], df['comp2'], color=df['group_cluster_color'], s=2, label="MDS")
-        plt.title(f'{self.dist_name}, {self.group}, {self.language}')
-        self.save(plt, 'MDS', dpi=500)
-
-    def _init_colormap(self):
-        if self.group == 'author':
-            x = get_author_groups(self.mx)
-            file_group_mapping = pd.DataFrame(x).reset_index().rename({'index': 'file_name'}, axis=1)
-            groups = file_group_mapping['author'].unique()
-            props = mpl.rcParams['axes.prop_cycle']
-
-            colormap = {x: y['color'] for x,y in zip(groups, props())}
-            colormap = pd.DataFrame(colormap, index=['group_color']).T.reset_index().rename({'index': 'author', 'color': 'group_color'}, axis=1)
-            file_group_mapping = file_group_mapping.merge(colormap, how='left', on='author', validate='many_to_one')
-
-        elif self.group == 'unread':
-            X, file_group_mapping = get_data(
-                language=self.language, 
-                task='regression-importance', 
-                label_type='canon', 
-                features='book', 
-                features_dir=self.features_dir, 
-                canonscores_dir=self.canonscores_dir, 
-                sentiscores_dir=self.sentiscores_dir, 
-                metadata_dir=self.metadata_dir)
-            threshold = 0.5
-            file_group_mapping = file_group_mapping.reset_index().rename({'index': 'file_name'}, axis=1)
-            file_group_mapping['group_color'] = file_group_mapping['y'].apply(lambda x: 'r' if x > threshold else 'b')
-
-        elif self.group == 'gender':
-            # Combine author metadata and file_name
-            authors = pd.read_csv(os.path.join(self.metadata_dir, 'authors.csv'), header=0, sep=';')[['author_viaf','name', 'first_name', 'gender']]
-            metadata = pd.read_csv(os.path.join(self.metadata_dir, f'{self.language.upper()}_texts_meta.csv'), header=0, sep=';')[['author_viaf', 'file_name']]
-            file_group_mapping = metadata.merge(authors, how='left', on='author_viaf', validate='many_to_one')
-            file_group_mapping['file_name'] = file_group_mapping['file_name'].replace(to_replace={ ############################3
-                # new -- old
-                'Storm_Theodor_Immensee_1850': 'Storm_Theodor_Immersee_1850',
-                'Hoffmansthal_Hugo_Reitergeschichte_1899': 'Hoffmansthal_Hugo-von_Reitergeschichte_1899'
-                })
-            # check if all file names have metadata
-            #ytest = df.merge(self.mx, left_on='file_name', right_index=True, validate='one_to_one', how='outer')
-            file_group_mapping['group_color'] = file_group_mapping['gender'].apply(lambda x: 'r' if x=='f' else 'b')
-            
-        return file_group_mapping
-
-
+from scipy.spatial.distance import minkowski
+from distance_cluster import Clustering
 
 
 
@@ -159,7 +36,7 @@ class Distance():
 
     def save_mx(self, mx, file_name):
         mx.to_csv(
-            os.path.join(self.data_dir, 'distances', self.language, f'{file_name}.csv'),
+            os.path.join(self.data_dir, 'distances', self.language, f'distances_{file_name}.csv'),
             header=True, 
             index=True
         )
@@ -311,11 +188,21 @@ def show_distance_distribution(mx, language, filename, data_dir):
     values = mx.to_numpy()
     # lower triangle of array
     values = np.tril(values).flatten()
+    # Values in the traingular matrix below the diagonal
+    # None of these values should be 0
     values = values[values !=0]
-    print(len(values))
-    if not len(values) == (mx.shape[0]*(mx.shape[0]-1)/2):
-        print('Incorrect number of values.')
-    print(f'Minimum distance: {min(values)}. Maximum distance: {max(values)}. Nr nonzeros: {np.count_nonzero(values)}')
+    #nr elements below diagonal: n(n-1)/2
+    n_elements = (mx.shape[0]*(mx.shape[0]-1)/2)
+    assert len(values) == n_elements
+
+    # values = values[values < 0.1]
+    # np.savetxt('test', values)
+
+    # Find most common frequency
+    _, counts = np.unique(values, return_counts=True)
+    ind = np.argmax(counts)
+
+    print(f'Minimum distance: {min(values)}. Maximum distance: {max(values)}. Most common distance: {values[ind]}.')
 
     fig = plt.figure(figsize=(10,6), dpi=300)
     ax = fig.add_subplot(111)
@@ -326,7 +213,7 @@ def show_distance_distribution(mx, language, filename, data_dir):
     plt.xticks(np.arange(0, max(values) + 0.1, step=0.5))
     plt.xticks(rotation=90)
 
-    plt.savefig(os.path.join(data_dir, 'distances', language, f'distance-dist_{filename}.png'))
+    plt.savefig(os.path.join(data_dir, 'distances', language, f'distance-distribution_{filename}.png'))
 
 
 def get_importances_mx(language, data_dir):
@@ -339,28 +226,52 @@ def get_importances_mx(language, data_dir):
 # %%
 def get_pydelta_mx(language, data_dir, **kwargs):
     #print(delta.functions)
+    dist_name = kwargs['dist_name']
     nmfw = kwargs['nmfw']
     function = kwargs['function']
     pydelta = PydeltaDist(language, data_dir, nmfw=nmfw)
     #x = corpus.sum(axis=1).sort_values(ascending=False)
-    mx = pydelta.calculate_mx(function, file_name=f'pydelta_{function}{nmfw}')
-    show_distance_distribution(mx, language, f'{function}{nmfw}', data_dir)
+    mx = pydelta.calculate_mx(function, file_name=dist_name)
+    show_distance_distribution(mx, language, dist_name, data_dir)
     # print(mx.simple_score())
     return mx
     
 
-def get_mx(dist_name, language, data_dir, **kwargs):
-    filename = dist_name ############################################# not necessary
-    if 'burrows' in filename:
-        filename = f'pydelta_{filename}'
-    mx_path = os.path.join(data_dir, 'distances', language, f'{filename}.csv')
-    if os.path.exists(filename):
+def get_mx(language, data_dir, **kwargs):
+    dist_name = kwargs['dist_name']
+    mx_path = os.path.join(data_dir, 'distances', language, f'distances_{dist_name}.csv')
+    if os.path.exists(mx_path):
         mx = pd.read_csv(mx_path, header=0, index_col=0)
+        print(f'Loading {dist_name} distance matrix from file.')
     else:
         mx = None
         if dist_name == 'imprt':
             mx = get_importances_mx(language, data_dir)
         else:
             mx = get_pydelta_mx(language, data_dir, **kwargs)
+        print(f'Creating {dist_name} distance matrix.')
     return mx
 
+
+def get_clustering(
+        draw,
+        language, 
+        dist_name, 
+        mx,
+        distances_dir,
+        sentiscores_dir,
+        metadata_dir,
+        canonscores_dir,
+        features_dir):
+
+    c = Clustering(
+        draw=draw,
+        language=language, 
+        dist_name=dist_name, 
+        mx=mx,
+        distances_dir = distances_dir,
+        sentiscores_dir = sentiscores_dir,
+        metadata_dir = metadata_dir,
+        canonscores_dir = canonscores_dir,
+        features_dir = features_dir)
+    clustering = c.get_clusters()
