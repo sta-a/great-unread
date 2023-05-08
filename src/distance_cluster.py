@@ -10,8 +10,34 @@ from matplotlib import pyplot as plt
 import matplotlib as mpl
 import os
 
+# if clusters == True:
+#     get_clusters(True, language, dist_name, mx, distances_dir, sentiscores_dir, metadata_dir, canonscores_dir, features_dir)
 
-class Clustering():
+def get_clusters(
+        draw,
+        language, 
+        dist_name, 
+        mx,
+        distances_dir,
+        sentiscores_dir,
+        metadata_dir,
+        canonscores_dir,
+        features_dir):
+
+    c = Clusters(
+        draw=draw,
+        language=language, 
+        dist_name=dist_name, 
+        mx=mx,
+        distances_dir = distances_dir,
+        sentiscores_dir = sentiscores_dir,
+        metadata_dir = metadata_dir,
+        canonscores_dir = canonscores_dir,
+        features_dir = features_dir)
+    c.get_clusters()
+
+
+class Clusters():
     def __init__(
             self, 
             draw,
@@ -56,27 +82,28 @@ class Clustering():
                     features_dir=self.features_dir)
 
             if param_dict['type'] == 'hierarchical':
-                clustering = self.hierarchical(vis)
+                clusters = self.hierarchical(vis)
             elif param_dict['type'] == 'kmedoids':
-                clustering = self.kmedoids(group, vis)
-        return clustering
+                clusters = self.kmedoids(group, vis)
+            print(f'Created {param_dict["type"]} clusters.')
+        return clusters
 
     def hierarchical(self, vis):
         # from Pydelta
         # Ward
 
         # Linkage matrix
-        clustering = sch.ward(ssd.squareform(self.mx, force="tovector"))
-        vis.draw_dendrogram(clustering)
-        return clustering
+        clusters = sch.ward(ssd.squareform(self.mx, force="tovector"))
+        vis.draw_dendrogram(clusters)
+        return clusters
         
     def kmedoids(self, group, vis):
         n_clusters = self.group_params[group]['n_clusters']
         kmedoids = KMedoids(n_clusters=n_clusters, metric='precomputed', method='pam', init='build', random_state=8)
-        clustering = kmedoids.fit_predict(self.mx)
-        clustering = pd.DataFrame(clustering, index=self.mx.index).rename({0: 'cluster'}, axis=1)
-        vis.draw_mds(clustering)
-        return clustering
+        clusters = kmedoids.fit_predict(self.mx)
+        clusters = pd.DataFrame(clusters, index=self.mx.index).rename({0: 'cluster'}, axis=1)
+        vis.draw_mds(clusters)
+        return clusters
 
 
 class ClusterVis():
@@ -112,11 +139,12 @@ class ClusterVis():
     def save(self,plt, vis_type, dpi):
         plt.savefig(os.path.join(self.distances_dir, f'{self.plot_name}_{vis_type}.png'), dpi=dpi)
 
-    def draw_dendrogram(self, clustering):
+    def draw_dendrogram(self, clusters):
+        print(f'Drawing dendrogram.')
         plt.clf()
         plt.figure(figsize=(12,12),dpi=1000)
         dendro_data = sch.dendrogram(
-            Z=clustering, 
+            Z=clusters, 
             orientation='left', 
             labels=self.mx.index.to_list(),
             show_leaf_counts=True,
@@ -128,11 +156,12 @@ class ClusterVis():
         #plt.ylabel('Euclidean distances')
         self.save(plt, 'hierarchical-dendrogram', 1000)
 
-    def draw_mds(self, clustering):
+    def draw_mds(self, clusters):
+        print(f'Drawing MDS.')
         df = MDS(n_components=2, dissimilarity='precomputed', random_state=6, metric=True).fit_transform(self.mx)
         df = pd.DataFrame(df, columns=['comp1', 'comp2'], index=self.mx.index)
         df = df.merge(self.file_group_mapping, how='inner', left_index=True, right_on='file_name', validate='one_to_one')
-        df = df.merge(clustering, how='inner', left_on='file_name', right_index=True, validate='1:1')
+        df = df.merge(clusters, how='inner', left_on='file_name', right_index=True, validate='1:1')
 
         def _group_cluster_color(row):
             color = None

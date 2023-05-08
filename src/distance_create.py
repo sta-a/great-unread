@@ -5,14 +5,11 @@ import pickle
 import os
 import pandas as pd
 import numpy as np
-import csv
-import logging
 from matplotlib import pyplot as plt
 import sys
 sys.path.insert(1, '/home/annina/scripts/pydelta')
 import delta
 from scipy.spatial.distance import minkowski
-from distance_cluster import Clustering
 
 
 
@@ -35,6 +32,7 @@ class Distance():
         return self.mx
 
     def save_mx(self, mx, file_name):
+        mx = mx.sort_index(axis=0).sort_index(axis=1)
         mx.to_csv(
             os.path.join(self.data_dir, 'distances', self.language, f'distances_{file_name}.csv'),
             header=True, 
@@ -160,7 +158,7 @@ class PydeltaDist(WordbasedDistance):
         Args:
             filename (str): The target file.
         """
-        # pydelta.Corpus takes string
+        # pydelta.Corpus accepts string
         corpus = delta.Corpus(file=self.mfw_df_path)
         return corpus
 
@@ -181,50 +179,16 @@ class PydeltaDist(WordbasedDistance):
             self.save_mx(mx, file_name)
         return mx
 
-def is_symmetric(df):
-    return df.equals(df.T)
-
-def show_distance_distribution(mx, language, filename, data_dir):
-    values = mx.to_numpy()
-    # lower triangle of array
-    values = np.tril(values).flatten()
-    # Values in the traingular matrix below the diagonal
-    # None of these values should be 0
-    values = values[values !=0]
-    #nr elements below diagonal: n(n-1)/2
-    n_elements = (mx.shape[0]*(mx.shape[0]-1)/2)
-    assert len(values) == n_elements
-
-    # values = values[values < 0.1]
-    # np.savetxt('test', values)
-
-    # Find most common frequency
-    _, counts = np.unique(values, return_counts=True)
-    ind = np.argmax(counts)
-
-    print(f'Minimum distance: {min(values)}. Maximum distance: {max(values)}. Most common distance: {values[ind]}.')
-
-    fig = plt.figure(figsize=(10,6), dpi=300)
-    ax = fig.add_subplot(111)
-    ax.hist(values, bins = np.arange(0,max(values) + 0.1, 0.001), log=False)
-    ax.set_xlabel('Distance')
-    ax.set_ylabel('Frequency')
-    ax.set_title(f'Distance distribution {filename}')
-    plt.xticks(np.arange(0, max(values) + 0.1, step=0.5))
-    plt.xticks(rotation=90)
-
-    plt.savefig(os.path.join(data_dir, 'distances', language, f'distance-distribution_{filename}.png'))
-
 
 def get_importances_mx(language, data_dir):
     i = ImprtDistance(language, data_dir)
     mx = i.calculate_mx(file_name='imprtdist')
-    show_distance_distribution(mx, language, 'imprt', data_dir)
+    #plot_distance_distribution(mx, language, 'imprt', data_dir)
     return mx
 
 
 # %%
-def get_pydelta_mx(language, data_dir, **kwargs):
+def create_pydelta_mx(language, data_dir, **kwargs):
     #print(delta.functions)
     dist_name = kwargs['dist_name']
     nmfw = kwargs['nmfw']
@@ -232,46 +196,27 @@ def get_pydelta_mx(language, data_dir, **kwargs):
     pydelta = PydeltaDist(language, data_dir, nmfw=nmfw)
     #x = corpus.sum(axis=1).sort_values(ascending=False)
     mx = pydelta.calculate_mx(function, file_name=dist_name)
-    show_distance_distribution(mx, language, dist_name, data_dir)
+    #plot_distance_distribution(mx, language, dist_name, data_dir)
     # print(mx.simple_score())
     return mx
     
 
-def get_mx(language, data_dir, **kwargs):
+def load_distance_mx(language, data_dir, **kwargs):
     dist_name = kwargs['dist_name']
     mx_path = os.path.join(data_dir, 'distances', language, f'distances_{dist_name}.csv')
     if os.path.exists(mx_path):
-        mx = pd.read_csv(mx_path, header=0, index_col=0)
         print(f'Loading {dist_name} distance matrix from file.')
+        mx = pd.read_csv(mx_path, header=0, index_col=0)
+        print(f'Loaded {dist_name} distance matrix from file.')
     else:
         mx = None
+        print(f'Creating {dist_name} distance matrix.')
         if dist_name == 'imprt':
             mx = get_importances_mx(language, data_dir)
         else:
-            mx = get_pydelta_mx(language, data_dir, **kwargs)
-        print(f'Creating {dist_name} distance matrix.')
+            mx = create_pydelta_mx(language, data_dir, **kwargs)
+        print(f'Created {dist_name} distance matrix.')
+        # Sort columns and index alphabetically
+        mx = mx.sort_index(axis=0).sort_index(axis=1)
+
     return mx
-
-
-def get_clustering(
-        draw,
-        language, 
-        dist_name, 
-        mx,
-        distances_dir,
-        sentiscores_dir,
-        metadata_dir,
-        canonscores_dir,
-        features_dir):
-
-    c = Clustering(
-        draw=draw,
-        language=language, 
-        dist_name=dist_name, 
-        mx=mx,
-        distances_dir = distances_dir,
-        sentiscores_dir = sentiscores_dir,
-        metadata_dir = metadata_dir,
-        canonscores_dir = canonscores_dir,
-        features_dir = features_dir)
-    clustering = c.get_clusters()
