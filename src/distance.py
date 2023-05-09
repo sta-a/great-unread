@@ -9,19 +9,19 @@ import time
 import os
 import numpy as np
 from distance_create import load_distance_mx
-from network_functions import nk_from_adjacency
 import networkx as nx
 import networkit as nk
-from distance_sparsify import distance_to_similarity_mx, filter_min_author_similarity
-from distance_visualization import visualize_directed_graph, plot_distance_distribution
-
+from distance_analysis import get_mx_triangular, nr_elements_triangular, distance_to_similarity_mx
+from distance_sparsify import filter_min_author_similarity, filter_threshold
+from distance_visualization import plot_distance_distribution
+from network_functions import check_symmetric, nx_print_graph_info, nx_graph_from_mx
 
 data_dir = '../data'
 
 
 ### Save plots doesnt work #############################3
 
-
+  
 
 for language in ['eng']: #, 'ger'
     distances_dir = os.path.join(data_dir, 'distances', language)
@@ -59,35 +59,12 @@ for language in ['eng']: #, 'ger'
             smx = smx.iloc[:50,:50]
 
             # directed_mx = filter_min_author_similarity(smx)
-            # visualize_directed_graph(directed_mx)
 
-
-            filter_simmelian(smx)
-
-
-
-
-
-# %%
-
-def filter_simmelian(mx):
-    '''
-    mx: similarity matrix
-    '''
-
-    G = nk_from_adjacency(mx)
-    print(nk.overview(G))
-    G.indexEdges()
-    targetRatio = 0.2
-    ## Non-parametric
-    simmelianSparsifier = nk.sparsification.SimmelianSparsifierNonParametric()
-    simmelieanGraph = simmelianSparsifier.getSparsifiedGraphOfSize(G, targetRatio) # Get sparsified graph
-    print('Nr edges before and after filtering', G.numberOfEdges(), simmelieanGraph.numberOfEdges())
-    x = simmelianSparsifier.scores(G)
-    # same nr edges after sparsification - weights not considered?
-
-
-
+            threshold = 0.8
+            tsmx = filter_threshold(mx=smx, q=threshold)
+            tsmxG = nx_graph_from_mx(tsmx, plot=True, color_map_func=None)
+            nx_print_graph_info(tsmxG)
+            print(f'Nr expected edges in filtered graph: {nr_elements_triangular(smx)*(1-threshold)}') # Only values above threshold are left
 
 
 
@@ -97,3 +74,4 @@ def filter_simmelian(mx):
 # # find eta
 # eta = 0.1
 # set all values below eta to 0
+# %%

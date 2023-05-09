@@ -93,11 +93,3 @@ def get_texts_by_author(list_of_filenames):
     # nr_texts_per_author: dict{author name: nr texts by author}
     return author_filename_mapping, nr_texts_per_author
 
-
-def nr_elements_triangular_mx(mx):
-      '''
-      Calculate the number of elements in one triangular above the diagonal of a symmetric matrix.
-      The diagonal is not counted.
-      n(n-1)/2
-      '''
-      return mx.shape[0]*(mx.shape[0]-1)/2

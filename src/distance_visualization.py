@@ -4,8 +4,8 @@ import numpy as np
 from utils import get_texts_by_author
 import time
 import networkx as nx
-from utils import nr_elements_triangular_mx
 import os
+from distance_analysis import get_mx_triangular, check_symmetric
 
 def map_authors_colors(list_of_filenames):
     '''
@@ -29,38 +29,16 @@ def map_filenames_colors(list_of_filenames):
     return fn_color_mapping
 
 
-def visualize_directed_graph(mx):
-    '''
-    mx: Assymetric weight or adjacency matrix
-    '''
-    # Visualization
-    mx = mx.fillna(0) # Adjacency matrix must not contain Nan!
-    G = nx.from_pandas_adjacency(mx, create_using=nx.DiGraph) # cant use adjacency, it is directed
-    fn_colors_map = map_filenames_colors(list_of_filenames=mx.index)
-    color_map = [fn_colors_map[node] for node in G]
-
-    start = time.time()
-    pos = nx.circular_layout(G)
-    print(f'{time.time()-start} seconds to calculate node positions.')
-    start = time.time()           
-    nx.draw_networkx(G, pos, node_size=30, with_labels=True, node_color=color_map)
-    print(f'{time.time()-start}s to create plot.')
-    plt.show()
-
-
 def plot_distance_distribution(mx, mx_type, language, filename, data_dir):
     start = time.time()
-    values = np.tril(mx.values, k=-1).flatten() # Return a copy of an array with elements above the k-th diagonal zeroed
-    values = values[np.nonzero(values)] # Remove zeros
-    # Check number of elements below the diagonal
-    assert len(values) == nr_elements_triangular_mx(mx)
-    assert not np.any(np.isnan(values)) # Test whether any element is nan
+    vals = get_mx_triangular(mx) # Get triangular matrix, ignore diagonal
+    assert not np.any(np.isnan(vals)) # Test whether any element is nan
 
     # Find most common frequency
-    _, counts = np.unique(values, return_counts=True)
+    _, counts = np.unique(vals, return_counts=True)
     ind = np.argmax(counts)
 
-    print(f'Minimum {mx_type}: {min(values)}. Maximum {mx_type}: {max(values)}. Most common {mx_type}: {values[ind]}.')
+    print(f'Minimum {mx_type}: {min(vals)}. Maximum {mx_type}: {max(vals)}. Most common {mx_type}: {vals[ind]}.')
 
     fig = plt.figure(figsize=(20,6), dpi=300)
     ax = fig.add_subplot(111)
@@ -70,11 +48,11 @@ def plot_distance_distribution(mx, mx_type, language, filename, data_dir):
     else:
         binsize = 0.1
         xtick_step = 5
-    ax.hist(values, bins = np.arange(0,max(values) + 0.1, binsize), log=True, ec='black', color='black') #kwargs set edge color
+    ax.hist(vals, bins = np.arange(0,max(vals) + 0.1, binsize), log=True, ec='black', color='black') #kwargs set edge color
     ax.set_xlabel(f'{mx_type.capitalize()}')
     ax.set_ylabel('Frequency')
     ax.set_title(f'{mx_type.capitalize()} distribution {filename}')
-    plt.xticks(np.arange(0, max(values) + 0.1, step=xtick_step))
+    plt.xticks(np.arange(0, max(vals) + 0.1, step=xtick_step))
     plt.xticks(rotation=90)
     ax.grid(False)
 

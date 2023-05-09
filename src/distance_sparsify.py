@@ -1,32 +1,13 @@
 import pandas as pd
 import numpy as np
-from utils import get_texts_by_author
+from distance_analysis import get_mx_triangular
 
-
-def set_diagonal(df, value):
-        '''
-        df: distance or similarity matrix
-        value: the value that should be on the diagonal
-        '''
-        #df.values[[np.arange(df.shape[0])]*2] = value
-        for i in range(0, df.shape[0]):
-              df.iloc[i, i] = value
-        return df
-
-def distance_to_similarity_mx(df):
-    '''
-    df: distance matrix
-    Invert distances to obtain similarities.
-    '''
-    # Assert that there are no Nan
-    assert not df.isnull().values.any()
-    # Set diagonal to Nan
-    df = set_diagonal(df, np.nan)
-    # Assert that there are no zero distances
-    assert df.all().all()
-
-    df = df.rdiv(1) # divide 1 by the values in the matrix
-    return df
+def filter_threshold(mx, q):
+      vals = get_mx_triangular(mx)
+      threshold_value = np.quantile(a=vals, q=q)
+      mx[mx<threshold_value] = 0
+      print(f'Nr vals before filtering: {mx.shape[0]**2}. Nr vals after filtering: {np.count_nonzero(mx.values)}.')
+      return mx
 
 
 def filter_min_author_similarity(mx):
@@ -55,3 +36,19 @@ def filter_min_author_similarity(mx):
       print(f'Number of non-nan entries: {np.sum(directed_mx.count())}.')
 
       return directed_mx
+
+
+# def filter_simmelian(mx):
+#     '''
+#     mx: similarity matrix
+#     '''
+#     G = nk_from_adjacency(mx)
+#     print(nk.overview(G))
+#     G.indexEdges()
+#     targetRatio = 0.2
+#     ## Non-parametric
+#     simmelianSparsifier = nk.sparsification.SimmelianSparsifierNonParametric()
+#     simmelieanGraph = simmelianSparsifier.getSparsifiedGraphOfSize(G, targetRatio) # Get sparsified graph
+#     print('Nr edges before and after filtering', G.numberOfEdges(), simmelieanGraph.numberOfEdges())
+#     x = simmelianSparsifier.scores(G)
+#     # same nr edges after sparsification - weights not considered?
