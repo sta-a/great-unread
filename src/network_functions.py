@@ -4,6 +4,7 @@ import numpy as np
 import random
 import matplotlib.pyplot as plt
 from distance_analysis import check_symmetric
+from distance_visualization import get_color_map
 
 
 # Convert pandas adjacency matrix to nk graph
@@ -20,19 +21,34 @@ def nx_print_graph_info(G):
             \nis weighted: {nx.is_weighted(G)}, \
             \nis directed: {nx.is_directed(G)}, \
             \nNr. of Selfloops: {nx.number_of_selfloops(G)}, \
-            \n------------------------------------\n\n')
+            \n------------------------------------\n')
       
 
 def nk_visualize_graph(nkG):
       nxG = nk.nxadapter.nk2nx(nkG)
-      nx.draw_networkx(nxG)
+      nx_plot_graph(nxG)
 
 
-def nx_graph_from_mx(mx, plot=True, color_map_func=None):
+def nx_plot_graph(G, cluster_type=None, cluster_assignments=None):
+      assert (cluster_type == None and cluster_assignments == None) or (cluster_type != None and cluster_assignments != None)
+
+      if cluster_type is not None:
+            if cluster_type == 'author':
+                  cluster_assignments = list(G.nodes(data=False)) # get list of file names
+            fn_colors_map = get_color_map(cluster_type, cluster_assignments)
+            color_map = [fn_colors_map[node] for node in G]
+      else:
+            color_map = 'blue'
+
+      pos = nx.spring_layout(G, seed=8)
+      nx.draw_networkx(G, pos, node_size=30, with_labels=False, node_color=color_map)
+      plt.show()
+
+
+def nx_graph_from_mx(mx):
       '''
-      mx: Assymetric weight or adjacency matrix
+      mx: Adjacency or directed or undirected weight matrix
       '''
-      # Visualization
       mx = mx.fillna(0) # Adjacency matrix must not contain Nan!
       if check_symmetric(mx):
             G = nx.from_pandas_adjacency(mx)
@@ -41,20 +57,7 @@ def nx_graph_from_mx(mx, plot=True, color_map_func=None):
             G = nx.from_pandas_adjacency(mx, create_using=nx.DiGraph) 
             print('Matrix is not symmetric but directed.')
       G.remove_edges_from(nx.selfloop_edges(G))
-
-      if plot:
-            if color_map_func is not None:
-                  fn_colors_map = color_map_func(list_of_filenames=mx.index)
-                  color_map = [fn_colors_map[node] for node in G]
-            else:
-                  color_map = 'blue'
-
-            pos = nx.random_layout(G)
-            nx.draw_networkx(G, pos, node_size=30, with_labels=False, node_color=color_map)
-            plt.show()
       return G
-
-
 
 
 def nk_graph_from_adjacency(mx):

@@ -6,27 +6,50 @@ import time
 import networkx as nx
 import os
 from distance_analysis import get_mx_triangular, check_symmetric
+import colorcet as cc
 
-def map_authors_colors(list_of_filenames):
-    '''
-    Map each author to a color.
-    '''
-    author_filename_mapping, _ = get_texts_by_author(list_of_filenames)
-    color = iter(plt.cm.rainbow(np.linspace(0, 1, len(author_filename_mapping))))
-    author_color_mapping = {author: next(color) for author, _ in author_filename_mapping.items()}
-    return author_color_mapping
 
-def map_filenames_colors(list_of_filenames):
+def get_colors_continuous(cluster_assignments):
+    colors = iter(plt.cm.gist_ncar(np.linspace(0, 1, len(cluster_assignments)))) #hsv
+    return colors
+
+
+def get_colors_discrete():
+    colors = iter(cc.glasbey_hv) #hsv
+    return colors
+
+
+def map_colors_authors(list_of_filenames):
     '''
     Map each filename to a color so that texts by the same author have the same color.
     '''
+
+    # Map each author to a color.
     author_filename_mapping, _ = get_texts_by_author(list_of_filenames)
-    author_color_mapping = map_authors_colors(list_of_filenames)
+    colors = get_colors_discrete()
+    author_color_mapping = {author: next(colors) for author, _ in author_filename_mapping.items()}
+
     fn_color_mapping = {}
     for author, list_of_filenames in author_filename_mapping.items():
         for fn in list_of_filenames:
             fn_color_mapping[fn] = author_color_mapping[author]
     return fn_color_mapping
+
+
+def get_color_map(cluster_type, cluster_assignments):
+    '''
+    cluster_assignment: list of filenames or list of lists
+    '''
+    if cluster_type == 'author':
+        cluster_color_mapping = map_colors_authors(cluster_assignments)
+    else:
+        colors = get_colors_discrete()
+        cluster_color_mapping = {}
+        for cluster in cluster_assignments:
+            color = next(colors)
+            for fn in cluster:
+                cluster_color_mapping[fn] = color
+    return cluster_color_mapping
 
 
 def plot_distance_distribution(mx, mx_type, language, filename, data_dir):
