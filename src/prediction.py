@@ -10,7 +10,7 @@ import time
 import os
 import pandas as pd
 import numpy as np
-from hpo_functions import get_data, CustomGroupKFold, get_task_params, run_gridsearch
+from prediction.prediction_functions import get_data, CustomGroupKFold, get_task_params, run_gridsearch
 
 
 start = time.time()

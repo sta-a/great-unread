@@ -8,16 +8,15 @@ import pandas as pd
 import time
 import os
 import numpy as np
-from distance_create import load_distance_mx
 import networkx as nx
 import networkit as nk
-from distance_analysis import get_mx_triangular, nr_elements_triangular, distance_to_similarity_mx
-from distance_sparsify import filter_min_author_similarity, filter_threshold
-from distance_visualization import plot_distance_distribution
+from distance.distance_analysis import get_mx_triangular, nr_elements_triangular, distance_to_similarity_mx
+from distance.distance_create import load_distance_mx
+from distance.distance_sparsify import filter_min_author_similarity, filter_threshold
+from distance.distance_visualization import plot_distance_distribution
 from network_functions import check_symmetric, nx_print_graph_info, nx_graph_from_mx, nx_plot_graph
 
 data_dir = '../data'
-
 
 ### Save plots doesnt work #############################3
 
@@ -62,7 +61,7 @@ for language in ['eng']: #, 'ger'
 
             threshold = 0.8
             tsmx = filter_threshold(mx=smx, q=threshold)
-            print(f'Nr expected edges in filtered graph: {nr_elements_triangular(smx)*(1-threshold)}') # Only values above threshold are left
+            print(f'Nr expected edges1 in filtered graph: {nr_elements_triangular(smx)*(1-threshold)}') # Only values above threshold are left
 
             # edge_labels = nx.get_edge_attributes(tsmxG,'weight')
             # for i,v in edge_labels.items():

@@ -10,8 +10,8 @@ import warnings
 warnings.simplefilter('once', RuntimeWarning)
 import pandas as pd
 import numpy as np
-from hpo_functions import get_task_params
-from evaluation_functions import *
+from prediction.hpo_functions import get_task_params
+from prediction.evaluation_functions import *
 from copy import deepcopy
 
 languages = ['eng', 'ger']
