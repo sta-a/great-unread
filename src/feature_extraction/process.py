@@ -6,7 +6,7 @@ from tqdm import tqdm
 import pickle
 import spacy
 from transformers import BertTokenizer
-from utils import preprocess_sentences_helper
+from ..utils import preprocess_sentences_helper
 
 
 class SentenceTokenizer():

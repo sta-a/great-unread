@@ -6,11 +6,10 @@ import logging
 import textstat
 from pathlib import Path
 from scipy.stats import entropy
-from unidecode import unidecode
 from sentence_transformers import SentenceTransformer
 from .process import SentenceTokenizer
 from .chunk import Chunk
-from utils import load_list_of_lines, save_list_of_lines, get_bookname
+from ..utils import load_list_of_lines, save_list_of_lines, get_bookname
 
 
 class DocBasedFeatureExtractor():
@@ -24,7 +23,6 @@ class DocBasedFeatureExtractor():
         bigram_counts=True, 
         trigram_counts=True, 
         raw_text=True, 
-        unidecoded_raw_text=True, 
         char_unigram_counts=True):
 
         self.language = language
@@ -37,7 +35,6 @@ class DocBasedFeatureExtractor():
         self.bigram_counts = bigram_counts
         self.trigram_counts = trigram_counts
         self.raw_text = raw_text
-        self.unidecoded_raw_text = unidecoded_raw_text
         self.char_unigram_counts = char_unigram_counts
 
         # Spacy
@@ -98,7 +95,6 @@ class DocBasedFeatureExtractor():
                 bigram_counts = self.bigram_counts,
                 trigram_counts = self.trigram_counts,
                 raw_text = self.raw_text,
-                unidecoded_raw_text = self.unidecoded_raw_text,
                 char_unigram_counts = self.char_unigram_counts)]
 
         else:
@@ -120,7 +116,6 @@ class DocBasedFeatureExtractor():
                         bigram_counts = self.bigram_counts,
                         trigram_counts = self.trigram_counts,
                         raw_text = self.raw_text,
-                        unidecoded_raw_text = self.unidecoded_raw_text,
                         char_unigram_counts = self.char_unigram_counts))
                     chunk_id_counter += 1
             return chunks
@@ -217,7 +212,7 @@ class DocBasedFeatureExtractor():
     def get_ratio_of_uppercase_letters(self, chunk):
         num_upper = 0
         num_alpha = 0
-        for char in chunk.unidecoded_raw_text:
+        for char in chunk.raw_text:
             if char.isalpha():
                 num_alpha += 1
                 if char.isupper():
@@ -259,7 +254,7 @@ class DocBasedFeatureExtractor():
         return len(chunk.trigram_counts.keys()) / sum(chunk.trigram_counts.values())
 
     def get_text_length(self, chunk):
-        return len(chunk.unidecoded_raw_text)
+        return len(chunk.raw_text)
 
     def get_average_word_length(self, chunk):
         word_lengths = []
@@ -305,13 +300,13 @@ class DocBasedFeatureExtractor():
         return types/tokens
 
     def get_flesch_reading_ease_score(self, chunk):
-        return textstat.flesch_reading_ease(chunk.unidecoded_raw_text)
+        return textstat.flesch_reading_ease(chunk.raw_text)
 
     def get_gunning_fog(self, chunk):
         '''''''''
         Not implemented for German. If we can find 'easy words' in German, then we can implement it ourselves.
         '''
-        return textstat.gunning_fog(chunk.unidecoded_raw_text)
+        return textstat.gunning_fog(chunk.raw_text)
 
     # book-based features
     def __get_intra_textual_variance(self, chunks, embedding_type):

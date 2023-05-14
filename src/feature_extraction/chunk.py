@@ -1,6 +1,5 @@
 import numpy as np
-from unidecode import unidecode
-from utils import get_bookname, preprocess_sentences_helper
+from ..utils import get_bookname, preprocess_sentences_helper
 
 class Chunk():
     def __init__(self, 
@@ -15,7 +14,6 @@ class Chunk():
         bigram_counts=False, 
         trigram_counts=False, 
         raw_text=False, 
-        unidecoded_raw_text=False, 
         char_unigram_counts=False):
 
         self.sentences_per_chunk = sentences_per_chunk
@@ -30,7 +28,6 @@ class Chunk():
         self.bigram_counts = bigram_counts
         self.trigram_counts = trigram_counts
         self.raw_text = raw_text
-        self.unidecoded_raw_text = unidecoded_raw_text
         self.char_unigram_counts = char_unigram_counts
 
         if self.processed_sentences == True:
@@ -43,8 +40,6 @@ class Chunk():
             self.trigram_counts = self.__find_trigram_counts()
         if self.raw_text == True:
             self.raw_text = self.__get_raw_text()
-        if self.unidecoded_raw_text == True:
-            self.unidecoded_raw_text = self.__unidecode_raw_text()
         if self.char_unigram_counts == True:
             self.char_unigram_counts = self.__find_char_unigram_counts()
 
@@ -94,17 +89,9 @@ class Chunk():
     def __get_raw_text(self):
         return ' '.join(self.tokenized_sentences)
 
-    def __unidecode_raw_text(self):
-        if type(self.raw_text) == bool:
-            self.raw_text = self.__get_raw_text()
-        return unidecode(self.raw_text)
-
     def __find_char_unigram_counts(self):
-        if type(self.unidecoded_raw_text) == bool:
-            self.unidecoded_raw_text = self.__unidecode_raw_text()
-
         char_unigram_counts = {}
-        for character in self.unidecoded_raw_text:
+        for character in self.raw_text:
             if character in char_unigram_counts.keys():
                 char_unigram_counts[character] += 1
             else:
@@ -124,5 +111,4 @@ class Chunk():
                 (self.bigram_counts == other.bigram_counts) and \
                 (self.trigram_counts == other.trigram_counts) and \
                 (self.char_unigram_counts == other.char_unigram_counts) and \
-                (self.raw_text == other.raw_text) and \
-                (self.unidecoded_raw_text == other.unidecoded_raw_text)
+                (self.raw_text == other.raw_text)

@@ -7,7 +7,7 @@ from multiprocessing import cpu_count
 from gensim.models import Doc2Vec
 from gensim.models.doc2vec import TaggedDocument
 from .process import SentenceTokenizer
-from utils import load_list_of_lines, save_list_of_lines
+from ..utils import load_list_of_lines, save_list_of_lines
 
 
 class Doc2VecChunkVectorizer():

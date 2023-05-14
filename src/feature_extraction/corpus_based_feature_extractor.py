@@ -13,7 +13,7 @@ from pathlib import Path
 import pickle
 import time
 from sklearn.neighbors import BallTree
-from utils import load_list_of_lines, save_list_of_lines, df_from_dict, get_bookname
+from ..utils import load_list_of_lines, save_list_of_lines, df_from_dict, get_bookname
 from .production_rule_extractor import ProductionRuleExtractor
 from .doc_based_feature_extractor import DocBasedFeatureExtractor
 
@@ -62,11 +62,18 @@ class CorpusBasedFeatureExtractor():
             bigram_counts=False, 
             trigram_counts=False, 
             raw_text=False, 
-            unidecoded_raw_text=False, 
             char_unigram_counts=False):
         for doc_path in self.doc_paths:
-            doc_chunks = DocBasedFeatureExtractor(self.language, doc_path, self.sentences_per_chunk, processed_sentences, unigram_counts, bigram_counts, trigram_counts, raw_text, 
-                unidecoded_raw_text, char_unigram_counts).chunks
+            doc_chunks = DocBasedFeatureExtractor(
+                self.language, 
+                doc_path, 
+                self.sentences_per_chunk, 
+                processed_sentences, 
+                unigram_counts, 
+                bigram_counts, 
+                trigram_counts, 
+                raw_text,
+                char_unigram_counts).chunks
             yield doc_chunks
 
 
