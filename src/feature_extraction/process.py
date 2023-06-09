@@ -44,7 +44,7 @@ class Tokenizer():
             with open(doc_path, 'r') as reader:
                 text = reader.read().strip()
             
-            text = Preprocessor(doc_path).preprocess_text(text)
+            text = Preprocessor(self.language, doc_path).preprocess_text(text)
 
             i = 0
             all_sentences = []
@@ -84,15 +84,15 @@ class Tokenizer():
                 punctuation = set(string.punctuation + '’' + '‘' + '—' + '“' + '”' + '–')
                 text = [word for word in text if not set(word) <= punctuation]
                 text = ' '.join(text)
-                # text = re.sub('[^a-zA-ZäöüÄÖÜ\']+', ' ', text).strip() #####################
+                # text = re.sub('[^a-zA-Z0-9äöüÄÖÜ\']+', ' ', text).strip() #####################
                 # text = text.split() ##############3
                 # text = ' '.join(text) #####################
                 text = text.lower()
-                Preprocessor(doc_path).check_characters(text) #####################################
+                Preprocessor(self.language, doc_path).check_characters(text) #####################################
                 return text
             
             all_words = []
-            sentences = self.get_tokenized_sentences(doc_path)[10:30] #########################
+            sentences = self.get_tokenized_sentences(doc_path)
             logging.info('Tokenizing words.')
             start = time.time()
             for sentence in sentences: 
@@ -106,7 +106,9 @@ class Tokenizer():
         
         tokenized_words_path = doc_path.replace('/raw_docs', '/tokenized_words')     
         if os.path.exists(tokenized_words_path):
+            start = time.time()
             words = load_list_of_lines(tokenized_words_path, 'str')
+            print(f'Time to tokenize words: {time.time()-start}')
         else:
             words = tokenize_words(doc_path)
             save_list_of_lines(words, tokenized_words_path, 'str')
@@ -115,78 +117,108 @@ class Tokenizer():
 
 class Preprocessor():
     # Preprocess text before sentence tokenization          
-    def __init__(self, doc_path):
+    def __init__(self, language, doc_path):
+        self.language = language
         self.doc_path = doc_path
 
     def check_annotations(self, text):
         annotation_words_eng = [
+            'Addendum',
             'Annotation',
+            'Appendix',
+            'cf.',   # confer
+            'Corrigendum',
+            'e.g.',  # exempli gratia
+            'endnote',###########################
             'Footnote',
             'Footer',
+            'i.e.',  # id est
             'Note',
-            'Comment',
-            'Addendum',
             'Remark',
-            'Supplement',
-            'Appendix',
-            'Clarification',
-            'Corrigendum',
-            ]
-        annotation_words_german = [
-            'Anmerkung',
-            'Kommentar',
-            'Annotation',
-            'Fußnote',
-            'Fussnote'
-            'Ergänzung',
-            'Nebenbemerkung',
-            'Bemerkung',
-            'Erklärung',
-            'Vertiefung',
+            '[see',
+            '(see',
+            # 'Supplement',
+            # 'viz.',   # videlicet,
+            'annotator',############
+            'editor'################
+            ] # comment
+        annotation_words_ger = [
             'Anhang',
+            'Anm.', ##################
+            'Anmerkung',
+            'Annotation',
+            'Ergänzung',
+            'Fussnote'
+            # 'Fußnote',
+            # 'Kommentar',
+            'Nebenbemerkung',
             'Referenz',
-            'Erweiterung',
-            ]
-        word_list = annotation_words_eng + annotation_words_german
+            's. a.',
+            's.a.', # siehe auch
+            '(siehe',
+            '[siehe',
+            'siehe auch',
+            'vergleiche auch', 
+            'vgl.',
+            'Herausgeber',###############
+            'Herausg.']  # vergleiche###########33
+            # v.', 'vergleiche', siehe, s., Erklärung, Bemerkung
 
-        lowercase_text = text.lower()
+        if self.language == 'eng':
+            word_list = annotation_words_eng
+        else:
+            word_list = annotation_words_ger
+
+        word_list = [r'\b' + word for word in word_list]
+        word_list = [word.replace('.', r'\.') for word in word_list]
+        word_list = [word.replace('[', r'\[') for word in word_list]
+        word_list = [word.replace('(', r'\(') for word in word_list]
+
+        text = text.lower()
         lowercase_words = [word.lower() for word in word_list]
 
-        with open('annotation_words.txt', 'a') as f:
+        with open(f'annotation_words_{self.language}.txt', 'a') as f:
             for word in lowercase_words:
-                regex_string = r'\b' + word + r'\b'
-                idx = re.search(regex_string, text)
+                idx = re.search(word, text)
                 if bool(idx):
                     idx = idx.start()
-                    step = 50
+                    step = 30
                     if idx<step:
                         idx = 0
                     if idx > (len(text) - step):
                         idx = (len(text) - step)
-                    f.write(self.doc_path + '\t' + word + '\t' + text[idx-step:idx+step].replace('\n', '') + '\n')
+                    f.write(self.doc_path + '\t' + word + '\t' + text[idx-step:idx+(step+30)].replace('\n', ' ') + '\n')
 
 
     def check_characters(self, text):
-            # inner "'" is escaped
-            text = re.sub('[\'A-Za-z0-9ÄÖÜäöü,?!-;()\[\] ]+', '', text)
-            # Remove "=" between numbers
-            chars = re.sub(r'\d[ ]?=[ ]?\d', '', text)
-            if chars:
-                with open('char_check.txt', 'a') as f:
-                    f.write(self.doc_path + '\t' + chars + '\n')
 
-        # def check_uppercase(text):
-        #     upper_words = [word for word in text if (word.isupper() and len(word)>1)]
-        #     if upper_words:
-        #         with open('upper_check.txt', 'a') as f:
-        #             f.write(self.doc_path + ',' + ' '.join(upper_words) + '\n')
+        def get_char_idxs(char, text):
+            return [i for i, letter in enumerate(text) if letter == char]
+
+        # inner "'" is escaped
+        chars = re.sub(r'[\'A-Za-z0-9ÄÖÜäöü,?!-;_ ]+', '', text)
+        # Remove "=" between numbers
+        chars = re.sub(r'\d[ ]?=[ ]?\d', '', chars)
+        if chars:
+            step = 25
+            with open(f'special_chars_{self.language}.txt', 'a') as f:
+                # Write part of text where char occurrs first to file
+                # Might
+                for char in set(chars):
+                    idxs = get_char_idxs(char, text)
+                    for idx in idxs:
+                        if idx<step:
+                            idx = 0
+                        if idx > (len(text) - step):
+                            idx = (len(text) - step)
+                        f.write(self.doc_path + '\t' + char + '\t' + text[idx-step:idx+step].replace('\n', ' ') + '\n')
 
     def replace_utf_tags(self, text):
         '''
         Replace UTF tags with the format [...]<[...]>[...]
         '''
         utf_replace = re.compile(r"""
-            (^|\s)  # Start at whitespace (not at word boundary because \b matches only alphanumeric chars but not <)
+            (^|\s)  # Start at beginning of line or at whitespace (not at word boundary because \b matches only alphanumeric chars but not <)
             \S*     # Match non-whitespace up to the last UTF tag (greedy)
             (<.*?>)   # Match UTF tag (non-greedy, only up to next >)
             \S*?     # Match trailing chars up to next whitespace or dot
@@ -205,6 +237,7 @@ class Preprocessor():
     
     def get_rep_dict(self):
         rep_dict = {
+            u'\xa0': u' ',
             '\r\n': ' ',
             '\n': ' ',
             '\t': ' ',
@@ -224,11 +257,11 @@ class Preprocessor():
             "'-": '',               # Carleton_William_Fardorougha-the-Miser_1839, Carleton_William_The-Emigrants-of-Ahadarra_1847
             '»': "'",
             '«': "'",
-            # ',—': ' ',              # Corelli_Marie_The-Sorrows-of-Satan_1895.txt
-            # '"—': ' ',              # Grand_Sarah_The-Heavenly-Twins_1893
-            # '—"': ' ',              # Grand_Sarah_The-Heavenly-Twins_1893
-            # '\'—"': ' ',              # Grand_Sarah_The-Heavenly-Twins_1893
-            # '—"\'': ' ',              # Grand_Sarah_The-Heavenly-Twins_1893
+            ',—': ' ',              # Corelli_Marie_The-Sorrows-of-Satan_1895.txt
+            '"—': ' ',              # Grand_Sarah_The-Heavenly-Twins_1893
+            '—"': ' ',              # Grand_Sarah_The-Heavenly-Twins_1893
+            '\'—"': ' ',              # Grand_Sarah_The-Heavenly-Twins_1893
+            '—"\'': ' ',              # Grand_Sarah_The-Heavenly-Twins_1893
             "scoundrel?'": 'scoundrel ', # Collins_Wilkie_Armadale_1864
             'I was;3': 'I was; 3',   # Dickens_Charles_The-Pickwick-Papers_1836
             'Kukuanaland.1': 'Kukuanaland.', # Haggard_H-Rider_King-Solomons-Mines_1885.txt
@@ -239,10 +272,14 @@ class Preprocessor():
             '>': "'", 
             '=>': '', # Sterne_Laurence_Tristram-Shandy_1759
             ' align="left">': '', # Hays_Mary_Memoirs-of-Emma-Courtney_1796
+            '[sic]': '',
+            '(sic)': '',
+            '[*]': '',
+            '[+]': '',
         }
         return rep_dict
 
-    def preprocess_text(self, text):
+    def preprocess_individual_files(self, text):
         docs_with_line = ['Anonymous_Anonymous_Vertue-Rewarded_1693', 
                         'Anonymous_Anonymous_The-Adventures-of-Anthony-Varnish_1786', 
                         'Anonymous_Anonymous_The-Triumph-Prudence-Over-Passion_1781',
@@ -251,11 +288,19 @@ class Preprocessor():
             text = text.replace('|', '')
 
         if 'Ebers_George_Eine-aegyptische-Koenigstocher_1864' in self.doc_path:
-            # Some notes are marked with '..
-            # With DOTALL, newlines inside pattern are also replaced!
-            text = re.sub(r'[ ]?(\(Anm\. \d+\)).*?\.\.', '.', text, flags=re.DOTALL)
-            # Remove everything until the end of the line. This is probably too much.
+            text = text.replace(u'\xa0', u' ')
+            text = text.replace('Anmerkung 62 und 63 [64 und 65]', '')
+            text = text.replace('Siehe auch Th. I. ', '')
+            text = text.replace('Siehe auch Th. I. Anmerkung 53. ', '')
+            text = re.sub(r'Siehe I+\. Theil*?\.', '', text, flags=re.DOTALL)
+            text = re.sub(r'Siehe Anmerkung \d+ (des|im) I+\. Theils?.', '', text, flags=re.DOTALL)
+            text = re.sub(r'Siehe Anmerkung \d*?\.', '', text, flags=re.DOTALL)
+            text = re.sub(r'Anmerkung \d*?\.', '', text, flags=re.DOTALL)
+            # text = text.replace('Anmerkung', '') ###############################
+
             # Annotations are not formatted consistently and cannot be properly removed with regex.
+            # Remove everything up to the end of the line. This is probably too much.
+            text = re.sub(r'[ ]?(\(Anm\. \d+\)).*?\.\.', '.', text, flags=re.DOTALL)
             text = re.sub(r'[ ]?(\(Anm\. \d+\)).*?\n', '.\n', text)
 
         if 'Grand_Sarah_The-Heavenly-Twins_1893' in self.doc_path:
@@ -265,9 +310,6 @@ class Preprocessor():
 
         if 'OGrady_Standish_The-Coming-of-Cuculain_1894' in self.doc_path:
             text = re.sub(r'Footnote: .*?\n', '', text)
-
-        if 'Barrie_J-M_Peter-and-Wendy_1911' in self.doc_path:
-            text = re.sub(r'\[.*?\]', '', text, flags=re.DOTALL)
 
         if 'Haggard_H-Rider_Allan-Quartermain_1887' in self.doc_path:
             # Remove endnotes at the end of the text
@@ -282,12 +324,44 @@ class Preprocessor():
 
         if 'Scott_Walter_The-Abbot' in self.doc_path:
             text = re.sub(r'\[.*?\]', '', text, flags=re.DOTALL)
-            # Footnotes don't have a clear format.
-            # Remove everything up to the end of the line.
-            # This is probably too much.
+            # Footnotes are not formatted consistently and cannot be properly removed using regex.
+            # Remove everything up to the end of the line. This is probably too much.
             text = re.sub(r'Footnote.*?\n', '\n', text)
 
-        self.check_annotations(text)
+        if 'Scott_Walter_Waverley_1814' in self.doc_path:
+            text = re.sub(r'Footnote: See [Nn]ote \d+.?\n?', '', text)
+            text = re.sub(r'\[Footnote.*?\]', '', text, flags=re.DOTALL|re.IGNORECASE)
+            # Footnotes are not formatted consistently and cannot be properly removed using regex.
+            # Remove everything up to the end of the line. This is probably too much.
+            text = re.sub(r'Footnote.*?\n', '\n', text)
+
+        if 'Scott_Walter_Guy-Mannering_1815' in self.doc_path:
+            long_string = "[*We must again have recourse to the contribution to Blackwood's Magazine, April 1817 :—"
+            text = text.replace(long_string, '')
+            text = text.replace('Fare ye wee]', 'Fare ye wee')
+            text = re.sub('\[.*?\]', '', text, flags=re.DOTALL)
+            text = re.sub(r'\*.*?(?=\s)', '', text)
+
+        if  'Scott_Walter_The-Monastery_1820.txt' in self.doc_path:
+            text = re.sub('\{Footnote.*?\}', '', text, flags=re.DOTALL)
+            # Footnotes are not formatted consistently and cannot be properly removed using regex.
+            # Remove everything up to the end of the line. This is probably too much.
+            text = re.sub(r'Footnote.*?\n', '\n', text)
+
+        if 'Shelley_Mary_Mathilda_1820.txt' in self.doc_path:
+            rep_dict = {
+                '[sic]': '',
+                '[': '',
+                ']': ''
+            }
+            text = self.replace_multiple(text, rep_dict)
+
+        if 'Swift_Jonathan_Gullivers-Travels_1726' in self.doc_path:
+            text = text.replace('[As given in the original edition.]', '')
+    
+        if 'Auerbach_Berthold_Die-Frau-Professorin_1846' in self.doc_path:
+            text = text.replace('Fußnoten1 ', '')
+
 
         edgeworth_list = ['Edgeworth_Maria_The-Contrast_1804.txt', 
                           'Edgeworth_Maria_Murad-the-Unlucky_1804',
@@ -301,26 +375,48 @@ class Preprocessor():
         
         edgeworth_list = ['Edgeworth_Maria_Ormond_1817', 
                           'Edgeworth_Maria_Helen_1834',
-                          'Edgeworth_Maria_Patronage_1814']
+                          'Edgeworth_Maria_Patronage_1814',
+                          'Scott_Walter_The-Betrothed_1825',
+                          'Scott_Walter_The-Fortunes-of-Nigel_1822']
         if any(file_name in self.doc_path for file_name in edgeworth_list):
             text = re.sub(r'\[Footnote.*?\]', '', text, flags=re.DOTALL)
 
-        if 'Edgeworth_Maria_Orlandino_1848' in self.doc_path:
-            text = re.sub(r'\[\d\]', '', text)
+        edgeworth_list = ['Edgeworth_Maria_Orlandino_1848', 
+                          'Brunton_Mary_Discipline_1814',
+                          'Reynolds_George_The-Mysteries-of-London_1844.txt']
+        if any(file_name in self.doc_path for file_name in edgeworth_list):
+            text = re.sub(r'\[\d*?\]', '', text)
         
         edgeworth_list = ['Edgeworth_Maria_The-Grateful-Negro_1804',
                           'Edgeworth_Maria_To-Morrow_1804',
                           'Edgeworth_Maria_The-Limerick-Gloves_1804']
         if any(file_name in self.doc_path for file_name in edgeworth_list):
             text = re.sub(r'\{.*?\}', '', text, flags=re.DOTALL)
-        #if in self.doc_path:
 
         edgeworth_list = ['Edgeworth_Maria_The-Irish-Incognito_1802',
                          'Edgeworth_Maria_Castle-Rackrent_1800',
-                         'Edgeworth_Maria_The-Modern-Griselda_1804']
+                         'Edgeworth_Maria_The-Modern-Griselda_1804',
+                         'Bulwer-Lytton_Edward_Eugene-Aram_1832',
+                         'Barrie_J-M_Peter-and-Wendy_1911',
+                         'Scott_Walter_Chronicles-of-the-Canongate_1827',
+                         'Scott_Walter_Old-Mortality_1816',
+                         'Scott_Walter_Rob-Roy_1817',
+                         'Scott_Walter_Montrose_1819',
+                         'Scott_Walter_Kenilworth_1821',
+                         'Scott_Walter_The-Talisman_1825',
+                         'Scott_Walter_The-Antiquary_1816',
+                         'Scott_Walter_The-Black-Dwarf_1816',
+                         'Scott_Walter_The-Surgeons-Daughter_1827',
+                         'Scott_Walter_The-Fair-Maid-of-Perth_1828',
+                         'Scott_Walter_The-Bride-of-Lammermoor_1819',
+                         'Scott_Walter_The-Heart-of-Midlothian_1818',
+                         'Scott_Walter_The-Peveril-of-the-Peak_1822.txt',
+                         'Scott_Walter_Chronicles-of-the-Canongate_1827']
         if any(file_name in self.doc_path for file_name in edgeworth_list):
             text = re.sub(r' \[.*?\]', '', text, flags=re.DOTALL)
 
+    def preprocess_text(self, text):
+        text = self.preprocess_individual_files(text)
         # Replace all "'d" at the end of a word (train'd -> trained)
         text = re.sub(r"(?:\w)\'d\b", 'ed',text)
         # Remove commas inside numbers
@@ -344,11 +440,11 @@ class Preprocessor():
         text = self.replace_multiple(text, rep_dict)
         text = unidecode(text)
         text = self.replace_multiple(text, umlaut_dict_swap)
+        self.check_annotations(text)
         text = text.split()
         text = ' '.join(text)
         self.check_characters(text)
         return text
-        #if in self.doc_path:
 
 
 
