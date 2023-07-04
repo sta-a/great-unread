@@ -8,83 +8,87 @@ from collections import Counter
 from functools import wraps, reduce
 from multiprocessing import current_process, Queue, Process, cpu_count
 import scipy
-import spacy
 from pathlib import Path
 import pickle
 import time
+import heapq
 from sklearn.neighbors import BallTree
-from ..utils import load_list_of_lines, save_list_of_lines, df_from_dict, get_bookname
+import sys
+sys.path.append("..")
+from utils import load_list_of_lines, save_list_of_lines, df_from_dict, get_bookname
 from .production_rule_extractor import ProductionRuleExtractor
 from .doc_based_feature_extractor import DocBasedFeatureExtractor
+import spacy
 
 
 class CorpusBasedFeatureExtractor():
     '''Get features for which the whole corpus needs to be considered.'''
-    def __init__(self, language, doc_paths, sentences_per_chunk=200, nr_features=100, nr_texts=None):
+    def __init__(self, language, doc_paths, dvs, use_chunks, tokens_per_chunk=500, nr_features=100):
         self.language = language
         self.doc_paths = doc_paths
-        self.sentences_per_chunk = sentences_per_chunk
+        self.dvs = dvs
+        self.use_chunks = use_chunks
+        self.tokens_per_chunk = tokens_per_chunk
         self.nr_features = nr_features
-        self.nr_texts = nr_texts
+        self.nlp = self.load_spacy_model()
+        self.ngram_counts = self.__get_ngram_counts()
 
+        # self.all_average_sbert_sentence_embeddings = []
+        self.all_d2v_chunk_embeddings = []
+        for doc_chunks in self.__generate_chunks(): ##################
+            # curr_sbert = []
+            curr_doc2vec = []
+            for chunk in doc_chunks:
+                # curr_sbert.append(np.array(chunk.sbert_sentence_embeddings).mean(axis=0))
+                curr_doc2vec.append(chunk.d2v_chunk_embedding)
+            # self.all_average_sbert_sentence_embeddings.append(curr_sbert)
+            self.all_d2v_chunk_embeddings.append(curr_doc2vec)
+
+
+    def load_spacy_model(self):
         if self.language == 'eng':
-            self.model_name = 'en_core_web_sm'
+            model_name = 'en_core_web_sm'
         elif self.language == 'ger':
-            self.model_name = 'de_core_news_sm'
+            model_name = 'de_core_news_sm'
         else:
             raise Exception(f'Not a valid language {self.language}')
 
         try:
-            self.nlp = spacy.load(self.model_name)
+            nlp = spacy.load(model_name)
+            return nlp
         except OSError:
-            logging.info(f'Downloading {self.model_name} for Spacy...')
-            os.system(f'python3 -m spacy download {self.model_name}')
-            logging.info(f'Downloaded {self.model_name} for Spacy.')
-            self.nlp = spacy.load(self.model_name)
-
-        self.word_statistics = self.__get_word_statistics()
-
-        self.all_average_sbert_sentence_embeddings = []
-        self.all_doc2vec_chunk_embeddings = []
-        for doc_chunks in self.__generate_chunks():
-            curr_sbert = []
-            curr_doc2vec = []
-            for chunk in doc_chunks:
-                curr_sbert.append(np.array(chunk.sbert_sentence_embeddings).mean(axis=0))
-                curr_doc2vec.append(chunk.doc2vec_chunk_embedding)
-            self.all_average_sbert_sentence_embeddings.append(curr_sbert)
-            self.all_doc2vec_chunk_embeddings.append(curr_doc2vec)
-
+            print(f'The model {model_name} for Spacy is missing.')
+    
 
     def __generate_chunks(self,         
-            processed_sentences=False, 
             unigram_counts=False, 
             bigram_counts=False, 
             trigram_counts=False, 
-            raw_text=False, 
             char_unigram_counts=False):
+        
+
         for doc_path in self.doc_paths:
             doc_chunks = DocBasedFeatureExtractor(
-                self.language, 
-                doc_path, 
-                self.sentences_per_chunk, 
-                processed_sentences, 
-                unigram_counts, 
-                bigram_counts, 
-                trigram_counts, 
-                raw_text,
-                char_unigram_counts).chunks
+                language=self.language,
+                doc_path=doc_path,
+                dvs=self.dvs,
+                use_chunks=self.use_chunks,
+                tokens_per_chunk=self.tokens_per_chunk, 
+                unigram_counts=unigram_counts, 
+                bigram_counts=bigram_counts, 
+                trigram_counts=trigram_counts, 
+                char_unigram_counts=char_unigram_counts).chunks
             yield doc_chunks
 
-
-    def __get_word_statistics(self):
-        wordstat_dir = Path(str(self.doc_paths[0].replace('raw_docs', f'word_statistics_{self.nr_texts}'))).parent
-        wordstat_path = os.path.join(wordstat_dir, 'word_statistics.pkl')
-        if os.path.exists(wordstat_path):
-            with open(wordstat_path, 'rb') as f:
-                word_statistics = pickle.load(f)
+    def __get_ngram_counts(self):
+        nc_dir = Path(str(self.doc_paths[0].replace('raw_docs', f'ngram_counts'))).parent
+        nc_path = os.path.join(nc_dir, 'ngram_counts.pkl')
+        if os.path.isfile(nc_path):
+            with open(nc_path, 'rb') as f:
+                ngram_counts = pickle.load(f)
 
         else:
+            ngram_counts = {}
             total_unigram_counts = Counter()
             total_bigram_counts = Counter()
             total_trigram_counts = Counter()
@@ -100,22 +104,12 @@ class CorpusBasedFeatureExtractor():
                     file_name = chunk.file_name
 
                     for unigram, counts in chunk.unigram_counts.items():
-                        if unigram in book_unigram_counts:
-                            book_unigram_counts[unigram] += counts
-                        else:
-                            book_unigram_counts[unigram] = counts
-
+                        book_unigram_counts[unigram] = book_unigram_counts.get(unigram, 0) + counts             
                     for bigram, counts in chunk.bigram_counts.items():
-                        if bigram in book_bigram_counts:
-                            book_bigram_counts[bigram] += counts
-                        else:
-                            book_bigram_counts[bigram] = counts
-
+                        book_bigram_counts[unigram] = book_bigram_counts.get(bigram, 0) + counts 
                     for trigram, counts in chunk.trigram_counts.items():
-                        if trigram in book_trigram_counts:
-                            book_trigram_counts[trigram] += counts
-                        else:
-                            book_trigram_counts[trigram] = counts
+                        book_trigram_counts[unigram] = book_unigram_counts.get(trigram, 0) + counts 
+
                 book_unigram_mapping[file_name] = book_unigram_counts
                 book_bigram_mapping[file_name] = book_bigram_counts
                 book_trigram_mapping[file_name] = book_trigram_counts
@@ -123,18 +117,30 @@ class CorpusBasedFeatureExtractor():
                 total_bigram_counts.update(book_bigram_counts)
                 total_trigram_counts.update(book_trigram_counts)
 
-            total_unigram_counts = dict(sorted(list(total_unigram_counts.items()), key=lambda x: -x[1])) #all words
-            total_bigram_counts = dict(sorted(list(total_bigram_counts.items()), key=lambda x: -x[1])[:2000]) 
-            total_trigram_counts = dict(sorted(list(total_trigram_counts.items()), key=lambda x: -x[1])[:2000])
-            
+            total_unigram_counts = dict(heapq.nlargest(len(total_unigram_counts), total_unigram_counts.items(), key=lambda x: x[1]))
+            total_bigram_counts = dict(heapq.nlargest(2000, total_bigram_counts.items(), key=lambda x: x[1]))
+            total_trigram_counts = dict(heapq.nlargest(2000, total_trigram_counts.items(), key=lambda x: x[1]))
+            ngram_counts.update({
+                # data format: {unigram: count}
+                'total_unigram_counts': total_unigram_counts,
+                'total_bigram_counts': total_bigram_counts,
+                'total_trigram_counts': total_trigram_counts,
+                # data format: {file_name: {unigram: count}
+                'book_unigram_mapping': book_unigram_mapping,
+
+            })
+            del total_unigram_counts
+            del book_unigram_mapping
+
             # keep only counts of the 2000 most frequent bi- and trigrams
-            book_unigram_mapping_ = {}
+            book_bigram_mapping_ = {}
             for book, book_dict in book_bigram_mapping.items():
                 book_dict_ = {}
                 for ngram in set(total_bigram_counts.keys()):
                     if ngram in book_dict:
                         book_dict_[ngram] = book_dict[ngram]
-                book_unigram_mapping_[book] = book_dict_
+                book_bigram_mapping_[book] = book_dict_
+            del book_bigram_mapping
 
             book_trigram_mapping_ = {}
             for book, book_dict in book_trigram_mapping.items():
@@ -143,23 +149,19 @@ class CorpusBasedFeatureExtractor():
                     if ngram in book_dict:
                         book_dict_[ngram] = book_dict[ngram]
                 book_trigram_mapping_[book] = book_dict_
+            del book_trigram_mapping
 
-            word_statistics = {
-                # data format: {unigram: count}
-                'total_unigram_counts': total_unigram_counts,
-                'total_bigram_counts': total_bigram_counts,
-                'total_trigram_counts': total_trigram_counts,
-                # data format: {file_name: {unigram: count}
-                'book_unigram_mapping': book_unigram_mapping,
-                'book_bigram_mapping': book_unigram_mapping_,
-                'book_trigram_mapping': book_trigram_mapping_}
+            ngram_counts.update({
+                'book_bigram_mapping': book_bigram_mapping_,
+                'book_trigram_mapping': book_trigram_mapping_
+                })
 
-            if not os.path.exists(wordstat_dir):
-                wordstat_dir.mkdir(parents=True, exist_ok=True)
-            with open(wordstat_path, 'wb') as f:
-                pickle.dump(word_statistics, f, -1)
-        return word_statistics
-
+            if not os.path.exists(nc_dir):
+                nc_dir.mkdir(parents=True, exist_ok=True)
+            with open(nc_path, 'wb') as f:
+                pickle.dump(ngram_counts, f, -1)
+        return ngram_counts
+    
 
     def __tag_chunks(self, tag_type, gram_type):
         def __tag_sentence(sentence_tags, gram_type):
@@ -177,13 +179,13 @@ class CorpusBasedFeatureExtractor():
                 raise Exception('Not a valid gram_type')
 
         def __tag_chunk(chunk, tag_type, gram_type):
-            tags_path = chunk.doc_path.replace('/raw_docs', f'/{tag_type}_tags_spc_{self.sentences_per_chunk}').replace('.txt', f'_chunkid_{chunk.chunk_id}.txt')
+            tags_path = chunk.doc_path.replace('/raw_docs', f'/{tag_type}_tags_tpc_{self.tokens_per_chunk}_usechunks_{self.use_chunks}').replace('.txt', f'_chunkid_{chunk.chunk_id}.txt')
             if os.path.exists(tags_path):
                 all_sentence_tags = [line for line in load_list_of_lines(tags_path, 'str')]
             else:
                 all_sentence_tags = []
                 # Represent sentences as strings of tags
-                for sentence in chunk.tokenized_sentences:
+                for sentence in chunk.sentences:
                     doc = self.nlp(sentence)
                     if tag_type == 'pos':
                         sentence_tags = [token.pos_.replace(' ', '') for token in doc]
@@ -266,7 +268,7 @@ class CorpusBasedFeatureExtractor():
 
         for doc_chunks in self.__generate_chunks():
             for chunk in doc_chunks:
-                chunk_production_counter = self.__get_book_production_counts(chunk.tokenized_sentences, pre)
+                chunk_production_counter = self.__get_book_production_counts(chunk.tokenized_words, pre)
                 chunk_production_counters[chunk.file_name + '_' + str(chunk.chunk_id)] = chunk_production_counter
                 corpus_production_counter.update(chunk_production_counter)
 
@@ -290,9 +292,9 @@ class CorpusBasedFeatureExtractor():
 
     def get_overlap_score(self, embedding_type):
         if embedding_type == 'doc2vec':
-            all_embeddings = self.all_doc2vec_chunk_embeddings
-        elif embedding_type == 'sbert':
-            all_embeddings = self.all_average_sbert_sentence_embeddings
+            all_embeddings = self.all_d2v_chunk_embeddings
+        # elif embedding_type == 'sbert':
+        #     all_embeddings = self.all_average_sbert_sentence_embeddings
         else:
             raise Exception(f'Not a valid embedding_type {embedding_type}.')
 
@@ -348,15 +350,15 @@ class CorpusBasedFeatureExtractor():
     def get_overlap_score_doc2vec(self):
         return self.get_overlap_score('doc2vec')
 
-    def get_overlap_score_sbert(self):
-        return self.get_overlap_score('sbert')
+    # def get_overlap_score_sbert(self):
+    #     return self.get_overlap_score('sbert')
 
     def get_outlier_score(self, embedding_type):
         # Get embeddings
         if embedding_type == 'doc2vec':
-            all_embeddings = self.all_doc2vec_chunk_embeddings
-        elif embedding_type == 'sbert':
-            all_embeddings = self.all_average_sbert_sentence_embeddings
+            all_embeddings = self.all_d2v_chunk_embeddings
+        # elif embedding_type == 'sbert':
+        #     all_embeddings = self.all_average_sbert_sentence_embeddings
         else:
             raise Exception(f'Not a valid embedding_type {embedding_type}.')
 
@@ -387,8 +389,8 @@ class CorpusBasedFeatureExtractor():
     def get_outlier_score_doc2vec(self):
         return self.get_outlier_score('doc2vec')
 
-    def get_outlier_score_sbert(self):
-        return self.get_outlier_score('sbert')
+    # def get_outlier_score_sbert(self):
+    #     return self.get_outlier_score('sbert')
 
     def filter_doc_term_matrix(self, dtm, min_nr_docs=None, min_percent_docs=None, max_nr_docs=None, max_percent_docs=None):
         if min_nr_docs is None and min_percent_docs is None and max_nr_docs is None and max_percent_docs is None:
@@ -422,10 +424,10 @@ class CorpusBasedFeatureExtractor():
         return dtm_reduced
 
     def get_distance_from_corpus(self, ngram_type, min_nr_docs=None, min_percent_docs=None, max_nr_docs=None, max_percent_docs=None):
-        dtm = pd.DataFrame(self.word_statistics[f'book_{ngram_type}_mapping']).fillna(0).T
+        dtm = pd.DataFrame(self.ngram_counts[f'book_{ngram_type}_mapping']).fillna(0).T
         dtm = self.filter_doc_term_matrix(dtm, min_nr_docs, min_percent_docs, max_nr_docs, max_percent_docs)
         dtm = list(set(dtm.columns.tolist()))
-        corpus_counts = self.word_statistics[f'total_{ngram_type}_counts']
+        corpus_counts = self.ngram_counts[f'total_{ngram_type}_counts']
         corpus_vector = [corpus_counts[key] if key in corpus_counts else 0 for key in dtm]
 
         distances = {}
@@ -489,9 +491,9 @@ class CorpusBasedFeatureExtractor():
             chunk_functions.append(self.get_production_distribution)
             
         book_functions = [self.get_overlap_score_doc2vec,
-                            self.get_overlap_score_sbert,
-                            self.get_outlier_score_doc2vec,
-                            self.get_outlier_score_sbert]
+                            self.get_outlier_score_doc2vec]
+                            # self.get_overlap_score_sbert,
+                            # self.get_outlier_score_sbert]
         print('chunk functions', chunk_functions)
         
         # Decorate functions to make them useable for multiprocessing
@@ -501,8 +503,9 @@ class CorpusBasedFeatureExtractor():
         
         # Create new process for every function
         chunk_processes = [Process(target=func, name=func.__name__) for func in chunk_functions]
-        book_processes = [Process(target=func, name=func.__name__) for func in book_functions]
-        if self.sentences_per_chunk is None:
+        if self.use_chunks == True:
+            book_processes = [Process(target=func, name=func.__name__) for func in book_functions]
+        else:
             book_processes = []
         processes = chunk_processes + book_processes
 
@@ -537,7 +540,7 @@ class CorpusBasedFeatureExtractor():
             p.join()
 
         chunk_features = reduce(lambda df1, df2: df1.merge(df2, how='inner', on='file_name', validate='one_to_one'), chunk_features)
-        if self.sentences_per_chunk is None:
+        if self.tokens_per_chunk is None:
             chunk_features['file_name'] = chunk_features['file_name'].str.split('_').str[:4].str.join('_')
         else:
             book_features = reduce(lambda df1, df2: df1.merge(df2, how='inner', on='file_name', validate='one_to_one'), book_features)
@@ -545,3 +548,39 @@ class CorpusBasedFeatureExtractor():
 
         return chunk_features, book_features
 
+    # def get_all_features(self):
+    #     chunk_queue = []
+    #     book_queue = []
+
+    #     chunk_functions = [self.get_unigram_distance,
+    #                     self.get_unigram_distance_limited,
+    #                     self.get_bigram_distance,
+    #                     self.get_trigram_distance,
+    #                     self.get_tag_distribution]
+    #     if self.language == 'eng':
+    #         chunk_functions.append(self.get_production_distribution)
+
+    #     book_functions = [self.get_overlap_score_doc2vec,
+    #                     self.get_outlier_score_doc2vec]
+    #                     # self.get_overlap_score_sbert,
+    #                     # self.get_outlier_score_sbert]
+    #     print('chunk functions', chunk_functions)
+
+    #     chunk_features = []
+    #     book_features = []
+
+    #     for func in chunk_functions:
+    #         features = func()
+    #         chunk_features.append(features)
+
+    #     for func in book_functions:
+    #         features = func()
+    #         book_features.append(features)
+
+    #     chunk_features = reduce(lambda df1, df2: df1.merge(df2, how='inner', on='file_name', validate='one_to_one'), chunk_features)
+    #     if self.tokens_per_chunk is None:
+    #         chunk_features['file_name'] = chunk_features['file_name'].str.split('_').str[:4].str.join('_')
+    #     else:
+    #         book_features = reduce(lambda df1, df2: df1.merge(df2, how='inner', on='file_name', validate='one_to_one'), book_features)
+
+    #     return chunk_features, book_features

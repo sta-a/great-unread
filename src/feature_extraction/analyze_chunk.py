@@ -1,67 +1,66 @@
-import numpy as np
-from ..utils import get_bookname, preprocess_sentences_helper
+import sys
+sys.path.append("..")
+print(sys.path)
+from utils import get_bookname
+import re
+from .process_rawtext import Tokenizer, Postprocessor
 
 class Chunk():
     def __init__(self, 
-        sentences_per_chunk,
+        tokens_per_chunk,
         doc_path, 
         chunk_id, 
-        tokenized_sentences, 
+        tokenized_words, 
         sbert_sentence_embeddings, 
-        doc2vec_chunk_embedding, 
-        processed_sentences=False, 
+        d2v_chunk_embedding, 
         unigram_counts=False, 
         bigram_counts=False, 
         trigram_counts=False, 
-        raw_text=False, 
         char_unigram_counts=False):
 
-        self.sentences_per_chunk = sentences_per_chunk
+        self.tokens_per_chunk = tokens_per_chunk
         self.doc_path = doc_path
-        self.file_name = get_bookname(self.doc_path)
         self.chunk_id = chunk_id
-        self.tokenized_sentences = tokenized_sentences
+        self.tokenized_words = tokenized_words # raw
         self.sbert_sentence_embeddings = sbert_sentence_embeddings
-        self.doc2vec_chunk_embedding = doc2vec_chunk_embedding
-        self.processed_sentences = processed_sentences
+        self.d2v_chunk_embedding = d2v_chunk_embedding
         self.unigram_counts = unigram_counts
         self.bigram_counts = bigram_counts
         self.trigram_counts = trigram_counts
-        self.raw_text = raw_text
         self.char_unigram_counts = char_unigram_counts
 
-        if self.processed_sentences == True:
-            self.processed_sentences = self.__preprocess_sentences()
+        self.file_name = get_bookname(self.doc_path)
+        self.tokenized_words_pp = Postprocessor(remove_punct=True, lower=True).postprocess_text(self.tokenized_words)
+        self.sentences = self.__split_into_sentences()
+
         if self.unigram_counts == True:
             self.unigram_counts = self.__find_unigram_counts()
         if self.bigram_counts == True:
             self.bigram_counts = self.__find_bigram_counts()
         if self.trigram_counts == True:
             self.trigram_counts = self.__find_trigram_counts()
-        if self.raw_text == True:
-            self.raw_text = self.__get_raw_text()
         if self.char_unigram_counts == True:
             self.char_unigram_counts = self.__find_char_unigram_counts()
 
-    def __preprocess_sentences(self):
-        return [preprocess_sentences_helper(sentence) for sentence in self.tokenized_sentences]
+    def __split_into_sentences(self):
+        # Split postprocessed text into sentences
+        terminating_chars = r'\. | \: | \; | \? | \! | \) | \] | \...'
+        sentences = re.split(terminating_chars, self.tokenized_words_pp)
+        return sentences
+    
 
     def __find_unigram_counts(self):
-        if type(self.processed_sentences) == bool:
-            self.processed_sentences = self.__preprocess_sentences()
+        words = self.tokenized_words_pp.split()
         unigram_counts = {}
-        for processed_sentence in self.processed_sentences:
-            for unigram in processed_sentence.split():
-                if unigram in unigram_counts.keys():
-                    unigram_counts[unigram] += 1
-                else:
-                    unigram_counts[unigram] = 1
+        for unigram in words:
+            if unigram in unigram_counts.keys():
+                unigram_counts[unigram] += 1
+            else:
+                unigram_counts[unigram] = 1
         return unigram_counts
 
     def __find_bigram_counts(self):
-        if type(self.processed_sentences) == bool:
-            self.processed_sentences = self.__preprocess_sentences()
-        processed_text = '<BOS> ' + ' <EOS> <BOS> '.join(self.processed_sentences) + ' <EOS>'
+        processed_text = '<BOS> ' + ' <EOS> <BOS> '.join(self.sentences) + ' <EOS>'
         processed_text_split = processed_text.split()
         bigram_counts = {}
         for i in range(len(processed_text_split) - 1):
@@ -73,9 +72,7 @@ class Chunk():
         return bigram_counts
 
     def __find_trigram_counts(self):
-        if type(self.processed_sentences) == bool:
-            self.processed_sentences = self.__preprocess_sentences()
-        processed_text = '<BOS> <BOS> ' + ' <EOS> <EOS> <BOS> <BOS> '.join(self.processed_sentences) + ' <EOS> <EOS>'
+        processed_text = '<BOS> <BOS> ' + ' <EOS> <EOS> <BOS> <BOS> '.join(self.sentences) + ' <EOS> <EOS>'
         processed_text_split = processed_text.split()
         trigram_counts = {}
         for i in range(len(processed_text_split) - 2):
@@ -86,29 +83,13 @@ class Chunk():
                 trigram_counts[current_trigram] = 1
         return trigram_counts
 
-    def __get_raw_text(self):
-        return ' '.join(self.tokenized_sentences)
 
     def __find_char_unigram_counts(self):
+        # Use raw text with punctuation but without capitalization
         char_unigram_counts = {}
-        for character in self.raw_text:
+        for character in self.tokenized_words:
             if character in char_unigram_counts.keys():
                 char_unigram_counts[character] += 1
             else:
                 char_unigram_counts[character] = 1
         return char_unigram_counts
-
-    def __eq__(self, other):
-        return (self.sentences_per_chunk == other.sentences_per_chunk) and \
-                (self.doc_path == other.doc_path) and \
-                (self.file_name == other.file_name) and \
-                (self.chunk_id == other.chunk_id) and \
-                (self.tokenized_sentences == other.tokenized_sentences) and \
-                (all([np.array_equal(x,y) for x,y in zip(self.sbert_sentence_embeddings, other.sbert_sentence_embeddings)])) and \
-                (all([np.array_equal(x,y) for x,y in zip(self.all_doc2vec_chunk_embeddings, other.all_doc2vec_chunk_embeddings)])) and \
-                (self.processed_sentences == other.processed_sentences) and \
-                (self.unigram_counts == other.unigram_counts) and \
-                (self.bigram_counts == other.bigram_counts) and \
-                (self.trigram_counts == other.trigram_counts) and \
-                (self.char_unigram_counts == other.char_unigram_counts) and \
-                (self.raw_text == other.raw_text)

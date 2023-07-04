@@ -3,8 +3,7 @@ import networkx as nx
 import numpy as np
 import random
 import matplotlib.pyplot as plt
-from distance_analysis import check_symmetric
-from distance_visualization import get_color_map
+from distance.distance_analysis import check_symmetric
 
 
 # Convert pandas adjacency matrix to nk graph
@@ -29,17 +28,9 @@ def nk_visualize_graph(nkG):
       nx_plot_graph(nxG)
 
 
-def nx_plot_graph(G, cluster_type=None, cluster_assignments=None):
-      assert (cluster_type == None and cluster_assignments == None) or (cluster_type != None and cluster_assignments != None)
-
-      if cluster_type is not None:
-            if cluster_type == 'author':
-                  cluster_assignments = list(G.nodes(data=False)) # get list of file names
-            fn_colors_map = get_color_map(cluster_type, cluster_assignments)
-            color_map = [fn_colors_map[node] for node in G]
-      else:
-            color_map = 'blue'
-
+def nx_plot_graph(G, cluster_name=None, cluster_assignments=None):
+      if (cluster_name is None and cluster_assignments is not None) or (cluster_name is not None and cluster_assignments is None):
+            raise ValueError('Pass either cluster name and cluster partitions or neither.')
       pos = nx.spring_layout(G, seed=8)
       nx.draw_networkx(G, pos, node_size=30, with_labels=False, node_color=color_map)
       plt.show()

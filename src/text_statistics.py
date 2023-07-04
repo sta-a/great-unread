@@ -101,4 +101,27 @@ for language in languages:
     ax.plot(y['y'].sort_values(), label=language)
     ax.set_title(f'Canon scores distribution {language}')
     plt.show()
+
+
+    
+# %%
+# Get # tokens in texts
+language = 'ger'
+data_dir = '../data/'
+raw_docs_dir = os.path.join(data_dir, 'raw_docs', language)
+from utils import get_doc_paths
+doc_paths = get_doc_paths(raw_docs_dir)
+d = {}
+for doc_path in doc_paths:
+    with open(doc_path, 'r') as f:
+        text = f.read().split()
+        d[doc_path] = len(text)
+
+d = dict(sorted(d.items(), key=lambda item: item[1]))
+
+key_max = max(d.keys(), key=(lambda k: d[k]))
+key_min = min(d.keys(), key=(lambda k: d[k]))
+
+print('Maximum Value: ',d[key_max], key_max)
+print('Minimum Value: ',d[key_min], key_min)
 # %%

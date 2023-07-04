@@ -5,16 +5,14 @@
 
 import matplotlib.pyplot as plt
 import pandas as pd
-import time
 import os
 import numpy as np
 import networkx as nx
 import networkit as nk
-from distance.distance_analysis import get_mx_triangular, nr_elements_triangular, distance_to_similarity_mx
+from distance.distance_analysis import nr_elements_triangular, distance_to_similarity_mx
 from distance.distance_create import load_distance_mx
-from distance.distance_sparsify import filter_min_author_similarity, filter_threshold
-from distance.distance_visualization import plot_distance_distribution
-from network_functions import check_symmetric, nx_print_graph_info, nx_graph_from_mx, nx_plot_graph
+from distance.distance_sparsify import filter_threshold
+from distance.distance_visualization import NetworkViz
 
 data_dir = '../data'
 
@@ -55,7 +53,7 @@ for language in ['eng']: #, 'ger'
             assert not np.any(smx.values == 0) # Test whether any element is 0
 
             # plot_distance_distribution(mx=smx, mx_type='similarity', language=language, filename=dist_name, data_dir=data_dir)
-            smx = smx.iloc[:50,:50]
+            #smx = smx.iloc[:50,:50]
 
             # directed_mx = filter_min_author_similarity(smx)
 
@@ -67,12 +65,21 @@ for language in ['eng']: #, 'ger'
             # for i,v in edge_labels.items():
             #     print(i,v
 
-            tsmxG = nx_graph_from_mx(mx=tsmx)
-            nx_print_graph_info(tsmxG)
+            # tsmxG = nx_graph_from_mx(mx=tsmx)
+            # nx_print_graph_info(tsmxG)
+            # louvain_c = nx.community.louvain_communities(tsmxG, weight='weight', seed=11, resolution=0.1)
+            # nx_plot_graph(tsmxG, cluster_name='louvain', cluster_list=louvain_c)
 
-            louvain_c = nx.community.louvain_communities(tsmxG, weight='weight', seed=11, resolution=0.1)
-
-            nx_plot_graph(tsmxG, cluster_type='louvain', cluster_assignments=louvain_c)
+            nv = NetworkViz(
+                mx = tsmx, 
+                G = None,
+                draw = True,
+                cluster_name = 'unread', # cluster: unlabeled groups
+                attribute_name = None, # attribute: labeled groups, i.e. 'm', 'f'
+                distances_dir = distances_dir,
+                metadata_dir = metadata_dir,
+                canonscores_dir = canonscores_dir,
+                language = language)
 
 
 # # Similarity Graphs (Luxburg2007)

@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from distance_analysis import get_mx_triangular
+from .distance_analysis import get_mx_triangular
 
 def filter_threshold(mx, q):
       vals = get_mx_triangular(mx)
