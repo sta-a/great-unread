@@ -1094,7 +1094,7 @@ class NgramCounter(DataHandler):
         self.doc_paths = doc_paths
         self.chunks = chunks # Chunks for all files
 
-    def create_filename(self, kwargs=None):
+    def create_filename(self, **kwargs):
         return f'{self.modes[0]}.{self.data_type}'
 
     def load_all_data(self):
@@ -1105,7 +1105,7 @@ class NgramCounter(DataHandler):
                 all_data[mode] = data
         return all_data
     
-    def create_data(self, kwargs):
+    def create_data(self, **kwargs):
         total_unigram_counts, total_bigram_counts, total_trigram_counts = Counter(), Counter(), Counter()
         book_unigram_mapping, book_bigram_mapping, book_trigram_mapping = {}, {}, {}
 
