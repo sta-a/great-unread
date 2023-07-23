@@ -28,7 +28,7 @@ class Tokenizer():
     def __init__(self, language=None, doc_paths=None, tokens_per_chunk=500):
         self.language = language
         self.doc_paths = doc_paths
-        self.tokens_per_chunk = tokens_per_chunk # Nr tokens in chunk
+        self.tokens_per_chunk = tokens_per_chunk
         self.nlp = self.load_spacy_model()
         self.logger = logging.getLogger(__name__)
         self.sentence_chars = ['.', ':', ';', '?', '!', '...']
@@ -101,7 +101,6 @@ class Tokenizer():
         tokenized_words_path = doc_path.replace('/raw_docs', '/tokenized_words')     
         if os.path.exists(tokenized_words_path):
             all_chunks = load_list_of_lines(tokenized_words_path, 'str')
-            # logging.info(f'Loaded tokenized words for {doc_path}')
         else:
             all_chunks = self.tokenize_words(doc_path)
             logging.info(f'Tokenizing {doc_path}')
@@ -111,9 +110,9 @@ class Tokenizer():
 
         if as_chunk == False:
             all_chunks = ' '.join(all_chunks)
-            self.logger.info('Returning tokenized words as one string.')
-        else:
-            self.logger.info('Returning tokenized words as list of chunks.')
+            # self.logger.info('Returning tokenized words as one string.')
+        # else:
+        #     self.logger.info('Returning tokenized words as list of chunks.')
         return all_chunks
     
     def tokenize_all_texts(self):
@@ -173,7 +172,7 @@ class Preprocessor():
             'Footnote',
             'Footer',
             'i.e.',  # id est
-            'Note',
+            # 'Note',
             '[see',
             '(see',
             # 'Supplement',
@@ -239,7 +238,7 @@ class Preprocessor():
                         idx = 0
                     if idx > (len(text) - step):
                         idx = (len(text) - step)
-                    f.write(self.bookname + '\t' + word + '\t' + text[idx-3*step:idx+(step*4)].replace('\n', ' ') + '\n')
+                    f.write(self.bookname + '\t' + word + '\t' + text[idx-3*step:idx+(step*4)].replace('\n', ' ').replace('"', '') + '\n')
 
 
     def check_characters(self, text):
@@ -320,7 +319,6 @@ class Preprocessor():
             ',—': ' ',              # Corelli_Marie_The-Sorrows-of-Satan_1895.txt
             "scoundrel?'": 'scoundrel ', # Collins_Wilkie_Armadale_1864
             'I was;3': 'I was; 3',   # Dickens_Charles_The-Pickwick-Papers_1836
-            'Kukuanaland.1': 'Kukuanaland.', # Haggard_H-Rider_King-Solomons-Mines_1885.txt
             'P.V.P.M.P.C.,1': 'P.V.P.M.P.C.', # Dickens_Charles_The-Pickwick-Papers_1836
             'G.C.M.P.C.,2': 'G.C.M.P.C.', 
             '†': '',
@@ -355,6 +353,10 @@ class Preprocessor():
             long_string = """"[Greek: Kynòs ómmat' echôn, kradíen d' eláphoio.]"--C.V. 1864."""
             text = text.replace(long_string, '')
 
+        if 'Haggard_H-Rider_King-Solomons-Mines_1885' in self.doc_path:            
+            text = text.replace(' – Editor.', '')
+            text = text.replace('Kukuanaland.1', 'Kukuanaland.')
+
         if '' in self.doc_path:
             text = text.replace('{little dogs, puppies, whelps,}', '')
             text = text.replace('[Greek text]', self.greek_tag)
@@ -367,6 +369,9 @@ class Preprocessor():
 
         if 'Lohenstein_Daniel_Arminius_1689' in self.doc_path:
             text = text.replace('[', '')
+
+        if 'Fielding_Henry_Joseph-Andrews_1742' in self.doc_path:
+            text = text.replace(' Footnote 5: ', '')
 
         if 'Scott_Walter_The-Heart-of-Midlothian_1818' in self.doc_path:
             text = text.replace('â€˜the', 'the')
@@ -476,6 +481,18 @@ class Preprocessor():
 
         if 'Hoffmann_ETA_Berganza_1814' in self.doc_path:
             text = text.replace(". Anmerk. des Verlegers [C. F. Kunz]." ,'')
+        
+        if 'Eliot_George_Romola_1862' in self.doc_path:
+            text = text.replace('(See note at the end.)','')
+
+        if 'Nesbit_Edith_The-Wouldbegoods_1901' in self.doc_path:
+            # text = text.replace('', '') #text = text.replace('', '')
+            text = re.sub(r'Note .\. \(See Note .\.\)', '', text, flags=re.DOTALL)
+            text = re.sub(r'\(See Note .\.\)', '', text, flags=re.DOTALL)
+
+        if 'Mundt_Theodor_Madonna_1835' in self.doc_path:
+            long_string = '(1801-1882), "Wlasta" (1829), großes böhmischnationales Heldengedicht. – Anm.d.Hrsg.'
+            text = text.replace(long_string, '')
 
         if 'Stifter_Adalbert_Die-Narrenburg_1843' in self.doc_path:
             text = text.replace('*) [*)Alpenstock]' ,'')
@@ -602,11 +619,16 @@ class Preprocessor():
             text = text.replace('~ ', '')
             text = text.replace('{', '')
 
+        if 'Wells_H-G_A-Modern-Utopia_1905' in self.doc_path:
+            text = text.replace('(See also Chapter I., § 6, and Chapter X., §§ 1 and 2.)', '')
+            text = re.sub(r'\[Footnote: See.*?\]', '', text, flags=re.DOTALL)
+            text = text.replace('Footnote: ', '')
+
         files_list = ['Eliot_George_Daniel-Deronda_1876', 
                          'Kingsley_Charles_Alton-Locke_1850',
                          'Wells_H-G_The-Time-Machine_1895'
-                         'Wells_H-G_A-Modern-Utopia_1905'
                          ]
+        # Replace only the word footnote
         if any(file_name in self.doc_path for file_name in files_list):
             # There are footnotes by the author. Only replace word "Footnote".
             text = text.replace('Footnote: ', '')
@@ -631,6 +653,9 @@ class Preprocessor():
             }
             text = self.replace_multiple(text, rep_dict)
 
+        if 'Marryat_Frederick_The-Kings-Own_1830' in self.doc_path:
+            text = text.replace('(see note 1)', '')
+
         if 'Scott_Walter_Old-Mortality_1816' in self.doc_path:
             # Insert missing bracket 
             text = text.replace("[COMMANDER-IN-CHIEF OF KING CHARLES II.'s FORCES IN SCOTLAND.]", "COMMANDER-IN-CHIEF OF KING CHARLES II.'s FORCES IN SCOTLAND.")
@@ -640,6 +665,14 @@ class Preprocessor():
         if 'OGrady_Standish_Early-Bardic-Literature_1879' in self.doc_path:
             text = text.replace("[Transcriber's Note: Greek in the original]", '')
             text = text.replace('[Note: "Dream of Angus," Révue Celtique, Vol. III., page 349.', '')
+            text = text.replace('(see p. 257; vol. i.)', '')
+            text = text.replace('Note: Vol. I., page 155.', '')
+            text = text.replace('Note: Publications of Ossianic Society, Vol. I. of Oscar, on pages 34 and 35, Vol. I.', '') 
+            text = text.replace('[Note: "Dream of Angus," Révue Celtique, Vol. III., page 349.', '')
+            # Match everything after "Note:" up to the next dot or newline character or end of line
+            # This doesn't match everything because some notes have dots in them
+            pattern = r'Note: (.*?)(?:\.|\n|$)'
+            text = re.sub(pattern, '', text, re.DOTALL)            
             text = text.replace('|', '')
 
         if 'Ebers_George_Eine-aegyptische-Koenigstocher_1864' in self.doc_path:
@@ -717,6 +750,7 @@ class Preprocessor():
 
         if 'Defoe_Daniel_Journal-of-the-Plague-Year_1722' in self.doc_path:
             text = text.replace('[Footnote in the original.]', '')
+            text = text.replace('[Footnotes in the original.]', '')
             text = text.replace('{*}', '')
             text = text.replace('*', '')
             text = text.replace('{}', '')
@@ -731,6 +765,7 @@ class Preprocessor():
             text = re.sub(long_pattern, '', text, flags=re.DOTALL)
             # Remove endnotes inside the text
             text = re.sub(r'Endnote \d*?(,| )', '', text)
+            text = re.sub(r'welded on to the steel Endnote 5', r'welded on to the steel', text)
             text = text.replace('{Endnote 15}', '')
             text = re.sub(r'\[.*?\]', '', text, flags=re.DOTALL)
 
@@ -844,7 +879,7 @@ class Preprocessor():
 
         if 'Scott_Walter_The-Betrothed_1825' in self.doc_path:
             text = text.replace('|east', 'least')
-            text = re.sub(r'\[Footnote.*?\]', '', text, flags=re.DOTALL)
+            text = re.sub(r'Footnote :', '', text, flags=re.DOTALL)
 
         files_list = ['Edgeworth_Maria_Ormond_1817', 
                           'Edgeworth_Maria_Helen_1834',
@@ -871,13 +906,14 @@ class Preprocessor():
                           'Newman_John-Henry_Loss-and-Gain_1848',
                           'Fielding_Henry_Shamela_1741',
                           'Ferrier_Susan_Marriage_1818',
-                          'Collins_Wilkie_The-Woman-in-White_1859',
                           'Crockett_S-R_Cleg-Kelly_1896'
                           ]
         if any(file_name in self.doc_path for file_name in files_list):
             # Find numbers enclosed by brackets.
             text = re.sub(r'\[\d*?\]', '', text)
 
+        if 'Collins_Wilkie_The-Woman-in-White_1859' in self.doc_path:
+            text = text.replace('(see Sermon XXIX. in the Collection by the late Rev. Samuel Michelson, M.A.)', '')
 
         if 'Edgeworth_Maria_Castle-Rackrent_1800' in self.doc_path:
             text = text.replace('[See GLOSSARY 11]', '') # Brackets within brackets
@@ -1106,6 +1142,7 @@ class NgramCounter(DataHandler):
         return all_data
     
     def create_data(self, **kwargs):
+        self.logger.info('Counting Ngrams')
         total_unigram_counts, total_bigram_counts, total_trigram_counts = Counter(), Counter(), Counter()
         book_unigram_mapping, book_bigram_mapping, book_trigram_mapping = {}, {}, {}
 
@@ -1139,6 +1176,7 @@ class NgramCounter(DataHandler):
         self.save_data(data=save_dict, file_name=f'unigram_counts.{self.data_type}')
         del total_unigram_counts
         del book_unigram_mapping
+        self.logger.info('Counted unigrams')
 
 
         # Keep only 2000 most frequent bi- and trigrams because of data sparsity
@@ -1159,6 +1197,7 @@ class NgramCounter(DataHandler):
             'book_bigram_mapping': book_bigram_mapping_filtered}
         self.save_data(data=save_dict, file_name=f'bigram_counts.{self.data_type}')
         del total_bigram_counts
+        self.logger.info('Counted bigrams')
 
 
         book_trigram_mapping_filtered = {}
@@ -1173,3 +1212,4 @@ class NgramCounter(DataHandler):
             'book_trigram_mapping': book_trigram_mapping_filtered,
             'total_trigram_counts': total_trigram_counts}
         self.save_data(data=save_dict, file_name=f'trigram_counts.{self.data_type}')
+        self.logger.info('Counted trgrams')

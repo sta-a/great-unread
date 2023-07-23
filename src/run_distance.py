@@ -1,7 +1,7 @@
 # %%
-%load_ext autoreload
-%autoreload 2
-%matplotlib inline
+# %load_ext autoreload
+# %autoreload 2
+# %matplotlib inline
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -9,83 +9,133 @@ import os
 import numpy as np
 import networkx as nx
 import networkit as nk
-from distance.distance_analysis import nr_elements_triangular, distance_to_similarity_mx
-from distance.distance_create import load_distance_mx
-from distance.distance_sparsify import filter_threshold
-from distance.distance_visualization import NetworkViz
+import itertools
+from distance.distance_create import Distance
+from distance.network import NXNetwork
+from distance.cluster import DataClusterer
+import sys
+sys.path.append("..")
+from utils import DataHandler
+from sklearn.pipeline import Pipeline
+import itertools
 
-data_dir = '../data'
+from distance.sparsifier import Sparsifier
+
+import logging
+logging.basicConfig(level=logging.DEBUG)
+# Suppress logger messages by 'matplotlib.ticker
+# Set the logging level to suppress debug output
+ticker_logger = logging.getLogger('matplotlib.ticker')
+ticker_logger.setLevel(logging.WARNING)
+# Disable propagation to root logger
+logging.getLogger().setLevel(logging.WARNING)
+
 
 ### Save plots doesnt work #############################3
-
-  
-
-for language in ['eng']: #, 'ger'
-    distances_dir = os.path.join(data_dir, 'distances', language)
-    if not os.path.exists(distances_dir):
-        os.makedirs(distances_dir, exist_ok=True)
-    sentiscores_dir = os.path.join(data_dir, 'sentiscores', language)
-    metadata_dir = os.path.join(data_dir, 'metadata', language)
-    canonscores_dir = os.path.join(data_dir, 'canonscores')
-    features_dir = os.path.join(data_dir, 'features_None', language)
+# 'edersimple' does not work because corpus.sqrt() doesn't exist, definition unclear
+# In R also called 'Eder’s Simple Distance)'
+# Jannidis2015
 
 
-    #Jannidis2015
-    # 'edersimple' does not work because corpus.sqrt() doesn't exist, definition unclear
-    # In R also called 'Eder’s Simple Distance)'
-    # pydelta_dists = ['burrows', 'cosinedelta', 'quadratic', 'eder'] #######
-    # nmfw_list = [500, 1000, 2000, 5000]
-    pydelta_dists = ['burrows']
-    nmfw_list = [500]
-    for dist in pydelta_dists:
-        for nmfw in nmfw_list:
-            print('----------------------------', dist, nmfw)
-            # Get distance matrix
-            dist_name = f'{dist}{nmfw}'
-            dmx = load_distance_mx(language, data_dir, dist_name=dist_name, nmfw=nmfw, function=dist)
-            assert dmx.index.equals(dmx.columns) # Check if rows and cols are sorted'
-            # dmx = dmx.iloc[:50,:50]
-            # plot_distance_distribution(mx=dmx, mx_type='distance', language=language, filename=dist_name, data_dir=data_dir)
-
-            # Turn into similarity matrix, diagonal is Nan
-            smx = distance_to_similarity_mx(dmx)
-            assert smx.index.equals(smx.columns) # Check if rows and cols are sorted
-            assert not np.any(smx.values == 0) # Test whether any element is 0
-
-            # plot_distance_distribution(mx=smx, mx_type='similarity', language=language, filename=dist_name, data_dir=data_dir)
-            #smx = smx.iloc[:50,:50]
-
-            # directed_mx = filter_min_author_similarity(smx)
-
-            threshold = 0.8
-            tsmx = filter_threshold(mx=smx, q=threshold)
-            print(f'Nr expected edges1 in filtered graph: {nr_elements_triangular(smx)*(1-threshold)}') # Only values above threshold are left
-
-            # edge_labels = nx.get_edge_attributes(tsmxG,'weight')
-            # for i,v in edge_labels.items():
-            #     print(i,v
-
-            # tsmxG = nx_graph_from_mx(mx=tsmx)
-            # nx_print_graph_info(tsmxG)
-            # louvain_c = nx.community.louvain_communities(tsmxG, weight='weight', seed=11, resolution=0.1)
-            # nx_plot_graph(tsmxG, cluster_name='louvain', cluster_list=louvain_c)
-
-            nv = NetworkViz(
-                mx = tsmx, 
-                G = None,
-                draw = True,
-                cluster_name = 'unread', # cluster: unlabeled groups
-                attribute_name = None, # attribute: labeled groups, i.e. 'm', 'f'
-                distances_dir = distances_dir,
-                metadata_dir = metadata_dir,
-                canonscores_dir = canonscores_dir,
-                language = language)
+# directory = '/home/annina/scripts/great_unread_nlp/data/distance/eng'###########
+# if os.path.exists(directory) and os.path.isdir(directory):
+#     for filename in os.listdir(directory):
+#         file_path = os.path.join(directory, filename)
+#         if os.path.isfile(file_path):
+#             os.remove(file_path)
 
 
-# # Similarity Graphs (Luxburg2007)
-# eta-neighborhodd graph
-# # find eta
-# eta = 0.1
+
+class SimilarityNetwork(DataHandler):
+    def __init__(self, language):
+        super().__init__(language=language, output_dir='distance', data_type='csv')
+        self.mxs= self.load_mxs()
+
+    def load_mxs(self):
+        # pydelta = PydeltaDist(self.language)
+        # pydelta.modes = ['burrows-500']##############################################
+        # pdmxs = pydelta.load_all_data()
+        # dd = D2vDist(self.language)
+        # #dd.modes = ['doc_tags'] ##############################################
+        # dvmxs = dd.load_all_data()
+        #mxs = {**pdmxs}#, **dvmxs}
+        #mxs = {**dvmxs}
+
+        mxs = []
+        for file_name in os.listdir(self.output_dir)[:2]:
+            file_path = self.get_file_path(file_name=file_name)
+            if os.path.isfile(file_path) and file_name.endswith('.csv'):
+                file_name = os.path.splitext(file_name)[0]  # Extract file name without extension
+
+                mx = pd.read_csv(file_path, header=0, index_col=0)
+                mx = mx.iloc[:50, :50] ####################3
+                # Process the data as needed
+                mxs.append((file_name, mx))            
+        mxs = mxs
+        return mxs
+
+
+    def run_pipeline(self):
+        sparsifier = Sparsifier()
+        spars_modes = sparsifier.modes
+        spars_parameters = sparsifier.threshold_params
+        network = NXNetwork(self.language)
+
+        # Iterate over all combinations and run the steps
+        combinations = list(itertools.product(self.mxs, spars_modes, spars_parameters, network.cluster_algs, network.attribute_names))
+        combinations = list(itertools.product(self.mxs, ['author'], spars_parameters, network.cluster_algs, network.attribute_names))
+        for mx_tuple, spars_mode, spars_parameter, cluster_alg, attribute_name in combinations:
+            print('####################################################')
+            print(mx_tuple[0], spars_mode, spars_parameter, cluster_alg, attribute_name)
+
+            sparsifier = Sparsifier(mx_tuple[1], spars_mode, spars_parameter)
+            spars_mx = sparsifier.sparsify()
+            spars_mx.to_csv(f'sparse-{mx_tuple[0]}-authors-{self.language}')
+
+            # Create clusters using the network
+            network = NXNetwork(self.language, name_mx_tup=(f'{mx_tuple[0]}-{spars_mode}', spars_mx), cluster_alg=cluster_alg, attribute_name=attribute_name)
+            clusters = network.create_clusters()
+        
+
+sn = SimilarityNetwork(language='eng').run_pipeline()
+
+
+
+
+
+
+# directed_mx = filter_min_author_similarity(smx)
+
+# tsmx = filter_threshold(mx=smx, q=threshold)
+# print(f'Nr expected edges1 in filtered graph: {nr_elements_triangular(smx)*(1-threshold)}') # Only values above threshold are left
+
+# edge_labels = nx.get_edge_attri
+# butes(tsmxG,'weight')
+# for i,v in edge_labels.items():
+#     print(i,v
+
+#             # tsmxG = network_from_mx(mx=tsmx)
+#             # nx_print_graph_info(tsmxG)
+#             # louvain_c = nx.community.louvain_communities(tsmxG, weight='weight', seed=11, resolution=0.1)
+#             # nx_plot_graph(tsmxG, cluster_alg='louvain', cluster_list=louvain_c)
+
+#             nv = NetworkViz(
+#                 mx = tsmx, 
+#                 G = None,
+#                 draw = True,
+#                 attribute_name = 'canon', # cluster: unlabeled groups
+#                 attribute_name = None, # attribute: labeled groups, i.e. 'm', 'f'
+#                 distances_dir = distances_dir,
+#                 metadata_dir = metadata_dir,
+#                 canonscores_dir = canonscores_dir,
+#                 language = language)
+
+
+# # # Similarity Graphs (Luxburg2007)
+# # eta-neighborhodd graph
+# # # find eta
+# # eta = 0.1
 # set all values below eta to 0
+
 
 # %%

@@ -33,7 +33,7 @@ class SbertProcessor(DataHandler):
     #     self.terminating_chars = r'\. | \: | \; | \? | \! | \) | \] | \...'
     #     sentences = re.split(self.terminating_chars, self.tokenized_words_pp)
 
-    # def create_all_data(self):
+    # def create_data(self, **kwargs):
     #     for doc_path in self.doc_paths():
     #         if self.language == 'eng':
     #             self.sentence_encoder = SentenceTransformer('stsb-mpnet-base-v2')
@@ -70,23 +70,16 @@ class D2vProcessor(DataHandler):
             self.n_cores = cpu_count()-1
         else:
             self.n_cores = n_cores
-        self.doc_paths = get_doc_paths(os.path.join(self.data_dir, 'raw_docs', self.language))#####################################
-        self.modes = ['doc_tags', 'both_tags', 'chunk_features']
+        self.doc_paths = get_doc_paths(os.path.join(self.data_dir, 'raw_docs', self.language))[:None]
+        # self.modes = ['doc_tags', 'both_tags', 'chunk_features']
 
 
-    def create_all_data(self):
-        '''
-        Return document vectors that correspond to 'mode'.
-        '''
-        for mode in self.modes:
-            if not self.file_exists(mode=mode):
-                start = time.time()
-                self.fit(mode)
-                self.save_data(data=None, file_name=None, mode=mode)
-                print(f'\n{time.time()-start}s for calculating docvecs for {mode}.')
-                self.logger.info(f'Created {mode} document vectors.')
-            else:
-                self.logger.info(f'{mode} document vectors have already been created.')
+    def create_data(self, **kwargs):
+        mode = kwargs['mode']
+        start = time.time()
+        self.fit(mode)
+        self.save_data(data=None, file_name=None, mode=mode)
+        print(f'\n{time.time()-start}s for calculating docvecs for {mode}.')
 
 
     def tag_chunks(self, mode):
@@ -131,20 +124,17 @@ class D2vProcessor(DataHandler):
                                  seed=self.seed)
         logging.info('\nFitted D2vModel.\n')
 
-    def create_filename(self, kwargs):
-        return f"{kwargs['mode']}.{self.data_type}"
     
-    
-    def load_data_type(self, file_path, kwargs):
+    def load_data_type(self, file_path, **kwargs):
         dvs = np.load(file_path)
-        # data = {} # too inefficient for chunk_features
+        # data = {} # too inefficient for chunks, only for doc_paths
         # for key in list(dvs.keys()):
         #     data[key] = dvs[key]
         data = dvs
         return data
     
 
-    def save_data_type(self, data, file_path, kwargs=None):
+    def save_data_type(self, data, file_path, **kwargs):
         logging.info('\nSaving chunk vectors...\n')
         
         try:

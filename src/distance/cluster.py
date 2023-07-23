@@ -1,85 +1,83 @@
-import hpo_functions
 from sklearn_extra.cluster import KMedoids
 import scipy.spatial.distance as ssd
 import scipy.cluster.hierarchy as sch
 from sklearn.manifold import MDS
 import pandas as pd
 #from matplotlib import pyplot as plt
-import sys
 from matplotlib import pyplot as plt
 import matplotlib as mpl
 import os
+import sys
+sys.path.append("..")
+from utils import DataHandler
+
+import logging
+logging.basicConfig(level=logging.DEBUG)
+# Suppress logger messages by 'matplotlib.ticker
+# Set the logging level to suppress debug output
+ticker_logger = logging.getLogger('matplotlib.ticker')
+ticker_logger.setLevel(logging.WARNING)
+
 
 # if clusters == True:
-#     get_clusters(True, language, dist_name, mx, distances_dir, sentiscores_dir, metadata_dir, canonscores_dir, features_dir)
+#     get_clusters(True, language, dist_name, mx, metadata_dir, canonscores_dir)
 
 def get_clusters(
         draw,
         language, 
         dist_name, 
         mx,
-        distances_dir,
-        sentiscores_dir,
         metadata_dir,
-        canonscores_dir,
-        features_dir):
+        canonscores_dir):
 
     c = Clusters(
         draw=draw,
         language=language, 
         dist_name=dist_name, 
         mx=mx,
-        distances_dir = distances_dir,
-        sentiscores_dir = sentiscores_dir,
         metadata_dir = metadata_dir,
-        canonscores_dir = canonscores_dir,
-        features_dir = features_dir)
+        canonscores_dir = canonscores_dir)
     c.get_clusters()
 
 
-class Clusters():
+class DataClusterer():
+    '''
+    Clustering on a similarity matrix
+    '''
     def __init__(
             self, 
             draw,
             language, 
             dist_name,
             mx,
-            distances_dir = None,
-            sentiscores_dir = None,
             metadata_dir = None,
-            canonscores_dir = None,
-            features_dir = None):
+            canonscores_dir = None):
 
         self.draw = draw
         self.language = language
         self.dist_name = dist_name
         self.mx = mx
-        self.distances_dir = distances_dir
-        self.sentiscores_dir = sentiscores_dir
         self.metadata_dir = metadata_dir
         self.canonscores_dir = canonscores_dir
-        self.features_dir = features_dir
         self.group_params ={
             'unread': {'n_clusters': 2, 'type': 'kmedoids'},
             'gender': {'n_clusters': 2, 'type': 'kmedoids'},
             'author': {'type': 'hierarchical'}}
+        self.modes = ['hierarchical', 'kmedoids']
 
 
-    def get_clusters(self):
+    def cluster_nodes(self):
         for group, param_dict in self.group_params.items():
 
             vis = None
             if self.draw == True:
-                vis = ClusterVis(
+                vis = DataClusterViz(
                     language=self.language,
                     dist_name = self.dist_name,
                     mx = self.mx,
                     group=group,
-                    distances_dir=self.distances_dir,
-                    sentiscores_dir=self.sentiscores_dir,
                     metadata_dir=self.metadata_dir,
-                    canonscores_dir=self.canonscores_dir,
-                    features_dir=self.features_dir)
+                    canonscores_dir=self.canonscores_dir)
 
             if param_dict['type'] == 'hierarchical':
                 clusters = self.hierarchical(vis)
@@ -106,27 +104,22 @@ class Clusters():
         return clusters
 
 
-class ClusterVis():
+class DataClusterViz(DataHandler):
     def __init__(
             self, 
-            language, 
+            language,
             dist_name,
             mx,
             group, 
-            distances_dir,
-            sentiscores_dir,
             metadata_dir,
-            canonscores_dir,
-            features_dir):
-        self.language = language
+            canonscores_dir):
+        super().__init__(language, 'distance')
+    
         self.dist_name = dist_name
         self.mx = mx
         self.group = group
-        self.distances_dir = distances_dir
-        self.sentiscores_dir = sentiscores_dir
         self.metadata_dir = metadata_dir
         self.canonscores_dir = canonscores_dir
-        self.features_dir = features_dir
         self.file_group_mapping = self._init_colormap()
         self.plot_name = f'{self.dist_name}_{self.group}_{self.language}'
 
@@ -137,7 +130,7 @@ class ClusterVis():
             label = label.set_color(str(color.values[0]))
 
     def save(self,plt, vis_type, dpi):
-        plt.savefig(os.path.join(self.distances_dir, f'{self.plot_name}_{vis_type}.png'), dpi=dpi)
+        plt.savefig(os.path.join(self.output_dir, f'{self.plot_name}_{vis_type}.png'), dpi=dpi)
 
     def draw_dendrogram(self, clusters):
         print(f'Drawing dendrogram.')

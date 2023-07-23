@@ -8,16 +8,15 @@ from collections import Counter
 from functools import wraps, reduce
 from multiprocessing import current_process, Queue, Process, cpu_count
 import scipy
-from pathlib import Path
 import pickle
 import time
-import heapq
 from sklearn.neighbors import BallTree
 import sys
 sys.path.append("..")
-from utils import load_list_of_lines, save_list_of_lines, df_from_dict, get_bookname
+from utils import load_list_of_lines, save_list_of_lines, get_bookname
 from .production_rule_extractor import ProductionRuleExtractor
 from .doc_based_feature_extractor import DocBasedFeatureExtractor
+from .process_rawtext import NgramCounter
 import spacy
 
 
@@ -31,11 +30,11 @@ class CorpusBasedFeatureExtractor():
         self.tokens_per_chunk = tokens_per_chunk
         self.nr_features = nr_features
         self.nlp = self.load_spacy_model()
-        self.ngram_counts = self.__get_ngram_counts()
+        self.ngram_counts = self.get_ngram_counts()
 
         # self.all_average_sbert_sentence_embeddings = []
         self.all_d2v_chunk_embeddings = []
-        for doc_chunks in self.__generate_chunks(): ##################
+        for doc_chunks in self.generate_chunks(): ##################
             # curr_sbert = []
             curr_doc2vec = []
             for chunk in doc_chunks:
@@ -58,9 +57,16 @@ class CorpusBasedFeatureExtractor():
             return nlp
         except OSError:
             print(f'The model {model_name} for Spacy is missing.')
-    
 
-    def __generate_chunks(self,         
+
+    def get_ngram_counts(self):
+        ngram_chunks =  self.generate_chunks(unigram_counts=True, bigram_counts=True, trigram_counts=True)
+        nc = NgramCounter(self.language, self.doc_paths, ngram_chunks)
+        ngram_counts = nc.load_all_data()
+        return ngram_counts
+
+
+    def generate_chunks(self,         
             unigram_counts=False, 
             bigram_counts=False, 
             trigram_counts=False, 
@@ -79,91 +85,9 @@ class CorpusBasedFeatureExtractor():
                 trigram_counts=trigram_counts, 
                 char_unigram_counts=char_unigram_counts).chunks
             yield doc_chunks
-
-    def __get_ngram_counts(self):
-        nc_dir = Path(str(self.doc_paths[0].replace('raw_docs', f'ngram_counts'))).parent
-        nc_path = os.path.join(nc_dir, 'ngram_counts.pkl')
-        if os.path.isfile(nc_path):
-            with open(nc_path, 'rb') as f:
-                ngram_counts = pickle.load(f)
-
-        else:
-            ngram_counts = {}
-            total_unigram_counts = Counter()
-            total_bigram_counts = Counter()
-            total_trigram_counts = Counter()
-            book_unigram_mapping = {}
-            book_bigram_mapping = {}
-            book_trigram_mapping = {}
-
-            for doc_chunks in self.__generate_chunks(unigram_counts=True, bigram_counts=True, trigram_counts=True):
-                book_unigram_counts = {}
-                book_bigram_counts = {}
-                book_trigram_counts = {}
-                for chunk in doc_chunks:
-                    file_name = chunk.file_name
-
-                    for unigram, counts in chunk.unigram_counts.items():
-                        book_unigram_counts[unigram] = book_unigram_counts.get(unigram, 0) + counts             
-                    for bigram, counts in chunk.bigram_counts.items():
-                        book_bigram_counts[unigram] = book_bigram_counts.get(bigram, 0) + counts 
-                    for trigram, counts in chunk.trigram_counts.items():
-                        book_trigram_counts[unigram] = book_unigram_counts.get(trigram, 0) + counts 
-
-                book_unigram_mapping[file_name] = book_unigram_counts
-                book_bigram_mapping[file_name] = book_bigram_counts
-                book_trigram_mapping[file_name] = book_trigram_counts
-                total_unigram_counts.update(book_unigram_counts)
-                total_bigram_counts.update(book_bigram_counts)
-                total_trigram_counts.update(book_trigram_counts)
-
-            total_unigram_counts = dict(heapq.nlargest(len(total_unigram_counts), total_unigram_counts.items(), key=lambda x: x[1]))
-            total_bigram_counts = dict(heapq.nlargest(2000, total_bigram_counts.items(), key=lambda x: x[1]))
-            total_trigram_counts = dict(heapq.nlargest(2000, total_trigram_counts.items(), key=lambda x: x[1]))
-            ngram_counts.update({
-                # data format: {unigram: count}
-                'total_unigram_counts': total_unigram_counts,
-                'total_bigram_counts': total_bigram_counts,
-                'total_trigram_counts': total_trigram_counts,
-                # data format: {file_name: {unigram: count}
-                'book_unigram_mapping': book_unigram_mapping,
-
-            })
-            del total_unigram_counts
-            del book_unigram_mapping
-
-            # keep only counts of the 2000 most frequent bi- and trigrams
-            book_bigram_mapping_ = {}
-            for book, book_dict in book_bigram_mapping.items():
-                book_dict_ = {}
-                for ngram in set(total_bigram_counts.keys()):
-                    if ngram in book_dict:
-                        book_dict_[ngram] = book_dict[ngram]
-                book_bigram_mapping_[book] = book_dict_
-            del book_bigram_mapping
-
-            book_trigram_mapping_ = {}
-            for book, book_dict in book_trigram_mapping.items():
-                book_dict_ = {}
-                for ngram in set(total_trigram_counts.keys()):
-                    if ngram in book_dict:
-                        book_dict_[ngram] = book_dict[ngram]
-                book_trigram_mapping_[book] = book_dict_
-            del book_trigram_mapping
-
-            ngram_counts.update({
-                'book_bigram_mapping': book_bigram_mapping_,
-                'book_trigram_mapping': book_trigram_mapping_
-                })
-
-            if not os.path.exists(nc_dir):
-                nc_dir.mkdir(parents=True, exist_ok=True)
-            with open(nc_path, 'wb') as f:
-                pickle.dump(ngram_counts, f, -1)
-        return ngram_counts
     
 
-    def __tag_chunks(self, tag_type, gram_type):
+    def tag_chunks(self, tag_type, gram_type):
         def __tag_sentence(sentence_tags, gram_type):
             if gram_type == 'unigram':
                 return sentence_tags
@@ -178,7 +102,7 @@ class CorpusBasedFeatureExtractor():
             else:
                 raise Exception('Not a valid gram_type')
 
-        def __tag_chunk(chunk, tag_type, gram_type):
+        def tag_chunk(chunk, tag_type, gram_type):
             tags_path = chunk.doc_path.replace('/raw_docs', f'/{tag_type}_tags_tpc_{self.tokens_per_chunk}_usechunks_{self.use_chunks}').replace('.txt', f'_chunkid_{chunk.chunk_id}.txt')
             if os.path.exists(tags_path):
                 all_sentence_tags = [line for line in load_list_of_lines(tags_path, 'str')]
@@ -207,9 +131,9 @@ class CorpusBasedFeatureExtractor():
 
         tagged_chunks = {}
         corpus_tag_counter = Counter()
-        for doc_chunks in self.__generate_chunks():
+        for doc_chunks in self.generate_chunks():
             for chunk in doc_chunks:
-                chunk_tag_counter = __tag_chunk(chunk, tag_type, gram_type)
+                chunk_tag_counter = tag_chunk(chunk, tag_type, gram_type)
                 tagged_chunks[chunk.file_name + '_' + str(chunk.chunk_id)] = chunk_tag_counter
                 corpus_tag_counter.update(chunk_tag_counter)
 
@@ -236,14 +160,14 @@ class CorpusBasedFeatureExtractor():
         result_df = None
         for tag_type in ['pos']:  # ['pos', 'tag', 'dep']:
             for gram_type in ['unigram', 'bigram', 'trigram']:
-                current_df = self.__tag_chunks(tag_type, gram_type)
+                current_df = self.tag_chunks(tag_type, gram_type)
                 if result_df is None:
                     result_df = current_df
                 else:
                     result_df = result_df.merge(current_df, on='file_name')
         return result_df
 
-    def __get_book_production_counts(self, book, pre):
+    def get_book_production_counts(self, book, pre):
         chunk_production_counter = Counter()
         for sentence in book:
             sentence_production_counter = pre.get_sentence_production_counter(sentence)
@@ -266,9 +190,9 @@ class CorpusBasedFeatureExtractor():
         chunk_production_counters = {}
         corpus_production_counter = Counter()
 
-        for doc_chunks in self.__generate_chunks():
+        for doc_chunks in self.generate_chunks():
             for chunk in doc_chunks:
-                chunk_production_counter = self.__get_book_production_counts(chunk.tokenized_words, pre)
+                chunk_production_counter = self.get_book_production_counts(chunk.tokenized_words, pre)
                 chunk_production_counters[chunk.file_name + '_' + str(chunk.chunk_id)] = chunk_production_counter
                 corpus_production_counter.update(chunk_production_counter)
 
@@ -431,7 +355,7 @@ class CorpusBasedFeatureExtractor():
         corpus_vector = [corpus_counts[key] if key in corpus_counts else 0 for key in dtm]
 
         distances = {}
-        for doc_chunks in self.__generate_chunks(unigram_counts=True, bigram_counts=True, trigram_counts=True):
+        for doc_chunks in self.generate_chunks(unigram_counts=True, bigram_counts=True, trigram_counts=True):
             for chunk in doc_chunks:
                 
                 if ngram_type == 'unigram':
@@ -446,7 +370,9 @@ class CorpusBasedFeatureExtractor():
                 curr_corpus_vector = list(np.subtract(np.array(corpus_vector), np.array(chunk_vector)))
                 cosine_distance = scipy.spatial.distance.cosine(curr_corpus_vector, chunk_vector)
                 distances[chunk.file_name + '_' + str(chunk.chunk_id)] = cosine_distance
-        distances = df_from_dict(d=distances, keys_as_index=False, keys_column_name='file_name', values_column_value=f'{ngram_type}_distance')
+
+        # Turn both keys and values of a dict into columns of a df.'''
+        distances = pd.DataFrame(distances.items(), columns=['file_name', f'{ngram_type}_distance'])
         return distances 
 
     def get_unigram_distance(self):

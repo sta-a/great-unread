@@ -6,6 +6,7 @@ import pickle
 import logging
 import time
 import os
+import math
 import pandas as pd
 from scipy.spatial.distance import minkowski #################
 from sklearn.metrics.pairwise import cosine_similarity
@@ -22,39 +23,42 @@ sys.path.append("..")
 from utils import DataHandler, get_doc_paths, get_bookname
 
 logging.basicConfig(level=logging.DEBUG)
-
 # Suppress logger messages by 'matplotlib.ticker
 # Set the logging level to suppress debug output
 ticker_logger = logging.getLogger('matplotlib.ticker')
 ticker_logger.setLevel(logging.WARNING)
 
-# data_dir = '../../data'
-
-
 class Distance(DataHandler):
-    def __init__(self, language, output_dir):
+    def __init__(self, language, output_dir='distance'):
         super().__init__(language, output_dir)
 
     def create_data(self,**kwargs):
         '''
         Prepare data for distance calculation, call function that calculates distance
         '''
+        mode = kwargs['mode']
         distance_metric = self.calculate_distance()
         mx = pairwise_distances(self.df, metric=distance_metric)
         mx = pd.DataFrame(mx, index=self.df.index, columns=self.df.index)
-        self.check_assertions(mx)
+        mx = self.postprocess_mx(mx, mode, dist_to_sim=False)
         self.save_data(data=mx, file_name=None,**kwargs)
         self.logger.info(f'Created similarity matrix.')
-        self.plot_distance_distribution(mx=simmx, mode=mode)
 
-    def check_assertions(self, mx):
+    def postprocess_mx(self, mx, mode, dist_to_sim=False):
+        if dist_to_sim == True:
+            mx = self.distance_to_similarity(mx)
+        mx = self.set_diagonal(mx, np.nan)
+        self.plot_distance_distribution(mx=mx, mode=mode)
         assert mx.index.equals(mx.columns)
         assert mx.equals(mx.T) # Check if symmetric
         assert not np.any(mx.values == 0) # Test whether any element is 0
-        assert np.all(np.diag(mx.values) == 1)
-        assert not np.any(np.isnan(mx.values)) # Almost the same as next line
-        assert not mx.isnull().values.any()
-        assert mx.all().all()
+        # Check if all diagonal elements of the matrix or DataFrame 'mx' are NaN
+        assert np.all(np.isnan(np.diag(mx.values)))        
+        non_diag_values = self.get_triangular(mx)
+        assert not np.any(np.isnan(non_diag_values)) # Almost the same as next line
+        # assert not mx.isnull().values.any()
+        # assert mx.all().all()
+        return mx
 
     def set_diagonal(self, mx, value):
         '''
@@ -89,6 +93,24 @@ class Distance(DataHandler):
             n = n_or_mx
         return n*(n-1)/2
 
+    def distance_to_similarity(self, mx):
+        '''
+        mx: distance matrix
+        Invert distances to obtain similarities.
+        '''
+        def set_diagonal(mx, value):
+            for i in range(0, mx.shape[0]):
+                mx.iloc[i, i] = value
+            return mx
+        
+        # Assert that there are no Nan
+        assert not mx.isnull().values.any()
+        # Set diagonal to Nan
+        mx = set_diagonal(mx, np.nan)
+        # Assert that there are no zero distances
+        assert mx.all().all()
+        mx = mx.rdiv(1) # divide 1 by the values in the matrix
+        return mx
 
     def plot_distance_distribution(self, mx, mode):
         start = time.time()
@@ -103,15 +125,25 @@ class Distance(DataHandler):
 
         fig = plt.figure(figsize=(20,6), dpi=300)
         ax = fig.add_subplot(111)
+
         binsize = 0.001
         xtick_step = 1
-        # binsize = 0.1
-        # xtick_step = 5
-        ax.hist(vals, bins = np.arange(0,max(vals) + 0.1, binsize), log=True, ec='black', color='black') #kwargs set edge color
+        if mode.split('-')[0] == 'cosinedelta':
+            binsize = 10
+            xtick_step = 50
+        #ax.hist(vals, bins = np.arange(0,max(vals) + 0.1, binsize), log=True, ec='black', color='black') #kwargs set edge color
+        ax.hist(vals, bins='auto', log=True, ec='black', color='black') #kwargs set edge color
+
+        data_min = min(vals) ###################################
+        data_max = max(vals)
+        tick_step = math.floor(0.05 * data_max)
+        ax.set_xticks(np.arange(0, data_max + tick_step, tick_step))
+        # ax.set_xticks(range(min(vals), max(vals)+1, 5))
+
         ax.set_xlabel(f'{mode.capitalize()}')
         ax.set_ylabel('Frequency')
         ax.set_title(f'{mode.capitalize()} distribution')
-        plt.xticks(np.arange(0, max(vals) + 0.1, step=xtick_step))
+        #plt.xticks(np.arange(0, max(vals) + 0.1, step=xtick_step))
         plt.xticks(rotation=90)
         ax.grid(False)
 
@@ -121,15 +153,13 @@ class Distance(DataHandler):
         print(f'{time.time()-start}s to create {mode} distribution plot.')
 
 
-
-
 class D2vDist(Distance):
     '''
     Create similarity matrices based on doc2vec docuement vectors.
     '''
     def __init__(self, language, output_dir='distance'):
         super().__init__(language, output_dir)
-        self.modes = ['doc_tags'] #'both_tags',  ########################################################3
+        self.modes = ['doc_tags', 'both_tags']
         self.doc_paths = get_doc_paths(os.path.join(self.data_dir, 'raw_docs', self.language))
 
     def create_data(self,**kwargs):
@@ -147,10 +177,9 @@ class D2vDist(Distance):
             doc_dvs[book_name] = dv_dict[book_name]
         dv_dict = doc_dvs
 
-        simmx = self.calculate_distance(dv_dict)
-        self.check_assertions(simmx)
-        self.save_data(simmx, mode=mode)
-        self.plot_distance_distribution(mx=simmx, mode=mode)
+        mx = self.calculate_distance(dv_dict)
+        mx = self.postprocess_mx(mx, mode, dist_to_sim=False)
+        self.save_data(mx, mode=mode)
         self.logger.info(f'Created {mode} similarity matrix.')
 
     def create_filename(self,**kwargs):
@@ -165,7 +194,7 @@ class D2vDist(Distance):
             dictionary (dict): Dictionary mapping names to vectors as numpy arrays.
 
         Returns:
-            simmx (pd.DataFrame): Pandas DataFrame representing the pairwise cosine similarity matrix.
+            mx (pd.DataFrame): Pandas DataFrame representing the pairwise cosine similarity matrix.
         """
         # Extract the names and vectors from the dictionary
         names = list(dictionary.keys())
@@ -174,33 +203,33 @@ class D2vDist(Distance):
         vectors = np.array(vectors)
         # Calculate the cosine similarity matrix using sklearn's cosine_similarity function
         # If y is None, the output will be the pairwise similarities between all samples in X.
-        simmx = cosine_similarity(vectors)
+        mx = cosine_similarity(vectors)
         # Create a DataFrame from the similarity matrix
-        simmx = pd.DataFrame(simmx, index=names, columns=names)
+        mx = pd.DataFrame(mx, index=names, columns=names)
         # Scale values of cosine similarity from [-1, 1] to [0, 1]
-        simmx = simmx.applymap(lambda x: 0.5 * (x + 1))
-        return simmx
+        mx = mx.applymap(lambda x: 0.5 * (x + 1))
+        return mx
     
 
 class PydeltaDist(Distance):
     def __init__(self, language, output_dir='distance'):
         super().__init__(language, output_dir)
-        # self.distances = ['burrows', 'cosinedelta', 'eder', 'quadratic']
-        # self.nmfw_values = [500, 1000, 2000, 5000]
-        self.distances = ['burrows'] ############################################
-        self.nmfw_values = [500]
+        self.distances = ['cosinedelta', 'burrows', 'eder', 'quadratic']
+        self.nmfw_values = [500, 1000, 2000, 5000]
+        # self.distances = ['burrows']
+        # self.nmfw_values = [500]
         self.modes = [f'{item1}-{item2}' for item1 in self.distances for item2 in self.nmfw_values]
+        self.logger.info('Similarity matrices created with delta measures have')
 
     def create_data(self,**kwargs):
         self.logger.info(f"Distance 'edersimple' is not calculated due to implementation error.")
         mode = kwargs['mode']
-
+        start = time.time()
         mx = self.calculate_distance(mode=mode)
-        simmx = self.distance_to_similarity(mx)
-        self.check_assertions(simmx)
-        self.save_data(simmx, mode=mode)
+        mx = self.postprocess_mx(mx, mode, dist_to_sim=True)
+        self.save_data(mx, mode=mode)
         self.logger.info(f'Created {mode} similarity matrix.')
-        self.plot_distance_distribution(mx=simmx, mode=mode)
+        print(f'{time.time()-start} for {mode}')
 
     def get_distance_nmfw(self, mode):
         distance, nmfw = mode.split('-')
@@ -228,25 +257,6 @@ class PydeltaDist(Distance):
             mx = delta.functions.eder_simple(corpus)
         elif distance == 'quadratic':
             mx = delta.functions.quadratic(corpus)
-        return mx
-
-    def distance_to_similarity(self, mx):
-        '''
-        mx: distance matrix
-        Invert distances to obtain similarities.
-        '''
-        def set_diagonal(mx, value):
-            for i in range(0, mx.shape[0]):
-                mx.iloc[i, i] = value
-            return mx
-        
-        # Assert that there are no Nan
-        assert not mx.isnull().values.any()
-        # Set diagonal to Nan
-        mx = set_diagonal(mx, np.nan)
-        # Assert that there are no zero distances
-        assert mx.all().all()
-        mx = mx.rdiv(1) # divide 1 by the values in the matrix
         return mx
     
 
@@ -277,6 +287,7 @@ class MFWFilter(DataHandler):
         Finally, it constructs the MFW counts DataFrame
         and saves it to a CSV file for later use.
         """
+        self.logger.info('Creating MFW table')
         nmfw = kwargs['mode']
         # MFW based on the total unigram counts
         mfw_set = self.get_mfw_set(nmfw)
@@ -284,6 +295,8 @@ class MFWFilter(DataHandler):
         book_unigram_mapping_filtered = self.filter_book_unigram_mapping(mfw_set)
         mfw_counts = pd.DataFrame.from_dict(book_unigram_mapping_filtered, orient='index').fillna(0).astype('int64')
         self.save_data(data=mfw_counts, file_name=None, mode=nmfw)
+        self.logger.info('Created MFW table')
+
 
         # mfw_counts.to_csv('corpustest.csv', header=True, index=True)
         # corpus = delta.Corpus('corpus_words.csv')
@@ -306,33 +319,6 @@ class MFWFilter(DataHandler):
             book_dict_ = {word: count for word, count in book_dict.items() if word in mfw_set}
             book_unigram_mapping_filtered[filename] = book_dict_
         return book_unigram_mapping_filtered
-
-    # def nested_dict_to_df(self, book_unigram_mapping):
-    #     """
-    #     Get the Most Frequent Words (MFW) counts DataFrame from the filtered book unigram mapping.
-    #     """
-    #     mfw_counts = pd.concat(
-    #         {k: pd.DataFrame.from_dict(v, 'index').T.reset_index(drop=True) for k, v in book_unigram_mapping.items()},
-    #         axis=0
-    #         ).droplevel(1).fillna(0).astype('int64')
-    #     return mfw_counts
-    
-
-    # def nested_dict_to_df(self, book_unigram_mapping):
-    #     df = pd.DataFrame.from_dict(book_unigram_mapping, orient='index').fillna(0).astype('int64')
-    #     return df
-    
-
-# if __name__ == 'main':
-# language = 'eng'
-# pydelta = PydeltaDist(language)
-# pdmxs = pydelta.load_all_data()
-
-# dd = D2vDist(language)
-# dvmxs = dd.load_all_data()
-
-
-
 
 
 # %%

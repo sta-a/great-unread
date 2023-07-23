@@ -1,5 +1,4 @@
 # %%
-
 %load_ext autoreload
 %autoreload 2
 
@@ -22,14 +21,11 @@ from utils import get_doc_paths, compare_directories, DataHandler, get_bookname
 
 class FeatureProcessor(DataHandler):
     def __init__(self, language):
-        self.output_dir = os.path.join(f'features', language)
-        super().__init__(language, self.output_dir)
+        super().__init__(language, 'features')
         self.raw_docs_dir = os.path.join(self.data_dir, 'raw_docs', self.language)
         self.doc_paths = get_doc_paths(self.raw_docs_dir)[:None] #############################
-        self.dvs_chunks = D2vProcessor(self.language, output_dir=None, data_dir=self.data_dir).load_data(mode='chunk_features')
-        self.dvs_doc = D2vProcessor(self.language, output_dir=None, data_dir=self.data_dir).load_data(mode='doc_tags')
 
-    def tokenize_all_texts(self, remove_files=True):##############################
+    def tokenize_all_texts(self, remove_files=False):
         if remove_files:
             chars_path = f'/home/annina/scripts/great_unread_nlp/src/special_chars_{self.language}.txt'
             if os.path.exists(chars_path):
@@ -38,7 +34,7 @@ class FeatureProcessor(DataHandler):
             if os.path.exists(annotation_path):
                 os.remove(annotation_path)
             for doc_path in self.doc_paths:
-                tokenized_words_path = doc_path.replace('/raw_docs', '/tokenized_words')
+                tokenized_words_path = doc_path.replace('raw_docs', 'tokenized_words')
                 if os.path.exists(tokenized_words_path):
                     os.remove(tokenized_words_path)
 
@@ -112,9 +108,10 @@ class FeatureProcessor(DataHandler):
         else: 
             dvs = self.dvs_doc
         cbfe = CorpusBasedFeatureExtractor(self.language, self.doc_paths, dvs, use_chunks)
-        chunk_features, book_features = cbfe.get_all_features()
+        # chunk_features, book_features = cbfe.get_all_features() ##############3
+        print('cbfe get all features not called§')
         # Save book features only once (not when running with fulltext chunks)
-        return chunk_features, book_features
+        # return chunk_features, book_features ###########################
     
     def merge_features(self, doc_chunk_features, doc_book_features, doc_chunk_features_fulltext, corpus_chunk_features, corpus_book_features, corpus_chunk_features_fulltext):
         # Book features
@@ -155,7 +152,15 @@ class FeatureProcessor(DataHandler):
         # self.load_tokenized_words()
 
         # Tokenize texts
-        self.tokenize_all_texts()
+        # self.tokenize_all_texts()
+
+        # Create d2v embeddings
+        _ = D2vProcessor(self.language).load_all_data()
+
+        # Load document vectors after texts have been tokenized
+        # This order is not strictly necessary but more convenient
+        self.dvs_chunks = D2vProcessor(self.language).load_data(mode='chunk_features')
+        self.dvs_doc = D2vProcessor(self.language).load_data(mode='doc_tags')
 
         # # Doc-based features
         # doc_chunk_features, doc_book_features = self.get_doc_features(use_chunks=True)
@@ -163,7 +168,8 @@ class FeatureProcessor(DataHandler):
         # doc_chunk_features_fulltext, _ = self.get_doc_features(use_chunks=False)
         
         # # Corpus-based features
-        # corpus_chunk_features, corpus_book_features = self.get_corpus_features(use_chunks=True)
+        #corpus_chunk_features, corpus_book_features = 
+        # self.get_corpus_features(use_chunks=True)
         # # Recalculate the chunk features for the whole book, which is considered as one chunk
         # corpus_chunk_features_fulltext, _ = self.get_corpus_features(use_chunks=False)
 
@@ -194,15 +200,8 @@ if __name__ == '__main__':
         data_dir = args.data_dir
     else:
         # Don't use defaults because VSC Python interactive mode can't handle command line arguments
-        language = 'eng'
-        data_dir = '../data/'
+        language = 'ger'
 
-    # Select number of texts to work with
-    tokens_per_chunk = 500
-
-    # ngram_counts_path = os.path.join(Path(str(doc_paths[0].replace('raw_docs', 'ngram_counts'))).parent, 'ngram_counts.pkl')
-    # if os.path.exists(ngram_counts_path):
-    #     os.remove(ngram_counts_path)
     fe = FeatureProcessor(language).create_all_data()
 
 # assert that nr of chunk features = nr of chunk in tokenizedwords
