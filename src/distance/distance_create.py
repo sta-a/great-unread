@@ -45,20 +45,52 @@ class Distance(DataHandler):
         self.logger.info(f'Created similarity matrix.')
 
     def postprocess_mx(self, mx, mode, dist_to_sim=False):
+        mx = self.min_max_normalization(mx)
         if dist_to_sim == True:
             mx = self.distance_to_similarity(mx)
-        mx = self.set_diagonal(mx, np.nan)
+        print(f'Max similarity: {mx.max().max()}. Min similarity: {mx.min().min()}.')
+        mx = self.set_diagonal(mx, 1)
         self.plot_distance_distribution(mx=mx, mode=mode)
+
         assert mx.index.equals(mx.columns)
         assert mx.equals(mx.T) # Check if symmetric
-        assert not np.any(mx.values == 0) # Test whether any element is 0
-        # Check if all diagonal elements of the matrix or DataFrame 'mx' are NaN
-        assert np.all(np.isnan(np.diag(mx.values)))        
-        non_diag_values = self.get_triangular(mx)
-        assert not np.any(np.isnan(non_diag_values)) # Almost the same as next line
+        self.find_zero_elements(mx)
         # assert not mx.isnull().values.any()
         # assert mx.all().all()
         return mx
+
+    def find_zero_elements(self, mx):
+        # Find rows and cols with value 0
+        zero_indices = np.where(mx == 0)
+        # Get the row and column labels for the zero elements
+        rows_with_zeros = mx.index[zero_indices[0]]
+        cols_with_zeros = mx.columns[zero_indices[1]]
+        # Print the results
+        print("\nRow and Column names for Elements that are 0:")
+        for row, col in zip(rows_with_zeros, cols_with_zeros):
+            print(f"Row: {row}, Column: {col}")
+        print('--------------------------------')
+
+
+    def min_max_normalization(self, mx):
+        # Normalize values in matrix to the range between 0 and 1
+        min_val = mx.min().min()
+        max_val = mx.max().max()
+        normmx = (mx - min_val) / (max_val - min_val)
+        return normmx
+
+    def distance_to_similarity(self, distmx):
+        '''
+        distmx: normalized distance matrix
+        Invert distances to obtain similarities.
+        '''        
+        # Assert that there are no Nan
+        assert not distmx.isnull().values.any()
+        # Assert that there are no zero distances (ignore the diagonal)
+        values = self.get_triangular(distmx)
+        assert not np.any(values == 0)
+        simmx = 1 - distmx
+        return simmx
 
     def set_diagonal(self, mx, value):
         '''
@@ -75,10 +107,12 @@ class Distance(DataHandler):
         mx: symmetric matrix
         Return values in one triangular of the matrix as array. Diagonal is ignored
         '''
-        vals = np.tril(mx.values, k=-1).flatten() # Return a copy of an array with elements above the k-th diagonal zeroed
-        vals = vals[np.nonzero(vals)] # Remove zeros from tril
+        # Get the indices of the upper triangle of the matrix
+        indices = np.triu_indices(n=mx.shape[0], k=1)
+        # Access the elements in the upper triangle using the obtained indices
+        vals = mx.values[indices].tolist()
         # Check number of elements below the diagonal
-        assert len(vals) == self.nr_elements_triangular(mx)
+        assert int(len(vals)) == self.nr_elements_triangular(mx)
         return vals
 
     def nr_elements_triangular(self, n_or_mx):
@@ -91,29 +125,9 @@ class Distance(DataHandler):
             n = n_or_mx.shape[0]
         else:
             n = n_or_mx
-        return n*(n-1)/2
-
-    def distance_to_similarity(self, mx):
-        '''
-        mx: distance matrix
-        Invert distances to obtain similarities.
-        '''
-        def set_diagonal(mx, value):
-            for i in range(0, mx.shape[0]):
-                mx.iloc[i, i] = value
-            return mx
-        
-        # Assert that there are no Nan
-        assert not mx.isnull().values.any()
-        # Set diagonal to Nan
-        mx = set_diagonal(mx, np.nan)
-        # Assert that there are no zero distances
-        assert mx.all().all()
-        mx = mx.rdiv(1) # divide 1 by the values in the matrix
-        return mx
+        return int(n*(n-1)/2)
 
     def plot_distance_distribution(self, mx, mode):
-        start = time.time()
         vals = self.get_triangular(mx) # Get triangular matrix, ignore diagonal
         assert not np.any(np.isnan(vals)) # Test whether any element is nan
 
@@ -137,10 +151,10 @@ class Distance(DataHandler):
         data_min = min(vals) ###################################
         data_max = max(vals)
         tick_step = math.floor(0.05 * data_max)
-        ax.set_xticks(np.arange(0, data_max + tick_step, tick_step))
+        # ax.set_xticks(np.arange(0, data_max + tick_step, tick_step))
         # ax.set_xticks(range(min(vals), max(vals)+1, 5))
 
-        ax.set_xlabel(f'{mode.capitalize()}')
+        ax.set_xlabel(f'Similarity')
         ax.set_ylabel('Frequency')
         ax.set_title(f'{mode.capitalize()} distribution')
         #plt.xticks(np.arange(0, max(vals) + 0.1, step=xtick_step))
@@ -150,7 +164,6 @@ class Distance(DataHandler):
         # file_name = self.create_filename(mode=mode, )
         self.save_data(data=plt, data_type='png', mode=mode)
         # plt.savefig('test', format="png")
-        print(f'{time.time()-start}s to create {mode} distribution plot.')
 
 
 class D2vDist(Distance):
@@ -178,6 +191,7 @@ class D2vDist(Distance):
         dv_dict = doc_dvs
 
         mx = self.calculate_distance(dv_dict)
+        mx.to_csv(os.path.join('/home/annina/scripts/great_unread_nlp/data/distance/', self.language, 'distmx', f'{mode}.csv'))
         mx = self.postprocess_mx(mx, mode, dist_to_sim=False)
         self.save_data(mx, mode=mode)
         self.logger.info(f'Created {mode} similarity matrix.')
@@ -224,12 +238,11 @@ class PydeltaDist(Distance):
     def create_data(self,**kwargs):
         self.logger.info(f"Distance 'edersimple' is not calculated due to implementation error.")
         mode = kwargs['mode']
-        start = time.time()
         mx = self.calculate_distance(mode=mode)
+        mx.to_csv(os.path.join('/home/annina/scripts/great_unread_nlp/data/distance/', self.language, 'distmx', f'{mode}.csv'))
         mx = self.postprocess_mx(mx, mode, dist_to_sim=True)
         self.save_data(mx, mode=mode)
         self.logger.info(f'Created {mode} similarity matrix.')
-        print(f'{time.time()-start} for {mode}')
 
     def get_distance_nmfw(self, mode):
         distance, nmfw = mode.split('-')
@@ -301,7 +314,6 @@ class MFWFilter(DataHandler):
         # mfw_counts.to_csv('corpustest.csv', header=True, index=True)
         # corpus = delta.Corpus('corpus_words.csv')
         # #corpus.save()
-        # print('------------corpus from file----------------------------', corpus)
         # corpus_test = corpus.get_mfw_table(nmfw) ##################################
         # corpus_test.to_csv(f'corpus_test_{nmfw}', header=True, index=True)
 
