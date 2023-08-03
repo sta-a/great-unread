@@ -5,7 +5,7 @@ from .distance_create import Distance
 import logging
 import sys
 sys.path.append("..")
-from utils import get_texts_by_author
+from utils import TextsByAuthor
 logging.basicConfig(level=logging.DEBUG)
 
 import logging
@@ -16,7 +16,8 @@ logging.basicConfig(level=logging.DEBUG)
 # ticker_logger.setLevel(logging.WARNING)
 
 class Sparsifier():
-      def __init__(self, mx=None, mode=None, spars_param=None):
+      def __init__(self, language=None, mx=None, mode=None, spars_param=None):
+            self.language = language
             self.mx = mx
             self.mode = mode
             self.spars_param = spars_param
@@ -55,7 +56,7 @@ class Sparsifier():
             This results in a directed weight matrix
             '''
             directed_mx = []
-            author_filename_mapping, _ = get_texts_by_author(list_of_filenames=mx.index)
+            author_filename_mapping = TextsByAuthor(self.language, list_of_filenames=mx.index).author_filename_mapping
             for _, list_of_filenames in author_filename_mapping.items():
                   author_mx = mx.loc[list_of_filenames, list_of_filenames].copy()
                   #   new_rows.where(mx >= min_similarity, 0)

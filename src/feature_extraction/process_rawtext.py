@@ -110,9 +110,9 @@ class Tokenizer():
 
         if as_chunk == False:
             all_chunks = ' '.join(all_chunks)
-            # self.logger.info('Returning tokenized words as one string.')
+        #     self.logger.info('Returning tokenized words as one string.')
         # else:
-        #     self.logger.info('Returning tokenized words as list of chunks.')
+        #     self.logger.info('Returning tokenized chunks as list of strings.')
         return all_chunks
     
     def tokenize_all_texts(self):
@@ -337,6 +337,7 @@ class Preprocessor():
             '[**]': '', # Fielding_Henry_Tom-Jones_1749
             '[A]': '',
             '[1]': '',
+            '"': "'",
         }
         return rep_dict
 
@@ -375,6 +376,8 @@ class Preprocessor():
 
         if 'Scott_Walter_The-Heart-of-Midlothian_1818' in self.doc_path:
             text = text.replace('â€˜the', 'the')
+            text = text.replace('[', '')
+            text = text.replace(']', '')
 
         if 'Alexis_Willibald_Schloss-Avalon_1826' in self.doc_path:
             text = text.replace(':|:', '')
@@ -431,13 +434,11 @@ class Preprocessor():
             text = text.replace(long_string, '')
 
         if 'Eliot_George_Janets-Repentance_1857' in self.doc_path:
-            long_string = """
-            [Greek: deinon to tiktein estin.]
-            """
+            long_string = "[Greek: deinon to tiktein estin.]"
             text = text.replace(long_string, self.greek_tag)
 
         if 'Eliot_George_Sad-Fortunes-of-Rev-Amos-Barton_1857' in self.doc_path:
-            long_string = """ [Greek: all edu gar toi ktema tes uikes labien tolma dikaioi d' authis ekphanoumetha.]"""
+            long_string = """[Greek: all edu gar toi ktema tes uikes labien tolma dikaioi d' authis ekphanoumetha.]"""
             text = text.replace(long_string, self.greek_tag)
 
         if 'Disraeli_Benjamin_Vivian-Grey_1826' in self.doc_path:
@@ -497,46 +498,11 @@ class Preprocessor():
         if 'Stifter_Adalbert_Die-Narrenburg_1843' in self.doc_path:
             text = text.replace('*) [*)Alpenstock]' ,'')
 
-        files_list = ['Fontane_Theodor_Mathilde-Moehring_1906',
-                        'Reuter_Christian-Friedrich_Schelmuffsky_1696',
-                        'Holcroft_Thomas_The-Adventures-of-Hugh-Trevor_1794',
-                        'Sterne_Laurence_Tristram-Shandy_1759',
-                        'Smollett_Tobias_Humphry-Clinker_1771',
-                        'Richardson_Samuel_Clarissa_1748',
-                        'More_Hannah_Coelebs_1814',
-                        'Scott_Walter_St-Ronans-Well_1824',
-                        'Burney_Frances_Cecilia_1782',
-                        'Hughes_Thomas_Tom-Browns-Schooldays_1857',
-                        'Burney_Frances_Camilla_1796',
-                        'Frenssen_Gustav_Joern-Uhl_1901',
-                        'Hoffmann_ETA_Der-Sandmann_1816',
-                        'Wezel_Johann-Karl_Belphegor_1776',
-                        'Wyss_Johann-David_Der-Schweizerische-Robinson_1812',
-                        'Freytag_Gustav_Die-verlorene-Handschrift_1855',
-                        'Grosse_Karl_Der-Genius_1791',
-                        'Buechner_Georg_Lenz_1839',
-                        'Motte-Fouque_Friedrich_Eine-Geschichte-vom-Galgenmaennlein_1810',
-                        'Immermann_Karl_Die-Epigonen_1836',
-                        'Hoffmann_ETA_Das-Steinerne-Herz_1816',
-                        'Alexis_Willibald_Walladmor_1824',
-                        'Hoffmann_ETA_Das-Sanctus_1816',
-                        'Arnim_Achim_Hollins-Liebeleben_1802',
-                        'Hoffmann_ETA_Das-Sanctus_1816',
-                        'Arnim_Achim_Hollins-Liebeleben_1802',
-                        'Grillparzer_Franz_Der-arme-Spielmann_1847',
-                        'Hoffmann_ETA_Kater-Murr_1820',
-                        'Ehrmann_Marianne_Amelie_1788',
-                        'Hoffmann_ETA_Das-oede-Haus_1816',
-                        'Hoffmann_ETA_Die-Serapions-Brueder_1819'
-                        ]
-        # In some of these texts, the brackets could be replaced automatically.
-        # Finding errors is easier by removing them.
-        if any(file_name in self.doc_path for file_name in files_list):
-            rep_dict = {
-                '[': '',
-                ']': ''
-            }
-            text = self.replace_multiple(text, rep_dict)
+        if 'Oliphant_Margaret_The-Perpetual-Curate_1864' in self.doc_path:
+            text = text.replace('a-visiting[' ,'a-visiting')
+
+        if 'Burney_Frances_The-Wanderer_1814' in self.doc_path:
+            text = text.replace('averseness]' ,'averseness')
         
         if 'Edgeworth_Maria_Lame-Jervas_1804' in self.doc_path:
             # One footnote seems to be by the author, while the others are by the editor
@@ -559,6 +525,11 @@ class Preprocessor():
 
         if 'Wells_H-G_The-First-Men-in-the-Moon_1901' in self.doc_path:
             text = text.replace('* Footnote', '')
+            rep_dict = {
+                '[': '',
+                ']': ''
+            }
+            text = self.replace_multiple(text, rep_dict)
 
         if 'May_Karl_Das-Waldroeschen_1883' in self.doc_path:
             text = text.replace('– Anmerkung des Verfassers.]', '')
@@ -606,6 +577,10 @@ class Preprocessor():
             text = text.replace('th~', '')
             text = text.replace('~', '')
             text = text.replace(']', '')
+
+        if 'Baldwin_Louisa_The-Empty-Picture-Frame_1895' in self.doc_path:
+            text = text.replace('~', '')
+            text = text.replace('original]', 'original')
 
         files_list = ['Baldwin_Louisa_The-Empty-Picture-Frame_1895',
                       'Galbraith_Lettice_The-Case-of-Lady-Lukestan_1893']
@@ -661,6 +636,8 @@ class Preprocessor():
             text = text.replace("[COMMANDER-IN-CHIEF OF KING CHARLES II.'s FORCES IN SCOTLAND.]", "COMMANDER-IN-CHIEF OF KING CHARLES II.'s FORCES IN SCOTLAND.")
             text = text.replace('spells like a chambermaid.', 'spells like a chambermaid.]')
             text = re.sub(r'\[Note:.*?\]', '', text, flags=re.DOTALL)
+            text = text.replace('[', '')
+            text = text.replace(']', '')
             
         if 'OGrady_Standish_Early-Bardic-Literature_1879' in self.doc_path:
             text = text.replace("[Transcriber's Note: Greek in the original]", '')
@@ -758,6 +735,9 @@ class Preprocessor():
         if 'Fielding_Henry_Jonathan-Wilde_1742' in self.doc_path:
             text = text.replace('[he]', 'he')
             text = re.sub(r'\[.*?\]', '', text, flags=re.DOTALL)
+        
+        if 'Baldwin_Louisa_The-Ticking-of-the-Clock_1895' in self.doc_path:
+            text = text.replace('B]ewitt', 'Blewitt')
 
         if 'Haggard_H-Rider_Allan-Quartermain_1887' in self.doc_path:
             # Remove endnotes at the end of the text
@@ -818,6 +798,8 @@ class Preprocessor():
             text = text.replace('Ã¦', 'e')
             text = text.replace('A|', 'e')
             text = re.sub(r'\d+:', '', text)
+            text = text.replace('[', '')
+            text = text.replace(']', '')
 
         if 'Auerbach_Berthold_Die-Frau-Professorin_1846' in self.doc_path:
             text = text.replace('Fußnoten1 ', '')
@@ -855,6 +837,9 @@ class Preprocessor():
         if 'Reynolds_George_The-Mysteries-of-London_1844' in self.doc_path:
             text = text.replace('}', '')
             text = text.replace('|', '')
+            text = re.sub(r'\[\d*?\]', '', text)
+            # text = text.replace('[', '')
+            # text = text.replace(']', '')
 
         if 'Haggard_H-Rider_She_1886' in self.doc_path:
             pattern = r'<U+0391><U+039C><U+0395><U+039D><U+0391><U+03A1><U+03A4><.*<U+0395><U+03A5>S<U+0391><U+039C><U+0397><U+039D>'
@@ -871,11 +856,17 @@ class Preprocessor():
             text = re.sub(pattern, '', text, flags=re.DOTALL)
             text = text.replace('{', '')
             text = text.replace('}', '')
+            text = text.replace('[plate 1]', '')
+            text = text.replace('[plate 2]', '')
+            text = text.replace('[sketch omitted]', '')
+            text = text.replace('[out]', '')
 
         if 'Scott_Walter_The-Fortunes-of-Nigel_1822' in self.doc_path:
             text = text.replace('[ZOOS ESTI KAI EPI THONI DERKOV]', self.greek_tag)
             text = re.sub(r'\[Footnote.*?\]', '', text, flags=re.DOTALL)
             text = text.replace('=', '')
+            text = text.replace('[', '')
+            text = text.replace(']', '')
 
         if 'Scott_Walter_The-Betrothed_1825' in self.doc_path:
             text = text.replace('|east', 'least')
@@ -899,9 +890,7 @@ class Preprocessor():
             text = re.sub(r'}', '', text)
             text = re.sub(r'\{.*?\}', '', text, flags=re.DOTALL)
 
-        files_list = ['Edgeworth_Maria_Orlandino_1848', 
-                          'Brunton_Mary_Discipline_1814',
-                          'Reynolds_George_The-Mysteries-of-London_1844.txt',
+        files_list = ['Brunton_Mary_Discipline_1814',
                           'Dickens_Charles_Sketches-by-Boz_1833',
                           'Newman_John-Henry_Loss-and-Gain_1848',
                           'Fielding_Henry_Shamela_1741',
@@ -912,8 +901,15 @@ class Preprocessor():
             # Find numbers enclosed by brackets.
             text = re.sub(r'\[\d*?\]', '', text)
 
+        if 'Edgeworth_Maria_Orlandino_1848' in self.doc_path:
+            text = re.sub(r'\[\d*?\]', '', text)
+            text = text.replace('[', '')
+            text = text.replace(']', '')
+
         if 'Collins_Wilkie_The-Woman-in-White_1859' in self.doc_path:
             text = text.replace('(see Sermon XXIX. in the Collection by the late Rev. Samuel Michelson, M.A.)', '')
+            text = text.replace('[', '')
+            text = text.replace(']', '')
 
         if 'Edgeworth_Maria_Castle-Rackrent_1800' in self.doc_path:
             text = text.replace('[See GLOSSARY 11]', '') # Brackets within brackets
@@ -948,13 +944,20 @@ class Preprocessor():
         if 'Freytag_Gustav_Die-Ahnen_1872' in self.doc_path:
             text = text.replace('~', 'v')
 
+        if 'Hogg_James_The-Sheperds-Calender_1829' in self.doc_path:
+            text = text.replace('Pharmacop[oe]ia', 'Pharmacopoeia')
+
+        if 'Butler_Samuel_The-Way-of-all-Flesh_1903' in self.doc_path:
+            text = text.replace('[wick-ed', 'wicked')
+            text = text.replace('[Music score]', '')
+            text = text.replace(']', '')
+
         files_list = [
             'Edgeworth_Maria_Castle-Rackrent_1800',
             'Edgeworth_Maria_The-Modern-Griselda_1804',
             'Bulwer-Lytton_Edward_Eugene-Aram_1832',
             'Barrie_J-M_Peter-and-Wendy_1911',
             'Scott_Walter_Chronicles-of-the-Canongate_1827',
-            'Scott_Walter_Rob-Roy_1817',
             'Scott_Walter_Montrose_1819',
             'Scott_Walter_The-Talisman_1825',
             'Scott_Walter_The-Antiquary_1816',
@@ -962,7 +965,6 @@ class Preprocessor():
             'Scott_Walter_The-Surgeons-Daughter_1827',
             'Scott_Walter_The-Fair-Maid-of-Perth_1828',
             'Scott_Walter_The-Bride-of-Lammermoor_1819',
-            'Scott_Walter_The-Heart-of-Midlothian_1818',
             'Scott_Walter_The-Peveril-of-the-Peak_1822.txt',
             'Scott_Walter_Chronicles-of-the-Canongate_1827',
             'Roche_Regina-Maria_The-Children-of-the-Abbey_1796',
@@ -984,27 +986,131 @@ class Preprocessor():
             'Freytag_Gustav_Die-Ahnen_1872',
             'Weerth_Georg_Fragment-eines-Romans_1845',
             'Alexis_Willibald_Isegrimm_1854',
-            'Holz-Schlaf_Arno-Johannes_Papa-Hamlet_1889'
+            'Holz-Schlaf_Arno-Johannes_Papa-Hamlet_1889',
+            'Bronte_Charlotte_Shirley_1849',
+            'Butler_Samuel_Erewhon_1872',
+            'Carlyle_Thomas_Sartor-Resartus_1834',
+            'Conrad_Joseph_Typhoon_1903',
+            'Hardy_Thomas_Jude-the-Obscure_1894',
+            'Hogg_James_Private-Memoirs-and-Confessions-of-a-Justified-Sinner_1824',
+            'Kipling_Rudyard_At-the-End-of-the-Passage_1890',
+            'Meredith_George_The-Egoist_1879',
+            'Moore_George_The-Untilled-Field_1903',
+            'Porter_Jane_The-Scottish-Chiefs_1810',
+            'Radcliffe_Ann_A-Sicilian-Romance_1790',
+            'Swift_Jonathan_A-Tale-of-Tub_1704',
+            'Thackerey_William-Makepeace_Vanity-Fair_1847',
+            'Wells_H-G_A-Modern-Utopia_1905'
             ]
         if any(file_name in self.doc_path for file_name in files_list):
             # Everything in brackets
             text = re.sub(r'\[.*?\]', '', text, flags=re.DOTALL)
+
+
+        files_list = ['Fontane_Theodor_Mathilde-Moehring_1906',
+                        'Reuter_Christian-Friedrich_Schelmuffsky_1696',
+                        'Holcroft_Thomas_The-Adventures-of-Hugh-Trevor_1794',
+                        'Sterne_Laurence_Tristram-Shandy_1759',
+                        'Smollett_Tobias_Humphry-Clinker_1771',
+                        'Richardson_Samuel_Clarissa_1748',
+                        'More_Hannah_Coelebs_1814',
+                        'Scott_Walter_St-Ronans-Well_1824',
+                        'Burney_Frances_Cecilia_1782',
+                        'Hughes_Thomas_Tom-Browns-Schooldays_1857',
+                        'Burney_Frances_Camilla_1796',
+                        'Frenssen_Gustav_Joern-Uhl_1901',
+                        'Hoffmann_ETA_Der-Sandmann_1816',
+                        'Wezel_Johann-Karl_Belphegor_1776',
+                        'Wyss_Johann-David_Der-Schweizerische-Robinson_1812',
+                        'Freytag_Gustav_Die-verlorene-Handschrift_1855',
+                        'Grosse_Karl_Der-Genius_1791',
+                        'Buechner_Georg_Lenz_1839',
+                        'Motte-Fouque_Friedrich_Eine-Geschichte-vom-Galgenmaennlein_1810',
+                        'Immermann_Karl_Die-Epigonen_1836',
+                        'Hoffmann_ETA_Das-Steinerne-Herz_1816',
+                        'Alexis_Willibald_Walladmor_1824',
+                        'Hoffmann_ETA_Das-Sanctus_1816',
+                        'Arnim_Achim_Hollins-Liebeleben_1802',
+                        'Hoffmann_ETA_Das-Sanctus_1816',
+                        'Arnim_Achim_Hollins-Liebeleben_1802',
+                        'Grillparzer_Franz_Der-arme-Spielmann_1847',
+                        'Hoffmann_ETA_Kater-Murr_1820',
+                        'Ehrmann_Marianne_Amelie_1788',
+                        'Hoffmann_ETA_Das-oede-Haus_1816',
+                        'Hoffmann_ETA_Die-Serapions-Brueder_1819',
+                        'Bennett_Anna-Maria_Agnes-De-Courci_1789',
+                        'Aubin_Penelope_The-Life-of-Charlotte-Du-Pont_1723',
+                        'Anonymous_Anonymous_The-Triumph-Prudence-Over-Passion_1781',
+                        'Anonymous_Anonymous_Little-Goody-Two-Shoes_1765',
+                        'Blackmore_R-D_Clara-Vaughan_1864',
+                        'Blackmore_R-D_Lorna-Doone_1869',
+                        'Bronte_Charlotte_Vilette_1853'
+                        'Carleton_William_The-Donagh_1830',
+                        'Carleton_William_The-Hedge-School_1830',
+                        'Carleton_William_The-Poor-Scholar_1830',
+                        'Defoe_Daniel_The-Fortunate-Mistress_1724',
+                        'Dickens_Charles_Oliver-Twist_1837',
+                        'Disraeli_Benjamin_Vivian-Grey_1826',
+                        'Eliot_George_Middlemarch_1871',
+                        'Georgiana_Duchess-of-Devonshire_Emma_1773',
+                        'Gissing_George_Born-in-Exile_1890',
+                        'Godwin_William_St-Leon_1799',
+                        'Hardy_Thomas_The-Woodlanders_1886',
+                        'Hazlitt_William_Liber-Amoris_1823',
+                        'Holcroft_Thomas_Anna-St-Ives_1792',
+                        'Inchbald_Elizabeth_A-Simple-Story_1791',
+                        'Inchbald_Elizabeth_Nature-and-Art_1796',
+                        'Kingsley_Charles_Alton-Locke_1850',
+                        'Kipling_Rudyard_Captains-Courageous_1897',
+                        'Kipling_Rudyard_Throw-Away_1888',
+                        'LeFanu_Joseph-Sheridan_The-Familiar_1872',
+                        'Lever_Charles_Confessions-of-Harry-Lorrequer_1837',
+                        'Maclaren_Ian_A-Highland-Mystic_1894',
+                        'Oliphant_Margaret_A-Beleaguered-City_1900',
+                        'Porter_Jane_Thaddeus-of-Warsaw_1803',
+                        'Quincey_Thomas_Confessions-of-an-English-Opium-Eater_1821',
+                        'Radcliffe_Ann_Udolpho_1794',
+                        'Scott_Walter_Anne-of-Geierstein_1829Scott_Walter_Anne-of-Geierstein_1829',
+                        'Scott_Walter_Redgauntlet_1824',
+                        'Scott_Walter_Rob-Roy_1817',
+                        'Smith_Charlotte_Emmeline_1788',
+                        'Sterne_Laurence_A-Sentimental-Journey_1768',
+                        'Stevenson_Robert-Louis_The-Master-of-Ballantrae_1889',
+                        'Surtees_Robert_Jorrocks-Jaunts-and-Jollities_1831',
+                        'Trollope_Anthony_Framley-Parsonage_1860',
+                        'Wells_H-G_The-Time-Machine_1895',
+                        '',
+                        '',
+                        '',
+                        '',
+                        '',
+
+                        ]
+        # In some of these texts, the brackets could be replaced automatically.
+        # Finding errors is easier by removing them.
+        if any(file_name in self.doc_path for file_name in files_list):
+            rep_dict = {
+                '[': '',
+                ']': ''
+            }
+            text = self.replace_multiple(text, rep_dict)
         return text
 
 
     def preprocess_text(self, text):
         # Replace sentence terminating chars so that they are not affected by preprocessing
         text = self.preprocess_individual_files(text)
-        description_dict = {
-            '.': 'DOT',
-            ':': 'COLON',
-            ';': 'SEMICOLON',
-            '?': 'QUESTIONMARK',
-            '!': 'EXCLAMATIONMARK',
-            '...': 'ELLIPSIS',
-        }
-        terminating_dict = {char: 'xxxxx' + description_dict[char] for char in self.sentence_chars}
-        text = self.replace_multiple(text, terminating_dict)
+        # description_dict = {
+        #     '.': 'DOT',
+        #     ':': 'COLON',
+        #     ';': 'SEMICOLON',
+        #     '?': 'QUESTIONMARK',
+        #     '!': 'EXCLAMATIONMARK',
+        #     '...': 'ELLIPSIS',
+        # }
+        # Replacement doesn't work because there is punctuation in the rep_dict
+        # terminating_dict = {char: 'xxxxx' + description_dict[char] for char in self.sentence_chars}
+        # text = self.replace_multiple(text, terminating_dict)
 
         # Replace all "'d" at the end of a word (train'd -> trained)
         text = re.sub(r"(?:\w)\'d\b", 'ed',text)
@@ -1031,11 +1137,57 @@ class Preprocessor():
         text = self.replace_multiple(text, umlaut_dict_swap)
         text = text.split()
         text = ' '.join(text)
-        terminating_dict_swap = {v: k for k, v in terminating_dict.items()}
-        text = self.replace_multiple(text, terminating_dict_swap)
+        # terminating_dict_swap = {v: k for k, v in terminating_dict.items()}
+        # text = self.replace_multiple(text, terminating_dict_swap)
         self.check_annotations(text)
         # List of texts whose remaining special characters are not a problem
         chars_ok_list = [
+            'Childers_Erskine_The-Riddle-of-the-Sand_1903', # not separable
+            'Doyle_Arthur-Conan_The-Hound-of-the-Baskervilles_1901',
+            'Forster_E-M_Howards-End_1910',
+            'Hardy_Thomas_Interlopers-at-the-Knap_1888',
+            'Reade_Charles_Hard-Cash_1863',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            
+            '',
+            '',
             'Collins_Wilkie_Armadale_1864',
             'Carleton_William_Fardorougha-the-Miser_1839',
             'Radcliffe_Ann_The-Italian_1797',
@@ -1064,7 +1216,6 @@ class Preprocessor():
             'Smith_Charlotte_The-Old-Manor-House_1793',
             'Thackerey_William-Makepeace_Pendennis_1848',
             'Mackenzie_Henry_The-Man-of-Feeling_1771',
-            #'Dickens_Charles_Oliver-Twist_1837',
             'Collins_Wilkie_The-Moonstone_1868',
             'Edgeworth_Maria_Helen_1834',
             'Trollope_Anthony_Can-You-Forgive-Her_1864',

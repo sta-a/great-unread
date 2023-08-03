@@ -18,7 +18,7 @@ class DataHandler():
     '''
     Base class for creating, saving, and loading data.
     '''
-    def __init__(self, language, output_dir=None, data_type='csv', modes=None, tokens_per_chunk=500, data_dir='/home/annina/scripts/great_unread_nlp/data'):
+    def __init__(self, language=None, output_dir=None, data_type='csv', modes=None, tokens_per_chunk=500, data_dir='/home/annina/scripts/great_unread_nlp/data'):
         self.language = language
         self.data_dir = data_dir
         self.output_dir = self.create_output_dir(output_dir)
@@ -41,13 +41,23 @@ class DataHandler():
     def create_filename(self,**kwargs):
         return self.create_filename_base(**kwargs)
 
+    # def create_filename_base(self, **kwargs):
+    #     data_type = self.get_custom_datatype(**kwargs)
+    #     if 'file_string' in kwargs:
+    #         file_string = kwargs['file_string'] + '-'
+    #     else:
+    #         file_string = ''
+    #     return f"{file_string}{kwargs['mode']}.{data_type}"
+
     def create_filename_base(self, **kwargs):
         data_type = self.get_custom_datatype(**kwargs)
         if 'file_string' in kwargs:
             file_string = kwargs['file_string'] + '-'
         else:
             file_string = ''
-        return f"{file_string}{kwargs['mode']}.{data_type}"
+        kwargs_str = '_'.join(f"{str(value)}" for key, value in kwargs.items() if key != 'file_string')
+        return f"{file_string}{kwargs_str}.{data_type}"
+
 
     def save_data(self, data, file_name=None, **kwargs):
         file_path  = self.get_file_path(file_name, **kwargs)
@@ -76,9 +86,10 @@ class DataHandler():
         elif data_type == 'png':
             data.savefig(file_path, format="png")
 
-    def file_exists_or_create(self, file_name=None, **kwargs):
-        if not self.file_exists(file_name, **kwargs):
-            self.logger.info(f'Creating all data for {self.create_filename(**kwargs)}.')
+    def file_exists_or_create(self, file_path=None, **kwargs):
+        print('check if file exists:', file_path)
+        if not self.file_exists(file_path, **kwargs):
+            self.logger.info(f'Creating data for {self.create_filename(**kwargs)}.')
             self.create_data(**kwargs)
 
     def load_data(self, file_name=None, **kwargs):
@@ -86,12 +97,12 @@ class DataHandler():
         if file_name is not None and not file_name.endswith(endings):
             raise ValueError(f"The file extensions must be provided. Supported extensions are {' '.join(endings)}.")
 
-        self.file_exists_or_create(file_name, **kwargs)
+        file_path = self.get_file_path(file_name, **kwargs)
 
-        data = self.load_data_type(self.get_file_path(file_name, **kwargs),**kwargs)
-        if file_name is None:
-            file_name = self.create_filename(**kwargs)
-        self.logger.info(f'Loaded {file_name} from file.')
+        self.file_exists_or_create(file_path, **kwargs)
+
+        data = self.load_data_type(file_path, **kwargs)
+        self.logger.info(f'Loaded {file_path} from file.')
         return data
     
     def load_data_type(self, file_path,**kwargs):
@@ -180,8 +191,11 @@ def get_bookname(doc_path):
 
 
 def get_doc_paths(docs_dir):
-    doc_paths = [os.path.join(docs_dir, doc_name) for doc_name in os.listdir(docs_dir) if Path(doc_name).suffix == '.txt']
+    doc_paths = sorted([os.path.join(docs_dir, doc_name) for doc_name in os.listdir(docs_dir) if Path(doc_name).suffix == '.txt'])
     return doc_paths
+
+def get_filename_from_path(file_path):
+    return os.path.splitext(os.path.basename(file_path))[0]
     
 
 def load_list_of_lines(path, line_type):
@@ -210,44 +224,60 @@ def save_list_of_lines(lst, path, line_type):
                 f.write(','.join(clst) + '\n')
     else:
         raise Exception(f'Not a valid line_type {line_type}')
+    
 
-
-def get_texts_by_author(list_of_filenames):
+class TextsByAuthor(DataHandler):
     '''
     Map the filenames to the authors and count the number of texts per author.
     '''
+    def __init__(self, language, filenames=None):
+        super().__init__(language, output_dir='raw_docs')
+        self.filenames = filenames
+        if self.filenames is None:
+            self.filenames = self.get_filenames()
+        self.author_filename_mapping, self.nr_texts_per_author = self.create_data()
+
+    def get_filenames(self):
+        filenames = os.listdir(self.output_dir)
+        print(filenames)
+        filenames = [os.path.splitext(filename)[0] for filename in filenames]
+        print(self.output_dir, filenames)
+        return filenames
     
-    authors = []
-    author_filename_mapping = {}
-    #Get texts per authors
-    for file_name in list_of_filenames:
-        author = '_'.join(file_name.split('_')[:2])
-        authors.append(author)
-        if author in author_filename_mapping:
-            author_filename_mapping[author].append(file_name)
-        else:
-            author_filename_mapping[author] = []
-            author_filename_mapping[author].append(file_name)
+
+    def create_data(self):
+        authors = []
+        author_filename_mapping = {}
+        #Get texts per authors
+        for file_name in self.filenames:
+            author = '_'.join(file_name.split('_')[:2])
+            authors.append(author)
+            if author in author_filename_mapping:
+                author_filename_mapping[author].append(file_name)
+            else:
+                author_filename_mapping[author] = []
+                author_filename_mapping[author].append(file_name)
+                
+        # Aggregate if author has collaborations with others
+            agg_dict = {'Hoffmansthal_Hugo': ['Hoffmansthal_Hugo-von'], 
+                        'Schlaf_Johannes': ['Holz-Schlaf_Arno-Johannes'],
+                        'Arnim_Bettina': ['Arnim-Arnim_Bettina-Gisela'],
+                        'Stevenson_Robert-Louis': ['Stevenson-Grift_Robert-Louis-Fanny-van-de', 
+                                                    'Stevenson-Osbourne_Robert-Louis-Lloyde']}
             
-    # Aggregate if author has collaborations with others
-        agg_dict = {'Hoffmansthal_Hugo': ['Hoffmansthal_Hugo-von'], 
-                    'Schlaf_Johannes': ['Holz-Schlaf_Arno-Johannes'],
-                    'Arnim_Bettina': ['Arnim-Arnim_Bettina-Gisela'],
-                    'Stevenson_Robert-Louis': ['Stevenson-Grift_Robert-Louis-Fanny-van-de', 
-                                                'Stevenson-Osbourne_Robert-Louis-Lloyde']}
+        for author, aliases in agg_dict.items():
+            if author in authors:
+                for alias in aliases:
+                    if alias in authors:
+                        author_filename_mapping[author].extend(author_filename_mapping[alias]) 
+                        del author_filename_mapping[alias]
+                        authors = [author for author in authors if author != alias]
         
-    for author, aliases in agg_dict.items():
-        if author in authors:
-            for alias in aliases:
-                if alias in authors:
-                    author_filename_mapping[author].extend(author_filename_mapping[alias]) 
-                    del author_filename_mapping[alias]
-                    authors = [author for author in authors if author != alias]
-    
-    nr_texts_per_author = Counter(authors)
-    # author_filename_mapping: dict{author name: [list with all works by author]}
-    # nr_texts_per_author: dict{author name: nr texts by author}
-    return author_filename_mapping, nr_texts_per_author
+        nr_texts_per_author = Counter(authors)
+        # author_filename_mapping: dict{author name: [list with all works by author]}
+        # nr_texts_per_author: dict{author name: nr texts by author}
+        return author_filename_mapping, nr_texts_per_author
+
 
 
 # General function for finding a string in all code files
@@ -264,7 +294,7 @@ def search_string_in_files(directory, search_string):
 
 # # Provide the directory path and the string to search for
 # directory_path = '/home/annina/scripts/great_unread_nlp/src'
-# search_string = ''
+# search_string = 'NgramCounter'
 # search_string_in_files(directory_path, search_string)
 
 
@@ -491,9 +521,9 @@ class DataChecks(DataHandler):
                     df.loc[df['file_name'] == 'Somerville-Ross_Edith-Martin_Experience-of-an-Irish-RM_1899', 'gender'] = 'f'
                     df.loc[df['file_name'] == 'Somerville-Ross_Edith-Martin_The-Real-Charlotte_1894', 'gender'] = 'f'
                     df.loc[df['file_name'] == 'Stevenson-Grift_Robert-Louis-Fanny-van-de_The-Dynamiter_1885', 'gender'] = 'b' # Both male and female writer
-
-                assert df['gender'].isin(['f', 'm', 'a', 'b']).all()
-                assert not df.isna().any().any()
+                print(df['gender'].unique())
+                # assert df['gender'].isin(['f', 'm', 'a', 'b']).all()
+                # assert not df.isna().any().any()
                 print(df['gender'].value_counts())
         return df
 

@@ -1,4 +1,4 @@
-
+import logging
 import numpy as np
 import networkx as nx
 import networkit as nk
@@ -6,7 +6,8 @@ import matplotlib.pyplot as plt
 import random
 import pandas as pd
 import pygraphviz as pgv
-from .distance_visualization import ColorMap
+from .cluster import SimmxCluster, NetworkCluster
+from .network_viz import ColorMap, ShapeMap
 import sys
 sys.path.append("..")
 from utils import DataHandler
@@ -15,43 +16,49 @@ from utils import DataHandler
 class Network(DataHandler):
     def __init__(self, language, name_mx_tup=(1, 2), graph=None, draw=True, cluster_alg=None, attribute_name=None): # attribute: labeled groups, i.e. 'm', 'f' #################################):
         super().__init__(language, 'distance', 'png')
-        
+        self.language = language
         self.distname, self.mx = name_mx_tup
-        print(f'Network based on {self.distname}')
         self.graph = graph
         # if (self.mx is not None and self.graph is not None) or (self.mx is None and self.graph is None):
         #     raise ValueError('Pass either matrix or graph.')
         if self.graph is None and self.mx is not None:
             self.graph = self.network_from_mx()
-            self.get_graph_info(self.graph)
+            # self.get_graph_info(self.graph)
 
         self.draw = draw
         self.cluster_alg = cluster_alg
         self.attribute_name = attribute_name
-        self.cluster_algs = ['louvain']
-        self.attribute_names = ['gender', 'author', 'canon']
+
+        self.simmx_cluster_algs = SimmxCluster(self.language).cluster_algs
+        self.network_cluster_algs = NetworkCluster().cluster_algs
+        self.attribute_names = ['gender', 'author']##################, 'canon']
+
+        self.clusters = None
 
 
     def get_graph_info(self):
         raise NotImplementedError
 
-    def get_colormap(self):
-        if self.cluster_alg is not None or self.attribute_name is not None:
-            if (self.attribute_name == 'author') or (self.attribute_name == 'canon') or (self.attribute_name == 'gender'):
-                cluster_list = list(self.graph.nodes(data=False)) # get list of file names
-            # else:
-            #     cluster_list = self.clusters
-            #     self.attribute_name = self.cluster_alg
-
-            fn_color_mapping = ColorMap(
-                self.attribute_name,
-                cluster_list,
-                self.language).get_color_map()
-            # assert self.graph.number_of_nodes() == len(fn_color_mapping)##################################
-            #color_map = [fn_color_mapping[node] for node in self.graph if node in fn_color_mapping] # if node in fn_color_mapping #############################3
+    def get_colormap(self, cluster_list=None):
+        '''
+        Map attribute names or clusters to color.
+        If cluster_list is None, map attributes.
+        If cluster_list is list of clusters, map cluster.
+        '''
+        if self.attribute_name is not None or cluster_list is not None:
+            fn_color_mapping = ColorMap(language=self.language, attribute_name=None, cluster_list=cluster_list).get_color_map()
+            # assert self.graph.number_of_nodes() == len(fn_color_mapping) ####################
         else:
             fn_color_mapping = {node: 'blue' for node in self.graph}
         return fn_color_mapping
+    
+    def get_shapemap(self, cluster_list):
+        if cluster_list is None: ###################
+            fn_shape_mapping = ShapeMap(self.language, self.attribute_name, cluster_list).get_shape_map()
+        else:
+            fn_shape_mapping = {node: 'point' for node in self.graph}
+        return fn_shape_mapping
+
 
     # def get_jazz_network(self):
     #     print('Jazz network as networkit grap.')
@@ -71,10 +78,6 @@ class NXNetwork(Network):
         super().__init__(language=language, name_mx_tup=name_mx_tup, graph=graph, draw=draw, cluster_alg=cluster_alg, attribute_name=attribute_name)
 
     def network_from_mx(self):
-        '''
-        mx: Adjacency or directed or undirected weight matrix
-        '''
-        mx = self.mx.fillna(0) # Adjacency matrix must not contain Nan!
         if self.mx.equals(self.mx.T):
             graph = nx.from_pandas_adjacency(self.mx)
             print('Matrix is symmetric.')
@@ -83,25 +86,71 @@ class NXNetwork(Network):
             print('Matrix is not symmetric but directed.')
         graph.remove_edges_from(nx.selfloop_edges(graph))
         return graph
-
-    def create_clusters(self):
-        if self.cluster_alg == 'louvain':
-            c = nx.community.louvain_communities(self.graph, weight='weight', seed=11, resolution=0.1)
+    
+    def get_clusters(self):
+        if self.cluster_alg in self.network_cluster_algs:
+            self.clusters = NetworkCluster(self.graph, self.attribute_name, self.cluster_alg)
+            self.clusters.cluster()
+            print(self.clusters)
+        else:
+            self.clusters = SimmxCluster(self.language, self.mx, self.attribute_name, self.cluster_alg)
+            self.clusters.cluster()
 
         if self.draw:
-            self.colormap = self.get_colormap()
-            # for k, v in self.colormap.items():
-            #     print(k, v)
             self.draw_graph()
         
-        return c
         
     def nx_to_pgv(self, graph):
         return nx.nx_agraph.to_agraph(graph)
         
     def draw_graph(self):
         self.logger.info(f'Drawing graph for {self.distname} {self.cluster_alg} {self.attribute_name}')
-        self.draw_graph_pgv()
+        if self.cluster_alg in self.network_cluster_algs:
+            self.colormap = self.get_colormap(cluster_list=self.clusters.clusters)
+            self.shapemap = self.get_shapemap(cluster_list=None)
+            self.draw_graph_pgv()
+        elif self.cluster_alg in self.simmx_cluster_algs:
+            self.draw_simmx()
+
+    def draw_simmx(self):
+
+        sorted_mxs = []
+        for cluster in self.clusters.clusters:
+            df = self.mx.loc[:, cluster].sort_index(axis=1)
+            sorted_mxs.append(df)
+        sorted_mx = pd.concat(sorted_mxs, axis=1)
+        for i in range(0, len(sorted_mxs)):
+            print(f'Cluster {i} has {sorted_mxs[i].shape[1]} elements.')
+
+        sorted_mxs = []
+        for cluster in self.clusters.clusters:
+            df = sorted_mx.loc[cluster, :].sort_index(axis=0)
+            sorted_mxs.append(df)
+        sorted_mx = pd.concat(sorted_mxs, axis=0)
+
+        assert self.mx.shape == sorted_mx.shape
+
+        # Create the heatmap using matplotlib's imshow function
+        # hot_r, viridis, plasma, inferno
+        plt.imshow(sorted_mx, cmap='plasma', interpolation='nearest')
+
+        # Add a color bar to the heatmap for better understanding of the similarity values
+        plt.colorbar()
+
+        # Add axis labels and title (optional)
+        # plt.xlabel('Data Points')
+        # plt.ylabel('Data Points')
+
+        title = [f"{i}: nr-elements: {round(len(self.clusters.clusters[i]), 2)}, mf-ratio: {round(self.clusters.qual[i], 2)}" for i in range(len(self.clusters.clusters))]
+        title = ('\n').join(title)
+        plt.title(title, fontsize=8)
+
+        # Show the heatmap
+        #
+        # plt.show()
+        self.save_data(data=plt, data_type='png', file_name=f'heatmap-{self.distname}{self.attribute_name}-{self.cluster_alg}.png')
+        plt.close()
+
     
     def draw_graph_nx(self):
         # No graph drawing possible in Networkit
@@ -112,15 +161,16 @@ class NXNetwork(Network):
     def draw_graph_pgv(self):
         graph = self.nx_to_pgv(self.graph)
         self.get_graph_info(graph)
-        
         for node in graph.nodes():
-            graph.get_node(node).attr['label'] = node
-            graph.get_node(node).attr['color'] = self.colormap[node]
-            graph.get_node(node).attr['shape'] = 'point'
+            # graph.get_node(node).attr['color'] = self.colormap[node]
+            graph.get_node(node).attr['shape'] = self.shapemap[node]
+            graph.get_node(node).attr['fillcolor'] = self.colormap[node]
+            graph.get_node(node).attr['style'] = 'filled'
             graph.get_node(node).attr['fixedsize'] = 'true'
-            graph.get_node(node).attr['width'] = graph.get_node(node).attr['height'] = 0.1
+            graph.get_node(node).attr['width'] = graph.get_node(node).attr['height'] = 1
             # graph.edge_attr['penwidth'] = 1.0 
             # graph.graph_attr['label'] = f'{self.attribute_name}-{self.cluster_alg}-{self.language}'
+            graph.get_node(node).attr['label'] = '' # Remove label
 
         file_name = f'{self.distname}-{self.attribute_name}-{self.cluster_alg}-{self.language}'
         file_path = self.get_file_path(file_name=f'network-{file_name}.png', dpi=600)
@@ -137,7 +187,7 @@ class NXNetwork(Network):
         # Create a matplotlib figure and display the graph image
         fig, ax = plt.subplots(figsize=(6, 4))
         ax.axis('off')
-        ax.set_title(file_name)
+        # ax.set_title(file_name)
         ax.imshow(img)
         # Show the graph in the IDE
         plt.show()
@@ -182,7 +232,7 @@ class NXNetwork(Network):
         new_edge_labels = {tup: replacement_value if np.isnan(weight) else weight for tup, weight in edge_labels.items()}
         
         nx.set_edge_attributes(self.graph, new_edge_labels, "weight") # inplace!
-        self.get_graph_info(self.graph)
+        # self.get_graph_info(self.graph)
 
     def nx_to_nk(self, graph):
         return nk.nxadapter.nx2nk(graph, weightAttr='weight') #weightAttr: The edge attribute which should be treated as the edge weight

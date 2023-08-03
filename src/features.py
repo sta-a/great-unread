@@ -19,12 +19,15 @@ import sys
 sys.path.append("..")
 from utils import get_doc_paths, compare_directories, DataHandler, get_bookname
 
-class FeatureProcessor(DataHandler):
+class FeaturePreparer(DataHandler):
     def __init__(self, language):
         super().__init__(language, 'features')
         self.raw_docs_dir = os.path.join(self.data_dir, 'raw_docs', self.language)
-        self.doc_paths = get_doc_paths(self.raw_docs_dir)[:None] #############################
-
+        self.doc_paths = get_doc_paths(self.raw_docs_dir)[:None] 
+    '''
+    Create features that take a while to process before using more detailed processing.
+    This is not necessary, since all data preparation steps are also called from the detailed processing, but it makes the workflow more practical.
+    '''
     def tokenize_all_texts(self, remove_files=False):
         if remove_files:
             chars_path = f'/home/annina/scripts/great_unread_nlp/src/special_chars_{self.language}.txt'
@@ -48,6 +51,25 @@ class FeatureProcessor(DataHandler):
     #     no_chunks = Tokenizer(self.language, self.doc_paths, self.tokens_per_chunk).get_tokenized_words(self.doc_paths[0], remove_punct=False, lower=False, as_chunk=False)
     #     print(no_chunks[:100])
 
+    def run(self):
+        pass
+
+        # self.load_tokenized_words()
+
+        # Tokenize texts
+        self.tokenize_all_texts()
+for language in ['eng', 'ger']:
+    fp = FeaturePreparer(language)
+    fp.run()
+
+# %%
+
+
+class FeatureProcessor(DataHandler):
+    def __init__(self, language):
+        super().__init__(language, 'features')
+        self.raw_docs_dir = os.path.join(self.data_dir, 'raw_docs', self.language)
+        self.doc_paths = get_doc_paths(self.raw_docs_dir)[:None] #############################
 
     def get_doc_features_helper(self, doc_path, use_chunks):
         if use_chunks:
@@ -148,11 +170,6 @@ class FeatureProcessor(DataHandler):
     
     def create_all_data(self):
         start = time.time()
-
-        # self.load_tokenized_words()
-
-        # Tokenize texts
-        # self.tokenize_all_texts()
 
         # Create d2v embeddings
         _ = D2vProcessor(self.language).load_all_data()

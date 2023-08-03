@@ -95,7 +95,7 @@ class Distance(DataHandler):
     def set_diagonal(self, mx, value):
         '''
         mx: distance or similarity matrix
-        value: the value that should be on the diagonal
+        value: the value to set the diagonal to
         '''
         #df.values[[np.arange(df.shape[0])]*2] = value
         for i in range(0, mx.shape[0]):
@@ -163,6 +163,7 @@ class Distance(DataHandler):
 
         # file_name = self.create_filename(mode=mode, )
         self.save_data(data=plt, data_type='png', mode=mode)
+        plt.close()
         # plt.savefig('test', format="png")
 
 
@@ -191,7 +192,7 @@ class D2vDist(Distance):
         dv_dict = doc_dvs
 
         mx = self.calculate_distance(dv_dict)
-        mx.to_csv(os.path.join('/home/annina/scripts/great_unread_nlp/data/distance/', self.language, 'distmx', f'{mode}.csv'))
+        mx.to_csv(os.path.join('/home/annina/scripts/great_unread_nlp/data/distance/', self.language, 'distmx', f'{mode}.csv')) ############################
         mx = self.postprocess_mx(mx, mode, dist_to_sim=False)
         self.save_data(mx, mode=mode)
         self.logger.info(f'Created {mode} similarity matrix.')
@@ -228,12 +229,11 @@ class D2vDist(Distance):
 class PydeltaDist(Distance):
     def __init__(self, language, output_dir='distance'):
         super().__init__(language, output_dir)
-        self.distances = ['cosinedelta', 'burrows', 'eder', 'quadratic']
+        self.distances = ['burrows', 'cosinedelta', 'eder', 'quadratic']
         self.nmfw_values = [500, 1000, 2000, 5000]
         # self.distances = ['burrows']
         # self.nmfw_values = [500]
         self.modes = [f'{item1}-{item2}' for item1 in self.distances for item2 in self.nmfw_values]
-        self.logger.info('Similarity matrices created with delta measures have')
 
     def create_data(self,**kwargs):
         self.logger.info(f"Distance 'edersimple' is not calculated due to implementation error.")
@@ -271,7 +271,7 @@ class PydeltaDist(Distance):
         elif distance == 'quadratic':
             mx = delta.functions.quadratic(corpus)
         return mx
-    
+
 
 class MFWFilter(DataHandler):
     def __init__(self, language):
@@ -293,7 +293,7 @@ class MFWFilter(DataHandler):
         return f"mfw{str(kwargs['mode'])}.{data_type}"
 
 
-    def create_data(self,**kwargs):
+    def create_data(self, **kwargs):
         """
         Prepare the Most Frequent Words (MFW) DataFrame by filtering the unigram counts.
         
@@ -332,5 +332,36 @@ class MFWFilter(DataHandler):
             book_unigram_mapping_filtered[filename] = book_dict_
         return book_unigram_mapping_filtered
 
+
+class StyloDistance(PydeltaDist):
+    '''
+    Class for turning Stylo distances into similarities and comparing them with other delta implementations.
+    '''
+    def __init__(self, language, output_dir='distance'):
+        super().__init__(language, output_dir) 
+        self.output_dir = os.path.join(self.output_dir, 'stylo')
+        self.distances = ['burrows', 'eder', 'edersimple', 'linear']
+        self.nmfw_values = [500, 1000, 2000, 5000]
+        # self.distances = ['burrows']
+        # self.nmfw_values = [500]
+        self.modes = [f'{item1}-{item2}' for item1 in self.distances for item2 in self.nmfw_values]
+
+    def create_input_filename(self,**kwargs):
+        file_string = f'dist'
+        return self.create_filename_base(**kwargs, file_string=file_string)
+       
+
+    def create_data(self, **kwargs):
+        input_filename = self.create_input_filename(**kwargs)
+        print(input_filename)
+        mx = self.load_data(file_name=input_filename)
+        mode = kwargs['mode']
+        mx = self.postprocess_mx(mx, mode, dist_to_sim=True)
+        self.save_data(mx, mode=mode)
+        self.logger.info(f'Created {mode} similarity matrix.')
+    
+
+d = StyloDistance(language='eng')
+d.load_all_data()
 
 # %%
