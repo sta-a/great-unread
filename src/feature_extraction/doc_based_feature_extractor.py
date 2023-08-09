@@ -4,15 +4,14 @@ import string
 import textstat
 from pathlib import Path
 from scipy.stats import entropy
-from sentence_transformers import SentenceTransformer
 import sys
 sys.path.append("..")
 from .process_rawtext import Tokenizer
+from .embeddings import SbertProcessor, D2vProcessor
 from .analyze_chunk import Chunk
 import sys
 sys.path.append("..")
 from utils import load_list_of_lines, save_list_of_lines, get_bookname, DataHandler
-from .process_d2v import D2vProcessor
 
 
 class DocBasedFeatureExtractor():
@@ -38,7 +37,8 @@ class DocBasedFeatureExtractor():
         self.use_chunks = use_chunks
         self.tokens_per_chunk = tokens_per_chunk
         self.file_name = get_bookname(self.doc_path)
-        #self.chunk_dvs = self.load_doc_d2v_embeddings()
+        # self.doc_dvs = self.load_d2v_embeddings()
+        self.sbert_embeddings = self.load_sbert_embeddings()
         # Parameters for creating chunks
         self.unigram_counts = unigram_counts
         self.bigram_counts = bigram_counts
@@ -46,30 +46,31 @@ class DocBasedFeatureExtractor():
         self.char_unigram_counts = char_unigram_counts
 
         # Preprocess or load data
-        self.tokenized_words = Tokenizer(self.language).get_tokenized_words(doc_path, remove_punct=False, lower=False)
-
-        # sbert_sentence_embeddings_path = doc_path.replace('/raw_docs', f'/sbert_sentence_embeddings_tpc_{self.tokens_per_chunk}') + '.npz'
-        # if os.path.exists(sbert_sentence_embeddings_path):
-        #     self.sbert_sentence_embeddings = load_list_of_lines(sbert_sentence_embeddings_path, 'np')
-        # else:
-        #     if self.language == 'eng':
-        #         self.sentence_encoder = SentenceTransformer('stsb-mpnet-base-v2')
-        #     elif self.language == 'ger':
-        #         self.sentence_encoder = SentenceTransformer('paraphrase-xlm-r-multilingual-v1')
-        #     self.sbert_sentence_embeddings = list(self.sentence_encoder.encode(self.tokenized_words))
-        #     save_list_of_lines(self.sbert_sentence_embeddings, sbert_sentence_embeddings_path, 'np')
+        self.text_tokenized = Tokenizer(self.language).create_data(doc_path, remove_punct=False, lower=False, as_chunk=True)
 
         self.chunks = self.__get_chunks()
 
 
-    # def load_doc_d2v_embeddings(self):
-    #     chunk_dvs = {}
+    # def load_d2v_embeddings(self):
+    #     doc_dvs = {}
     #     for key, vector in self.dvs:
-    #         #if key.startswith(self.file_name + '_'):
-    #             chunk_dvs[key] = vector
-    #     print(chunk_dvs.keys())
-    #     return chunk_dvs
+    #             if self.use_chunks == True:
+    #                 if key.startswith(self.file_name + '_'):
+    #                     doc_dvs[key] = vector
+    #             else:
+    #                 doc_dvs[self.file_name] = self.dvs[self.file_name]
+    #     print(doc_dvs.keys())
+    #     return doc_dvs
     
+    def load_sbert_embeddings(self):
+        sbert = SbertProcessor(self.language).load_data(file_name=self.file_name + '.npz') ########
+        if self.use_chunks == False:
+            # If whole document is used, combine the embeddings of the chunks into one 
+            all_sbert = []
+            for chunk_id in sbert.keys():
+                all_sbert.append(sbert[chunk_id]) #####################3
+            sbert  = all_sbert
+        return sbert
 
     def __get_chunks(self):
 
@@ -78,8 +79,8 @@ class DocBasedFeatureExtractor():
                 tokens_per_chunk = self.tokens_per_chunk,
                 doc_path = self.doc_path,
                 chunk_id = 'None',
-                tokenized_words = ' '.join(self.tokenized_words),
-                sbert_sentence_embeddings = None, #self.sbert_sentence_embeddings,
+                text_tokenized = ' '.join(self.text_tokenized),
+                sbert_embeddings = self.sbert_embeddings,
                 d2v_chunk_embedding = self.dvs[self.file_name], ####################33
                 unigram_counts = self.unigram_counts,
                 bigram_counts = self.bigram_counts,
@@ -89,15 +90,15 @@ class DocBasedFeatureExtractor():
         else:
             chunks = []
             chunk_id_counter = 0
-            for curr_words in self.tokenized_words:
-                #current_sentence_embeddings = None #self.sbert_sentence_embeddings[i:i+self.tokens_per_chunk] ###############################3
+            for curr_words in self.text_tokenized:
+                #current_sentence_embeddings = None #self.sbert_embeddings[i:i+self.tokens_per_chunk] ###############################3
                 chunks.append(Chunk(
                     tokens_per_chunk = self.tokens_per_chunk,
                     doc_path = self.doc_path,
                     chunk_id = chunk_id_counter,
-                    tokenized_words = curr_words,
-                    sbert_sentence_embeddings = None, #current_sentence_embeddings,
-                    d2v_chunk_embedding = self.dvs[f'{self.file_name}_{chunk_id_counter}'],
+                    text_tokenized = curr_words,
+                    sbert_embeddings = self.sbert_embeddings[chunk_id_counter],
+                    d2v_chunk_embedding = self.dvs[f'{self.file_name}_{str(chunk_id_counter)}'],
                     unigram_counts = self.unigram_counts,
                     bigram_counts = self.bigram_counts,
                     trigram_counts = self.trigram_counts,
@@ -197,7 +198,7 @@ class DocBasedFeatureExtractor():
     def get_ratio_of_uppercase_letters(self, chunk):
         num_upper = 0
         num_alpha = 0
-        for char in chunk.tokenized_words:
+        for char in chunk.text_tokenized:
             if char.isalpha():
                 num_alpha += 1
                 if char.isupper():
@@ -212,7 +213,7 @@ class DocBasedFeatureExtractor():
     #     return np.mean(split_lengths)
 
     def get_average_sbert_sentence_embedding(self, chunk):
-        average_sentence_embedding = np.array(chunk.sbert_sentence_embeddings).mean(axis=0)
+        average_sentence_embedding = np.array(chunk.sbert_embeddings).mean(axis=0)
         average_sentence_embedding_features = dict((f'average_sentence_embedding_{index+1}', embedding_part) for index, embedding_part in enumerate(average_sentence_embedding))
         return average_sentence_embedding_features
 
@@ -242,7 +243,7 @@ class DocBasedFeatureExtractor():
         return len(chunk.trigram_counts.keys()) / sum(chunk.trigram_counts.values())
 
     def get_text_length(self, chunk):
-        return len(chunk.tokenized_words)
+        return len(chunk.text_tokenized)
 
     def get_average_word_length(self, chunk):
         word_lengths = []
@@ -288,13 +289,13 @@ class DocBasedFeatureExtractor():
         return types/tokens
 
     def get_flesch_reading_ease_score(self, chunk):
-        return textstat.flesch_reading_ease(chunk.tokenized_words)
+        return textstat.flesch_reading_ease(chunk.text_tokenized)
 
     # def get_gunning_fog(self, chunk):
     #     '''''''''
     #     Not implemented for German. If we can find 'easy words' in German, then we can implement it ourselves.
     #     '''
-    #     return textstat.gunning_fog(chunk.tokenized_words)
+    #     return textstat.gunning_fog(chunk.text_tokenized)
 
     # book-based features
     def __get_intra_textual_variance(self, chunks, embedding_type):
@@ -303,7 +304,7 @@ class DocBasedFeatureExtractor():
             if embedding_type == 'd2v':
                 chunk_embeddings.append(chunk.d2v_chunk_embedding)
             # elif embedding_type == 'sbert':
-            #     chunk_embeddings.append(np.array(chunk.sbert_sentence_embeddings).mean(axis=0)) 
+            #     chunk_embeddings.append(np.array(chunk.sbert_embeddings).mean(axis=0)) 
             else:
                 raise Exception(f'Not a valid embedding type {embedding_type}')
         average_chunk_embedding = np.array(chunk_embeddings).mean(axis=0)
@@ -326,8 +327,8 @@ class DocBasedFeatureExtractor():
                 current_chunk_embedding = chunks[chunk_idx].d2v_chunk_embedding
                 previous_chunk_embedding = chunks[chunk_idx - 1].d2v_chunk_embedding
             # elif embedding_type == 'sbert':
-            #     current_chunk_embedding = np.array(chunks[chunk_idx].sbert_sentence_embeddings).mean(axis=0)
-            #     previous_chunk_embedding = np.array(chunks[chunk_idx - 1].sbert_sentence_embeddings).mean(axis=0)
+            #     current_chunk_embedding = np.array(chunks[chunk_idx].sbert_embeddings).mean(axis=0)
+            #     previous_chunk_embedding = np.array(chunks[chunk_idx - 1].sbert_embeddings).mean(axis=0)
             else:
                 raise Exception(f'Not a valid embedding type {embedding_type}')
             #print('Norm:\n', np.linalg.norm(current_chunk_embedding - previous_chunk_embedding))

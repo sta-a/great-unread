@@ -6,7 +6,7 @@ import pandas as pd
 import joblib
 import pickle
 from sklearn.feature_extraction.text import CountVectorizer
-from process_rawtext import Tokenizer
+from .process_rawtext import Tokenizer
 import sys
 sys.path.append("..")
 from utils import get_doc_paths, DataHandler, get_filename_from_path
@@ -15,25 +15,31 @@ import numpy as np
 import time
 import re
 
-class CVobject(DataHandler):
+
+class NgramCounter(DataHandler):
     def  __init__(self, language):
         super().__init__(language, output_dir='ngram_counts', data_type='pkl')
-        self.raw_docs_dir = os.path.join(self.data_dir, 'raw_docs', self.language)
-        self.tokenized_words_dir = os.path.join(self.data_dir, 'tokenized_words', self.language)
-        self.doc_paths = sorted(get_doc_paths(self.raw_docs_dir))
+        self.text_raw_dir = os.path.join(self.data_dir, 'text_raw', self.language)
+        self.text_tokenized_dir = os.path.join(self.data_dir, 'text_tokenized', self.language)
+        self.doc_paths = sorted(get_doc_paths(self.text_raw_dir))
         self.nr_chunks_check = {}
         self.nr_chunknames_check = {}
-        self.modes = [('unigram', 'full'), ('bigram', 'full'), ('bigram', 'chunk'), ('trigram', 'full'), ('trigram', 'chunk')]
+        self.unigrams = ['unigram', 'bigram', 'trigram']
+        self.sizes = ['full', 'chunk']
+        self.modes = [(item1, item2) for item1 in self.unigrams for item2 in self.sizes]
         self.terminating_chars = r'\. | \: | \; | \? | \! | \) | \] | \...'
+        self.data_dict = None
 
 
-    def load_chunks(self, ntype, size):
+    def load_chunks(self, mode):
         # Generator for loading tokenized chunks
-        for doc_path in self.doc_paths:
-            if size == 'chunks':
-                chunks = Tokenizer(self.language, self.doc_paths, self.tokens_per_chunk).get_tokenized_words(doc_path, remove_punct=False, lower=False, as_chunk=True)
+        ntype, size = mode
+        print('ntype', ntype, 'size', size)
+        for doc_path in self.doc_paths[:5]:
+            if size == 'chunk':
+                chunks = Tokenizer(self.language, self.doc_paths, self.tokens_per_chunk).create_data(doc_path, remove_punct=False, lower=False, as_chunk=True)
             else:
-                chunks = [Tokenizer(self.language, self.doc_paths, self.tokens_per_chunk).get_tokenized_words(doc_path, remove_punct=False, lower=False, as_chunk=False)]
+                chunks = [Tokenizer(self.language, self.doc_paths, self.tokens_per_chunk).create_data(doc_path, remove_punct=False, lower=False, as_chunk=False)]
             self.nr_chunks_check[get_filename_from_path(doc_path)] = len(chunks)
 
             for chunk in chunks:              
@@ -49,9 +55,9 @@ class CVobject(DataHandler):
                 return sum(1 for _ in f)
             
         chunk_names = []
-        file_list = [os.path.join(self.tokenized_words_dir, os.path.basename(dp)) for dp in self.doc_paths]
+        file_list = [os.path.join(self.text_tokenized_dir, os.path.basename(dp)) for dp in self.doc_paths]
 
-        if size == 'chunks':
+        if size == 'chunk':
             for file_path in file_list:
                 nr_lines = count_lines(file_path)
                 self.nr_chunknames_check[get_filename_from_path(file_path)] = nr_lines
@@ -59,8 +65,9 @@ class CVobject(DataHandler):
         else:
             chunk_names = [os.path.splitext(get_filename_from_path(dp))[0] for dp in self.doc_paths]
         return chunk_names
-    
-    def counts_words(self, ntype, size):
+
+    def create_data(self, mode):
+        ntype, size = mode
         if ntype == 'unigram':
             ngram_range = (1, 1)
             # CV's default regex pattern only matches strings that are at least 2 chars long.
@@ -73,66 +80,96 @@ class CVobject(DataHandler):
                 ngram_range = (3, 3)
             cv = CountVectorizer(token_pattern=r'(?u)\b\w+\b', ngram_range=ngram_range, dtype=np.int32, max_features=2000)
 
-        df = cv.fit_transform(self.load_chunks(ntype, size))
+        dtm = cv.fit_transform(self.load_chunks(mode))
         words = cv.get_feature_names_out()
         words = ['-'.join(name.split()) for name in words] # for bi- and trigrams, join words
-        return df, words
+        file_names = self.get_chunk_names(size)
+        # Create a dictionary to store everything
+        self.data_dict = {
+            'dtm': dtm,
+            'words': words,
+            'file_names': file_names
+        }
+
+        # if size == 'chunk':
+        #     assert self.nr_chunknames_check == self.nr_chunks_check
+        #     assert list(self.nr_chunknames_check.keys()) == list(self.nr_chunks_check.keys())
+        # # Save the dictionary to a file
+        self.save_data(data=self.data_dict, ntype=mode[0], size=mode[1])
 
 
-    def to_df(self, cv, words, ntype, size):
-        names = self.get_chunk_names(size)
-        df = pd.DataFrame(cv.toarray(), columns=words, index=names)
+    def to_df(self, dtm, words, file_names):
+        df = pd.DataFrame(dtm.toarray(), columns=words, index=file_names)
         # Sort columns by the absolute frequencies of the words in the corpus
-        df = df[df.sum().sort_values(ascending=False).index]
-        self.save_data(data=df, ntype=ntype, size=size)
+        # df = df[df.sum().sort_values(ascending=False).index]
+        return df
+    
+    def load_values_for_chunk(self, file_name):
+        if self.data_dict is None:
+            raise ValueError(f'Load data before loading values for a specific file.')
+        
+        # Find the index of the selected label in the labels list
+        selected_index = self.data_dict['file_names'].index(file_name)
 
-    def create_data(self, ntype, size):
-        df, words = self.counts_words(ntype, size)
+        # Access the term frequency values for the specific document
+        term_frequencies_for_selected_document = self.data_dict['dtm'][selected_index].toarray()
+        print('term_frequencies_for_selected_document', type(term_frequencies_for_selected_document), term_frequencies_for_selected_document)
 
-        # joblib.dump(df, 'count_vectorizer.pkl')
-        self.to_df(df, words, ntype, size)
-        if size == 'chunks':
-            assert self.nr_chunknames_check == self.nr_chunks_check
-            assert list(self.nr_chunknames_check.keys()) == list(self.nr_chunks_check.keys())
+        print(self.data_dict['words'])
+        # Convert the term frequency values to a dictionary for better understanding
+        file_ngram_counts = {self.data_dict['words'][i]: term_frequencies_for_selected_document[0][i] for i in range(len(self.data_dict['words']))}
+        return file_ngram_counts
+    
+    def get_total_unigram_freq(self):
+        self.load_data(mode='unigram_full')
+        word_count_dict = {}
+        words = self.data_dict['words']
+        for idx, word in enumerate(words):
+            word_count_dict[word] = self.data_dict['dtm'][:, idx].sum()
 
-    def create_all_data(self):
-        for ntype, size in self.modes:
-            start = time.time()
-            print(ntype, size)
-            self.create_data(ntype, size)
-            print(f'{time.time()-start}s to calculate {ntype} {size}.')
+        # Print the words and their counts
+        for word, count in word_count_dict.items():
+            print(f"{word}: {count}")
+
+        self.save_data(data=word_count_dict, file_name='unigram_counts.txt', data_type='dict')
 
 
-c = CVobject('eng')
-c.create_all_data()
+    def load_data(self, load=True, file_name=None, **kwargs):  
+        self.data_dict = super().load_data(load=load, file_name=file_name, **kwargs)
 
 
-# %%
-class MFW(DataHandler):
+    # def load_all_data(self): ##############################
+    #     print('load all data')
+    #     all_data = {}
+    #     for mode in self.modes:
+    #         data  = self.load_data(mode=mode)
+
+class MfwExtractor(DataHandler):
     '''
     Calculate MFW tables from word count matrix.
     '''
     def  __init__(self, language):
-        super().__init__(language, output_dir='ngram_counts', data_type='pkl')
+        super().__init__(language, output_dir='ngram_counts', data_type='csv')
         self.df = self.prepare_df()
         self.modes = [500, 1000, 2000, 5000]
 
     def prepare_df(self):
-        df = CVobject(self.language).load_data(file_name='unigram_full.pkl')
+        df = NgramCounter(self.language).load_data(file_name='unigram_full.pkl')
         # Calculate relative frequencies
-        df = self.df.divide(self.df.sum(axis=1), axis=0)
+        df = df.divide(df.sum(axis=1), axis=0)
         # Sort according to relative frequencies
         df = df[df.sum().sort_values(ascending=False).index]
+        return df
 
     def create_data(self, **kwargs):
         mfw = kwargs['mode']
-        mfw = self.df.iloc[:, :mfw]
-        self.save_data(data=mfw, file_name=None, **kwargs) ######## mode statt kwargs
+        df = self.df.iloc[:, :mfw]
+        print(df.sum())
+        self.save_data(data=df, file_name=None, **kwargs)
 
-    def create_filename_base(self, **kwargs):
-        data_type = self.get_custom_datatype(**kwargs)
-        return f"mfw{str(kwargs['mode'])}.{data_type}"
+    def create_filename(self, **kwargs):
+        file_name = super().create_filename(**kwargs, file_string='mfw')
+        print(file_name)
+        return file_name
     
-    def create_all_data(self):
-        for mode in self.modes:
-            self.create_data(mode=mode)
+# %%

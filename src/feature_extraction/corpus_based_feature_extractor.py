@@ -16,7 +16,6 @@ sys.path.append("..")
 from utils import load_list_of_lines, save_list_of_lines, get_bookname
 from .production_rule_extractor import ProductionRuleExtractor
 from .doc_based_feature_extractor import DocBasedFeatureExtractor
-from .process_rawtext import NgramCounter
 import spacy
 
 
@@ -103,7 +102,7 @@ class CorpusBasedFeatureExtractor():
                 raise Exception('Not a valid gram_type')
 
         def tag_chunk(chunk, tag_type, gram_type):
-            tags_path = chunk.doc_path.replace('/raw_docs', f'/{tag_type}_tags_tpc_{self.tokens_per_chunk}_usechunks_{self.use_chunks}').replace('.txt', f'_chunkid_{chunk.chunk_id}.txt')
+            tags_path = chunk.doc_path.replace('/text_raw', f'/{tag_type}_tags_tpc_{self.tokens_per_chunk}_usechunks_{self.use_chunks}').replace('.txt', f'_chunkid_{chunk.chunk_id}.txt')
             if os.path.exists(tags_path):
                 all_sentence_tags = [line for line in load_list_of_lines(tags_path, 'str')]
             else:
@@ -192,7 +191,7 @@ class CorpusBasedFeatureExtractor():
 
         for doc_chunks in self.generate_chunks():
             for chunk in doc_chunks:
-                chunk_production_counter = self.get_book_production_counts(chunk.tokenized_words, pre)
+                chunk_production_counter = self.get_book_production_counts(chunk.text_tokenized, pre)
                 chunk_production_counters[chunk.file_name + '_' + str(chunk.chunk_id)] = chunk_production_counter
                 corpus_production_counter.update(chunk_production_counter)
 

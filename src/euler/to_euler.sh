@@ -6,7 +6,7 @@
 # VPN
 # Copy to cluster
 rm -r /home/annina/scripts/great_unread_nlp/src/__pycache__/ && scp -r /home/annina/scripts/great_unread_nlp/src/ stahla@euler.ethz.ch:/cluster/scratch/stahla/
-scp -r /home/annina/scripts/great_unread_nlp/data/raw_docs/ stahla@euler.ethz.ch:/cluster/scratch/stahla/data/
+scp -r /home/annina/scripts/great_unread_nlp/data/text_raw/ stahla@euler.ethz.ch:/cluster/scratch/stahla/data/
 scp -r /home/annina/scripts/great_unread_nlp/data/sentiscores/ stahla@euler.ethz.ch:/cluster/scratch/stahla/data/
 scp -r /home/annina/scripts/great_unread_nlp/data/metadata/ stahla@euler.ethz.ch:/cluster/scratch/stahla/data/ 
 scp -r /home/annina/scripts/great_unread_nlp/data/features_None/ stahla@euler.ethz.ch:/cluster/scratch/stahla/data/

@@ -14,21 +14,26 @@ from pathlib import Path
 from feature_extraction.doc_based_feature_extractor import DocBasedFeatureExtractor
 from feature_extraction.corpus_based_feature_extractor import CorpusBasedFeatureExtractor
 from feature_extraction.process_rawtext import Tokenizer
-from feature_extraction.process_d2v import D2vProcessor
+from feature_extraction.embeddings import D2vProcessor, SbertProcessor
+from feature_extraction.ngrams import NgramCounter, MfwExtractor
 import sys
 sys.path.append("..")
-from utils import get_doc_paths, compare_directories, DataHandler, get_bookname
+from utils import get_doc_paths, check_equal_files, DataHandler, get_bookname
 
 class FeaturePreparer(DataHandler):
     def __init__(self, language):
         super().__init__(language, 'features')
-        self.raw_docs_dir = os.path.join(self.data_dir, 'raw_docs', self.language)
-        self.doc_paths = get_doc_paths(self.raw_docs_dir)[:None] 
+        self.text_raw_dir = os.path.join(self.data_dir, 'text_raw', self.language)
+        self.doc_paths = get_doc_paths(self.text_raw_dir)[:None] 
     '''
-    Create features that take a while to process before using more detailed processing.
-    This is not necessary, since all data preparation steps are also called from the detailed processing, but it makes the workflow more practical.
+    Extract basic features that take a while to process before using more detailed processing.
+    This is not necessary, since all data preparation steps are also called from the detailed processing, but is practical.
     '''
-    def tokenize_all_texts(self, remove_files=False):
+    def load_text_tokenized(self):
+        chunks = Tokenizer(self.language, self.doc_paths, self.tokens_per_chunk).create_data(self.doc_paths[0], remove_punct=False, lower=False, as_chunk=True)
+        no_chunks = Tokenizer(self.language, self.doc_paths, self.tokens_per_chunk).create_data(self.doc_paths[0], remove_punct=False, lower=False, as_chunk=False)
+
+    def tokenizer(self, remove_files=False):
         if remove_files:
             chars_path = f'/home/annina/scripts/great_unread_nlp/src/special_chars_{self.language}.txt'
             if os.path.exists(chars_path):
@@ -37,28 +42,45 @@ class FeaturePreparer(DataHandler):
             if os.path.exists(annotation_path):
                 os.remove(annotation_path)
             for doc_path in self.doc_paths:
-                tokenized_words_path = doc_path.replace('raw_docs', 'tokenized_words')
-                if os.path.exists(tokenized_words_path):
-                    os.remove(tokenized_words_path)
+                text_tokenized_path = doc_path.replace('text_raw', 'text_tokenized')
+                if os.path.exists(text_tokenized_path):
+                    os.remove(text_tokenized_path)
 
-        _ = Tokenizer(self.language, self.doc_paths, self.tokens_per_chunk).tokenize_all_texts()
-        compare_directories(self.raw_docs_dir, self.raw_docs_dir.replace('/raw_docs', '/tokenized_words'))
+        t = Tokenizer(self.language, self.doc_paths, self.tokens_per_chunk)
+        # t.create_all_data()
+        t.check_data()
 
-    # def load_tokenized_words(self):
-    #     chunks = Tokenizer(self.language, self.doc_paths, self.tokens_per_chunk).get_tokenized_words(self.doc_paths[0], remove_punct=False, lower=False, as_chunk=True)
-    #     for i in chunks[:8]:
-    #         print(i)
-    #     no_chunks = Tokenizer(self.language, self.doc_paths, self.tokens_per_chunk).get_tokenized_words(self.doc_paths[0], remove_punct=False, lower=False, as_chunk=False)
-    #     print(no_chunks[:100])
+    def ngramcounter(self):
+        c = NgramCounter(self.language)
+        c.create_all_data()
+        c.get_total_unigram_freq()
+        # c.create_all_data()
+        # c.load_data(file_name='unigram_chunk.pkl')
+        # print(c.data_dict['words'][1500:1600])
+        # # df = c.load_data('trigram_chunks.pkl')
+        #file_ngram_counts = c.load_values_for_chunk(file_name='Ainsworth_William-Harrison_Rookwood_1834_0')
+        # for k, v in file_ngram_counts.items():
+        #     print(k, v)
+
+    def mfwextractor(self):
+        m = MfwExtractor(self.language)
+        m.create_all_data()
+
+    def sbert(self):
+        s = SbertProcessor(self.language)
+        s.create_all_data()
 
     def run(self):
-        pass
+        start = time.time()
+        # self.load_text_tokenized()
+        # self.tokenizer()
+        self.ngramcounter()
+        # self.mfwextractor()
+        # self.sbert()
+        print('Time: ', time.time()-start)
 
-        # self.load_tokenized_words()
 
-        # Tokenize texts
-        self.tokenize_all_texts()
-for language in ['eng', 'ger']:
+for language in ['eng']:#, 'ger']: 
     fp = FeaturePreparer(language)
     fp.run()
 
@@ -68,8 +90,8 @@ for language in ['eng', 'ger']:
 class FeatureProcessor(DataHandler):
     def __init__(self, language):
         super().__init__(language, 'features')
-        self.raw_docs_dir = os.path.join(self.data_dir, 'raw_docs', self.language)
-        self.doc_paths = get_doc_paths(self.raw_docs_dir)[:None] #############################
+        self.text_raw_dir = os.path.join(self.data_dir, 'text_raw', self.language)
+        self.doc_paths = get_doc_paths(self.text_raw_dir)[:None] #############################
 
     def get_doc_features_helper(self, doc_path, use_chunks):
         if use_chunks:
@@ -86,7 +108,7 @@ class FeatureProcessor(DataHandler):
         all_book_features = []
 
         for doc_path in self.doc_paths:
-            pickled_path = doc_path.replace('/raw_docs', '/pickle') + f'_usechunks_{use_chunks}.pkl'
+            pickled_path = doc_path.replace('/text_raw', '/pickle') + f'_usechunks_{use_chunks}.pkl'
             pickled_dir = os.path.dirname(pickled_path)
             print(pickled_dir, pickled_path)
             os.makedirs(pickled_dir, exist_ok=True) 
@@ -168,7 +190,7 @@ class FeatureProcessor(DataHandler):
             self.save_data(data=df, file_name=file_name)
         return dfs
     
-    def create_all_data(self):
+    def run(self):
         start = time.time()
 
         # Create d2v embeddings
@@ -219,7 +241,7 @@ if __name__ == '__main__':
         # Don't use defaults because VSC Python interactive mode can't handle command line arguments
         language = 'ger'
 
-    fe = FeatureProcessor(language).create_all_data()
+    fe = FeatureProcessor(language).run()
 
 # assert that nr of chunk features = nr of chunk in tokenizedwords
 

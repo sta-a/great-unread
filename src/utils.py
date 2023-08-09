@@ -6,197 +6,27 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import difflib
+import hashlib
 from collections import Counter
-import pickle
+import joblib
 import logging
 import Levenshtein
 
 logging.basicConfig(level=logging.DEBUG)
 
 
-class DataHandler():
-    '''
-    Base class for creating, saving, and loading data.
-    '''
-    def __init__(self, language=None, output_dir=None, data_type='csv', modes=None, tokens_per_chunk=500, data_dir='/home/annina/scripts/great_unread_nlp/data'):
-        self.language = language
-        self.data_dir = data_dir
-        self.output_dir = self.create_output_dir(output_dir)
-        self.data_type = data_type
-        self.modes = modes
-        self.tokens_per_chunk = tokens_per_chunk
-        self.logger = logging.getLogger(__name__)
-
-    def create_output_dir(self, output_dir):
-        if self.data_dir is None or output_dir is None or self.language is None:
-            output_dir = None
-        else:
-            output_dir = os.path.join(self.data_dir, output_dir, self.language)
-        return output_dir
-
-    def create_data(self,**kwargs):
-        # Implement the distance calculation logic
-        raise NotImplementedError
-    
-    def create_filename(self,**kwargs):
-        return self.create_filename_base(**kwargs)
-
-    # def create_filename_base(self, **kwargs):
-    #     data_type = self.get_custom_datatype(**kwargs)
-    #     if 'file_string' in kwargs:
-    #         file_string = kwargs['file_string'] + '-'
-    #     else:
-    #         file_string = ''
-    #     return f"{file_string}{kwargs['mode']}.{data_type}"
-
-    def create_filename_base(self, **kwargs):
-        data_type = self.get_custom_datatype(**kwargs)
-        if 'file_string' in kwargs:
-            file_string = kwargs['file_string'] + '-'
-        else:
-            file_string = ''
-        kwargs_str = '_'.join(f"{str(value)}" for key, value in kwargs.items() if key != 'file_string')
-        return f"{file_string}{kwargs_str}.{data_type}"
-
-
-    def save_data(self, data, file_name=None, **kwargs):
-        file_path  = self.get_file_path(file_name, **kwargs)
-        dir_path = Path(file_path).parent
-        if not os.path.exists(dir_path):
-            Path(dir_path).mkdir(parents=True, exist_ok=False)
-        self.save_data_type(data, file_path,**kwargs)
-    
-    def get_custom_datatype(self, **kwargs):
-        if 'data_type' in kwargs:
-            data_type = kwargs['data_type']
-        else:
-            data_type = self.data_type
-        return data_type
-
-    def save_data_type(self, data, file_path, **kwargs):
-        data_type = self.get_custom_datatype(**kwargs)
-
-        if data_type == 'csv':
-            data = data.sort_index(axis=0).sort_index(axis=1)
-            print(data)
-            data.to_csv(file_path, header=True, index=True)
-        elif data_type == 'pkl':
-            with open(file_path, 'wb') as f:
-                pickle.dump(data, f, -1)
-        elif data_type == 'png':
-            data.savefig(file_path, format="png")
-
-    def file_exists_or_create(self, file_path=None, **kwargs):
-        print('check if file exists:', file_path)
-        if not self.file_exists(file_path, **kwargs):
-            self.logger.info(f'Creating data for {self.create_filename(**kwargs)}.')
-            self.create_data(**kwargs)
-
-    def load_data(self, file_name=None, **kwargs):
-        endings = ('.npz', '.csv', '.np', '.pkl')
-        if file_name is not None and not file_name.endswith(endings):
-            raise ValueError(f"The file extensions must be provided. Supported extensions are {' '.join(endings)}.")
-
-        file_path = self.get_file_path(file_name, **kwargs)
-
-        self.file_exists_or_create(file_path, **kwargs)
-
-        data = self.load_data_type(file_path, **kwargs)
-        self.logger.info(f'Loaded {file_path} from file.')
-        return data
-    
-    def load_data_type(self, file_path,**kwargs):
-        if self.data_type == 'csv':
-            data = pd.read_csv(file_path, header=0, index_col=0)
-        elif self.data_type == 'np':
-            data = load_list_of_lines(file_path, 'np')
-        elif self.data_type == 'pkl':
-            with open(file_path, 'rb') as f:
-                data = pickle.load(f)
-        return data
-    
-    def load_all_data(self):
-        all_data = {}
-        for mode in self.modes:
-            data  = self.load_data(mode=mode)
-            all_data[mode] = data
-        return all_data
-
-    def get_file_path(self, file_name=None, **kwargs):
-        if file_name is None and not kwargs:
-            raise ValueError("Either 'file_name' or 'kwargs' must be provided.")
-        if file_name is not None and kwargs:
-            self.logger.info('Both file_name and kwargs were passed to get_file_path(). file_name is used, kwargs are ignored.')
-
-        if file_name is None:
-            file_name = self.create_filename(**kwargs)
-        file_path = os.path.join(self.output_dir, file_name)
-        return file_path
-    
-    def file_exists(self, file_name=None, **kwargs):
-        return os.path.exists(self.get_file_path(file_name, **kwargs))
-
-
-def compare_line_counts(dir1, dir2, extension):
-    '''
-    Extension: the extension of the files in dir2
-    '''
-    files1 = os.listdir(dir1)
-    files2 = os.listdir(dir2)
-
-    for file_name in files1:
-        base_name, ext = os.path.splitext(file_name)
-        matching_file = f"{base_name}.{extension}"
-        if matching_file in files2:
-            file_path1 = os.path.join(dir1, file_name)
-            file_path2 = os.path.join(dir2, matching_file)
-
-            line_count1 = sum(1 for _ in open(file_path1))
-            line_count2 = sum(1 for _ in open(file_path2))
-
-            print(f"{base_name}:\n{line_count1} lines in {dir1}, \n{line_count2} lines in {dir2}")     
-
-
-def compare_directories(dir1, dir2):
-    files1 = set(filename for filename in os.listdir(dir1) if os.path.isfile(os.path.join(dir1, filename)))
-    files2 = set(filename for filename in os.listdir(dir2) if os.path.isfile(os.path.join(dir2, filename)))
-
-    common_files = files1.intersection(files2)
-    unique_files_dir1 = files1 - common_files
-    unique_files_dir2 = files2 - common_files
-
-    if not unique_files_dir1 and not unique_files_dir2:
-        print(f'The directories "{dir1}" and "{dir2}" contain the same files.')
-    else:
-        print('The directories do not contain the same files.')
-        print('Files unique to dir1:', unique_files_dir1)
-        print('Files unique to dir2:', unique_files_dir2)
-
-
-def count_chunks(doc_paths):
-    # Count chunks
-    nr_chunks_per_doc = {}
-    for doc_path in doc_paths:
-        tokenized_words_path = doc_path.replace('/raw_docs', '/tokenized_words') 
-        with open(tokenized_words_path, 'r') as f:
-            nr_chunks = sum(1 for _ in f)
-            nr_chunks_per_doc[doc_path] = nr_chunks
-    #print(sorted(nr_chunks_per_doc.items(), key=lambda x: x[1]))
-    total_nr_chunks = Counter(nr_chunks_per_doc.values())
-    total_nr_chunks = sorted(total_nr_chunks.items(), key=lambda pair: pair[0], reverse=False)
-    return nr_chunks_per_doc, total_nr_chunks
-
 def get_bookname(doc_path):
     return Path(doc_path).stem
 
+def get_filename_from_path(file_path):
+    return os.path.splitext(os.path.basename(file_path))[0]
+    
 
 def get_doc_paths(docs_dir):
     doc_paths = sorted([os.path.join(docs_dir, doc_name) for doc_name in os.listdir(docs_dir) if Path(doc_name).suffix == '.txt'])
     return doc_paths
 
-def get_filename_from_path(file_path):
-    return os.path.splitext(os.path.basename(file_path))[0]
-    
 
 def load_list_of_lines(path, line_type):
     if line_type == 'str':
@@ -226,12 +56,269 @@ def save_list_of_lines(lst, path, line_type):
         raise Exception(f'Not a valid line_type {line_type}')
     
 
+def find_overlapping_passages():
+    def hash_lines(lines):
+        return [hashlib.md5(line.encode()).hexdigest() for line in lines]
+
+    def find_repeated_passages(text):
+        lines = text.splitlines()
+        line_hashes = hash_lines(lines)
+        matches = []
+
+        for i, line_hash in enumerate(line_hashes):
+            for j, other_line_hash in enumerate(line_hashes[i+1:], start=i+1):
+                if line_hash == other_line_hash:
+                    match_ratio = difflib.SequenceMatcher(None, lines[i], lines[j]).ratio()
+                    if match_ratio > 0.8:  # Adjust this threshold as needed
+                        matches.append((i, j, match_ratio))
+
+        return matches
+
+    path = ''
+    with open(path, 'r') as f:
+        text = f.read()
+
+    repeated_passages = find_repeated_passages(text)
+
+    for match in repeated_passages:
+        i, j, match_ratio = match
+        print(f"Repeated passages found between lines {i+1} and {j+1} (Match ratio: {match_ratio:.2f})")
+        print(text.splitlines()[i])
+        print(text.splitlines()[j])
+        print("=" * 40)
+
+
+
+def check_equal_line_count(dir1, dir2, extension):
+    '''
+    Extension: the extension of the files in dir2
+    '''
+    files1 = os.listdir(dir1)
+    files2 = os.listdir(dir2)
+
+    for file_name in files1:
+        base_name, ext = os.path.splitext(file_name)
+        matching_file = f"{base_name}.{extension}"
+        if matching_file in files2:
+            file_path1 = os.path.join(dir1, file_name)
+            file_path2 = os.path.join(dir2, matching_file)
+
+            line_count1 = sum(1 for _ in open(file_path1))
+            line_count2 = sum(1 for _ in open(file_path2))
+            if line_count1==line_count2:
+                print(f'{base_name}: Equal nr lines in both dirs.')
+                return True
+            else:
+                print(f'{base_name}: Unequal nr lines in both dirs.')
+                return False
+
+
+def check_equal_files(dir1, dir2):
+    files1 = set(filename for filename in os.listdir(dir1) if os.path.isfile(os.path.join(dir1, filename)))
+    files2 = set(filename for filename in os.listdir(dir2) if os.path.isfile(os.path.join(dir2, filename)))
+
+    common_files = files1.intersection(files2)
+    unique_files_dir1 = files1 - common_files
+    unique_files_dir2 = files2 - common_files
+
+    if not unique_files_dir1 and not unique_files_dir2:
+        print(f'The directories "{dir1}" and "{dir2}" contain the same files.')
+        return True
+    else:
+        print('The directories do not contain the same files.')
+        print('Files unique to dir1:', unique_files_dir1)
+        print('Files unique to dir2:', unique_files_dir2)
+        return False
+    
+
+# General function for finding a string in all code files
+def search_string_in_files(directory, search_string, extension):
+    for root, _, files in os.walk(directory):
+        for file in files:
+            if file.endswith(extension):
+                file_path = os.path.join(root, file)
+                if os.path.isfile(file_path):
+                    with open(file_path, 'r') as f:
+                        for line_number, line in enumerate(f, start=1):
+                            if search_string.lower() in line.lower():
+                                print(f"Found '{search_string}' in '{os.path.basename(file_path)}' (Line {line_number}): \n{line.rstrip()}\n")
+
+
+class DataHandler():
+    '''
+    Base class for creating, saving, and loading data.
+    '''
+    def __init__(self, language=None, output_dir=None, data_type='csv', modes=None, tokens_per_chunk=500, data_dir='/home/annina/scripts/great_unread_nlp/data'):
+        self.language = language
+        self.data_dir = data_dir
+        self.output_dir = self.create_output_dir(output_dir)
+        self.data_type = data_type
+        self.modes = modes
+        self.tokens_per_chunk = tokens_per_chunk
+        self.logger = logging.getLogger(__name__)
+        self.data_types = ('.npz', '.csv', '.np', '.pkl', '.txt')
+
+    def create_output_dir(self, output_dir):
+        if self.data_dir is None or output_dir is None or self.language is None:
+            output_dir = None
+        else:
+            output_dir = os.path.join(self.data_dir, output_dir, self.language)
+        return output_dir
+
+    def create_data(self,**kwargs):
+        raise NotImplementedError
+    
+    # def create_filename_base(self, **kwargs):
+    #     data_type = self.get_custom_datatype(**kwargs)
+    #     if 'file_string' in kwargs:
+    #         file_string = kwargs['file_string'] + '-'
+    #     else:
+    #         file_string = ''
+    #     return f"{file_string}{kwargs['mode']}.{data_type}"
+
+    def get_custom_datatype(self, **kwargs):
+        if 'data_type' in kwargs:
+            data_type = kwargs['data_type']
+        else:
+            data_type = self.data_type
+        return data_type
+    
+    
+    def save_data(self, data, file_name=None, **kwargs):
+        file_path  = self.get_file_path(file_name, **kwargs)
+        dir_path = Path(file_path).parent
+        if not os.path.exists(dir_path):
+            Path(dir_path).mkdir(parents=True, exist_ok=False)
+        self.save_data_type(data, file_path,**kwargs)
+    
+
+    def save_data_type(self, data, file_path, **kwargs):
+        data_type = self.get_custom_datatype(**kwargs)
+
+        if data_type == 'csv':
+            # data = data.sort_index(axis=0).sort_index(axis=1)
+            print('Data not sorted before saving.')
+            data.to_csv(file_path, header=True, index=True)
+        elif data_type == 'pkl':
+            joblib.dump(data, file_path)
+        elif data_type == 'png':
+            data.savefig(file_path, format="png")
+        elif data_type == 'txt':
+            assert isinstance(data, list)
+            with open(file_path, 'w') as f:
+                for item in data:
+                    assert isinstance(item, str)
+                    f.write(str(item) + '\n')
+        elif data_type =='dict':
+            with open(file_path, 'w') as f:
+                for key, value in data.items():
+                    f.write(f"{key}, {value}\n")
+
+
+    def file_exists_or_create(self, file_path=None, file_name=None, **kwargs):
+        if (file_path is None and file_name is None) or (file_path is not None and file_name is not None):
+            raise ValueError("Either 'file_name' or 'file_path' must be provided.")
+        if file_path is None:
+            file_path = self.get_file_path(file_name, **kwargs)
+
+        if not self.file_exists(file_path=file_path):
+            self.logger.info(f'Creating data for {file_path}.')
+            self.create_data(**kwargs)
+        else:
+            self.logger.info(f'{file_path} already exists.')
+
+    def load_data(self, load=True, file_name=None, **kwargs):
+        file_path = self.get_file_path(file_name=file_name, **kwargs)
+        self.file_exists_or_create(file_path=file_path, **kwargs)
+
+        data = None
+        if load:
+            self.logger.info(f'Loading {file_path} from file.')
+            data = self.load_data_type(file_path, **kwargs)
+        return data
+    
+    def load_data_type(self, file_path,**kwargs):
+        if self.data_type == 'csv':
+            data = pd.read_csv(file_path, header=0, index_col=0)
+        elif self.data_type == 'np':
+            data = data = np.load(file_path)['arr_0'].tolist()
+        elif self.data_type == 'pkl':
+            data = joblib.load(file_path)
+        elif self.data_type == 'txt':
+            with open(file_path, 'r') as reader:
+                data = [line.strip() for line in reader]               
+        return data
+
+    def create_all_data(self):
+        # Check if file exists and create it if necessary
+        for mode in self.modes:
+            print(mode)
+            _ = self.load_data(load=False, mode=mode)
+
+    
+    def load_all_data(self):
+        # Check if file exists, create it if necessary, return all data
+        all_data = {}
+        for mode in self.modes:
+            data  = self.load_data(load=True, mode=mode)
+            all_data[mode] = data
+        return all_data
+
+    def create_filename(self, **kwargs):
+        data_type = self.get_custom_datatype(**kwargs)
+        if 'file_string' in kwargs:
+            file_string = kwargs['file_string'] + '-'
+        else:
+            file_string = ''
+
+        # If kwargs are tuples, turn them into strings
+        for key, value in kwargs.items():
+            if isinstance(value, tuple):
+                kwargs[key] = '_'.join(value)
+
+        kwargs_str = '_'.join(f"{str(value)}" for key, value in kwargs.items() if key != 'file_string')
+        file_name = f"{file_string}{kwargs_str}.{data_type}"
+        return file_name
+    
+    def validate_filename(self, file_name, **kwargs):
+        ending_count = file_name.count('.')
+        if ending_count == 0:
+            data_type = self.get_custom_datatype(**kwargs)
+            file_name = f'{file_name}.{data_type}'
+            # self.logger.info(f'Added extension to file name: {file_name}')
+        elif ending_count == 1:
+            if not file_name.endswith(self.data_types):
+                raise ValueError(f'Invalid file extension: {file_name}')
+        else:
+            raise ValueError(f'Multiple file extension: {file_name}')
+        return file_name
+
+    
+    def get_file_path(self, file_name=None, **kwargs):
+        if file_name is None and not kwargs:
+            raise ValueError("Either 'file_name' or kwargs must be provided.")
+        elif file_name is not None and kwargs:
+            self.logger.info(f'Both file_name and kwargs were passed to get_file_path(). file_name is used, kwargs are ignored. \nfile_name: {file_name}. \nkwargs: {kwargs}')
+        if file_name is None:
+            file_name = self.create_filename(**kwargs)
+        file_name = self.validate_filename(file_name=file_name, **kwargs)
+        file_path = os.path.join(self.output_dir, file_name)
+        return file_path
+    
+    def file_exists(self, file_path=None, file_name=None, **kwargs):
+        if (file_path is None and file_name is None) or (file_path is not None and file_name is not None):
+            raise ValueError("Either 'file_name' or 'file_path' must be provided.")
+        if file_path is None:
+            file_path = self.get_file_path(file_name, **kwargs)
+        return os.path.exists(file_path)
+    
+
 class TextsByAuthor(DataHandler):
     '''
     Map the filenames to the authors and count the number of texts per author.
     '''
     def __init__(self, language, filenames=None):
-        super().__init__(language, output_dir='raw_docs')
+        super().__init__(language, output_dir='text_raw')
         self.filenames = filenames
         if self.filenames is None:
             self.filenames = self.get_filenames()
@@ -279,26 +366,6 @@ class TextsByAuthor(DataHandler):
         return author_filename_mapping, nr_texts_per_author
 
 
-
-# General function for finding a string in all code files
-def search_string_in_files(directory, search_string):
-    for root, _, files in os.walk(directory):
-        for file in files:
-            if file.endswith('.py'):
-                file_path = os.path.join(root, file)
-                if os.path.isfile(file_path):
-                    with open(file_path, 'r') as f:
-                        for line_number, line in enumerate(f, start=1):
-                            if search_string in line:
-                                print(f"Found '{search_string}' in '{file_path}' (Line {line_number}): {line.rstrip()}")
-
-# # Provide the directory path and the string to search for
-# directory_path = '/home/annina/scripts/great_unread_nlp/src'
-# search_string = 'NgramCounter'
-# search_string_in_files(directory_path, search_string)
-
-
-
 class DataChecks(DataHandler):
     '''
     Compare the metadata with each other to check consistency.
@@ -332,7 +399,7 @@ class DataChecks(DataHandler):
                 dir_path = os.path.join(self.data_dir, dir_name, self.language)
             filenames = os.listdir(dir_path)
             # or filename.endswith('.csv#') for opened libre office files
-            assert all(filename.endswith('.csv') or filename.endswith('.csv#') for filename in filenames), f"Not all files have the '.csv' extension in {dir_path}."
+            assert all(filename.endswith('.csv') or filename.endswith('.csv#') for filename in filenames), f"Not all files in {dir_path} have the '.csv' extension."
             filenames = [file for file in filenames if file.endswith('.csv')]
 
             for filename in filenames:
@@ -435,8 +502,8 @@ class DataChecks(DataHandler):
 
 
     def compare_rawdocs_dfs(self):
-        raw_docs_dir = os.path.join(self.data_dir, 'raw_docs', self.language)
-        rdfn = os.listdir(raw_docs_dir)
+        text_raw_dir = os.path.join(self.data_dir, 'text_raw', self.language)
+        rdfn = os.listdir(text_raw_dir)
         assert all(filename.endswith('.txt') for filename in rdfn), "Not all files have the '.txt' extension."
         rdfn = set([x.rstrip('.txt') for x in rdfn])
 
@@ -545,15 +612,18 @@ class DataChecks(DataHandler):
         # Ger: Arnim_Bettina, Schlaf_Johannes
         nocolls = no_collabs[no_collabs['author_viaf'].isin(coll_av)]
         print(collabs, '\n\n', nocolls, '\n', coll_av)
-                
-
-
-
-
-
-
 # c = DataChecks('eng')
 # # c.compare_df_values()
 # # c.compare_rawdocs_dfs()
 # c.get_collaborations()
+
+
+
+
+# Provide the directory path and the string to search for
+directory_path = '/home/annina/scripts/great_unread_nlp/src'
+search_string = 'save_list_of_lines'
+extension = '.py'
+search_string_in_files(directory_path, search_string, extension)
+
 # %%

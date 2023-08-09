@@ -10,8 +10,8 @@ class Chunk():
         tokens_per_chunk,
         doc_path, 
         chunk_id, 
-        tokenized_words, 
-        sbert_sentence_embeddings, 
+        text_tokenized, 
+        sbert_embeddings, 
         d2v_chunk_embedding, 
         unigram_counts=False, 
         bigram_counts=False, 
@@ -21,8 +21,8 @@ class Chunk():
         self.tokens_per_chunk = tokens_per_chunk
         self.doc_path = doc_path
         self.chunk_id = chunk_id
-        self.tokenized_words = tokenized_words # raw
-        self.sbert_sentence_embeddings = sbert_sentence_embeddings
+        self.text_tokenized = text_tokenized # raw
+        self.sbert_embeddings = sbert_embeddings
         self.d2v_chunk_embedding = d2v_chunk_embedding
         self.unigram_counts = unigram_counts
         self.bigram_counts = bigram_counts
@@ -30,7 +30,7 @@ class Chunk():
         self.char_unigram_counts = char_unigram_counts
 
         self.file_name = get_bookname(self.doc_path)
-        self.tokenized_words_pp = Postprocessor(remove_punct=True, lower=True).postprocess_text(self.tokenized_words)
+        self.text_tokenized_pp = Postprocessor(remove_punct=True, lower=True).postprocess_text(self.text_tokenized)
         self.sentences = self.__split_into_sentences()
 
         if self.unigram_counts == True:
@@ -45,12 +45,12 @@ class Chunk():
     def __split_into_sentences(self):
         # Split postprocessed text into sentences
         terminating_chars = r'\. | \: | \; | \? | \! | \) | \] | \...'
-        sentences = re.split(terminating_chars, self.tokenized_words_pp)
+        sentences = re.split(terminating_chars, self.text_tokenized_pp)
         return sentences
     
 
     def __find_unigram_counts(self):
-        words = self.tokenized_words_pp.split()
+        words = self.text_tokenized_pp.split()
         unigram_counts = {}
         for unigram in words:
             if unigram in unigram_counts.keys():
@@ -87,7 +87,7 @@ class Chunk():
     def __find_char_unigram_counts(self):
         # Use raw text with punctuation but without capitalization
         char_unigram_counts = {}
-        for character in self.tokenized_words:
+        for character in self.text_tokenized:
             if character in char_unigram_counts.keys():
                 char_unigram_counts[character] += 1
             else:

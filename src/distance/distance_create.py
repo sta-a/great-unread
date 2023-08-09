@@ -15,8 +15,8 @@ import matplotlib.pyplot as plt
 
 import sys
 sys.path.append("/home/annina/scripts/great_unread_nlp/src")
-from feature_extraction.process_d2v import D2vProcessor
-from feature_extraction.process_rawtext import NgramCounter
+from feature_extraction.embeddings import D2vProcessor
+from feature_extraction.ngrams import MfwExtractor
 sys.path.insert(1, '/home/annina/scripts/pydelta')
 import delta
 sys.path.append("..")
@@ -174,7 +174,8 @@ class D2vDist(Distance):
     def __init__(self, language, output_dir='distance'):
         super().__init__(language, output_dir)
         self.modes = ['doc_tags', 'both_tags']
-        self.doc_paths = get_doc_paths(os.path.join(self.data_dir, 'raw_docs', self.language))
+        self.text_raw_dir = os.path.join(self.data_dir, 'text_raw', self.language)
+        self.doc_paths = get_doc_paths(self.text_raw_dir)
 
     def create_data(self,**kwargs):
         '''
@@ -199,7 +200,8 @@ class D2vDist(Distance):
 
     def create_filename(self,**kwargs):
         file_string = f"d2vtpc{self.tokens_per_chunk}"
-        return self.create_filename_base(**kwargs, file_string=file_string)
+        file_name = super().create_filename(**kwargs, file_string=file_string)
+        return file_name
 
     def calculate_distance(self, dictionary):
         """
@@ -244,21 +246,19 @@ class PydeltaDist(Distance):
         self.save_data(mx, mode=mode)
         self.logger.info(f'Created {mode} similarity matrix.')
 
-    def get_distance_nmfw(self, mode):
+    def get_params_from_mode(self, mode):
         distance, nmfw = mode.split('-')
         return distance, int(nmfw)
 
     def get_corpus(self, mode):
-        distance, nmfw = self.get_distance_nmfw(mode)
-        mfwf = MFWFilter(language=self.language)
+        distance, nmfw = self.get_params_from_mode(mode)
+        mfwf = MfwExtractor(language=self.language)
         mfwf.file_exists_or_create(mode=nmfw)
-        # if not mfwf.file_exists(mode=nmfw):
-        #     _ = mfwf.load_all_data()
         corpus = delta.Corpus(mfwf.get_file_path(file_name=None, mode=nmfw))
         return corpus
 
     def calculate_distance(self, mode):
-        distance, nmfw = self.get_distance_nmfw(mode)
+        distance, nmfw = self.get_params_from_mode(mode)
         corpus = self.get_corpus(mode=mode)
         if distance == 'burrows':
             mx = delta.functions.burrows(corpus)
@@ -271,66 +271,6 @@ class PydeltaDist(Distance):
         elif distance == 'quadratic':
             mx = delta.functions.quadratic(corpus)
         return mx
-
-
-class MFWFilter(DataHandler):
-    def __init__(self, language):
-        super().__init__(language, 'ngram_counts')
-        self.modes = [500, 1000, 2000, 5000]
-        self.total_unigram_counts, self.book_unigram_mapping = self.load_unigram_counts()
-
-    def load_unigram_counts(self):
-        # Load the total unigram counts and book unigram mapping from file.
-        nc = NgramCounter(self.language, None, None).load_data(file_name='unigram_counts.pkl')
-        book_unigram_mapping = nc['book_unigram_mapping']
-        total_unigram_counts = nc['total_unigram_counts']
-        total_unigram_counts = pd.DataFrame([total_unigram_counts], index=['counts']).T.sort_values(by='counts', ascending=False)
-        return total_unigram_counts, book_unigram_mapping
-
-
-    def create_filename_base(self, **kwargs):
-        data_type = self.get_custom_datatype(**kwargs)
-        return f"mfw{str(kwargs['mode'])}.{data_type}"
-
-
-    def create_data(self, **kwargs):
-        """
-        Prepare the Most Frequent Words (MFW) DataFrame by filtering the unigram counts.
-        
-        Finally, it constructs the MFW counts DataFrame
-        and saves it to a CSV file for later use.
-        """
-        self.logger.info('Creating MFW table')
-        nmfw = kwargs['mode']
-        # MFW based on the total unigram counts
-        mfw_set = self.get_mfw_set(nmfw)
-        # Filter the book unigram mapping to include only the MFW. 
-        book_unigram_mapping_filtered = self.filter_book_unigram_mapping(mfw_set)
-        mfw_counts = pd.DataFrame.from_dict(book_unigram_mapping_filtered, orient='index').fillna(0).astype('int64')
-        self.save_data(data=mfw_counts, file_name=None, mode=nmfw)
-        self.logger.info('Created MFW table')
-
-
-        # mfw_counts.to_csv('corpustest.csv', header=True, index=True)
-        # corpus = delta.Corpus('corpus_words.csv')
-        # #corpus.save()
-        # corpus_test = corpus.get_mfw_table(nmfw) ##################################
-        # corpus_test.to_csv(f'corpus_test_{nmfw}', header=True, index=True)
-
-    def get_mfw_set(self, nmfw):
-        # MFW based on the total unigram counts
-        mfw_set = set(self.total_unigram_counts.iloc[:nmfw, :].index.tolist())
-        return mfw_set
-
-    def filter_book_unigram_mapping(self, mfw_set):
-        """
-        Filter the book unigram mapping so that it only contains words in the mfw.
-        """
-        book_unigram_mapping_filtered = {}
-        for filename, book_dict in self.book_unigram_mapping.items():
-            book_dict_ = {word: count for word, count in book_dict.items() if word in mfw_set}
-            book_unigram_mapping_filtered[filename] = book_dict_
-        return book_unigram_mapping_filtered
 
 
 class StyloDistance(PydeltaDist):
@@ -347,8 +287,8 @@ class StyloDistance(PydeltaDist):
         self.modes = [f'{item1}-{item2}' for item1 in self.distances for item2 in self.nmfw_values]
 
     def create_input_filename(self,**kwargs):
-        file_string = f'dist'
-        return self.create_filename_base(**kwargs, file_string=file_string)
+        file_name = super().create_filename(**kwargs, file_string='dist')
+        return file_name
        
 
     def create_data(self, **kwargs):
