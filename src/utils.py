@@ -23,6 +23,9 @@ def get_filename_from_path(file_path):
     return os.path.splitext(os.path.basename(file_path))[0]
     
 
+# def get_doc_paths(docs_dir):
+#     return ['/home/annina/scripts/great_unread_nlp/data/text_raw/eng/Aubin_Penelope_The-Life-of-Charlotte-Du-Pont_1723.txt']
+
 def get_doc_paths(docs_dir):
     doc_paths = sorted([os.path.join(docs_dir, doc_name) for doc_name in os.listdir(docs_dir) if Path(doc_name).suffix == '.txt'])
     return doc_paths
@@ -56,7 +59,7 @@ def save_list_of_lines(lst, path, line_type):
         raise Exception(f'Not a valid line_type {line_type}')
     
 
-def find_overlapping_passages():
+def find_overlapping_passages(path):
     def hash_lines(lines):
         return [hashlib.md5(line.encode()).hexdigest() for line in lines]
 
@@ -69,12 +72,11 @@ def find_overlapping_passages():
             for j, other_line_hash in enumerate(line_hashes[i+1:], start=i+1):
                 if line_hash == other_line_hash:
                     match_ratio = difflib.SequenceMatcher(None, lines[i], lines[j]).ratio()
-                    if match_ratio > 0.8:  # Adjust this threshold as needed
+                    if match_ratio > 0.5:  # Adjust this threshold as needed
                         matches.append((i, j, match_ratio))
 
         return matches
 
-    path = ''
     with open(path, 'r') as f:
         text = f.read()
 
@@ -110,6 +112,7 @@ def check_equal_line_count(dir1, dir2, extension):
                 return True
             else:
                 print(f'{base_name}: Unequal nr lines in both dirs.')
+                print(f'Nr lines {dir1}: {line_count1}')
                 return False
 
 
@@ -131,11 +134,23 @@ def check_equal_files(dir1, dir2):
         return False
     
 
+# # General function for finding a string in all code files
+# def search_string_in_files(directory, search_string, extension):
+#     for root, _, files in os.walk(directory):
+#         for file in files:
+#             if file.endswith(extension):
+#                 file_path = os.path.join(root, file)
+#                 if os.path.isfile(file_path):
+#                     with open(file_path, 'r') as f:
+#                         for line_number, line in enumerate(f, start=1):
+#                             if search_string.lower() in line.lower():
+#                                 print(f"Found '{search_string}' in '{os.path.basename(file_path)}' (Line {line_number}): \n{line.rstrip()}\n")
+
 # General function for finding a string in all code files
-def search_string_in_files(directory, search_string, extension):
+def search_string_in_files(directory, search_string, extensions):
     for root, _, files in os.walk(directory):
         for file in files:
-            if file.endswith(extension):
+            if any(file.endswith(ext) for ext in extensions):
                 file_path = os.path.join(root, file)
                 if os.path.isfile(file_path):
                     with open(file_path, 'r') as f:
@@ -157,6 +172,17 @@ class DataHandler():
         self.tokens_per_chunk = tokens_per_chunk
         self.logger = logging.getLogger(__name__)
         self.data_types = ('.npz', '.csv', '.np', '.pkl', '.txt')
+        self.subdir = None
+        self.print_logs = True
+    
+    def add_subdir(self, subdir):
+        self.subdir = os.path.join(self.output_dir, subdir)
+        if not os.path.exists(self.subdir):
+            try:
+                os.mkdir(self.subdir)
+                print(f"Directory '{self.subdir}' created successfully.")
+            except OSError as e:
+                print(f"Error creating directory '{self.subdir}': {e}")
 
     def create_output_dir(self, output_dir):
         if self.data_dir is None or output_dir is None or self.language is None:
@@ -175,14 +201,6 @@ class DataHandler():
     #     else:
     #         file_string = ''
     #     return f"{file_string}{kwargs['mode']}.{data_type}"
-
-    def get_custom_datatype(self, **kwargs):
-        if 'data_type' in kwargs:
-            data_type = kwargs['data_type']
-        else:
-            data_type = self.data_type
-        return data_type
-    
     
     def save_data(self, data, file_name=None, **kwargs):
         file_path  = self.get_file_path(file_name, **kwargs)
@@ -198,7 +216,13 @@ class DataHandler():
         if data_type == 'csv':
             # data = data.sort_index(axis=0).sort_index(axis=1)
             print('Data not sorted before saving.')
-            data.to_csv(file_path, header=True, index=True)
+            sep = ','
+            if 'pandas_sep' in kwargs:
+                sep = kwargs['pandas_sep']
+            index = True
+            if 'pandas_index' in kwargs:
+                index = kwargs['pandas_index']
+            data.to_csv(file_path, header=True, sep=sep, index=index)
         elif data_type == 'pkl':
             joblib.dump(data, file_path)
         elif data_type == 'png':
@@ -222,10 +246,12 @@ class DataHandler():
             file_path = self.get_file_path(file_name, **kwargs)
 
         if not self.file_exists(file_path=file_path):
-            self.logger.info(f'Creating data for {file_path}.')
+            if self.print_logs:
+                self.logger.info(f'{self.__class__.__name__}: Creating data for {file_path}.')
             self.create_data(**kwargs)
-        else:
-            self.logger.info(f'{file_path} already exists.')
+        # else:
+        #     if self.print_logs:
+        #         self.logger.info(f'{self.__class__.__name__}: already exists: {file_path}')
 
     def load_data(self, load=True, file_name=None, **kwargs):
         file_path = self.get_file_path(file_name=file_name, **kwargs)
@@ -233,13 +259,17 @@ class DataHandler():
 
         data = None
         if load:
-            self.logger.info(f'Loading {file_path} from file.')
+            if self.print_logs:
+                self.logger.info(f'{self.__class__.__name__}: Loading {file_path} from file.')
             data = self.load_data_type(file_path, **kwargs)
         return data
     
     def load_data_type(self, file_path,**kwargs):
         if self.data_type == 'csv':
-            data = pd.read_csv(file_path, header=0, index_col=0)
+            sep = ','
+            if 'pandas_sep' in kwargs:
+                sep = kwargs['pandas_sep']
+            data = pd.read_csv(file_path, header=0, index_col=0, sep=sep)
         elif self.data_type == 'np':
             data = data = np.load(file_path)['arr_0'].tolist()
         elif self.data_type == 'pkl':
@@ -263,6 +293,13 @@ class DataHandler():
             data  = self.load_data(load=True, mode=mode)
             all_data[mode] = data
         return all_data
+    
+    def get_custom_datatype(self, **kwargs):
+        if 'data_type' in kwargs:
+            data_type = kwargs['data_type']
+        else:
+            data_type = self.data_type
+        return data_type
 
     def create_filename(self, **kwargs):
         data_type = self.get_custom_datatype(**kwargs)
@@ -285,7 +322,8 @@ class DataHandler():
         if ending_count == 0:
             data_type = self.get_custom_datatype(**kwargs)
             file_name = f'{file_name}.{data_type}'
-            # self.logger.info(f'Added extension to file name: {file_name}')
+            if self.print_logs:
+                self.logger.info(f'{self.__class__.__name__}: Added extension to file name: {file_name}')
         elif ending_count == 1:
             if not file_name.endswith(self.data_types):
                 raise ValueError(f'Invalid file extension: {file_name}')
@@ -297,12 +335,21 @@ class DataHandler():
     def get_file_path(self, file_name=None, **kwargs):
         if file_name is None and not kwargs:
             raise ValueError("Either 'file_name' or kwargs must be provided.")
-        elif file_name is not None and kwargs:
-            self.logger.info(f'Both file_name and kwargs were passed to get_file_path(). file_name is used, kwargs are ignored. \nfile_name: {file_name}. \nkwargs: {kwargs}')
+        elif file_name is not None and kwargs and self.print_logs:
+            self.logger.info(f'{self.__class__.__name__}: Both file_name and kwargs were passed to get_file_path().') # file_name is used, kwargs are ignored. \nfile_name: {file_name}. \nkwargs: {kwargs}')
         if file_name is None:
             file_name = self.create_filename(**kwargs)
         file_name = self.validate_filename(file_name=file_name, **kwargs)
-        file_path = os.path.join(self.output_dir, file_name)
+
+        pathdir = self.output_dir
+        if 'subdir' in kwargs:
+            if isinstance(kwargs['subdir'], bool):
+                assert self.subdir is not None, f'Subdir must be initialized or passed to get_file_path().'
+            elif isinstance(kwargs['subdir'], str):
+                assert self.subdir is None, f'Subdir is already initialized.'
+                self.add_subdir(kwargs['subdir'])
+            pathdir = self.subdir
+        file_path = os.path.join(pathdir, file_name)
         return file_path
     
     def file_exists(self, file_path=None, file_name=None, **kwargs):
@@ -373,9 +420,10 @@ class DataChecks(DataHandler):
     '''
 
     def __init__(self, language):
-        super().__init__(language) 
+        super().__init__(language, data_type='csv') 
         self.language = language
         self.dfs = self.load_dfs()
+        self.output_dir = os.path.join(self.data_dir, 'corpus_corrections')
         # self.print_cols()
         # self.compare_df_values()
         # self.compare_rawdocs_dfs()
@@ -535,7 +583,6 @@ class DataChecks(DataHandler):
 
                 # Create a pandas DataFrame
                 fn_mapping = pd.DataFrame(results, columns=['metadata-fn', 'rawdocs-fn', 'edit-dist', 'file']).sort_values(by='edit-dist', ascending=True)
-        fn_mapping.to_csv(f'compare_filenames_{self.language}.csv', index=False)
 
         # Manually check fn_mapping for distance where where the filenames are almost equal
         if self.language == 'eng':
@@ -545,6 +592,8 @@ class DataChecks(DataHandler):
 
         fn_mapping = fn_mapping.loc[fn_mapping['edit-dist'] <= dist_cutoff].loc[:, ['metadata-fn', 'rawdocs-fn']]
         fn_mapping = fn_mapping.drop_duplicates()
+        self.save_data(data=fn_mapping, file_name=f'compare_filenames_{self.language}.csv', pandas_index=False)
+        # fn_mapping.to_csv(f'compare_filenames_{self.language}.csv', index=False)
         # Check if all columns contain only unique values
         assert (fn_mapping.nunique() == fn_mapping.shape[0]).all()
         return fn_mapping
@@ -602,7 +651,8 @@ class DataChecks(DataHandler):
 
         # Get author_viaf of authors that are involved in collaborations
         collabs = df[df['author_viaf'].astype(str).str.contains(r'\|', na=False, regex=True)]
-        collabs.to_csv(f'collaborations-{self.language}.csv')
+        self.save_data(data=collabs, file_name=f'collaborations-{self.language}.csv', pandas_index=False)
+        # collabs.to_csv(f'collaborations-{self.language}.csv')
         no_collabs = df[~df['author_viaf'].astype(str).str.contains(r'\|', na=False, regex=True)]
         coll_av = df.loc[df['author_viaf'].astype(str).str.contains(r'\|', na=False, regex=True), 'author_viaf'].tolist()
         coll_av = list(set(val for item in coll_av for val in item.split('|')))
@@ -612,18 +662,23 @@ class DataChecks(DataHandler):
         # Ger: Arnim_Bettina, Schlaf_Johannes
         nocolls = no_collabs[no_collabs['author_viaf'].isin(coll_av)]
         print(collabs, '\n\n', nocolls, '\n', coll_av)
-# c = DataChecks('eng')
-# # c.compare_df_values()
-# # c.compare_rawdocs_dfs()
-# c.get_collaborations()
+
+
+# for lang in ['eng', 'ger']:
+#     c = DataChecks(lang)
+#     c.compare_df_values()
+#     c.compare_rawdocs_dfs()
+#     c.get_collaborations()
 
 
 
 
 # Provide the directory path and the string to search for
-directory_path = '/home/annina/scripts/great_unread_nlp/src'
-search_string = 'save_list_of_lines'
-extension = '.py'
+directory_path = '/home/annina/scripts/great_unread_nlp/data/text_raw'
+directory_path = '/home/annina/scripts/great_unread_nlp/src/rewrite_preprocessing'
+search_string = 'Grand_Sarah_The-Heavenly-Twins_1893'
+extension = ['.txt', '.py']
 search_string_in_files(directory_path, search_string, extension)
+
 
 # %%

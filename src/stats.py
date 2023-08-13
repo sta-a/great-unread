@@ -1,6 +1,6 @@
 # %%
-%load_ext autoreload
-%autoreload 2
+# %load_ext autoreload
+# %autoreload 2
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
@@ -13,7 +13,7 @@ from utils import DataHandler, get_doc_paths, get_filename_from_path
 from feature_extraction.process_rawtext import TextChunker
 #from hpo_functions import get_data, ColumnTransformer
 
-class DataChecker(DataHandler):
+class TextStatistics(DataHandler):
     def __init__(self, language):
         super().__init__(language, output_dir='text_statistics', data_type='png')
         self.text_raw_dir = os.path.join(self.data_dir, 'text_raw', language)
@@ -59,97 +59,8 @@ class DataChecker(DataHandler):
         plt.close()
 
 
-    def count_chunks_per_doc(self):
-        # Count chunks
-        nr_chunks_per_doc = {}
-
-        # Nr chunks per doc
-        for doc_path in self.doc_paths:
-            text_tokenized_path = doc_path.replace('/text_raw', '/text_tokenized') 
-            with open(text_tokenized_path, 'r') as f:
-                nr_chunks = sum(1 for _ in f)
-                nr_chunks_per_doc[get_filename_from_path(doc_path)] = nr_chunks
-        print("Number of Chunks per Document:", nr_chunks_per_doc)
-
-        # Calculate total number of chunks
-        total_nr_chunks = sum(nr_chunks_per_doc.values())
-        print('Total nr chunks:', total_nr_chunks)
-
-        # Chunk count distribution
-        chunk_count_freq = Counter(nr_chunks_per_doc.values())
-        print("Chunk count freq:", chunk_count_freq)
-
-        min_chunks_doc = min(nr_chunks_per_doc, key=nr_chunks_per_doc.get)
-        max_chunks_doc = max(nr_chunks_per_doc, key=nr_chunks_per_doc.get)
-        print("Document with minimum chunks:", min_chunks_doc, "Chunks:", nr_chunks_per_doc[min_chunks_doc])
-        print("Document with maximum chunks:", max_chunks_doc, "Chunks:", nr_chunks_per_doc[max_chunks_doc])
-
-        title = (
-            f"Total nr chunks: {total_nr_chunks}\n"
-            f"Document with minimum chunks: {min_chunks_doc}, Chunks: {nr_chunks_per_doc[min_chunks_doc]}\n"
-            f"Document with maximum chunks: {max_chunks_doc}, Chunks: {nr_chunks_per_doc[max_chunks_doc]}"
-        )
-
-        self.plot_chunks_per_doc(chunk_count_freq, title)
-
-
-    def plot_chunks_per_doc(self, chunk_count_freq, title):
-        #chunk_count_freq = dict(sorted(list(chunk_count_freq.items()))[:10])
-        plt.figure(figsize=(20, 6))
-        
-        # Calculate the bar width to avoid overlapping
-        num_categories = len(chunk_count_freq)
-        max_xrange = max(chunk_count_freq.keys()) - min(chunk_count_freq.keys())
-        bar_width = max_xrange / (num_categories * 2)  # Adjust the divisor as needed
-        
-
-        plt.bar(chunk_count_freq.keys(), chunk_count_freq.values(), color='red', width=bar_width)
-        plt.xlabel('Chunk Count')
-        plt.ylabel('Frequency')
-        plt.title('Chunk Frequency Distribution')
-        plt.xticks(rotation=45)
-
-        # Set y-axis ticks to integers
-        max_freq = max(chunk_count_freq.values())
-        print('max freq', max_freq)
-        plt.yticks(range(max_freq + 1))
-        # plt.tight_layout()
-        # plt.show()
-        # Set the title string into a box at the top right corner of the plot
-        plt.text(0.95, 0.95, title, transform=plt.gca().transAxes,
-                bbox=dict(facecolor='white', edgecolor='black', alpha=0.7),
-                va='top', ha='right')
-
-        self.save_data(data=plt, file_name='chunks-per-doc')
-        plt.close()
-
-    def count_tokens_per_chunk(self):
-        textchunker = TextChunker(language=self.language, tokens_per_chunk=self.tokens_per_chunk)
-
-        counts = {}
-        for doc_path in self.doc_paths:
-            chunks = textchunker.load_data(file_name=get_filename_from_path(doc_path), doc_path=doc_path) # load chunks as a list of chunks
-            chunks = ' '.join(chunks)
-            l = len(chunks.split())
-            counts[get_filename_from_path(doc_path)] = l
-
-        # self.save_data(data=plt, file_name='tokens-per-chunk')
-        self.plot_tokens_per_chunk(counts)
-
-
-    def plot_tokens_per_chunk(self, counts):
-        plt.figure(figsize=(8, 6))
-        plt.bar(counts.keys(), counts.values())
-        plt.xlabel('Text')
-        plt.ylabel('Tokens per chunk')
-        plt.title('Tokens per chunk')
-        plt.xticks(rotation=45)
-        self.save_data(data=plt, file_name='tokens-per-chunk')
-        plt.close()
-
-
 for language in ['eng', 'ger']:
-    ts = DataChecker(language)
+    ts = TextStatistics(language)
     # ts.get_longest_shortest_text()
     ts.count_chunks_per_doc()
     ts.count_tokens_per_chunk()

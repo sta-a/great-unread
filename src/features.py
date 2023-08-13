@@ -1,6 +1,6 @@
 # %%
-%load_ext autoreload
-%autoreload 2
+# %load_ext autoreload
+# %autoreload 2
 
 import argparse
 import os
@@ -14,77 +14,11 @@ from pathlib import Path
 from feature_extraction.doc_based_feature_extractor import DocBasedFeatureExtractor
 from feature_extraction.corpus_based_feature_extractor import CorpusBasedFeatureExtractor
 from feature_extraction.process_rawtext import Tokenizer
-from feature_extraction.embeddings import D2vProcessor, SbertProcessor
-from feature_extraction.ngrams import NgramCounter, MfwExtractor
+from feature_extraction.embeddings import SbertProcessor
+
 import sys
 sys.path.append("..")
 from utils import get_doc_paths, check_equal_files, DataHandler, get_bookname
-
-class FeaturePreparer(DataHandler):
-    def __init__(self, language):
-        super().__init__(language, 'features')
-        self.text_raw_dir = os.path.join(self.data_dir, 'text_raw', self.language)
-        self.doc_paths = get_doc_paths(self.text_raw_dir)[:None] 
-    '''
-    Extract basic features that take a while to process before using more detailed processing.
-    This is not necessary, since all data preparation steps are also called from the detailed processing, but is practical.
-    '''
-    def load_text_tokenized(self):
-        chunks = Tokenizer(self.language, self.doc_paths, self.tokens_per_chunk).create_data(self.doc_paths[0], remove_punct=False, lower=False, as_chunk=True)
-        no_chunks = Tokenizer(self.language, self.doc_paths, self.tokens_per_chunk).create_data(self.doc_paths[0], remove_punct=False, lower=False, as_chunk=False)
-
-    def tokenizer(self, remove_files=False):
-        if remove_files:
-            chars_path = f'/home/annina/scripts/great_unread_nlp/src/special_chars_{self.language}.txt'
-            if os.path.exists(chars_path):
-                os.remove(chars_path)
-            annotation_path = f'/home/annina/scripts/great_unread_nlp/src/annotation_words_{self.language}.txt'
-            if os.path.exists(annotation_path):
-                os.remove(annotation_path)
-            for doc_path in self.doc_paths:
-                text_tokenized_path = doc_path.replace('text_raw', 'text_tokenized')
-                if os.path.exists(text_tokenized_path):
-                    os.remove(text_tokenized_path)
-
-        t = Tokenizer(self.language, self.doc_paths, self.tokens_per_chunk)
-        # t.create_all_data()
-        t.check_data()
-
-    def ngramcounter(self):
-        c = NgramCounter(self.language)
-        c.create_all_data()
-        c.get_total_unigram_freq()
-        # c.create_all_data()
-        # c.load_data(file_name='unigram_chunk.pkl')
-        # print(c.data_dict['words'][1500:1600])
-        # # df = c.load_data('trigram_chunks.pkl')
-        #file_ngram_counts = c.load_values_for_chunk(file_name='Ainsworth_William-Harrison_Rookwood_1834_0')
-        # for k, v in file_ngram_counts.items():
-        #     print(k, v)
-
-    def mfwextractor(self):
-        m = MfwExtractor(self.language)
-        m.create_all_data()
-
-    def sbert(self):
-        s = SbertProcessor(self.language)
-        s.create_all_data()
-
-    def run(self):
-        start = time.time()
-        # self.load_text_tokenized()
-        # self.tokenizer()
-        self.ngramcounter()
-        # self.mfwextractor()
-        # self.sbert()
-        print('Time: ', time.time()-start)
-
-
-for language in ['eng']:#, 'ger']: 
-    fp = FeaturePreparer(language)
-    fp.run()
-
-# %%
 
 
 class FeatureProcessor(DataHandler):
