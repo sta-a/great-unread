@@ -26,9 +26,12 @@ def get_filename_from_path(file_path):
 # def get_doc_paths(docs_dir):
 #     return ['/home/annina/scripts/great_unread_nlp/data/text_raw/eng/Aubin_Penelope_The-Life-of-Charlotte-Du-Pont_1723.txt']
 
-def get_doc_paths(docs_dir):
-    doc_paths = sorted([os.path.join(docs_dir, doc_name) for doc_name in os.listdir(docs_dir) if Path(doc_name).suffix == '.txt'])
+def get_files_in_dir(files_dir):
+    doc_paths = sorted([os.path.join(files_dir, doc_name) for doc_name in os.listdir(files_dir) if Path(doc_name).suffix == '.txt'])
     return doc_paths
+
+def get_doc_paths(files_dir):
+    return get_files_in_dir(files_dir)
 
 
 def load_list_of_lines(path, line_type):
@@ -671,14 +674,12 @@ class DataChecks(DataHandler):
 #     c.get_collaborations()
 
 
-
-
-# Provide the directory path and the string to search for
-directory_path = '/home/annina/scripts/great_unread_nlp/data/text_raw'
-directory_path = '/home/annina/scripts/great_unread_nlp/src/rewrite_preprocessing'
-search_string = 'Grand_Sarah_The-Heavenly-Twins_1893'
-extension = ['.txt', '.py']
-search_string_in_files(directory_path, search_string, extension)
+# # Provide the directory path and the string to search for
+# directory_path = '/home/annina/scripts/great_unread_nlp/data/text_raw'
+# directory_path = '/home/annina/scripts/great_unread_nlp/src/rewrite_preprocessing'
+# search_string = 'Grand_Sarah_The-Heavenly-Twins_1893'
+# extension = ['.txt', '.py']
+# search_string_in_files(directory_path, search_string, extension)
 
 
 # %%

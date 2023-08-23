@@ -9,7 +9,7 @@ import numpy as np
 import pickle
 from collections import Counter
 import os
-from utils import DataHandler, get_doc_paths, get_filename_from_path
+from utils import DataHandler, get_doc_paths, get_filename_from_path, get_files_in_dir
 from feature_extraction.process_rawtext import TextChunker
 #from hpo_functions import get_data, ColumnTransformer
 
@@ -17,29 +17,30 @@ class TextStatistics(DataHandler):
     def __init__(self, language):
         super().__init__(language, output_dir='text_statistics', data_type='png')
         self.text_raw_dir = os.path.join(self.data_dir, 'text_raw', language)
-        self.text_tokenized_dir = self.text_raw_dir.replace('/text_raw', '/text_tokenized') 
         self.doc_paths = get_doc_paths(self.text_raw_dir)
+        self.text_tokenized_dir = self.text_raw_dir.replace('/text_raw', '/text_tokenized') 
+        self.tokenized_paths = get_files_in_dir(self.text_tokenized_dir)
 
     def get_longest_shortest_text(self):
-        d = {}
-        for doc_path in self.doc_paths:
-            with open(doc_path, 'r') as f:
+        text_lengths= {}
+        for tokenized_path in self.tokenized_paths:
+            with open(tokenized_path, 'r') as f:
                 text = f.read().split()
-                d[get_filename_from_path(doc_path)] = len(text)
+                text_lengths[get_filename_from_path(tokenized_path)] = len(text)
 
-        d = dict(sorted(d.items(), key=lambda item: item[1]))
+        text_lengths= dict(sorted(text_lengths.items(), key=lambda item: item[1]))
 
-        key_max = max(d.keys(), key=(lambda k: d[k]))
-        key_min = min(d.keys(), key=(lambda k: d[k]))
+        key_max = max(text_lengths.keys(), key=(lambda k: text_lengths[k]))
+        key_min = min(text_lengths.keys(), key=(lambda k: text_lengths[k]))
 
-        print('Maximum Value: ', key_max, d[key_max])
-        print('Minimum Value: ', key_min, d[key_min])
+        print('Maximum Value: ', key_max, text_lengths[key_max])
+        print('Minimum Value: ', key_min, text_lengths[key_min])
 
         title = (
-            f'Maximum Value: {key_max}, {d[key_max]}\n'
-            f'Minimum Value: {key_min}, {d[key_min]}\n'
+            f'Maximum Value: {key_max}, {text_lengths[key_max]}\n'
+            f'Minimum Value: {key_min}, {text_lengths[key_min]}\n'
         )
-        self.plot_words_per_text(d, title)
+        self.plot_words_per_text(text_lengths, title)
 
     def plot_words_per_text(self, text_lengths, title):
         plt.figure(figsize=(10, 6))

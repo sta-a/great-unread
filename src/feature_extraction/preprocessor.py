@@ -37,6 +37,7 @@ class Preprocessor(DataHandler):
             return None
 
     def preprocess_text(self, text):
+        self.logger.info(f'Preprocessing.')
         # Replace sentence terminating chars so that they are not affected by preprocessing
         text = self.preprocess_individual_files(text)
         if self.simple_rep_df is not None:
@@ -91,6 +92,7 @@ class Preprocessor(DataHandler):
         # Clean up whitespace
         text = text.split()
         text = ' '.join(text)
+        self.logger.info(f'Finished preprocessing.')
         return text
 
     def check_annotations(self, text):

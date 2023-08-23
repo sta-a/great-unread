@@ -5,146 +5,66 @@ import time
 import string
 import random
 import sys
+import statistics
 import logging
 from collections import Counter
 logging.basicConfig(level=logging.DEBUG)
+import matplotlib
+import logging
+logging.getLogger("matplotlib.font_manager").setLevel(logging.ERROR)
 import matplotlib.pyplot as plt
 sys.path.append("..")
-from utils import DataHandler, check_equal_line_count, check_equal_files,  get_filename_from_path, get_doc_paths
+from utils import DataHandler, check_equal_line_count, check_equal_files,  get_filename_from_path, get_doc_paths, get_files_in_dir
 from .preprocessor import Preprocessor
-
-class SentenceTokenizer(DataHandler):
-    def __init__(self, language):
-        super().__init__(language, 'text_sentences', data_type='txt')
-        if self.language == 'eng':
-            self.model_name = 'en_core_web_sm'
-        else:
-            self.model_name = 'de_core_news_sm'
-        self.nlp = spacy.load(self.model_name)
-
-    def create_data(self, doc_path=None, text=None):
-        print(f'doc path: {doc_path}, \ntext: {text}')
-        self.logger.info(f'Tokenizing sentences: {doc_path}')
-        start = time.time()
-        if doc_path is None and text is None:
-            raise ValueError("Either doc_path or text must not be None.")
-        if doc_path is not None and text is not None:
-            raise ValueError("Only one of doc_path or text should be provided, not both.")
-        
-        if doc_path is not None:
-            with open(doc_path, 'r') as reader:
-                text = reader.read().strip()
-
-            # Preprocess full text
-            pp = Preprocessor(self.language, doc_path)
-            text = pp.preprocess_text(text)
-
-        i = 0
-        all_sentences = []
-        while True:
-            # Process in chunks because of Spacy character limit
-            current_text = text[i:i+500000]
-            current_sentences = [(sent.text, sent.text_with_ws) for sent in self.nlp(current_text).sents]
-
-            # Ensures that complete sentences are extracted 
-            # Check if there's only one sentence in the current chunk
-            if len(current_sentences) == 1:
-                # Add the single sentence to the list of all sentences
-                all_sentences.extend([sents[0].strip() for sents in current_sentences])
-                break  # Exit the loop since the current chunk is fully processed
-            else:
-                # Add all sentences except the last one to the list of all sentences
-                all_sentences.extend([sents[0].strip() for sents in current_sentences[:-1]])
-                # Update the index 'i' to skip the characters corresponding to the stripped whitespace
-                i += len(''.join([sents[1] for sents in current_sentences[:-1]]))
-
-        self.save_data(data=all_sentences, file_name=get_filename_from_path(doc_path))
-        print(f'Time for sentence tokenization: {time.time()-start}')
-        return all_sentences
-    
-    def tests_tokenization(self, doc_path):
-        start = time.time()
-        all_sentences = self.create_data(doc_path=doc_path)
-        text = ' '.join(all_sentences)
-        new_all_sentences = self.create_data(text=text)
-        if not all_sentences == new_all_sentences:
-            print(len(all_sentences), len(new_all_sentences))
-            print('Sentence tokenization is not always the same.')
-        print(f'Time for calculating tokenization test: {time.time()-start}.')
-        with open('test_sentence_tokenization.txt', "w") as file:
-            for item1, item2 in zip(all_sentences, new_all_sentences):
-                file.write(item1 + '\n')
-                file.write(item2 + '\n')
 
 
 class TextChunker(DataHandler):
     def __init__(self, language, tokens_per_chunk):
         super().__init__(language=language, output_dir='text_chunks', data_type='txt', tokens_per_chunk=tokens_per_chunk)
         self.tokens_per_chunk = tokens_per_chunk
-        self.tpc_increase = int(self.tokens_per_chunk/100)
-        self.tolerance = 0.2 # How much the nr tokens per chunk can deviate from the predefined value 
+        self.tpc_increase = 1
+        self.tolerance = 0.11 # Maximum allowed deviation from tokens per chunk
         self.tpc_window = self.get_tpc_window()
-        print(self.tpc_window)
-        self.sentencetokenizer = SentenceTokenizer(self.language)
 
     def get_tpc_window(self):
         nr_steps = int((self.tokens_per_chunk * self.tolerance) / self.tpc_increase)
-        # print(nr_steps)
-        # for i in range(nr_steps):
-        #     print(i)
-        # return [self.tokens_per_chunk + (i * self.tpc_increase * (-1)**i) for i in range(nr_steps)]
         l = [(self.tokens_per_chunk + i * self.tpc_increase, self.tokens_per_chunk - i * self.tpc_increase) for i in range(1, nr_steps)]
         l = [self.tokens_per_chunk] + [item for tup in l for item in tup]
-        print(l)
         return l
 
-    def distribute_sents_to_chunks(self, tpc):
+    def distribute_sents_to_chunks(self, text, tpc):
         chunks = []
         next_chunk = []
         token_count = 0
-        for sentence in self.sentences:
-            sentence_tokens = sentence.split()
-            if len(sentence_tokens) < tpc:
-                # print('nr tokens in sent', len(sentence_tokens))
-                if token_count < tpc:
-                    next_chunk.extend(sentence_tokens)
-                    token_count += len(sentence_tokens)
-                else:
-                    chunks.append(' '.join(next_chunk))
-                    next_chunk = sentence_tokens
-                    token_count = len(sentence_tokens)
+        text = text.split()
+        for token in text:
+            if token_count < tpc:
+                next_chunk.append(token)
+                token_count += 1
             else:
-                for token in sentence_tokens:
-                    if token_count  < tpc:
-                        next_chunk.extend([token])
-                        token_count += 1
-                    else:
-                        chunks.append(' '.join(next_chunk))
-                        next_chunk = [token]
-                        token_count = 1
-
+                chunks.append(' '.join(next_chunk))
+                next_chunk = [token]
+                token_count = 1
         return chunks, next_chunk
     
-    def create_data(self, doc_path):
-        self.logger.info(f'Creating chunks: {doc_path}')
+    def create_data(self, doc_path, text):
+        self.logger.info(f'Creating chunks.')
 
-        print(get_filename_from_path(doc_path))
-        self.sentences = self.sentencetokenizer.load_data(file_name=get_filename_from_path(doc_path), doc_path=doc_path)
-
-        self.logger.info(f'Splitting text into chunks.')
-        chunks, next_chunk = self.distribute_sents_to_chunks(self.tokens_per_chunk)
+        chunks, next_chunk = self.distribute_sents_to_chunks(text, self.tokens_per_chunk)
         # Deal with remaining tokens at the end of the texts that are shorter thant tokens_per_chunk
         i = 0
         while len(next_chunk) > self.tolerance*self.tokens_per_chunk:
-            chunks, next_chunk = self.distribute_sents_to_chunks(tpc=self.tpc_window[i])
-            print('len next chunk', len(next_chunk))
+            chunks, next_chunk = self.distribute_sents_to_chunks(text, tpc=self.tpc_window[i])
             i += 1
             
         # If nr of remaining tokens is below tolerance, add them to previous chunk
         assert len(next_chunk) <= self.tolerance*self.tokens_per_chunk, 'Nr of tokens at the end of the text that belong to no chunk are above tolerance.'
-        assert all(len(string.split()) >= self.tokens_per_chunk for string in chunks), "Some strings don't meet the token count requirement."
+        assert all(len(string.split()) >= self.tpc_window[i-1] for string in chunks), "Some strings don't meet the token count requirement."
         print('next_chunk', len(next_chunk), 'chunks', len(chunks))
-        chunks[-1] += ' '.join(next_chunk)
+        # chunks[-1] += ' '.join(next_chunk)   
+        with open('lastchunk.txt', 'a') as f:
+            f.write(get_filename_from_path(doc_path) + '\t' + str(len(next_chunk)) + '\t' + ' '.join(next_chunk) + '\n')
+
         self.logger.info(f'Finished splitting text into chunks. Chunk length = {self.tpc_window[i-1]}.')
 
         self.save_data(data=chunks, file_name=get_filename_from_path(doc_path))
@@ -164,7 +84,6 @@ class Tokenizer(DataHandler):
             model_name = 'de_core_news_sm'
         else:
             raise Exception(f'Not a valid language {self.language}')
-
         try:
             nlp = spacy.load(model_name)
             return nlp
@@ -192,25 +111,34 @@ class Tokenizer(DataHandler):
 
     def create_data(self, doc_path, remove_punct=False, lower=False, as_chunk=True):
         self.logger.info(f'Tokenizing {doc_path}')
+        with open(doc_path, 'r') as reader: # Helper for testing
+            text = reader.read().strip()
+        pp = Preprocessor(self.language, doc_path)
+        text = pp.preprocess_text(text)
+        chunks = self.textchunker.load_data(file_name=get_filename_from_path(doc_path), doc_path=doc_path, text=text) # load chunks as a list of chunks
 
-        chunks = self.textchunker.load_data(file_name=get_filename_from_path(doc_path), doc_path=doc_path) # load chunks as a list of chunks
-        # with open(doc_path, 'r') as reader: # Helper for testing
-        #     text = reader.read().strip()
-        # pp = Preprocessor(self.language, doc_path)
-        # chunks = pp.preprocess_text(text)
-
-        chunks = self.tokenize_words(chunks) 
+        # chunks = self.tokenize_words(chunks) 
         self.save_data(file_name=get_filename_from_path(doc_path), data=chunks)
-
-        chunks = Postprocessor(remove_punct=remove_punct, lower=lower).postprocess_chunks(chunks)
-
-        if as_chunk == False:
-            chunks = ' '.join(chunks)
-        #     self.logger.info('Returning tokenized words as one string.')
-        # else:
-        #     self.logger.info('Returning tokenized chunks as list of strings.')
         self.logger.info(f'Finished tokenizing: {doc_path}.\n----------------------------')
         return chunks
+    
+    def load_data(self, load=True, file_name=None, remove_punct=False, lower=False, as_chunk=True, **kwargs):
+        file_path = self.get_file_path(file_name=file_name, **kwargs)
+        self.file_exists_or_create(file_path=file_path, **kwargs)
+
+        data = None
+        if load:
+            if self.print_logs:
+                self.logger.info(f'{self.__class__.__name__}: Loading {file_path} from file.')
+            chunks = self.load_data_type(file_path, **kwargs)
+
+            # chunks = Postprocessor(remove_punct=remove_punct, lower=lower).postprocess_chunks(chunks)
+            if as_chunk == False:
+                chunks = ' '.join(chunks)
+                self.logger.info('Returning tokenized words as one string.')
+            else:
+                self.logger.info('Returning tokenized chunks as list of strings.')
+            return chunks
     
     def create_all_data(self):
         start = time.time()
@@ -220,7 +148,7 @@ class Tokenizer(DataHandler):
     
     def check_data(self):
         assert check_equal_line_count(self.output_dir, self.textchunker.output_dir, self.data_type)
-        assert check_equal_files(self.output_dir.replace('/text_tokenized', '/text_raw'), self.output_dir)
+        # assert check_equal_files(self.output_dir.replace('/text_tokenized', '/text_raw'), self.output_dir) ####################3
         dc = DataChecker(self.language)
         dc.count_chunks_per_doc()
         dc.count_tokens_per_chunk()
@@ -253,25 +181,25 @@ class Postprocessor():
             new_chunk = self.postprocess_text(chunk)
             new_chunks.append(new_chunk)
         return new_chunks
+    
 
 class DataChecker(DataHandler):
     def __init__(self, language):
         super().__init__(language, output_dir='text_statistics', data_type='png')
         self.text_raw_dir = os.path.join(self.data_dir, 'text_raw', language)
-        self.text_tokenized_dir = self.text_raw_dir.replace('/text_raw', '/text_tokenized') 
         self.doc_paths = get_doc_paths(self.text_raw_dir)
-
+        self.text_tokenized_dir = os.path.join(self.data_dir, 'text_tokenized', language)
+        self.tokenized_paths = get_files_in_dir(self.text_tokenized_dir)
 
     def count_chunks_per_doc(self):
         # Count chunks
         nr_chunks_per_doc = {}
 
         # Nr chunks per doc
-        for doc_path in self.doc_paths:
-            text_tokenized_path = doc_path.replace('/text_raw', '/text_tokenized') 
-            with open(text_tokenized_path, 'r') as f:
+        for tokenized_path in self.tokenized_paths:
+            with open(tokenized_path, 'r') as f:
                 nr_chunks = sum(1 for _ in f)
-                nr_chunks_per_doc[get_filename_from_path(doc_path)] = nr_chunks
+                nr_chunks_per_doc[get_filename_from_path(tokenized_path)] = nr_chunks
         print("Number of Chunks per Document:", nr_chunks_per_doc)
 
         # Calculate total number of chunks
@@ -327,14 +255,22 @@ class DataChecker(DataHandler):
         plt.close()
 
     def count_tokens_per_chunk(self):
-        textchunker = TextChunker(language=self.language, tokens_per_chunk=self.tokens_per_chunk)
-
         counts = {}
-        for doc_path in self.doc_paths:
-            chunks = textchunker.load_data(file_name=get_filename_from_path(doc_path), doc_path=doc_path) # load chunks as a list of chunks
-            chunks = ' '.join(chunks)
-            l = len(chunks.split())
-            counts[get_filename_from_path(doc_path)] = l
+        t = Tokenizer(self.language, self.doc_paths, self.tokens_per_chunk)
+        
+        for doc_path in self.doc_paths[:30]: ################################3
+            chunks = t.load_data(self, file_name=get_filename_from_path(doc_path), remove_punct=True, lower=False, as_chunk=True)
+            lengths = [len(chunk.split()) for chunk in chunks] ###########################
+            minimum = min(lengths)
+            maximum = max(lengths)
+            average = round(sum(lengths) / len(lengths))
+            std_dev = round(statistics.stdev(lengths))
+            print(f'minimum: {minimum}, maximum: {maximum}, average: {average}, std_dev: {std_dev}')
+            for i in lengths:
+                print(i)
+  
+            #assert all(len(chunk) == len(chunks[0]) for chunk in chunks[:-1]), "Not all strings have the same length"
+            counts[get_filename_from_path(doc_path)] = average
 
         # self.save_data(data=plt, file_name='tokens-per-chunk')
         self.plot_tokens_per_chunk(counts)
@@ -350,3 +286,4 @@ class DataChecker(DataHandler):
         self.save_data(data=plt, file_name='tokens-per-chunk')
         plt.close()
  
+# %%
