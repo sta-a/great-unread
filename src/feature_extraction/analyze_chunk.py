@@ -3,7 +3,7 @@ sys.path.append("..")
 print(sys.path)
 from utils import get_bookname
 import re
-from .process_rawtext import Tokenizer, Postprocessor
+from .process_rawtext import Postprocessor
 
 class Chunk():
     def __init__(self, 

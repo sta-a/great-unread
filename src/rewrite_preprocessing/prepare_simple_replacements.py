@@ -38,6 +38,7 @@ more_lines = r"""
     Wieland_Christoph-Martin_Abderiten_1774ƒO! O! , ! Fe~, Fe~, eeee~ƒGREEKƒ0
     Edgeworth_Maria_The-Grateful-Negro_1804ƒ{Empty page}ƒ''ƒ0
     Edgeworth_Maria_The-Modern-Griselda_1804ƒi*ƒiƒ0
+    Amory_Thomas_The-Life-of-John-Buncle_1756ƒ628.ƒ'628,'ƒ0
     """
 # ƒƒ''ƒ0
 

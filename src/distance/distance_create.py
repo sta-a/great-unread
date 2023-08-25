@@ -20,7 +20,7 @@ from feature_extraction.ngrams import MfwExtractor
 sys.path.insert(1, '/home/annina/scripts/pydelta')
 import delta
 sys.path.append("..")
-from utils import DataHandler, get_doc_paths, get_bookname
+from utils import DataHandler, get_bookname
 
 logging.basicConfig(level=logging.DEBUG)
 # Suppress logger messages by 'matplotlib.ticker
@@ -174,8 +174,7 @@ class D2vDist(Distance):
     def __init__(self, language, output_dir='distance'):
         super().__init__(language, output_dir)
         self.modes = ['doc_tags', 'both_tags']
-        self.text_raw_dir = os.path.join(self.data_dir, 'text_raw', self.language)
-        self.doc_paths = get_doc_paths(self.text_raw_dir)
+
 
     def create_data(self,**kwargs):
         '''

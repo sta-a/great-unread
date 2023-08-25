@@ -23,15 +23,22 @@ def get_filename_from_path(file_path):
     return os.path.splitext(os.path.basename(file_path))[0]
     
 
-# def get_doc_paths(docs_dir):
-#     return ['/home/annina/scripts/great_unread_nlp/data/text_raw/eng/Aubin_Penelope_The-Life-of-Charlotte-Du-Pont_1723.txt']
-
 def get_files_in_dir(files_dir):
     doc_paths = sorted([os.path.join(files_dir, doc_name) for doc_name in os.listdir(files_dir) if Path(doc_name).suffix == '.txt'])
     return doc_paths
 
 def get_doc_paths(files_dir):
     return get_files_in_dir(files_dir)
+
+def get_doc_paths_sorted(files_dir):
+    paths = get_files_in_dir(files_dir)
+    text_lengths= {}
+    for path in paths:
+        with open(path, 'r') as f:
+            text = f.read().split()
+            text_lengths[path] = len(text)
+    text_lengths= dict(sorted(text_lengths.items(), key=lambda item: item[1]))
+    return list(text_lengths.keys())
 
 
 def load_list_of_lines(path, line_type):
@@ -166,44 +173,52 @@ class DataHandler():
     '''
     Base class for creating, saving, and loading data.
     '''
-    def __init__(self, language=None, output_dir=None, data_type='csv', modes=None, tokens_per_chunk=500, data_dir='/home/annina/scripts/great_unread_nlp/data'):
+    def __init__(self, language=None, output_dir=None, create_outdir=False, data_type='csv', modes=None, tokens_per_chunk=500, data_dir='/home/annina/scripts/great_unread_nlp/data'):
+        '''
+        create_outdir: If True, create output dir when class is initialized.
+        '''
         self.language = language
         self.data_dir = data_dir
-        self.output_dir = self.create_output_dir(output_dir)
+        self.logger = logging.getLogger(__name__)
+        self.output_dir = self.create_output_dir(output_dir, create_outdir)
+        self.text_raw_dir = os.path.join(self.data_dir, 'text_raw', language)
+        self.doc_paths = get_doc_paths(self.text_raw_dir)
         self.data_type = data_type
         self.modes = modes
         self.tokens_per_chunk = tokens_per_chunk
-        self.logger = logging.getLogger(__name__)
         self.data_types = ('.npz', '.csv', '.np', '.pkl', '.txt')
+        self.separator = 'ƒ'
         self.subdir = None
-        self.print_logs = True
+        self.print_logs = False
+
+    def create_dir(self, dir_path):
+        if not os.path.exists(dir_path):
+            try:
+                os.makedirs(dir_path) # Create dir and parent dirs if necessary
+                print(f"Directory '{dir_path}' created successfully.")
+            except OSError as e:
+                print(f"Error creating directory '{dir_path}\n': {e}")
+            self.logger.info(f'{self.__class__.__name__}: Created dir {dir_path}')
+
     
     def add_subdir(self, subdir):
         self.subdir = os.path.join(self.output_dir, subdir)
         if not os.path.exists(self.subdir):
-            try:
-                os.mkdir(self.subdir)
-                print(f"Directory '{self.subdir}' created successfully.")
-            except OSError as e:
-                print(f"Error creating directory '{self.subdir}': {e}")
+            self.create_dir(self.subdir)
 
-    def create_output_dir(self, output_dir):
+
+    def create_output_dir(self, output_dir, create_outdir):
         if self.data_dir is None or output_dir is None or self.language is None:
             output_dir = None
         else:
             output_dir = os.path.join(self.data_dir, output_dir, self.language)
+            if not os.path.exists(output_dir) and create_outdir:
+                self.create_dir(output_dir)
         return output_dir
 
     def create_data(self,**kwargs):
         raise NotImplementedError
     
-    # def create_filename_base(self, **kwargs):
-    #     data_type = self.get_custom_datatype(**kwargs)
-    #     if 'file_string' in kwargs:
-    #         file_string = kwargs['file_string'] + '-'
-    #     else:
-    #         file_string = ''
-    #     return f"{file_string}{kwargs['mode']}.{data_type}"
     
     def save_data(self, data, file_name=None, **kwargs):
         file_path  = self.get_file_path(file_name, **kwargs)
@@ -230,16 +245,26 @@ class DataHandler():
             joblib.dump(data, file_path)
         elif data_type == 'png':
             data.savefig(file_path, format="png")
-        elif data_type == 'txt':
-            assert isinstance(data, list)
-            with open(file_path, 'w') as f:
-                for item in data:
-                    assert isinstance(item, str)
-                    f.write(str(item) + '\n')
         elif data_type =='dict':
             with open(file_path, 'w') as f:
                 for key, value in data.items():
                     f.write(f"{key}, {value}\n")
+        elif data_type == 'txt':
+            assert isinstance(data, list)
+            list_of_strings = all(isinstance(element, str) for element in data)
+            list_of_lists = all(isinstance(element, list) for element in data)
+            assert list_of_strings or list_of_lists, "Input data should contain either a list of strings or a list of lists of strings"
+
+            if list_of_strings:
+                with open(file_path, 'w') as f:
+                    for s in data:
+                        f.write(str(s) + '\n')
+            elif list_of_lists:
+                # list of lists of strings
+                with open(file_path, 'w') as f:
+                    for l in data:
+                        f.write(f'{self.separator.join(l)}\n')
+                self.logger.info(f'Writing list of lists to file using {self.separator} as the separator.')
 
 
     def file_exists_or_create(self, file_path=None, file_name=None, **kwargs):
@@ -278,8 +303,10 @@ class DataHandler():
         elif self.data_type == 'pkl':
             data = joblib.load(file_path)
         elif self.data_type == 'txt':
-            with open(file_path, 'r') as reader:
-                data = [line.strip() for line in reader]               
+            with open(file_path, 'r') as f:
+                # Return a list of strings
+                data = f.readlines()
+                data = [line.rstrip('\n') for line in data]            
         return data
 
     def create_all_data(self):
@@ -674,12 +701,11 @@ class DataChecks(DataHandler):
 #     c.get_collaborations()
 
 
-# # Provide the directory path and the string to search for
+# # # Provide the directory path and the string to search for
 # directory_path = '/home/annina/scripts/great_unread_nlp/data/text_raw'
-# directory_path = '/home/annina/scripts/great_unread_nlp/src/rewrite_preprocessing'
-# search_string = 'Grand_Sarah_The-Heavenly-Twins_1893'
+# directory_path = '/home/annina/scripts/great_unread_nlp/src/'
+# search_string = 'self.text_raw_dir'
 # extension = ['.txt', '.py']
 # search_string_in_files(directory_path, search_string, extension)
 
 
-# %%

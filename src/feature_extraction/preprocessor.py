@@ -19,13 +19,11 @@ class Preprocessor(DataHandler):
         self.language = language
         self.output_dir = os.path.join(self.data_dir, output_dir) # No language subdirs
         self.doc_path = doc_path
-        self.number_tag = '<NUM>'
+        self.number_tag = '0NUMERICTAG'
         # self.initials_tag = '<INITIALS>'
         self.bookname = get_bookname(self.doc_path)
         self.regex_rep_counter = 0
-        self.separator = 'ƒ'
         self.simple_rep_df = self.get_simple_rep_df()
-        self.logger.info(f'Preprocessing {get_filename_from_path(self.doc_path)}.')
 
     def get_simple_rep_df(self):
         df = pd.read_csv(os.path.join(self.output_dir, 'replacement_values.csv'), sep=self.separator, header=0, index_col=None, engine='python').fillna("''")
@@ -231,19 +229,21 @@ class Preprocessor(DataHandler):
             # '&c.': 'xxxxxetc',    # Sterne_Laurence_Tristram-Shandy_1759
             '--': ' ',              # Shelley_Mary_Perkin-Warbeck_1830.txt
             "'-": '',               # Carleton_William_Fardorougha-the-Miser_1839, Carleton_William_The-Emigrants-of-Ahadarra_1847
+            '"\'': '"',          # Amory_Thomas_The-Life-of-John-Buncle_1756, double quote followed by single quote
+            '\'"': '"',
             '»': "'",
             '«': "'",
             '‘': "'",
             '”': "'",
             '“': "'",
             '"': "'",
+            '›': "'",
+            '‹': "'",
             '`': "'",
             ',—': ' ',              # Corelli_Marie_The-Sorrows-of-Satan_1895.txt
             '†': '',
             '<': "'", # Keller_Gottfried_Die-Leute-von-Seldwyla_1856.txt
             '>': "'", 
-            '›': "'",
-            '‹': "'",
             '=>': '', # Sterne_Laurence_Tristram-Shandy_1759
             'align="left">': '', # Hays_Mary_Memoirs-of-Emma-Courtney_1796
             '[sic]': '',
@@ -363,6 +363,10 @@ class Preprocessor(DataHandler):
 
 
     def regex_replace(self, necessary, check, pattern, replace_with, text, flags=0):
+        '''
+        necessary: replacement has to be made
+        check: check replacement and write check to file
+        '''
         rep_overview = []
 
         def replace_lambda(match):
@@ -575,7 +579,7 @@ class Preprocessor(DataHandler):
 
         if 'Scott_Walter_The-Betrothed_1825' in self.doc_path:
             text = self.simple_replace(text, '|east', 'least')
-            text = self.regex_replace(True, True, r'Footnote:', '', text, flags=re.DOTALL)
+            # text = self.regex_replace(True, True, r'Footnote:', '', text, flags=re.DOTALL) # Not removed, seem to be by author
 
         # files_list = ['Edgeworth_Maria_Ormond_1817', 
         #                 'Edgeworth_Maria_Patronage_1814',

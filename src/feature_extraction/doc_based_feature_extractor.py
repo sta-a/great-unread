@@ -6,7 +6,7 @@ from pathlib import Path
 from scipy.stats import entropy
 import sys
 sys.path.append("..")
-from .process_rawtext import Tokenizer
+from .process_rawtext import TextLoader
 from .embeddings import SbertProcessor, D2vProcessor
 from .analyze_chunk import Chunk
 import sys
@@ -46,7 +46,7 @@ class DocBasedFeatureExtractor():
         self.char_unigram_counts = char_unigram_counts
 
         # Preprocess or load data
-        self.text_tokenized = Tokenizer(self.language).create_data(doc_path, remove_punct=False, lower=False, as_chunk=True)
+        self.text_tokenized = TextLoader(self.language).load_data(doc_path, remove_punct=False, lower=False, as_chunk=True)
 
         self.chunks = self.__get_chunks()
 

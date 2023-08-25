@@ -13,19 +13,17 @@ from multiprocessing import Pool, cpu_count
 from pathlib import Path
 from feature_extraction.doc_based_feature_extractor import DocBasedFeatureExtractor
 from feature_extraction.corpus_based_feature_extractor import CorpusBasedFeatureExtractor
-from feature_extraction.process_rawtext import Tokenizer
 from feature_extraction.embeddings import SbertProcessor
 
 import sys
 sys.path.append("..")
-from utils import get_doc_paths, check_equal_files, DataHandler, get_bookname
+from utils import check_equal_files, DataHandler, get_bookname
 
 
 class FeatureProcessor(DataHandler):
     def __init__(self, language):
         super().__init__(language, 'features')
-        self.text_raw_dir = os.path.join(self.data_dir, 'text_raw', self.language)
-        self.doc_paths = get_doc_paths(self.text_raw_dir)[:None] #############################
+        self.doc_paths = self.doc_paths[:None] #############################
 
     def get_doc_features_helper(self, doc_path, use_chunks):
         if use_chunks:

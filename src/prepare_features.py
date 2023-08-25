@@ -6,10 +6,13 @@ import os
 import time
 import sys
 sys.path.append("..")
-from utils import get_doc_paths, check_equal_files, DataHandler, get_bookname
+from utils import get_doc_paths, check_equal_files, DataHandler, get_bookname, get_doc_paths_sorted
 from feature_extraction.embeddings import SbertProcessor
 from feature_extraction.ngrams import NgramCounter, MfwExtractor
-from feature_extraction.process_rawtext import Tokenizer
+from feature_extraction.process_rawtext import Tokenizer, TextLoader, ChunkHandler
+import logging
+logging.getLogger("matplotlib.font_manager").setLevel(logging.ERROR)
+import matplotlib.pyplot as plt
 
 class FeaturePreparer(DataHandler):
     '''
@@ -18,8 +21,10 @@ class FeaturePreparer(DataHandler):
     '''
     def __init__(self, language):
         super().__init__(language, 'features')
-        self.text_raw_dir = os.path.join(self.data_dir, 'text_raw', self.language)
-        self.doc_paths = get_doc_paths(self.text_raw_dir)#[:None]  ##################################
+        self.doc_paths = self.doc_paths[:10]  ##################################
+        self.doc_paths = get_doc_paths_sorted(self.text_raw_dir)[:5]
+        self.doc_paths = list(reversed(self.doc_paths))
+        print('doc paths sorted', self.doc_paths)
 
     def load_text_tokenized(self):
         chunks = Tokenizer(self.language, self.doc_paths, self.tokens_per_chunk).create_data(self.doc_paths[0], remove_punct=False, lower=False, as_chunk=True)
@@ -43,9 +48,18 @@ class FeaturePreparer(DataHandler):
             remove_files(f'/home/annina/scripts/great_unread_nlp/data/text_tokenized/{language}')
             remove_files('/home/annina/scripts/great_unread_nlp/data/preprocess/regex_checks')
 
-        t = Tokenizer(self.language, self.doc_paths, self.tokens_per_chunk)
+        t = Tokenizer(self.language)
         t.create_all_data()
-        t.check_data()
+
+    def chunker(self):
+        c = ChunkHandler(self.language, self.tokens_per_chunk)
+        c.create_all_data()
+
+    def textloader(self):
+        for doc_path in self.doc_paths:
+            t = TextLoader(self.language, self.tokens_per_chunk)
+            text = t.load_data(doc_path=doc_path, as_chunk=False, lower=False, remove_punct=False)
+            print(text)
 
     def ngramcounter(self):
         c = NgramCounter(self.language)
@@ -69,16 +83,19 @@ class FeaturePreparer(DataHandler):
     def run(self):
         start = time.time()
         # self.load_text_tokenized()
-        self.tokenizer()
+        # self.tokenizer()
+        # self.chunker()
+        self.textloader()
         # self.ngramcounter()
         # self.mfwextractor()
         # self.sbert()
         print('Time: ', time.time()-start)
 
 
-
-
-
+shortest_texts = {
+    'eng': ['Kipling_Rudyard_How-the-Rhinoceros-Got-His-Skin_1902', 'Potter_Beatrix_Peter-Rabbit_1901', 'Kipling_Rudyard_How-the-Whale-Got-His-Throat_1902', 'Kipling_Rudyard_How-the-Camel-Got-His-Hump_1902', 'Kipling_Rudyard_The-Sing-Song-of-the-Old-Man-Kangaroo_1902', 'Kipling_Rudyard_The-Story-of-Muhammad-Din_1888', 'Kipling_Rudyard_The-Other-Man_1888', 'Kipling_Rudyard_Three-and-An-Extra_1888', 'Kipling_Rudyard_Venus-Annodomini_1888', 'Kipling_Rudyard_In-Error_1888'],
+    'ger': ['Altenberg_Peter_Wie-wunderbar_1914', 'Hebel_Johann-Peter_Kannitverstan_1808', 'Wildermuth_Ottilie_Streit-in-der-Liebe-und-Liebe-im-Streit_1910', 'Kleist_Heinrich_Das-Bettelweib-von-Locarno_1810', 'Kleist_Heinrich_Unwahrscheinlich-Wahrhaftigkeiten_1811', 'Wackenroder_Wilhelm_Morgenlaendisches-Maerchen_1799', 'Rilke_Rainer-Maria_Die-Turnstunde_1899', 'Sacher-Masoch_Leopold_Lola_1907', 'Rilke_Rainer-Maria_Die-Weise-von-Liebe-und-Tod_1904', 'Moerike_Eduard_Die-Hand-der-Jezerte_1853']
+}
 remove = False
 for language in ['eng']:
     fp = FeaturePreparer(language)

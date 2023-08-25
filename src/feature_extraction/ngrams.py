@@ -6,10 +6,10 @@ import pandas as pd
 import joblib
 import pickle
 from sklearn.feature_extraction.text import CountVectorizer
-from .process_rawtext import Tokenizer
+from .process_rawtext import TextLoader
 import sys
 sys.path.append("..")
-from utils import get_doc_paths, DataHandler, get_filename_from_path
+from utils import DataHandler, get_filename_from_path
 import os
 import numpy as np
 import time
@@ -19,9 +19,7 @@ import re
 class NgramCounter(DataHandler):
     def  __init__(self, language):
         super().__init__(language, output_dir='ngram_counts', data_type='pkl')
-        self.text_raw_dir = os.path.join(self.data_dir, 'text_raw', self.language)
         self.text_tokenized_dir = os.path.join(self.data_dir, 'text_tokenized', self.language)
-        self.doc_paths = sorted(get_doc_paths(self.text_raw_dir))
         self.nr_chunks_check = {}
         self.nr_chunknames_check = {}
         self.unigrams = ['unigram', 'bigram', 'trigram']
@@ -37,9 +35,9 @@ class NgramCounter(DataHandler):
         print('ntype', ntype, 'size', size)
         for doc_path in self.doc_paths[:5]:
             if size == 'chunk':
-                chunks = Tokenizer(self.language, self.doc_paths, self.tokens_per_chunk).create_data(doc_path, remove_punct=False, lower=False, as_chunk=True)
+                chunks = TextLoader(self.language, self.doc_paths, self.tokens_per_chunk).load_data(doc_path, remove_punct=False, lower=False, as_chunk=True)
             else:
-                chunks = [Tokenizer(self.language, self.doc_paths, self.tokens_per_chunk).create_data(doc_path, remove_punct=False, lower=False, as_chunk=False)]
+                chunks = [TextLoader(self.language, self.doc_paths, self.tokens_per_chunk).load_data(doc_path, remove_punct=False, lower=False, as_chunk=False)]
             self.nr_chunks_check[get_filename_from_path(doc_path)] = len(chunks)
 
             for chunk in chunks:              
