@@ -34,7 +34,6 @@ more_lines = r"""
     Wells_H-G_The-First-Men-in-the-Moon_1901ƒ* Footnoteƒ''ƒ0
     Wells_H-G_The-First-Men-in-the-Moon_1901ƒ[ƒ''ƒ1
     Wells_H-G_The-First-Men-in-the-Moon_1901ƒ]ƒ''ƒ2
-    Heinse_Wilhelm_Ardinghello_1787ƒapste~ƒGREEKƒ0
     Wieland_Christoph-Martin_Abderiten_1774ƒO! O! , ! Fe~, Fe~, eeee~ƒGREEKƒ0
     Edgeworth_Maria_The-Grateful-Negro_1804ƒ{Empty page}ƒ''ƒ0
     Edgeworth_Maria_The-Modern-Griselda_1804ƒi*ƒiƒ0

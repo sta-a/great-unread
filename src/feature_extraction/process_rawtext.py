@@ -16,7 +16,8 @@ import pandas as pd
 logging.getLogger("matplotlib.font_manager").setLevel(logging.ERROR)
 import matplotlib.pyplot as plt
 sys.path.append("..")
-from utils import DataHandler, check_equal_line_count, check_equal_files,  get_filename_from_path, get_files_in_dir
+import multiprocessing
+from utils import DataHandler, check_equal_line_count, check_equal_files,  get_filename_from_path, get_files_in_dir, get_doc_paths_sorted
 from stats import TextStatistics
 from .preprocessor import Preprocessor
 
@@ -28,10 +29,14 @@ class SentenceTokenizer(DataHandler):
             self.model_name = 'en_core_web_sm'
         else:
             self.model_name = 'de_core_news_sm'
-        self.nlp = spacy.load(self.model_name)
-        self.doc_paths = self.doc_paths
+        self.nlp = spacy.load(self.model_name, disable=["lemmatizer"]) # Suppress warning
+        self.nlp.add_pipe('sentencizer')
 
-    def tokenize_sentences(self, text):
+        # self.doc_paths = get_doc_paths_sorted(self.text_raw_dir)[:5]
+        # self.doc_paths = list(reversed(self.doc_paths))
+        # print('doc paths sorted', self.doc_paths)
+
+    def tokenize_sentences_old(self, text):
         start = time.time()
         i = 0
         all_sentences = []
@@ -56,7 +61,7 @@ class SentenceTokenizer(DataHandler):
         # Some ' are considered to be a single sentence
         new_sentences = []
         prev = None  
-        for sent in all_sentences:
+        for sent in all_sentences: ##################3
             if sent == "'":
                 prev = sent
                 continue
@@ -66,7 +71,48 @@ class SentenceTokenizer(DataHandler):
                 new_sentences.append(sent)
             prev = sent
 
-        print(f'Time for sentence tokenization: {time.time()-start}')
+        print(f'Time for sentence old tokenization: {time.time()-start}')
+        return new_sentences
+    
+    def tokenize_sentences_best(self, text):
+        start = time.time()
+        all_sentences = []
+        i = 0
+        while i < len(text):
+            # Process in chunks because of Spacy character limit
+            current_text = text[i:i+500000]
+    
+
+            for doc in self.nlp.pipe([current_text], batch_size=1, disable=["tagger", "parser", "ner"], n_process=multiprocessing.cpu_count()-2):
+                current_sentences = [(sent.text, sent.text_with_ws) for sent in doc.sents]
+
+                # Ensures that complete sentences are extracted 
+                # Check if there's only one sentence in the current chunk
+                if len(current_sentences) == 1:
+                    # Add the single sentence to the list of all sentences
+                    all_sentences.extend([sents[0].strip() for sents in current_sentences])
+                    i = float('inf')
+                    break  # Exit the loop since the current chunk is fully processed
+                else:
+                    # Add all sentences except the last one to the list of all sentences
+                    all_sentences.extend([sents[0].strip() for sents in current_sentences[:-1]])
+                    # Update the index 'i' to skip the characters corresponding to the stripped whitespace
+                    i += len(''.join([sents[1] for sents in current_sentences[:-1]]))
+                             
+        # Postprocess
+        new_sentences = []
+        prev = False
+        ending = " '"
+        for sent in all_sentences:
+            if prev == True:
+                sent = "'" + sent
+                prev = False
+            if sent.endswith(ending):
+                sent = sent[:-len(ending)]
+                prev = True
+            new_sentences.append(sent)
+
+        print(f'Time for sentence tokenization: {time.time() - start}')
         return new_sentences
         
 
@@ -80,9 +126,10 @@ class SentenceTokenizer(DataHandler):
         text = pp.preprocess_text(text)
         
         # Tokenize
-        sentences = self.tokenize_sentences(text)
+        print(f'{get_filename_from_path(doc_path)}-----------------------------------------')
+        sentences = self.tokenize_sentences_best(text)
 
-        self.save_data(data=sentences, file_name=get_filename_from_path(doc_path))
+        self.save_data(data=sentences, file_name=get_filename_from_path(doc_path)) ###########################
         self.check_data(sentences)
         return sentences
     
@@ -95,10 +142,10 @@ class SentenceTokenizer(DataHandler):
 
 
     def create_all_data(self):
-        start = time.time()
+        startc = time.time()
         for i, doc_path in enumerate(self.doc_paths):
             _ = self.load_data(load=False, file_name=get_filename_from_path(doc_path), doc_path=doc_path)
-        # print(f'{time.time()-start}s to tokenize all texts')
+        print(f'{time.time()-startc}s to tokenize all texts')
     
     # def tests_tokenization(self, doc_path):
     #     '''
@@ -125,16 +172,34 @@ class Tokenizer(DataHandler):
             self.model_name = 'en_core_web_sm'
         else:
             self.model_name = 'de_core_news_sm'
-        self.nlp = spacy.load(self.model_name)
-        self.doc_paths = self.doc_paths
+        self.nlp = spacy.load(self.model_name, disable=["lemmatizer"]) # Suppress warning
+
+        
+    def tokenize_words_old(self, sentences):
+        self.logger.info(f'Tokenizing words.')
+        start = time.time()
+        new_sentences = []
+        for sent in sentences:
+            sent = [token.text for token in self.nlp(sent)] 
+            # Add line breaks to split sentences after : and ;
+            # This is simpler than modifying the sentence tokenizer
+            if len(sent) == 1:
+                print('Sent only 1 long', ' '.join(sent))
+            if len(sent) > 1:
+                newsent = [x+'\n' if x in [':', ';'] else x+' ' for x in sent[:-1]]
+                newsent.append(sent[-1])
+            sent = ''.join(newsent)
+            new_sentences.append(sent)
+        print(f'Time for old word tokenization: {time.time()-start}')
+        return new_sentences
 
         
     def tokenize_words(self, sentences):
         self.logger.info(f'Tokenizing words.')
         start = time.time()
         new_sentences = []
-        for sent in sentences:
-            sent = [token.text for token in self.nlp(sent)] 
+        for doc in self.nlp.pipe(sentences, batch_size=1, disable=["tagger", "parser", "ner"], n_process=multiprocessing.cpu_count()-2):
+            sent = [token.text for token in doc] 
             # Add line breaks to split sentences after : and ;
             # This is simpler than modifying the sentence tokenizer
             if len(sent) == 1:
@@ -152,6 +217,7 @@ class Tokenizer(DataHandler):
 
         st = SentenceTokenizer(self.language)
         sentences = st.load_data(file_name=get_filename_from_path(doc_path), doc_path=doc_path)
+        # sentences = self.tokenize_words_old(sentences)
         sentences = self.tokenize_words(sentences)
 
         self.save_data(data=sentences, file_name=get_filename_from_path(doc_path))
@@ -164,10 +230,10 @@ class Tokenizer(DataHandler):
         pass
 
     def create_all_data(self):
-        start = time.time()
+        startx = time.time()
         for i, doc_path in enumerate(self.doc_paths):
             _ = self.load_data(load=False, file_name=get_filename_from_path(doc_path), doc_path=doc_path)
-        # print(f'{time.time()-start}s to tokenize all texts')
+        print(f'{time.time()-startx}s to tokenize all texts')
 
 
 class TextLoader(DataHandler):
@@ -199,43 +265,103 @@ class ChunkHandler(DataHandler):
         self.tokens_per_chunk = tokens_per_chunk
         self.tolerance = 0.1 # Maximum allowed deviation from tokens per chunk
         self.t = Tokenizer(self.language)
-        self.shortest_texts = ['Altenberg_Peter_Wie-wunderbar_1914', 'Hebel_Johann-Peter_Kannitverstan_1808', 'Wildermuth_Ottilie_Streit-in-der-Liebe-und-Liebe-im-Streit_1910', 'Kleist_Heinrich_Das-Bettelweib-von-Locarno_1810', 'Kleist_Heinrich_Unwahrscheinlich-Wahrhaftigkeiten_1811', 'Wackenroder_Wilhelm_Morgenlaendisches-Maerchen_1799', 'Rilke_Rainer-Maria_Die-Turnstunde_1899', 'Sacher-Masoch_Leopold_Lola_1907', 'Rilke_Rainer-Maria_Die-Weise-von-Liebe-und-Tod_1904', 'Moerike_Eduard_Die-Hand-der-Jezerte_1853']
-        self.doc_paths = [os.path.join(self.text_raw_dir, x + '.txt') for x in self.shortest_texts]
+        # self.shortest_texts = ['Altenberg_Peter_Wie-wunderbar_1914', 'Hebel_Johann-Peter_Kannitverstan_1808', 'Wildermuth_Ottilie_Streit-in-der-Liebe-und-Liebe-im-Streit_1910', 'Kleist_Heinrich_Das-Bettelweib-von-Locarno_1810', 'Kleist_Heinrich_Unwahrscheinlich-Wahrhaftigkeiten_1811', 'Wackenroder_Wilhelm_Morgenlaendisches-Maerchen_1799', 'Rilke_Rainer-Maria_Die-Turnstunde_1899', 'Sacher-Masoch_Leopold_Lola_1907', 'Rilke_Rainer-Maria_Die-Weise-von-Liebe-und-Tod_1904', 'Moerike_Eduard_Die-Hand-der-Jezerte_1853']
+        # self.doc_paths = [os.path.join(self.text_raw_dir, x + '.txt') for x in self.shortest_texts]
+        # self.doc_paths = get_doc_paths_sorted(self.text_raw_dir)[:5] ######################
 
 
-    def distribute_sents_to_chunks(self, sentences, doc_path):
+    # def distribute_sents_to_chunks(self, sentences, limit):
+        
+    #     def distribute(sentences, limit, fits=None):
+    #         chunks = []
+    #         current_chunk = []
+    #         tokens_count = 0
+    #         chunk_count = 0
+    #         for sentence in sentences:
+    #             # Make first couple of chunks longer if function is called for the second time with fits
+    #             if fits is not None and chunk_count < fits:
+    #                 current_tpc = self.tokens_per_chunk + limit
+    #             else:
+    #                 current_tpc = self.tokens_per_chunk
+    #             tokens = sentence.split()
+    #             assert len(tokens) < current_tpc, sentence
+
+    #             # Chunks can become longer than tpc
+    #             if tokens_count < current_tpc:
+    #                 current_chunk.append(sentence)
+    #                 tokens_count += len(tokens)
+    #             else:
+    #                 chunks.append(current_chunk)
+    #                 chunk_count += 1
+    #                 current_chunk = [sentence]
+    #                 tokens_count = len(tokens)
+    #         if current_chunk:
+    #             # Make new chunk, which can be a bit shorter
+    #             if tokens_count > (self.tokens_per_chunk - limit):
+    #                 chunks.append(current_chunk)
+    #                 current_chunk = None
+    #             # Append to last chunk
+    #             elif tokens_count <= limit:
+    #                 chunks[-1].extend(current_chunk)
+    #                 current_chunk = None
+                    
+    #         return chunks, current_chunk, tokens_count
+        
+    #     def calculate_fits(number, limit):
+    #         assert 1 <= number <= self.tokens_per_chunk
+    #         n = number // limit
+    #         return n
+        
+    #     limit = self.tokens_per_chunk * self.tolerance
+    #     chunks, current_chunk, tokens_count = distribute(sentences, limit, fits=None)
+
+    #     if current_chunk is not None:
+    #         n = calculate_fits(tokens_count, limit)
+    #         if len(chunks) >= n:
+    #             # Redistribute sents to chunks
+    #             # The first n chunks have an increased length
+    #             # The remaining tokens are short enough to be added to the last chunk
+    #             # Example: len(current_chunk) = 320 -> n=6 -> 6 first chunks have increased lenght, remaining 20 tokens are added at the end
+    #             #### This must not necessarily work   
+    #             chunks, current_chunk, tokens_count = distribute(sentences, limit, fits=n)
+    #             assert current_chunk is None, f' {tokens_count}, {current_chunk}'
+    #         else:
+    #             # Make short chunk
+    #             if tokens_count >= self.tokens_per_chunk//2:
+    #                 chunks.append(current_chunk)
+    #             else:
+    #                 # Extend last chunk, make long chunk
+    #                 chunks[-1].extend(current_chunk)
+    #     return chunks
+
+    def distribute_sents_to_chunks(self, sentences, limit):
+        
         chunks = []
         current_chunk = []
         tokens_count = 0
-        
+        chunk_count = 0
         for sentence in sentences:
             tokens = sentence.split()
-            assert len(tokens) < self.tokens_per_chunk, sentence
             # Chunks can become longer than tpc
             if tokens_count < self.tokens_per_chunk:
                 current_chunk.append(sentence)
                 tokens_count += len(tokens)
             else:
                 chunks.append(current_chunk)
+                chunk_count += 1
                 current_chunk = [sentence]
                 tokens_count = len(tokens)
-        
-        # Deal with last chunk
+
         if current_chunk:
-            # Make new chunk, which can be a bit shorter
-            if tokens_count > (self.tokens_per_chunk - (self.tokens_per_chunk * self.tolerance)):
+            # Make short chunk
+            if tokens_count >= self.tokens_per_chunk//2:
                 chunks.append(current_chunk)
-            # Append to last chunk
-            elif tokens_count <= (self.tokens_per_chunk * self.tolerance):
-                chunks[-1].extend(current_chunk)
-            # Omit text and write it to file for checking
             else:
-                ts = TextStatistics(self.language, create_outdir=True)
-                path = os.path.join(ts.output_dir, 'omitted_text.txt')
-                with open(path, 'a') as f:
-                    f.write(get_filename_from_path(doc_path) + self.separator + str(tokens_count) + self.separator + ' '.join(current_chunk) + '\n')
+                # Extend last chunk, make long chunk
+                chunks[-1].extend(current_chunk)
 
         return chunks
+
     
     def create_data(self, doc_path=None):
         self.logger.info(f'Creating chunks.')
@@ -247,15 +373,15 @@ class ChunkHandler(DataHandler):
     def check_data(self):
         dc = self.DataChecker(self.language, chunks_dir=self.output_dir)
         dc.count_chunks_per_doc()
-        dc.plot_tokens_in_excluded_text()
+        # dc.plot_tokens_in_excluded_text()
         dc.count_tokens_per_chunk()
 
     def create_all_data(self):
-        start = time.time()
+        starty = time.time()
         for i, doc_path in enumerate(self.doc_paths):
             _ = self.load_data(load=False, file_name=get_filename_from_path(doc_path), doc_path=doc_path)
         self.check_data()
-        # print(f'{time.time()-start}s to tokenize all texts')
+        print(f'{time.time()-starty}s to tokenize all texts')
 
     def load_data(self, load=True, file_name=None, remove_punct=False, lower=False, as_chunk=True, **kwargs):
         file_path = self.get_file_path(file_name=file_name, **kwargs)
