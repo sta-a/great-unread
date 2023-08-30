@@ -162,9 +162,9 @@ class Distance(DataHandler):
         ax.grid(False)
 
         # file_name = self.create_filename(mode=mode, )
-        self.save_data(data=plt, data_type='png', mode=mode)
+        self.save_data(data=plt, data_type='svg', mode=mode)
         plt.close()
-        # plt.savefig('test', format="png")
+        # plt.savefig('test', format="svg")
 
 
 class D2vDist(Distance):

@@ -15,7 +15,7 @@ from utils import DataHandler
 
 class Network(DataHandler):
     def __init__(self, language, name_mx_tup=(1, 2), graph=None, draw=True, cluster_alg=None, attribute_name=None): # attribute: labeled groups, i.e. 'm', 'f' #################################):
-        super().__init__(language, 'distance', 'png')
+        super().__init__(language, 'distance', 'svg')
         self.language = language
         self.distname, self.mx = name_mx_tup
         self.graph = graph
@@ -148,7 +148,7 @@ class NXNetwork(Network):
         # Show the heatmap
         #
         # plt.show()
-        self.save_data(data=plt, data_type='png', file_name=f'heatmap-{self.distname}{self.attribute_name}-{self.cluster_alg}.png')
+        self.save_data(data=plt, data_type='svg', file_name=f'heatmap-{self.distname}{self.attribute_name}-{self.cluster_alg}.svg')
         plt.close()
 
     
@@ -173,7 +173,7 @@ class NXNetwork(Network):
             graph.get_node(node).attr['label'] = '' # Remove label
 
         file_name = f'{self.distname}-{self.attribute_name}-{self.cluster_alg}-{self.language}'
-        file_path = self.get_file_path(file_name=f'network-{file_name}.png', dpi=600)
+        file_path = self.get_file_path(file_name=f'network-{file_name}.svg', dpi=600)
         graph.draw(file_path, prog='fdp') #fdp
         self.logger.info(f'Created pygraphviz grap.')
 

@@ -6,7 +6,7 @@ import pandas as pd
 import joblib
 import pickle
 from sklearn.feature_extraction.text import CountVectorizer
-from .process_rawtext import TextLoader
+from .process_rawtext import ChunkHandler
 import sys
 sys.path.append("..")
 from utils import DataHandler, get_filename_from_path
@@ -35,9 +35,9 @@ class NgramCounter(DataHandler):
         print('ntype', ntype, 'size', size)
         for doc_path in self.doc_paths[:5]:
             if size == 'chunk':
-                chunks = TextLoader(self.language, self.doc_paths, self.tokens_per_chunk).load_data(doc_path, remove_punct=False, lower=False, as_chunk=True)
+                chunks = ChunkHandler(self.language, self.doc_paths, self.tokens_per_chunk).load_data(doc_path, remove_punct=False, lower=False, as_chunk=True)
             else:
-                chunks = [TextLoader(self.language, self.doc_paths, self.tokens_per_chunk).load_data(doc_path, remove_punct=False, lower=False, as_chunk=False)]
+                chunks = [ChunkHandler(self.language, self.doc_paths, self.tokens_per_chunk).load_data(doc_path, remove_punct=False, lower=False, as_chunk=False)]
             self.nr_chunks_check[get_filename_from_path(doc_path)] = len(chunks)
 
             for chunk in chunks:              

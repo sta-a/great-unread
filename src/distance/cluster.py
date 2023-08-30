@@ -211,7 +211,7 @@ class NetworkCluster():
 #             label = label.set_color(str(color.values[0]))
 
 #     def save(self,plt, vis_type, dpi):
-#         plt.savefig(os.path.join(self.output_dir, f'{self.plot_name}_{vis_type}.png'), dpi=dpi)
+#         plt.savefig(os.path.join(self.output_dir, f'{self.plot_name}_{vis_type}.svg'), dpi=dpi)
 
 #     def draw_dendrogram(self, clusters):
 #         print(f'Drawing dendrogram.')

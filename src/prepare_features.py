@@ -9,7 +9,7 @@ sys.path.append("..")
 from utils import get_doc_paths, check_equal_files, DataHandler, get_bookname, get_doc_paths_sorted
 from feature_extraction.embeddings import SbertProcessor
 from feature_extraction.ngrams import NgramCounter, MfwExtractor
-from feature_extraction.process_rawtext import Tokenizer, TextLoader, ChunkHandler, SentenceTokenizer
+from feature_extraction.process_rawtext import Tokenizer, ChunkHandler, SentenceTokenizer
 import logging
 logging.getLogger("matplotlib.font_manager").setLevel(logging.ERROR)
 import matplotlib.pyplot as plt
@@ -60,22 +60,17 @@ class FeaturePreparer(DataHandler):
         # c.create_all_data()
         c.check_data()
 
-    def textloader(self):
-        for doc_path in self.doc_paths:
-            t = TextLoader(self.language, self.tokens_per_chunk)
-            text = t.load_data(doc_path=doc_path, as_chunk=False, lower=False, remove_punct=False)
-            print(text)
 
     def ngramcounter(self):
         c = NgramCounter(self.language)
         c.create_all_data()
-        c.get_total_unigram_freq()
-        c.load_data(file_name='unigram_chunk.pkl')
-        print(c.data_dict['words'][1500:1600])
-        # df = c.load_data('trigram_chunks.pkl')
-        file_ngram_counts = c.load_values_for_chunk(file_name='Ainsworth_William-Harrison_Rookwood_1834_0')
-        for k, v in file_ngram_counts.items():
-            print(k, v)
+        # c.get_total_unigram_freq()
+        # c.load_data(file_name='unigram_chunk.pkl')
+        # print(c.data_dict['words'][1500:1600])
+        # # df = c.load_data('trigram_chunks.pkl')
+        # file_ngram_counts = c.load_values_for_chunk(file_name='Ainsworth_William-Harrison_Rookwood_1834_0')
+        # for k, v in file_ngram_counts.items():
+        #     print(k, v)
 
     def mfwextractor(self):
         m = MfwExtractor(self.language)
@@ -90,9 +85,8 @@ class FeaturePreparer(DataHandler):
         # self.load_text_tokenized()
         # self.sentence_tokenizer()
         # self.tokenizer()
-        self.chunker()
-        # self.textloader()
-        # self.ngramcounter()
+        # self.chunker()
+        self.ngramcounter()
         # self.mfwextractor()
         # self.sbert()
         print('Time: ', time.time()-start)

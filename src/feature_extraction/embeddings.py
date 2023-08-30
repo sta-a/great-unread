@@ -17,7 +17,7 @@ from sklearn.utils import shuffle
 from sentence_transformers import SentenceTransformer
 
 
-from .process_rawtext import TextLoader
+from .process_rawtext import ChunkHandler
 sys.path.append("..")
 from utils import get_bookname, get_doc_paths, DataHandler, get_filename_from_path, save_list_of_lines
 logging.basicConfig(level=logging.DEBUG)
@@ -41,7 +41,7 @@ class SbertProcessor(DataHandler):
 
     def create_data(self, doc_path):
         print(doc_path)
-        chunks = TextLoader(self.language, self.doc_paths, self.tokens_per_chunk).load_data(doc_path, remove_punct=False, lower=False, as_chunk=True)
+        chunks = ChunkHandler(self.language, self.doc_paths, self.tokens_per_chunk).load_data(doc_path, remove_punct=False, lower=False, as_chunk=True)
 
         all_embeddings = []
         for chunk in chunks:
@@ -106,7 +106,7 @@ class D2vProcessor(DataHandler):
         for doc_path in self.doc_paths:
             chunk_id_counter = 0
 
-            all_chunks = TextLoader(self.language).load_data(doc_path, remove_punct=True, lower=True, as_chunk=True)
+            all_chunks = ChunkHandler(self.language).load_data(doc_path, remove_punct=True, lower=True, as_chunk=True)
             for curr_chunks in all_chunks:
                 words = curr_chunks.split()
                 assert len(words) < 10000 # D2v has token limit of 10'000
@@ -176,7 +176,7 @@ class D2vProcessor(DataHandler):
     #     for doc_path in self.doc_paths:
     #         chunk_id_counter = 0
 
-    #         all_chunks = TextLoader(self.language).load_data(doc_path, remove_punct=True, lower=True)
+    #         all_chunks = ChunkHandler(self.language).load_data(doc_path, remove_punct=True, lower=True)
     #         for curr_chunks in all_chunks:
     #             # Split text into word list
     #             doc_tag = f'{get_bookname(doc_path)}_{chunk_id_counter}'  ### Convert to int to save memory ################# use list with two tags instead
@@ -196,7 +196,7 @@ class D2vProcessor(DataHandler):
     #     '''
     #     Infer document vector of the whole model after training model on individual chunks.
     #     '''
-    #     all_words = TextLoader(self.language).load_data(doc_path, remove_punct=True, lower=True, as_chunk=False)
+    #     all_words = ChunkHandler(self.language).load_data(doc_path, remove_punct=True, lower=True, as_chunk=False)
     #     assert len(all_words) < 10000 # token limit
 
     #     inferred_vector = self.model.infer_vector(all_words)

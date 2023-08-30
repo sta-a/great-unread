@@ -34,7 +34,6 @@ more_lines = r"""
     Wells_H-G_The-First-Men-in-the-Moon_1901ƒ* Footnoteƒ''ƒ0
     Wells_H-G_The-First-Men-in-the-Moon_1901ƒ[ƒ''ƒ1
     Wells_H-G_The-First-Men-in-the-Moon_1901ƒ]ƒ''ƒ2
-    Wieland_Christoph-Martin_Abderiten_1774ƒO! O! , ! Fe~, Fe~, eeee~ƒGREEKƒ0
     Edgeworth_Maria_The-Grateful-Negro_1804ƒ{Empty page}ƒ''ƒ0
     Edgeworth_Maria_The-Modern-Griselda_1804ƒi*ƒiƒ0
     Amory_Thomas_The-Life-of-John-Buncle_1756ƒ628.ƒ'628,'ƒ0
@@ -112,12 +111,12 @@ for lang in ['eng', 'ger']:
     filename2 = 'replacement_values.csv'
 
     # Construct full paths to the files
-    file_path1 = os.path.join(dir1, filename1)
-    file_path2 = os.path.join(dir2, filename2)
+    tok_path = os.path.join(dir1, filename1)
+    chunk_path = os.path.join(dir2, filename2)
 
     # Load the CSV files as Pandas DataFrames
-    df1 = pd.read_csv(file_path1)
-    df2 = pd.read_csv(file_path2, sep='ƒ', header=0, index_col=None, engine='python').fillna("''")
+    df1 = pd.read_csv(tok_path)
+    df2 = pd.read_csv(chunk_path, sep='ƒ', header=0, index_col=None, engine='python').fillna("''")
 
 
     # Get the set of entries in the "file_name" column of df2

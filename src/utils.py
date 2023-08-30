@@ -112,17 +112,18 @@ def check_equal_line_count(dir1, dir2, extension):
         base_name, ext = os.path.splitext(file_name)
         matching_file = f"{base_name}.{extension}"
         if matching_file in files2:
-            file_path1 = os.path.join(dir1, file_name)
-            file_path2 = os.path.join(dir2, matching_file)
+            tok_path = os.path.join(dir1, file_name)
+            chunk_path = os.path.join(dir2, matching_file)
 
-            line_count1 = sum(1 for _ in open(file_path1))
-            line_count2 = sum(1 for _ in open(file_path2))
+            line_count1 = sum(1 for _ in open(tok_path))
+            line_count2 = sum(1 for _ in open(chunk_path))
             if line_count1==line_count2:
                 print(f'{base_name}: Equal nr lines in both dirs.')
                 return True
             else:
                 print(f'{base_name}: Unequal nr lines in both dirs.')
                 print(f'Nr lines {dir1}: {line_count1}')
+                print(f'Nr lines {dir2}: {line_count2}')
                 return False
 
 
@@ -186,10 +187,14 @@ class DataHandler():
         self.data_type = data_type
         self.modes = modes
         self.tokens_per_chunk = tokens_per_chunk
-        self.data_types = ('.npz', '.csv', '.np', '.pkl', '.txt')
+        self.data_types = ('.npz', '.csv', '.np', '.pkl', '.txt', '.svg')
         self.separator = 'ƒ'
         self.subdir = None
         self.print_logs = False
+        if self.language == 'eng':
+            self.nr_texts = 605
+        else:
+            self.nr_texts = 547
 
     def create_dir(self, dir_path):
         if not os.path.exists(dir_path):
@@ -243,8 +248,8 @@ class DataHandler():
             data.to_csv(file_path, header=True, sep=sep, index=index)
         elif data_type == 'pkl':
             joblib.dump(data, file_path)
-        elif data_type == 'png':
-            data.savefig(file_path, format="png")
+        elif data_type == 'svg':
+            data.savefig(file_path, format="svg")
         elif data_type =='dict':
             with open(file_path, 'w') as f:
                 for key, value in data.items():

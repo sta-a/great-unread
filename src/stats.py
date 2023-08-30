@@ -16,7 +16,7 @@ from utils import DataHandler, get_filename_from_path, get_files_in_dir
 
 class TextStatistics(DataHandler):
     def __init__(self, language, create_outdir=False):
-        super().__init__(language, output_dir='text_statistics', create_outdir=create_outdir, data_type='png')
+        super().__init__(language, output_dir='text_statistics', create_outdir=create_outdir, data_type='svg')
         self.text_tokenized_dir = self.text_raw_dir.replace('/text_raw', '/text_tokenized') 
 
     def get_longest_shortest_text(self):
