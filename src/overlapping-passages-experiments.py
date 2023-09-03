@@ -1,132 +1,139 @@
 # %%
+%load_ext autoreload
+%autoreload 2
+import os
+import time
+import re
+import difflib
 from difflib import SequenceMatcher
+from utils import DataHandler, get_filename_from_path
 path = '/home/annina/Downloads/JCLS2022_Modeling-and-Predicting-Lit-Reception/corpora/ENG/Forrester_Andrew_The-Female-Detective_1864.txt'
 path = '/home/annina/scripts/great_unread_nlp/data/corpus_corrections/manually_corrected_texts/eng/Forrester_Andrew_The-Female-Detective_1864.txt'
 
-def split_text_by_words(text, words_per_chunk, window_size):
-    words = text.split()
-    chunks = [words[i:i + words_per_chunk] for i in range(0, len(words), window_size)]
-    return [' '.join(chunk) for chunk in chunks]
-
-def find_repeated_passages(text, words_per_chunk, window_size, similarity_threshold):
-    passages = []
-    chunks = split_text_by_words(text, words_per_chunk, window_size)
-    num_chunks = len(chunks)
-
-    for i in range(num_chunks - 1):
-        window = chunks[i]
-
-        for j in range(i + 1, num_chunks):
-            candidate = chunks[j]
-
-            similarity = SequenceMatcher(None, window, candidate).ratio()
-
-            if similarity >= similarity_threshold:
-                print(similarity, '\n', window, '\n', candidate, '='*100)
-                passages.append((window, candidate, similarity))
-
-    return passages
-
-def main():
-    words_per_chunk = 5000  # Adjust the words per chunk as needed
-    window_size = int(words_per_chunk/2)
-    similarity_threshold = 0.55  # Adjust the similarity threshold as needed
-
-    with open(path, "r", encoding="utf-8") as file:
-        text = file.read()
-    # text = """This is a short example text to demonstrate how the code works. It contains repeated passages to test the passage finding algorithm. The goal is to identify similar passages with a specified similarity threshold."""
-
-    passages = find_repeated_passages(text, words_per_chunk, window_size, similarity_threshold)
-
-    for passage in passages:
-        window, candidate, similarity = passage
-
-main()
-
-# # %%
-# path = '/home/annina/Downloads/JCLS2022_Modeling-and-Predicting-Lit-Reception/corpora/ENG/Forrester_Andrew_The-Female-Detective_1864.txt'
-
-# from sklearn.feature_extraction.text import TfidfVectorizer
-# from sklearn.metrics.pairwise import cosine_similarity
-# import Levenshtein
-
-# # Define the chunking function
-# def split_text_by_words(text, words_per_chunk):
-#     window_size = words_per_chunk
-#     words = text.split()
-#     chunks = [words[i:i + words_per_chunk] for i in range(0, len(words), window_size)]
-#     return [' '.join(chunk) for chunk in chunks]
-
-# # Load your book text
-# book_text = open(path, 'r').read()
-
-# # Split the raw text into chunks
-# chunked_text = split_text_by_words(book_text, words_per_chunk=10000)
-
-# # Compare chunks with Levenshtein distance
-# similarity_threshold = 0.2
-# overlapping_passages = []
-# num_chunks = len(chunked_text)
-
-# for i in range(num_chunks):
-#     for j in range(num_chunks):
-#         if i != j:
-#             levenshtein_distance = Levenshtein.distance(chunked_text[i], chunked_text[j])
-#             normalized_distance = 1 - (levenshtein_distance / max(len(chunked_text[i]), len(chunked_text[j])))
-            
-#             if normalized_distance < similarity_threshold:
-#                 overlapping_passages.append((chunked_text[i], chunked_text[j]))
+class DupSentencesFinder(DataHandler):
+    def __init__(self, language):
+        super().__init__(language, output_dir='duplicated_sentences', data_type='txt')
 
 
-# for i in overlapping_passages:
-#     print(i[0])
-#     print(i[1])
-#     print('='*50)
+    # Function to clean and tokenize a sentence
+    def clean_and_tokenize(self, sentence):
+        # Remove punctuation and convert to lowercase
+        sentence = re.sub(r'[^\w\s]', '', sentence).lower()
+        # Tokenize the sentence into words
+        return sentence.split()
 
-# # %%
+    # Function to find similar sentences using difflib's SequenceMatcher
+    def find_similar_sentences(self, file_path, similarity_threshold=0.8):
+        # Read the file and split it into sentences
+        with open(file_path, 'r') as f:
+            sentences = [line.strip() for line in f]
 
-# from sklearn.feature_extraction.text import TfidfVectorizer
-# from sklearn.metrics.pairwise import cosine_similarity
+        similar_sentences = []
+
+        # Compare each pair of sentences
+        for i in range(len(sentences)):
+            for j in range(i + 1, len(sentences)):
+                sentence1 = sentences[i]
+                sentence2 = sentences[j]
+
+                # Clean and tokenize sentences
+                tokens1 = self.clean_and_tokenize(sentence1)
+                tokens2 = self.clean_and_tokenize(sentence2)
+
+                # Calculate the similarity ratio using SequenceMatcher
+                similarity_ratio = difflib.SequenceMatcher(None, tokens1, tokens2).ratio()
+
+                # If the similarity ratio is above the threshold, consider them similar
+                if similarity_ratio >= similarity_threshold:
+                    similar_sentences.append([sentence1, sentence2, similarity_ratio])
+
+        return similar_sentences
+
+    
+    def create_data(self):
+        path = '/home/annina/scripts/great_unread_nlp/data/text_tokenized'
+        path = os.path.join(path, self.language)
+
+        # for filename in os.listdir(path): #################3 should be path
+
+        for doc_path in self.doc_paths:
+            filename = os.path.basename(doc_path)
+            file_path = os.path.join(path, filename)
+            print(file_path)
+            # Replace 'your_file.txt' with the path to your text file
+            similarity_threshold = 0.8  # Adjust this threshold as needed
+
+            similar_sentences = self.find_similar_sentences(file_path, similarity_threshold)
+
+            if similar_sentences:
+                print("Similar sentences found:")
+                for sentence1, sentence2, similarity_ratio in similar_sentences:
+                    print(f"'{sentence1}' and '{sentence2}' are similar with a similarity ratio of {similarity_ratio:.2f}.")
+            else:
+                print("No similar sentences found in the file.")
+            self.save_data(data=similar_sentences, file_name=get_filename_from_path(file_path))
+
+    def create_all_data(self):
+        startc = time.time()
+        for i, doc_path in enumerate(self.doc_paths):
+            _ = self.load_data(load=False, file_name=get_filename_from_path(doc_path), doc_path=doc_path)
+        print(f'{time.time()-startc}s to tokenize all texts')
+
+for language in ['eng', 'ger']:
+    d = DupSentencesFinder(language)
+    d.run()
 
 
-# # Load and preprocess texts
-# def preprocess_text(text):
-#     sentences = sent_tokenize(text.lower())
-#     stop_words = set(stopwords.words('english'))
-#     tokens = [word for sent in sentences for word in word_tokenize(sent) if word.isalnum() and word not in stop_words]
-#     return ' '.join(tokens)
 
-# # Load your book texts
-# book1_text = open('book1.txt', 'r').read()
-# book2_text = open('book2.txt', 'r').read()
 
-# # Preprocess texts
-# book1_preprocessed = preprocess_text(book1_text)
-# book2_preprocessed = preprocess_text(book2_text)
 
-# # Vectorize and calculate cosine similarity
-# vectorizer = TfidfVectorizer()
-# book1_tfidf = vectorizer.fit_transform([book1_preprocessed])
-# book2_tfidf = vectorizer.transform([book2_preprocessed])
-# similarity_matrix = cosine_similarity(book1_tfidf, book2_tfidf)
 
-# # Define similarity threshold
-# similarity_threshold = 0.7
 
-# # Find overlapping passages
-# overlapping_passages = []
-# for i in range(similarity_matrix.shape[0]):
-#     for j in range(similarity_matrix.shape[1]):
-#         if similarity_matrix[i, j] > similarity_threshold:
-#             overlapping_passages.append((i, j))
+# %%
+class PassagesFinder(DataHandler):
+    def __init__(self, language):
+        super().__init__(language, output_dir='overlapping_passages', data_type='svg')
 
-# # Print overlapping passages
-# for i, j in overlapping_passages:
-#     print("Overlapping Passage in Book 1 (Index {}):".format(i))
-#     print(sent_tokenize(book1_text)[i])
-#     print("\nOverlapping Passage in Book 2 (Index {}):".format(j))
-#     print(sent_tokenize(book2_text)[j])
-#     print("=" * 50)
+    def split_text_by_words(self, text, words_per_chunk, window_size):
+        words = text.split()
+        chunks = [words[i:i + words_per_chunk] for i in range(0, len(words), window_size)]
+        return [' '.join(chunk) for chunk in chunks]
 
+    def find_repeated_passages(self, text, words_per_chunk, window_size, similarity_threshold):
+        passages = []
+        chunks = self.split_text_by_words(text, words_per_chunk, window_size)
+        num_chunks = len(chunks)
+
+        for i in range(num_chunks - 1):
+            window = chunks[i]
+
+            for j in range(i + 1, num_chunks):
+                candidate = chunks[j]
+
+                similarity = SequenceMatcher(None, window, candidate).ratio()
+
+                if similarity >= similarity_threshold:
+                    print(similarity, '\n', window, '\n', candidate, '='*100)
+                    passages.append((window, candidate, similarity))
+
+        return passages
+
+    def run(self):
+        words_per_chunk = 5  # Adjust the words per chunk as needed
+        window_size = int(words_per_chunk/2)
+        similarity_threshold = 0.55  # Adjust the similarity threshold as needed
+
+        for doc_path in self.doc_paths:
+            with open(doc_path, 'r') as file:
+                text = file.read()
+        text = """This is a short example text to demonstrate how the code works. It contains repeated passages to test the passage finding algorithm. example text to demonstrate how the code works. The goal is to identify similar passages with a specified similarity threshold."""
+
+        passages = self.find_repeated_passages(text, words_per_chunk, window_size, similarity_threshold)
+
+        for passage in passages:
+            print(passage)
+
+for language in ['eng', 'ger']:
+    pf = PassagesFinder(language)
 
 # %%

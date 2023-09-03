@@ -89,7 +89,6 @@ class SentenceTokenizer(DataHandler):
         text = pp.preprocess_text(text)
         
         # Tokenize
-        print(f'{get_filename_from_path(doc_path)}-----------------------------------------')
         sentences = self.tokenize_sentences(text)
 
         self.save_data(data=sentences, file_name=get_filename_from_path(doc_path))
@@ -226,7 +225,6 @@ class ChunkHandler(DataHandler):
         
         limit = self.tokens_per_chunk * self.tolerance
         first_chunks, first_current_chunk, first_cc_len = distribute(sentences, limit, n_inc=0)
-        print(f' lenght First chunks: {len(first_chunks)}')
 
         if first_current_chunk is None:
             chunks = first_chunks
@@ -261,8 +259,9 @@ class ChunkHandler(DataHandler):
 
     
     def create_data(self, doc_path=None):
-        self.logger.info(f'\n----------------------------\nCreating chunks. {get_filename_from_path(doc_path)}')
-        sentences = self.t.load_data(file_name=get_filename_from_path(doc_path), doc_path=doc_path)
+        bookname = get_filename_from_path(doc_path)
+        self.logger.info(f'\n----------------------------\nCreating chunks. {bookname}')
+        sentences = self.t.load_data(file_name=bookname, doc_path=doc_path)
         chunks = self.distribute_sents_to_chunks(sentences, doc_path)
 
         shortest = float('inf')  # Initialize with a large value
@@ -272,8 +271,8 @@ class ChunkHandler(DataHandler):
             shortest = min(shortest, chunk_length)
             longest = max(longest, chunk_length)
         
-        print(get_filename_from_path(doc_path), shortest, longest, '\n-------------------\n')
-        self.save_data(data=chunks, file_name=get_filename_from_path(doc_path))
+        print(bookname, shortest, longest, '\n-------------------\n')
+        self.save_data(data=chunks, file_name=bookname)
 
     def create_all_data(self):
         starty = time.time()
@@ -282,7 +281,7 @@ class ChunkHandler(DataHandler):
         self.check_data()
         print(f'{time.time()-starty}s to split all texts into chunks.')
 
-    def load_data(self, load=True, file_name=None, remove_punct=False, lower=False, as_chunk=True, **kwargs):
+    def load_data(self, file_name=None, load=True, remove_punct=False, lower=False, as_chunk=True, as_sent=False, **kwargs):
         file_path = self.get_file_path(file_name=file_name, **kwargs)
         self.file_exists_or_create(file_path=file_path, **kwargs)
 
@@ -292,24 +291,36 @@ class ChunkHandler(DataHandler):
                 self.logger.info(f'{self.__class__.__name__}: Loading {file_path} from file.')
             # List of strings, every string is a chunk
             chunks = self.load_data_type(file_path, **kwargs)
-            chunks = [chunk.replace(self.separator, ' ') for chunk in chunks]
             chunks = Postprocessor(remove_punct=remove_punct, lower=lower).postprocess_chunks(chunks)
 
-            if as_chunk == False:
+            if not as_chunk:
                 chunks = ' '.join(chunks)
                 chunks = [chunks]
-            #     self.logger.info('Returning tokenized words as a single list of one string.')
-            # else:
-            #     self.logger.info('Returning tokenized chunks as list of strings.')
+
+            if as_sent:
+                chunks = [string.split(self.separator) for string in chunks]
+            else:
+                chunks = [string.replace(self.separator, ' ') for string in chunks]
+
+            if as_chunk and as_sent:
+                self.logger.info(f'Chunks as nested lists. Inner lists are chunk, strings inside are sentences.')
+            elif not as_chunk and as_sent:
+                self.logger.info(f'Chunks as nested lists. Single inner lists represents only chunk, strings inside are sentences.')
+            elif as_chunk and not as_sent:
+                self.logger.info('Chunks as list of strings.')
+            else:
+                self.logger.info('Chunks as one list of one string.')
+
         return chunks
     
     def check_data(self):
         dc = self.DataChecker(self.language, chunks_dir=self.output_dir)
         dc.check_completeness()
         token_counts_chunk = dc.compare_token_counts()
-        nr_chunks_per_doc = dc.count_chunks_per_doc()
+        nr_chunks_per_doc, total_nr_chunks = dc.count_chunks_per_doc()
         dc.check_chunks_for_shortests_texts(token_counts_chunk, nr_chunks_per_doc)
         dc.count_tokens_per_chunk()
+        # dc.count_sentences_per_chunk()
     
 
     class DataChecker(DataHandler):
@@ -366,6 +377,19 @@ class ChunkHandler(DataHandler):
             print('---------------------------------')
 
 
+        def count_sentences_per_chunk(self):
+            nested_dict = {}
+            # Nr chunks per doc
+            for chunk_path in self.chunk_paths:
+                with open(chunk_path, 'r') as f:
+                    file_dict = {}
+                    for index, line in enumerate(f):
+                        count = line.count(self.separator) + 1 # if there are x separators, there x+1 sentences
+                        file_dict[index] = count
+                    nested_dict[get_filename_from_path(chunk_path)] = file_dict
+            return nested_dict
+
+
         def count_chunks_per_doc(self):
             # Count chunks
             nr_chunks_per_doc = {}
@@ -391,7 +415,7 @@ class ChunkHandler(DataHandler):
                 f"Document with maximum chunks: {max_chunks_doc}, Chunks: {nr_chunks_per_doc[max_chunks_doc]}"
             )
             self.plot_chunks_per_doc(chunk_count_freq, title)
-            return nr_chunks_per_doc
+            return nr_chunks_per_doc, total_nr_chunks
 
 
         def plot_chunks_per_doc(self, chunk_count_freq, title):
@@ -509,6 +533,7 @@ class Postprocessor():
     def __init__(self, remove_punct=False, lower=False):
         self.remove_punct = remove_punct
         self.lower = lower
+        self.logger = logging.getLogger(__name__)
 
     def postprocess_text(self, text):
         if self.remove_punct:
@@ -530,6 +555,7 @@ class Postprocessor():
         for chunk in chunks:
             new_chunk = self.postprocess_text(chunk)
             new_chunks.append(new_chunk)
+        self.logger.info(f'{self.__class__.__name__}: Returning postprocessed text as list of chunks.')
         return new_chunks
     
 

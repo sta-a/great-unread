@@ -6,13 +6,12 @@ import os
 import time
 import sys
 sys.path.append("..")
-from utils import get_doc_paths, check_equal_files, DataHandler, get_bookname, get_doc_paths_sorted
-from feature_extraction.embeddings import SbertProcessor
+from utils import get_doc_paths, check_equal_files, DataHandler, get_filename_from_path, get_doc_paths_sorted
+from feature_extraction.embeddings import D2vProcessor, SbertProcessor
 from feature_extraction.ngrams import NgramCounter, MfwExtractor
 from feature_extraction.process_rawtext import Tokenizer, ChunkHandler, SentenceTokenizer
 import logging
-logging.getLogger("matplotlib.font_manager").setLevel(logging.ERROR)
-import matplotlib.pyplot as plt
+
 
 class FeaturePreparer(DataHandler):
     '''
@@ -57,45 +56,53 @@ class FeaturePreparer(DataHandler):
 
     def chunker(self):
         c = ChunkHandler(self.language, self.tokens_per_chunk)
-        # c.create_all_data()
+        c.create_all_data()
         c.check_data()
 
 
     def ngramcounter(self):
         c = NgramCounter(self.language)
         c.create_all_data()
-        # c.get_total_unigram_freq()
-        # c.load_data(file_name='unigram_chunk.pkl')
-        # print(c.data_dict['words'][1500:1600])
-        # # df = c.load_data('trigram_chunks.pkl')
-        # file_ngram_counts = c.load_values_for_chunk(file_name='Ainsworth_William-Harrison_Rookwood_1834_0')
-        # for k, v in file_ngram_counts.items():
-        #     print(k, v)
+        c.check_data()
+        # s = time.time()
+        # c.load_data(file_name='unigram_chunk')
+        # print(f'Time to load uni chunks: {time.time()-s}')
+        # # selected_index = c.data_dict['file_names']
+        # # print('selected_index', selected_index)
+        # file_ngram_counts = c.load_values_for_chunk(file_name='Kipling_Rudyard_How-the-Rhinoceros-Got-His-Skin_1902_0')
+        # print('file_ngram_counts', file_ngram_counts)
+        # # print(f'Time to load 1 chunk: {time.time()-s}')
 
     def mfwextractor(self):
         m = MfwExtractor(self.language)
         m.create_all_data()
 
+    def d2v(self):
+        d = D2vProcessor(self.language)
+        d.create_all_data()
+
     def sbert(self):
         s = SbertProcessor(self.language)
         s.create_all_data()
+        # s.check_data()
 
     def run(self):
-        start = time.time()
         # self.load_text_tokenized()
         # self.sentence_tokenizer()
         # self.tokenizer()
-        # self.chunker()
-        self.ngramcounter()
+        self.chunker()
+        # self.ngramcounter()
         # self.mfwextractor()
+        # self.d2v()
         # self.sbert()
-        print('Time: ', time.time()-start)
 
 
 remove = False
-for language in ['eng', 'ger']:
+for language in ['ger']:
     fp = FeaturePreparer(language)
     fp.run()
-# %%
+
+
+
 
 # %%

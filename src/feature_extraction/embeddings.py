@@ -19,8 +19,9 @@ from sentence_transformers import SentenceTransformer
 
 from .process_rawtext import ChunkHandler
 sys.path.append("..")
-from utils import get_bookname, get_doc_paths, DataHandler, get_filename_from_path, save_list_of_lines
-logging.basicConfig(level=logging.DEBUG)
+from utils import get_filename_from_path, get_doc_paths, DataHandler, save_list_of_lines
+# logging.basicConfig(level=logging.DEBUG)
+# logging.getLogger().setLevel(logging.WARNING) # suppress SentenceTransformers batches output 
 
 
 class SbertProcessor(DataHandler):
@@ -31,45 +32,70 @@ class SbertProcessor(DataHandler):
         sbert_output_dir = f'sbert_sentence_embeddings_tpc_{tokens_per_chunk}'
         super().__init__(language, output_dir=sbert_output_dir, data_type=data_type, tokens_per_chunk=tokens_per_chunk)
 
-
-        self.terminating_chars = r'\. | \: | \; | \? | \! | \) | \] | \...'
         if self.language == 'eng':
-            self.sentence_encoder = SentenceTransformer('stsb-mpnet-base-v2')
-        elif self.language == 'ger':
-            self.sentence_encoder = SentenceTransformer('paraphrase-xlm-r-multilingual-v1')
+            self.sentence_encoder = SentenceTransformer('all-mpnet-base-v2')
+        elif self.language == 'ger': # paraphrase-xlm-r-multilingual-v1
+            self.sentence_encoder = SentenceTransformer('T-Systems-onsite/cross-en-de-roberta-sentence-transformer')
 
 
     def create_data(self, doc_path):
-        print(doc_path)
-        chunks = ChunkHandler(self.language, self.doc_paths, self.tokens_per_chunk).load_data(doc_path, remove_punct=False, lower=False, as_chunk=True)
-
+        # print(f'Creating data for {doc_path}')
+        chunks = ChunkHandler(self.language, self.tokens_per_chunk).load_data(file_name=get_filename_from_path(doc_path), remove_punct=False, lower=False, as_chunk=True, as_sent=True, doc_path=doc_path)
+        
+        start = time.time()
         all_embeddings = []
         for chunk in chunks:
-            sentences = re.split(self.terminating_chars, chunk)        
-            embeddings = list(self.sentence_encoder.encode(sentences))
+            embeddings = list(self.sentence_encoder.encode(chunk))
             all_embeddings.append(embeddings)
         self.save_data(file_name=get_filename_from_path(doc_path), data=all_embeddings)
+        print(f'Time for {doc_path}: {time.time()-start}')
 
 
     def create_all_data(self):
         for doc_path in self.doc_paths:
-            self.file_exists_or_create(file_name=get_filename_from_path(doc_path), doc_path=doc_path)
+            _ = self.load_data(file_name=get_filename_from_path(doc_path), load=False, doc_path=doc_path)
 
 
     def save_data_type(self, data, file_path, **kwargs):
         # data = list of embeddings for each chunk
         logging.info('\nSaving embeddings.\n')
         data = {str(i): data[i] for i in range(0, len(data))}
-        np.savez_compressed(file_path, data)
+        np.savez_compressed(file_path, **data)
         logging.info('Saved chunk vectors.')
+
+
+    def load_data_type(self, file_path, **kwargs):
+        loaded_data = np.load(file_path)
+        
+        # Convert the loaded data to a dictionary
+        loaded_dict = {key: loaded_data[key] for key in loaded_data.files}
+        
+        # Convert keys back to integers
+        loaded_dict = {int(key): value for key, value in loaded_dict.items()}
+        
+        logging.info('Loaded chunk vectors.')
+        return loaded_dict
+    
+    def check_data(self):
+        # Check if there is one embedding for every sentence
+        ch = ChunkHandler(self.language, self.tokens_per_chunk)
+        sentences_per_chunk = ch.DataChecker(self.language, ch.output_dir).count_sentences_per_chunk()
+        for doc_path in self.doc_paths:
+            bookname = get_filename_from_path(doc_path)
+            sbert = self.load_data(file_name=f'{bookname}.npz')
+            chunks = sentences_per_chunk[bookname]
+            for chunk_idx, count in chunks.items():
+                assert sbert[chunk_idx].shape[0] == count
+            self.logger.info(f'{self.__class__.__name__}: One embedding per sentence for {bookname}.')
+
 
 # %%
 class D2vProcessor(DataHandler):
     '''
     mode: 
         doc_paths (tag each chunk with document name, use document vector associated with tag)
-        both_tags (use both chunk id tags and document name tag as a  list)
-        chunk_features (save document vectors for each chunk to use them as features for prediction)
+        both (use both chunk id tags and document name tag as a  list)
+        chunk (save document vectors for each chunk to use them as features for prediction)
 
     Tag each chunk with unique chunk id, infer document vectors: Doesn't work because token limit of 10'000 also applies to inferred documents.
     https://github.com/RaRe-Technologies/gensim/issues/2583
@@ -88,7 +114,14 @@ class D2vProcessor(DataHandler):
         else:
             self.n_cores = n_cores
 
-        # self.modes = ['doc_tags', 'both_tags', 'chunk_features']
+        self.modes = ['doc', 'chunk', 'both']
+
+
+    def create_all_data(self):
+        # Check if file exists and create it if necessary
+        for mode in self.modes:
+            print(mode)
+            _ = self.create_data(load=False, mode=mode)
 
 
     def create_data(self, **kwargs):
@@ -104,21 +137,22 @@ class D2vProcessor(DataHandler):
         self.doc_path_to_chunk_ids = {}
         logging.info('\nPreparing data for D2vModel...\n')
         for doc_path in self.doc_paths:
+            bookname = get_filename_from_path(doc_path)
             chunk_id_counter = 0
 
-            all_chunks = ChunkHandler(self.language).load_data(doc_path, remove_punct=True, lower=True, as_chunk=True)
-            for curr_chunks in all_chunks:
-                words = curr_chunks.split()
+            chunks = ChunkHandler(self.language, self.tokens_per_chunk).load_data(file_name=bookname, remove_punct=True, lower=True, as_chunk=True, doc_path=doc_path)
+            for chunk in chunks:
+                words = chunk.split()
                 assert len(words) < 10000 # D2v has token limit of 10'000
                 
-                if mode == 'doc_tags':
-                    doc_tag = get_bookname(doc_path)
+                if mode == 'doc':
+                    doc_tag = bookname
                     tagged_chunks.append(TaggedDocument(words=words, tags=[doc_tag]))
-                elif mode == 'both_tags':
-                    doc_tag = [get_bookname(doc_path), f'{get_bookname(doc_path)}_{chunk_id_counter}']
+                elif mode == 'both':
+                    doc_tag = [bookname, f'{bookname}_{chunk_id_counter}']
                     tagged_chunks.append(TaggedDocument(words=words, tags=doc_tag))
-                else:
-                    doc_tag = f'{get_bookname(doc_path)}_{chunk_id_counter}'
+                elif mode == 'chunk':
+                    doc_tag = f'{bookname}_{chunk_id_counter}'
                     tagged_chunks.append(TaggedDocument(words=words, tags=[doc_tag]))
                 
                 if doc_path in self.doc_path_to_chunk_ids.keys():
@@ -143,25 +177,49 @@ class D2vProcessor(DataHandler):
 
     
     def load_data_type(self, file_path, **kwargs):
-        dvs = np.load(file_path)
-        # data = {} # too inefficient for chunks, only for doc_paths
-        # for key in list(dvs.keys()):
-        #     data[key] = dvs[key]
-        data = dvs
+        loaded_data = np.load(file_path)
+        loaded_dict = {key: loaded_data[key] for key in loaded_data.files}
+        data = loaded_dict
         return data
     
 
     def save_data_type(self, data, file_path, **kwargs):
         logging.info('\nSaving chunk vectors...\n')
-        
-        try:
-            dvs = {str(chunk_id): self.model.dv[chunk_id] for chunk_id in self.model.dv.index_to_key}
-            np.savez_compressed(file_path, **dvs)
-            self.model.save(str(file_path) + '.model')
-            logging.info('Saved chunk vectors.')
-        except NameError as e:
-            print(e)
-            print('\nD2v model has not been trained.\n')
+        mode = kwargs['mode']
+        self.add_subdir(mode)
+        dvs = {str(chunk_id): self.model.dv[chunk_id] for chunk_id in self.model.dv.index_to_key}
+        print('dv keys', dvs.keys())
+
+        if mode == 'chunk' or mode == 'both':
+            ch = ChunkHandler(self.language, self.tokens_per_chunk)
+            nr_chunks_per_doc, total_nr_chunks = ch.DataChecker(self.language, ch.output_dir).count_chunks_per_doc()
+            assert len(dvs) == total_nr_chunks ########################
+
+            for doc_path in self.doc_paths:
+                doc_dvs = {}
+                bookname = get_filename_from_path(doc_path)
+                for chunk_id in range(0, nr_chunks_per_doc[bookname]):
+                    chunkname = f'{bookname}_{chunk_id}'
+                    doc_dvs[chunkname] = dvs[chunkname]
+                assert len(doc_dvs) == nr_chunks_per_doc[bookname]
+
+                # mode=both: DVs for both chunks and whole doc, e.g. 'Ainsworth_William-Harrison_Rookwood_1834' and 'Ainsworth_William-Harrison_Rookwood_1834_1'
+                if mode == 'both':
+                    doc_dvs[bookname] = dvs[bookname]
+                file_path = self.get_file_path(file_name=bookname, subdir=True)
+                np.savez_compressed(file_path, **doc_dvs)
+
+        else:
+            for doc_path in self.doc_paths:
+                doc_dvs = {}
+                bookname = get_filename_from_path(doc_path)
+                doc_dvs[bookname] = dvs[bookname]
+                file_path = self.get_file_path(file_name=bookname, subdir=True)
+                np.savez_compressed(file_path, **doc_dvs)
+
+        self.model.save(os.path.join(self.output_dir, f'{mode}.model'))
+        logging.info('Saved chunk vectors.')
+
 
     # def assess_chunks(self):
     #     '''
@@ -176,11 +234,11 @@ class D2vProcessor(DataHandler):
     #     for doc_path in self.doc_paths:
     #         chunk_id_counter = 0
 
-    #         all_chunks = ChunkHandler(self.language).load_data(doc_path, remove_punct=True, lower=True)
-    #         for curr_chunks in all_chunks:
+    #         chunks = ChunkHandler(self.language).load_data(doc_path, remove_punct=True, lower=True)
+    #         for chunk in chunks:
     #             # Split text into word list
-    #             doc_tag = f'{get_bookname(doc_path)}_{chunk_id_counter}'  ### Convert to int to save memory ################# use list with two tags instead
-    #             words = curr_chunks.split()
+    #             doc_tag = f'{get_filename_from_path(doc_path)}_{chunk_id_counter}'  ### Convert to int to save memory ################# use list with two tags instead
+    #             words = chunk.split()
     #             inferred_vector = self.model.infer_vector(words)
     #             sims = self.model.dv.most_similar([inferred_vector])
     #             print(doc_tag, sims)
@@ -216,7 +274,7 @@ class D2vProcessor(DataHandler):
     #         inferred_vector = self.infer_dv(doc_path)
 
     #         sims = self.model.dv.most_similar([inferred_vector])
-    #         rank = [docid for docid, sim in sims].index(get_bookname(doc_path))
+    #         rank = [docid for docid, sim in sims].index(get_filename_from_path(doc_path))
     #         ranks.append(rank)
     #         second_ranks.append(sims[1])
     #     counter = Counter(ranks)

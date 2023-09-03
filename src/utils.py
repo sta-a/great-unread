@@ -31,6 +31,7 @@ def get_doc_paths(files_dir):
     return get_files_in_dir(files_dir)
 
 def get_doc_paths_sorted(files_dir):
+    # Sorts the file paths in ascending order based on the text length
     paths = get_files_in_dir(files_dir)
     text_lengths= {}
     for path in paths:
@@ -45,7 +46,7 @@ def load_list_of_lines(path, line_type):
     if line_type == 'str':
         with open(path, 'r') as reader:
             lines = [line.strip() for line in reader]
-    elif line_type == 'np':
+    elif line_type == 'np': # npz?
         lines = np.load(path)['arr_0'].tolist()
     else:
         raise Exception(f'Not a valid line_type {line_type}')
@@ -58,7 +59,7 @@ def save_list_of_lines(lst, path, line_type):
         with open(path, 'w') as f:
             for item in lst:
                 f.write(str(item) + '\n')
-    elif line_type == 'np':
+    elif line_type == 'np': # npz?
         np.savez_compressed(path, np.array(lst))
     elif line_type == 'list':
         # list of lists of strings
@@ -174,10 +175,11 @@ class DataHandler():
     '''
     Base class for creating, saving, and loading data.
     '''
-    def __init__(self, language=None, output_dir=None, create_outdir=False, data_type='csv', modes=None, tokens_per_chunk=500, data_dir='/home/annina/scripts/great_unread_nlp/data'):
+    def __init__(self, language=None, output_dir=None, create_outdir=False, data_type='csv', modes=None, tokens_per_chunk=500, data_dir='/home/annina/scripts/great_unread_nlp/data', test=False):
         '''
         create_outdir: If True, create output dir when class is initialized.
         '''
+        self.test = test
         self.language = language
         self.data_dir = data_dir
         self.logger = logging.getLogger(__name__)
@@ -187,14 +189,17 @@ class DataHandler():
         self.data_type = data_type
         self.modes = modes
         self.tokens_per_chunk = tokens_per_chunk
-        self.data_types = ('.npz', '.csv', '.np', '.pkl', '.txt', '.svg')
+        self.data_types = ('.npz', '.csv', '.pkl', '.txt', '.svg', '.png')
         self.separator = 'ƒ'
         self.subdir = None
-        self.print_logs = False
         if self.language == 'eng':
             self.nr_texts = 605
         else:
             self.nr_texts = 547
+        self.print_logs = False
+
+        if self.test:
+            self.doc_paths = get_doc_paths_sorted(self.text_raw_dir)[:3]
 
     def create_dir(self, dir_path):
         if not os.path.exists(dir_path):
@@ -234,11 +239,9 @@ class DataHandler():
     
 
     def save_data_type(self, data, file_path, **kwargs):
-        data_type = self.get_custom_datatype(**kwargs)
+        data_type = self.get_custom_datatype(file_name_or_path=file_path, **kwargs)
 
         if data_type == 'csv':
-            # data = data.sort_index(axis=0).sort_index(axis=1)
-            print('Data not sorted before saving.')
             sep = ','
             if 'pandas_sep' in kwargs:
                 sep = kwargs['pandas_sep']
@@ -249,7 +252,9 @@ class DataHandler():
         elif data_type == 'pkl':
             joblib.dump(data, file_path)
         elif data_type == 'svg':
-            data.savefig(file_path, format="svg")
+            data.savefig(file_path, format='svg')
+        elif data_type == 'png':
+            data.savefig(file_path, format='png')
         elif data_type =='dict':
             with open(file_path, 'w') as f:
                 for key, value in data.items():
@@ -270,6 +275,8 @@ class DataHandler():
                     for l in data:
                         f.write(f'{self.separator.join(l)}\n')
                 self.logger.info(f'Writing list of lists to file using {self.separator} as the separator.')
+        if self.print_logs:
+            self.logger.info(f'Saved {data_type} data to {file_path}')
 
 
     def file_exists_or_create(self, file_path=None, file_name=None, **kwargs):
@@ -287,6 +294,8 @@ class DataHandler():
         #         self.logger.info(f'{self.__class__.__name__}: already exists: {file_path}')
 
     def load_data(self, load=True, file_name=None, **kwargs):
+        if self.print_logs:
+            self.logger.info(f'Loading data. If create_data loads data from file, doc_path must be passed with kwargs.')
         file_path = self.get_file_path(file_name=file_name, **kwargs)
         self.file_exists_or_create(file_path=file_path, **kwargs)
 
@@ -297,21 +306,25 @@ class DataHandler():
             data = self.load_data_type(file_path, **kwargs)
         return data
     
-    def load_data_type(self, file_path,**kwargs):
+    def load_data_type(self, file_path, **kwargs):
         if self.data_type == 'csv':
             sep = ','
             if 'pandas_sep' in kwargs:
                 sep = kwargs['pandas_sep']
             data = pd.read_csv(file_path, header=0, index_col=0, sep=sep)
-        elif self.data_type == 'np':
-            data = data = np.load(file_path)['arr_0'].tolist()
+
+        elif self.data_type == 'npz':
+            data = np.load(file_path)['arr_0'].tolist()
+
         elif self.data_type == 'pkl':
             data = joblib.load(file_path)
+
         elif self.data_type == 'txt':
             with open(file_path, 'r') as f:
                 # Return a list of strings
                 data = f.readlines()
-                data = [line.rstrip('\n') for line in data]            
+                data = [line.rstrip('\n') for line in data]
+                          
         return data
 
     def create_all_data(self):
@@ -319,6 +332,13 @@ class DataHandler():
         for mode in self.modes:
             print(mode)
             _ = self.load_data(load=False, mode=mode)
+
+
+    # def create_all_data(self):
+    #     startc = time.time()
+    #     for i, doc_path in enumerate(self.doc_paths):
+    #         _ = self.load_data(load=False, file_name=get_filename_from_path(doc_path), doc_path=doc_path)
+    #     print(f'{time.time()-startc}s to tokenize all texts')
 
     
     def load_all_data(self):
@@ -329,11 +349,23 @@ class DataHandler():
             all_data[mode] = data
         return all_data
     
-    def get_custom_datatype(self, **kwargs):
+    def get_custom_datatype(self, file_name_or_path=None, **kwargs):
         if 'data_type' in kwargs:
             data_type = kwargs['data_type']
+            if file_name_or_path is not None:
+                fdata_type = os.path.splitext(file_name_or_path)[1]
+                fdata_type = fdata_type[1:] # Remove dot
+                if fdata_type != data_type:
+                    raise ValueError(f'{self.__class__.__name__}: File extension ({file_name_or_path}) and data_type passed as kwarg ({data_type}) are not equal.')
         else:
-            data_type = self.data_type
+            if file_name_or_path is not None:
+                data_type = os.path.splitext(file_name_or_path)[1]
+                data_type = data_type[1:] # Remove dot
+                if data_type != self.data_type:
+                    if self.print_logs:
+                        self.logger.info(f'{self.__class__.__name__}: File extension ({data_type}) and class data type ({self.data_type}) are different. Using file name extension.')
+            else:
+                data_type = self.data_type
         return data_type
 
     def create_filename(self, **kwargs):
@@ -355,11 +387,12 @@ class DataHandler():
     def validate_filename(self, file_name, **kwargs):
         ending_count = file_name.count('.')
         if ending_count == 0:
-            data_type = self.get_custom_datatype(**kwargs)
+            data_type = self.get_custom_datatype(**kwargs) # Get data type, don't pass file_name because it has no extension
             file_name = f'{file_name}.{data_type}'
             if self.print_logs:
                 self.logger.info(f'{self.__class__.__name__}: Added extension to file name: {file_name}')
         elif ending_count == 1:
+            _ = self.get_custom_datatype(file_name_or_path=file_name, **kwargs) # Pass file_name to check it, return value is ignored because file_name already has extension
             if not file_name.endswith(self.data_types):
                 raise ValueError(f'Invalid file extension: {file_name}')
         else:
@@ -379,7 +412,13 @@ class DataHandler():
         pathdir = self.output_dir
         if 'subdir' in kwargs:
             if isinstance(kwargs['subdir'], bool):
-                assert self.subdir is not None, f'Subdir must be initialized or passed to get_file_path().'
+                if self.subdir is None:
+                    if 'mode' in kwargs:
+                        mode = kwargs['mode']
+                        self.add_subdir(mode)
+                        self.logger.info(f'Set subdir to mode {mode}.')
+                    else:
+                        raise ValueError(f'Pass or initialize subdir, or pass mode to get_file_path().')
             elif isinstance(kwargs['subdir'], str):
                 assert self.subdir is None, f'Subdir is already initialized.'
                 self.add_subdir(kwargs['subdir'])
@@ -709,8 +748,11 @@ class DataChecks(DataHandler):
 # # # Provide the directory path and the string to search for
 # directory_path = '/home/annina/scripts/great_unread_nlp/data/text_raw'
 # directory_path = '/home/annina/scripts/great_unread_nlp/src/'
-# search_string = 'self.text_raw_dir'
+# search_string = 'text_tokenized'
+# search_string = 'count_chunks_per_doc'
 # extension = ['.txt', '.py']
 # search_string_in_files(directory_path, search_string, extension)
 
 
+
+# %%

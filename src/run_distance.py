@@ -69,7 +69,7 @@ class SimilarityNetwork(DataHandler):
         # # pydelta.modes = ['burrows-500']##############################################
         # # pdmxs = pydelta.load_all_data()
         # dd = D2vDist(self.language)
-        # #dd.modes = ['doc_tags'] ##############################################
+        # #dd.modes = ['doc'] ##############################################
         # dvmxs = dd.load_all_data()
         # #mxs = {**pdmxs}#, **dvmxs}
         # mxs = {**dvmxs}

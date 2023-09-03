@@ -9,9 +9,11 @@ sys.path.append("..")
 from .process_rawtext import ChunkHandler
 from .embeddings import SbertProcessor, D2vProcessor
 from .analyze_chunk import Chunk
+import logging
+import time
 import sys
 sys.path.append("..")
-from utils import load_list_of_lines, save_list_of_lines, get_bookname, DataHandler
+from utils import load_list_of_lines, save_list_of_lines, get_filename_from_path
 
 
 class DocBasedFeatureExtractor():
@@ -21,88 +23,102 @@ class DocBasedFeatureExtractor():
     def __init__(self, 
         language,
         doc_path, 
-        dvs, # Document vectors from doc2vec for all documents
-        use_chunks,
+        as_chunk,
         tokens_per_chunk=500,
         unigram_counts=True, 
         bigram_counts=True, 
         trigram_counts=True, 
         char_unigram_counts=True):
 
-
-
+        self.logger = logging.getLogger(__name__)
         self.language = language
         self.doc_path = doc_path
-        self.dvs = dvs
-        self.use_chunks = use_chunks
+        self.bookname = get_filename_from_path(self.doc_path)
+        self.as_chunk = as_chunk
         self.tokens_per_chunk = tokens_per_chunk
-        self.file_name = get_bookname(self.doc_path)
-        # self.doc_dvs = self.load_d2v_embeddings()
-        self.sbert_embeddings = self.load_sbert_embeddings()
+
         # Parameters for creating chunks
         self.unigram_counts = unigram_counts
         self.bigram_counts = bigram_counts
         self.trigram_counts = trigram_counts
         self.char_unigram_counts = char_unigram_counts
 
-        # Preprocess or load data
-        self.text_tokenized = ChunkHandler(self.language).load_data(doc_path, remove_punct=False, lower=False, as_chunk=True)
 
         self.chunks = self.__get_chunks()
 
 
-    # def load_d2v_embeddings(self):
-    #     doc_dvs = {}
-    #     for key, vector in self.dvs:
-    #             if self.use_chunks == True:
-    #                 if key.startswith(self.file_name + '_'):
-    #                     doc_dvs[key] = vector
-    #             else:
-    #                 doc_dvs[self.file_name] = self.dvs[self.file_name]
-    #     print(doc_dvs.keys())
-    #     return doc_dvs
+    def load_d2v_embeddings(self):
+        if self.as_chunk:
+            mode = 'chunk'
+        else:
+            mode = 'doc'
+        d2v = D2vProcessor(self.language).load_data(file_name=self.bookname, mode=mode, subdir=True)
+        return d2v
     
     def load_sbert_embeddings(self):
-        sbert = SbertProcessor(self.language).load_data(file_name=self.file_name + '.npz') ########
-        if self.use_chunks == False:
+        sbert = SbertProcessor(self.language).load_data(file_name=self.bookname)
+        if self.as_chunk == False:
+            self.logger.info(f'Returning sbert embeddings for all chunks as one list.')
             # If whole document is used, combine the embeddings of the chunks into one 
             all_sbert = []
             for chunk_id in sbert.keys():
                 all_sbert.append(sbert[chunk_id]) #####################3
             sbert  = all_sbert
+        else:
+            self.logger.info(f'Returning sbert embeddings as dict with format chunk_id: embedding')
         return sbert
 
     def __get_chunks(self):
+        # Load data
+        start = time.time()
+        chunks_text = ChunkHandler(self.language, self.tokens_per_chunk).load_data(file_name=self.bookname, remove_punct=False, lower=False, as_chunk=self.as_chunk, as_sent=False)
+        chunks_sents = ChunkHandler(self.language, self.tokens_per_chunk).load_data(file_name=self.bookname, remove_punct=False, lower=False, as_chunk=self.as_chunk, as_sent=True)
+        assert len(chunks_text) == len(chunks_sents)
+        
+        d2v_embeddings = self.load_d2v_embeddings()
+        sbert_embeddings = self.load_sbert_embeddings()
+        print(f'Time to load data for 1 doc: {time.time()-start}')
 
-        if self.use_chunks == False:
-            return [Chunk(
-                tokens_per_chunk = self.tokens_per_chunk,
-                doc_path = self.doc_path,
-                chunk_id = 'None',
-                text_tokenized = ' '.join(self.text_tokenized),
-                sbert_embeddings = self.sbert_embeddings,
-                d2v_chunk_embedding = self.dvs[self.file_name], ####################33
-                unigram_counts = self.unigram_counts,
-                bigram_counts = self.bigram_counts,
-                trigram_counts = self.trigram_counts,
-                char_unigram_counts = self.char_unigram_counts)]
-
-        else:
+        if not self.as_chunk:
             chunks = []
-            chunk_id_counter = 0
-            for curr_words in self.text_tokenized:
-                #current_sentence_embeddings = None #self.sbert_embeddings[i:i+self.tokens_per_chunk] ###############################3
+            for text, sentences in zip(chunks_text, chunks_sents):
+                start = time.time()
                 chunks.append(Chunk(
+                    language=self.language,
                     tokens_per_chunk = self.tokens_per_chunk,
                     doc_path = self.doc_path,
-                    chunk_id = chunk_id_counter,
-                    text_tokenized = curr_words,
-                    sbert_embeddings = self.sbert_embeddings[chunk_id_counter],
-                    d2v_chunk_embedding = self.dvs[f'{self.file_name}_{str(chunk_id_counter)}'],
+                    chunk_id = None,
+                    text = text,
+                    sentences = sentences,
+                    sbert_embeddings = sbert_embeddings,
+                    d2v_embedding = d2v_embeddings[self.bookname],
                     unigram_counts = self.unigram_counts,
                     bigram_counts = self.bigram_counts,
                     trigram_counts = self.trigram_counts,
                     char_unigram_counts = self.char_unigram_counts))
+                print(f'Time to make chunk: {time.time()-start}')
+            return chunks
+
+        else:
+            chunks = []
+            chunk_id_counter = 0
+            for text, sentences in zip(chunks_text, chunks_sents):
+                start = time.time()
+                chunks.append(Chunk(
+                    language=self.language,
+                    tokens_per_chunk = self.tokens_per_chunk,
+                    doc_path = self.doc_path,
+                    chunk_id = chunk_id_counter,
+                    text = text,
+                    sentences = sentences,
+                    sbert_embeddings = sbert_embeddings[chunk_id_counter],
+                    d2v_embedding = d2v_embeddings[f'{self.bookname}_{str(chunk_id_counter)}'],
+                    unigram_counts = self.unigram_counts,
+                    bigram_counts = self.bigram_counts,
+                    trigram_counts = self.trigram_counts,
+                    char_unigram_counts = self.char_unigram_counts))
+                print(f'Time to make chunk: {time.time()-start}')
+
                 chunk_id_counter += 1
             return chunks
 
@@ -130,7 +146,7 @@ class DocBasedFeatureExtractor():
             'unigram_entropy': self.get_unigram_entropy, # second order redundancy
             # 'average_paragraph_length': self.get_average_paragraph_length, # structural features
             # 0: self.get_average_sbert_sentence_embedding, 
-            1: self.get_d2v_chunk_embedding
+            1: self.get_d2v_embedding
         }
 
         book_feature_mapping = {
@@ -143,11 +159,7 @@ class DocBasedFeatureExtractor():
         # extract chunk based features
         chunk_features = []
         for chunk in self.chunks:
-            if self.use_chunks == False:
-                chunk_name = chunk.file_name + '_' + str(chunk.chunk_id)
-            else:
-                chunk_name = chunk.file_name
-            current_features = {'file_name': chunk_name}
+            current_features = {'file_name': chunk.chunkname}
             for feature_name, feature_function in chunk_feature_mapping.items():
                 if isinstance(feature_name, int):
                     current_features.update(feature_function(chunk))
@@ -157,7 +169,7 @@ class DocBasedFeatureExtractor():
 
         # extract book based features
         book_features = None
-        if self.use_chunks == True:
+        if self.as_chunk == True:
             book_features = {}
             for feature_name, feature_function in book_feature_mapping.items():
                 book_features['file_name'] = self.doc_path.split('/')[-1][:-4]
@@ -217,9 +229,9 @@ class DocBasedFeatureExtractor():
         average_sentence_embedding_features = dict((f'average_sentence_embedding_{index+1}', embedding_part) for index, embedding_part in enumerate(average_sentence_embedding))
         return average_sentence_embedding_features
 
-    def get_d2v_chunk_embedding(self, chunk):
-        d2v_chunk_embedding_features = dict((f'd2v_chunk_embedding_{index+1}', embedding_part) for index, embedding_part in enumerate(chunk.d2v_chunk_embedding))
-        return d2v_chunk_embedding_features
+    def get_d2v_embedding(self, chunk):
+        d2v_embedding_features = dict((f'd2v_embedding_{index+1}', embedding_part) for index, embedding_part in enumerate(chunk.d2v_embedding))
+        return d2v_embedding_features
 
     def get_average_number_of_words_in_sentence(self, chunk):
         sentence_lengths = []
@@ -302,7 +314,7 @@ class DocBasedFeatureExtractor():
         chunk_embeddings = []
         for chunk in chunks:
             if embedding_type == 'd2v':
-                chunk_embeddings.append(chunk.d2v_chunk_embedding)
+                chunk_embeddings.append(chunk.d2v_embedding)
             # elif embedding_type == 'sbert':
             #     chunk_embeddings.append(np.array(chunk.sbert_embeddings).mean(axis=0)) 
             else:
@@ -324,8 +336,8 @@ class DocBasedFeatureExtractor():
         for chunk_idx in range(1, len(chunks)):
             #print('index', chunk_idx)
             if embedding_type == 'd2v':
-                current_chunk_embedding = chunks[chunk_idx].d2v_chunk_embedding
-                previous_chunk_embedding = chunks[chunk_idx - 1].d2v_chunk_embedding
+                current_chunk_embedding = chunks[chunk_idx].d2v_embedding
+                previous_chunk_embedding = chunks[chunk_idx - 1].d2v_embedding
             # elif embedding_type == 'sbert':
             #     current_chunk_embedding = np.array(chunks[chunk_idx].sbert_embeddings).mean(axis=0)
             #     previous_chunk_embedding = np.array(chunks[chunk_idx - 1].sbert_embeddings).mean(axis=0)

@@ -5,7 +5,7 @@ import regex as re
 from unidecode import unidecode
 import sys
 sys.path.append("..")
-from utils import get_bookname, get_filename_from_path, DataHandler
+from utils import get_filename_from_path, DataHandler
 import hashlib
 from difflib import ndiff
 from pathlib import Path
@@ -21,22 +21,21 @@ class Preprocessor(DataHandler):
         self.doc_path = doc_path
         self.number_tag = '0NUMERICTAG'
         # self.initials_tag = '<INITIALS>'
-        self.bookname = get_bookname(self.doc_path)
+        self.bookname = get_filename_from_path(self.doc_path)
         self.regex_rep_counter = 0
         self.simple_rep_df = self.get_simple_rep_df()
 
     def get_simple_rep_df(self):
         df = pd.read_csv(os.path.join(self.output_dir, 'replacement_values.csv'), sep=self.separator, header=0, index_col=None, engine='python').fillna("''")
 
-        if df['file_name'].str.contains(get_filename_from_path(self.doc_path)).any():
-            df = df[df['file_name'].str.contains(get_filename_from_path(self.doc_path))]
+        if df['file_name'].str.contains(self.bookname).any():
+            df = df[df['file_name'].str.contains(self.bookname)]
             return df
         else:
             return None
 
     def preprocess_text(self, text):
         self.logger.info(f'Preprocessing.')
-        # Replace sentence terminating chars so that they are not affected by preprocessing
         text = self.preprocess_individual_files(text)
         if self.simple_rep_df is not None:
             for _, row in self.simple_rep_df.iterrows():
@@ -215,6 +214,7 @@ class Preprocessor(DataHandler):
     def get_rep_dict(self):
         rep_dict = {
             u'\xa0': u' ',
+            '/\n': '\n',            # Lohenstein_Daniel_Arminius_1689
             '\r\n': ' ',
             '\n': ' ',
             '\t': ' ',
@@ -340,22 +340,15 @@ class Preprocessor(DataHandler):
     def regex_rep_checks(self, rep_overview, new_text, pattern, num_replacements):
         rep_overview_empty = all(not tpl for tpl in rep_overview) # Check if rep_overview only contains empty tuples
         if not rep_overview_empty:
-            rep_overview = [(num_replacements, x[0], x[1], x[2], x[3], self.get_context(new_text, x[0], x[1]), pattern, self.regex_rep_counter, get_filename_from_path(self.doc_path)) for x in rep_overview]
+            rep_overview = [(num_replacements, x[0], x[1], x[2], x[3], self.get_context(new_text, x[0], x[1]), pattern, self.regex_rep_counter, self.bookname) for x in rep_overview]
             df = pd.DataFrame(rep_overview, columns=['num_replacements', 'start', 'end', 'removed_text', 'rep_context', 'new_context', 'pattern', 'rep_counter', 'doc_path'])
             df.insert(0, 'length', df['end'] - df['start'])
             df = df.drop(columns=['start', 'end'])
             df = df[(df['length'] > 80)] # | (df['num_replacements'] > 20)]
             df = df.sort_values(by=['rep_counter', 'length', 'num_replacements'], ascending=[True, False, False])
             if not df.empty:
-                # if df.shape[0] < 20:
-                #     self.add_subdir('regex_checks')
-                #     file_path = self.get_file_path(file_name='0short-rep', subdir=True)
-                #     file_exists = os.path.exists(file_path)
-                #     header = not file_exists
-                #     df.to_csv(file_path, sep=self.separator, mode='a', index=False, header=header)
-                # else:
                 self.add_subdir('regex_checks')
-                file_path = self.get_file_path(file_name=get_filename_from_path(self.doc_path), subdir=True)
+                file_path = self.get_file_path(file_name=self.bookname, subdir=True)
                 file_exists = os.path.exists(file_path)
                 header = not file_exists
                 df.to_csv(file_path, sep=self.separator, mode='a', index=False, header=header)

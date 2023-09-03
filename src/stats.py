@@ -61,7 +61,7 @@ class TextStatistics(DataHandler):
         plt.xticks([])  # Remove x-axis labels
         plt.gca().yaxis.set_major_formatter(mticker.StrMethodFormatter('{x:,.0f}'))
         plt.tight_layout()
-        plt.text(0.05, 0.95, title, transform=plt.gca().transAxes, va='top',
+        plt.text(0.9, 0.95, title, transform=plt.gca().transAxes, va='top',
              bbox=dict(facecolor='white', edgecolor='black', alpha=0.7))
         # plt.show()
         self.save_data(data=plt, file_name='words-per-text')

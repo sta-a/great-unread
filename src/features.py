@@ -1,8 +1,7 @@
 # %%
-# %load_ext autoreload
-# %autoreload 2
+%load_ext autoreload
+%autoreload 2
 
-import argparse
 import os
 import pickle
 import numpy as np
@@ -13,34 +12,30 @@ from multiprocessing import Pool, cpu_count
 from pathlib import Path
 from feature_extraction.doc_based_feature_extractor import DocBasedFeatureExtractor
 from feature_extraction.corpus_based_feature_extractor import CorpusBasedFeatureExtractor
-from feature_extraction.embeddings import SbertProcessor
+from feature_extraction.embeddings import SbertProcessor, D2vProcessor
 
 import sys
 sys.path.append("..")
-from utils import check_equal_files, DataHandler, get_bookname
+from utils import DataHandler
 
 
 class FeatureProcessor(DataHandler):
     def __init__(self, language):
         super().__init__(language, 'features')
-        self.doc_paths = self.doc_paths[:None] #############################
+        self.doc_paths = self.doc_paths[:None]
 
-    def get_doc_features_helper(self, doc_path, use_chunks):
-        if use_chunks:
-            dvs = self.dvs_chunks
-        else: 
-            dvs = self.dvs_doc
-        fe = DocBasedFeatureExtractor(self.language, doc_path, dvs, use_chunks)
+    def get_doc_features_helper(self, doc_path, as_chunk):
+        fe = DocBasedFeatureExtractor(self.language, doc_path, as_chunk)
         chunk_features, book_features = fe.get_all_features()
         return chunk_features, book_features
     
 
-    def get_doc_features(self, use_chunks):
+    def get_doc_features(self, as_chunk):
         all_chunk_features = []
         all_book_features = []
 
         for doc_path in self.doc_paths:
-            pickled_path = doc_path.replace('/text_raw', '/pickle') + f'_usechunks_{use_chunks}.pkl'
+            pickled_path = doc_path.replace('/text_raw', '/pickle') + f'_usechunks_{as_chunk}.pkl'
             pickled_dir = os.path.dirname(pickled_path)
             print(pickled_dir, pickled_path)
             os.makedirs(pickled_dir, exist_ok=True) 
@@ -49,7 +44,7 @@ class FeatureProcessor(DataHandler):
                     chunk_features, book_features = pickle.load(f)
                 print(book_features)
             else:
-                chunk_features, book_features = self.get_doc_features_helper(doc_path, use_chunks)
+                chunk_features, book_features = self.get_doc_features_helper(doc_path, as_chunk)
                 with open(pickled_path, 'wb') as f:
                     pickle.dump((chunk_features, book_features), f)
                     self.logger.info(f'')
@@ -78,12 +73,8 @@ class FeatureProcessor(DataHandler):
     #     # Save book features only once (not when running with fulltext chunks)
     #     return all_chunk_features, all_book_features
     
-    def get_corpus_features(self, use_chunks):
-        if use_chunks:
-            dvs = self.dvs_chunks
-        else: 
-            dvs = self.dvs_doc
-        cbfe = CorpusBasedFeatureExtractor(self.language, self.doc_paths, dvs, use_chunks)
+    def get_corpus_features(self, as_chunk):
+        cbfe = CorpusBasedFeatureExtractor(self.language, self.doc_paths, as_chunk)
         # chunk_features, book_features = cbfe.get_all_features() ##############3
         print('cbfe get all features not called§')
         # Save book features only once (not when running with fulltext chunks)
@@ -120,31 +111,19 @@ class FeatureProcessor(DataHandler):
         for file_name, df in dfs.items():
             print(file_name)
             self.save_data(data=df, file_name=file_name)
-        return dfs
     
     def run(self):
         start = time.time()
 
-        # Create d2v embeddings
-        _ = D2vProcessor(self.language).load_all_data()
-
-        # Load document vectors after texts have been tokenized
-        # This order is not strictly necessary but more convenient
-        self.dvs_chunks = D2vProcessor(self.language).load_data(mode='chunk_features')
-        self.dvs_doc = D2vProcessor(self.language).load_data(mode='doc_tags')
-
-        # # Doc-based features
-        # doc_chunk_features, doc_book_features = self.get_doc_features(use_chunks=True)
-        # # Recalculate the chunk features for the whole book, which is treated as one chunk
-        # doc_chunk_features_fulltext, _ = self.get_doc_features(use_chunks=False)
+        doc_chunk_features, doc_book_features = self.get_doc_features(as_chunk=True)
+        # Recalculate the chunk features for the whole book, which is treated as one chunk
+        # doc_chunk_features_fulltext, _ = self.get_doc_features(as_chunk=False)
         
-        # # Corpus-based features
-        #corpus_chunk_features, corpus_book_features = 
-        # self.get_corpus_features(use_chunks=True)
+        # corpus_chunk_features, corpus_book_features = self.get_corpus_features(as_chunk=True)
         # # Recalculate the chunk features for the whole book, which is considered as one chunk
-        # corpus_chunk_features_fulltext, _ = self.get_corpus_features(use_chunks=False)
+        # corpus_chunk_features_fulltext, _ = self.get_corpus_features(as_chunk=False)
 
-        # dfs = self.merge_features(
+        # self.merge_features(
         #     doc_chunk_features,
         #     doc_book_features,
         #     doc_chunk_features_fulltext,
@@ -160,19 +139,7 @@ class FeatureProcessor(DataHandler):
             f.write(f'nr_textruntime\n')
             f.write(f'{round(runtime, 2)}\n')
 
-if __name__ == '__main__':
-    from_commandline = False
-    if from_commandline:
-        parser = argparse.ArgumentParser()
-        parser.add_argument('--language', default='eng')
-        parser.add_argument('--data_dir', default='../data')
-        args = parser.parse_args()
-        language = args.language
-        data_dir = args.data_dir
-    else:
-        # Don't use defaults because VSC Python interactive mode can't handle command line arguments
-        language = 'ger'
-
+for language in ['eng']:
     fe = FeatureProcessor(language).run()
 
 # assert that nr of chunk features = nr of chunk in tokenizedwords

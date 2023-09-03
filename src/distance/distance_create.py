@@ -20,7 +20,7 @@ from feature_extraction.ngrams import MfwExtractor
 sys.path.insert(1, '/home/annina/scripts/pydelta')
 import delta
 sys.path.append("..")
-from utils import DataHandler, get_bookname
+from utils import DataHandler, get_filename_from_path
 
 logging.basicConfig(level=logging.DEBUG)
 # Suppress logger messages by 'matplotlib.ticker
@@ -41,7 +41,7 @@ class Distance(DataHandler):
         mx = pairwise_distances(self.df, metric=distance_metric)
         mx = pd.DataFrame(mx, index=self.df.index, columns=self.df.index)
         mx = self.postprocess_mx(mx, mode, dist_to_sim=False)
-        self.save_data(data=mx, file_name=None,**kwargs)
+        self.save_data(data=mx, file_name=None, **kwargs)
         self.logger.info(f'Created similarity matrix.')
 
     def postprocess_mx(self, mx, mode, dist_to_sim=False):
@@ -173,12 +173,12 @@ class D2vDist(Distance):
     '''
     def __init__(self, language, output_dir='distance'):
         super().__init__(language, output_dir)
-        self.modes = ['doc_tags', 'both_tags']
+        self.modes = ['doc_tags', 'both']
 
 
     def create_data(self,**kwargs):
         '''
-        Create similarity matrix based on d2v embeddings for modes 'doc_tags' and 'both_tags'.
+        Create similarity matrix based on d2v embeddings for modes 'doc_tags' and 'both'.
         '''
         mode = kwargs['mode']
         dp = D2vProcessor(self.language, output_dir=None, data_dir=self.data_dir)
@@ -187,7 +187,7 @@ class D2vDist(Distance):
         # Can only be used for doc_paths, not for chunks
         doc_dvs = {} 
         for doc_path in self.doc_paths:
-            book_name = get_bookname(doc_path)
+            book_name = get_filename_from_path(doc_path)
             doc_dvs[book_name] = dv_dict[book_name]
         dv_dict = doc_dvs
 

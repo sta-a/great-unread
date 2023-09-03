@@ -13,7 +13,7 @@ import time
 from sklearn.neighbors import BallTree
 import sys
 sys.path.append("..")
-from utils import load_list_of_lines, save_list_of_lines, get_bookname
+from utils import load_list_of_lines, save_list_of_lines, get_filename_from_path
 from .production_rule_extractor import ProductionRuleExtractor
 from .doc_based_feature_extractor import DocBasedFeatureExtractor
 import spacy
@@ -21,26 +21,25 @@ import spacy
 
 class CorpusBasedFeatureExtractor():
     '''Get features for which the whole corpus needs to be considered.'''
-    def __init__(self, language, doc_paths, dvs, use_chunks, tokens_per_chunk=500, nr_features=100):
+    def __init__(self, language, doc_paths, as_chunk, tokens_per_chunk=500, nr_features=100):
         self.language = language
         self.doc_paths = doc_paths
-        self.dvs = dvs
-        self.use_chunks = use_chunks
+        self.as_chunk = as_chunk
         self.tokens_per_chunk = tokens_per_chunk
         self.nr_features = nr_features
         self.nlp = self.load_spacy_model()
         self.ngram_counts = self.get_ngram_counts()
 
         # self.all_average_sbert_sentence_embeddings = []
-        self.all_d2v_chunk_embeddings = []
+        self.all_d2v_embeddings = []
         for doc_chunks in self.generate_chunks(): ##################
             # curr_sbert = []
             curr_doc2vec = []
             for chunk in doc_chunks:
                 # curr_sbert.append(np.array(chunk.sbert_sentence_embeddings).mean(axis=0))
-                curr_doc2vec.append(chunk.d2v_chunk_embedding)
+                curr_doc2vec.append(chunk.d2v_embedding)
             # self.all_average_sbert_sentence_embeddings.append(curr_sbert)
-            self.all_d2v_chunk_embeddings.append(curr_doc2vec)
+            self.all_d2v_embeddings.append(curr_doc2vec)
 
 
     def load_spacy_model(self):
@@ -76,8 +75,7 @@ class CorpusBasedFeatureExtractor():
             doc_chunks = DocBasedFeatureExtractor(
                 language=self.language,
                 doc_path=doc_path,
-                dvs=self.dvs,
-                use_chunks=self.use_chunks,
+                as_chunk=self.as_chunk,
                 tokens_per_chunk=self.tokens_per_chunk, 
                 unigram_counts=unigram_counts, 
                 bigram_counts=bigram_counts, 
@@ -102,7 +100,7 @@ class CorpusBasedFeatureExtractor():
                 raise Exception('Not a valid gram_type')
 
         def tag_chunk(chunk, tag_type, gram_type):
-            tags_path = chunk.doc_path.replace('/text_raw', f'/{tag_type}_tags_tpc_{self.tokens_per_chunk}_usechunks_{self.use_chunks}').replace('.txt', f'_chunkid_{chunk.chunk_id}.txt')
+            tags_path = chunk.doc_path.replace('/text_raw', f'/{tag_type}_tags_tpc_{self.tokens_per_chunk}_usechunks_{self.as_chunk}').replace('.txt', f'_chunkid_{chunk.chunk_id}.txt')
             if os.path.exists(tags_path):
                 all_sentence_tags = [line for line in load_list_of_lines(tags_path, 'str')]
             else:
@@ -215,7 +213,7 @@ class CorpusBasedFeatureExtractor():
 
     def get_overlap_score(self, embedding_type):
         if embedding_type == 'doc2vec':
-            all_embeddings = self.all_d2v_chunk_embeddings
+            all_embeddings = self.all_d2v_embeddings
         # elif embedding_type == 'sbert':
         #     all_embeddings = self.all_average_sbert_sentence_embeddings
         else:
@@ -255,7 +253,7 @@ class CorpusBasedFeatureExtractor():
         for doc_path, labels, predictions in zip(self.doc_paths, all_labels, all_predictions):
             if not len(labels) == len(predictions):
                 raise Exception(f'Number true and predicted values are not the same.')
-            file_name = get_bookname(doc_path)
+            file_name = get_filename_from_path(doc_path)
             correct = 0
             incorrect = 0
             for prediction in predictions:
@@ -279,7 +277,7 @@ class CorpusBasedFeatureExtractor():
     def get_outlier_score(self, embedding_type):
         # Get embeddings
         if embedding_type == 'doc2vec':
-            all_embeddings = self.all_d2v_chunk_embeddings
+            all_embeddings = self.all_d2v_embeddings
         # elif embedding_type == 'sbert':
         #     all_embeddings = self.all_average_sbert_sentence_embeddings
         else:
@@ -295,7 +293,7 @@ class CorpusBasedFeatureExtractor():
         file_names = []
         for current_index, current_centroid in enumerate(centroids):
             doc_path = self.doc_paths[current_index]
-            file_name = get_bookname(doc_path)
+            file_name = get_filename_from_path(doc_path)
             nearest_distance = np.inf
             
             for other_index, other_centroid in enumerate(centroids):
@@ -428,7 +426,7 @@ class CorpusBasedFeatureExtractor():
         
         # Create new process for every function
         chunk_processes = [Process(target=func, name=func.__name__) for func in chunk_functions]
-        if self.use_chunks == True:
+        if self.as_chunk == True:
             book_processes = [Process(target=func, name=func.__name__) for func in book_functions]
         else:
             book_processes = []
