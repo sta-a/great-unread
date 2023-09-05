@@ -21,6 +21,7 @@ class DupSentencesFinder(DataHandler):
         sentence = re.sub(r'[^\w\s]', '', sentence).lower()
         # Tokenize the sentence into words
         return sentence.split()
+    
 
     # Function to find similar sentences using difflib's SequenceMatcher
     def find_similar_sentences(self, file_path, similarity_threshold=0.8):
@@ -28,60 +29,60 @@ class DupSentencesFinder(DataHandler):
         with open(file_path, 'r') as f:
             sentences = [line.strip() for line in f]
 
+        print(f'{len(sentences)} sentences.')
+
         similar_sentences = []
 
         # Compare each pair of sentences
-        for i in range(len(sentences)):
+        for i in range(len(sentences)):                
+            sentence1 = sentences[i]
+            tokens1 = self.clean_and_tokenize(sentence1)
+            if i%100 == 0:
+                print('sentence', i)
             for j in range(i + 1, len(sentences)):
-                sentence1 = sentences[i]
                 sentence2 = sentences[j]
-
-                # Clean and tokenize sentences
-                tokens1 = self.clean_and_tokenize(sentence1)
                 tokens2 = self.clean_and_tokenize(sentence2)
 
-                # Calculate the similarity ratio using SequenceMatcher
-                similarity_ratio = difflib.SequenceMatcher(None, tokens1, tokens2).ratio()
+                if len(tokens1) > 5 and len(tokens2)>2:
+                    # Calculate the similarity ratio using SequenceMatcher
+                    similarity_ratio = difflib.SequenceMatcher(None, tokens1, tokens2).ratio()
 
-                # If the similarity ratio is above the threshold, consider them similar
-                if similarity_ratio >= similarity_threshold:
-                    similar_sentences.append([sentence1, sentence2, similarity_ratio])
+                    # If the similarity ratio is above the threshold, consider them similar
+                    if similarity_ratio >= similarity_threshold:
+                        similar_sentences.append([sentence1, sentence2, str(similarity_ratio), '\n---------------------------------------------\n'])
 
         return similar_sentences
 
     
-    def create_data(self):
+    def create_data(self, **kwargs):
+        doc_path = kwargs['doc_path']
         path = '/home/annina/scripts/great_unread_nlp/data/text_tokenized'
         path = os.path.join(path, self.language)
 
-        # for filename in os.listdir(path): #################3 should be path
+        filename = os.path.basename(doc_path)
+        file_path = os.path.join(path, filename)
+        self.logger.info(f'{self.__class__.__name__}: Comparing sentences for {filename}.')
+        similarity_threshold = 0.8 
 
-        for doc_path in self.doc_paths:
-            filename = os.path.basename(doc_path)
-            file_path = os.path.join(path, filename)
-            print(file_path)
-            # Replace 'your_file.txt' with the path to your text file
-            similarity_threshold = 0.8  # Adjust this threshold as needed
+        similar_sentences = self.find_similar_sentences(file_path, similarity_threshold)
 
-            similar_sentences = self.find_similar_sentences(file_path, similarity_threshold)
-
-            if similar_sentences:
-                print("Similar sentences found:")
-                for sentence1, sentence2, similarity_ratio in similar_sentences:
-                    print(f"'{sentence1}' and '{sentence2}' are similar with a similarity ratio of {similarity_ratio:.2f}.")
-            else:
-                print("No similar sentences found in the file.")
-            self.save_data(data=similar_sentences, file_name=get_filename_from_path(file_path))
+        if similar_sentences:
+            print("Similar sentences found:")
+            for sentence1, sentence2, similarity_ratio, _ in similar_sentences:
+                print(f"{sentence1} and {sentence2} are similar with a similarity ratio of {similarity_ratio}.")
+        else:
+            print("No similar sentences found in the file.")
+        self.save_data(data=similar_sentences, file_name=get_filename_from_path(file_path), txt_sep='\n')
 
     def create_all_data(self):
-        startc = time.time()
-        for i, doc_path in enumerate(self.doc_paths):
+        for doc_path in self.doc_paths:
+            startc = time.time()
             _ = self.load_data(load=False, file_name=get_filename_from_path(doc_path), doc_path=doc_path)
-        print(f'{time.time()-startc}s to tokenize all texts')
+            print(f'{time.time()-startc}s to process {get_filename_from_path(doc_path)}')
 
 for language in ['eng', 'ger']:
     d = DupSentencesFinder(language)
-    d.run()
+    d.create_all_data()
 
 
 

@@ -372,9 +372,11 @@ class ChunkHandler(DataHandler):
             chunks_and_tokens = {}
             for filename, value in token_counts_chunk.items():
                 chunks_and_tokens[filename] = [nr_chunks_per_doc[filename], value,]
+            
+            print('---------------------------------')
+            print('Nr. chunks in shortest texts:')
             for filename, values in chunks_and_tokens.items():
                 print(f'{filename}: Chunks: {values[0]}, Tokens: {values[1]}.')
-            print('---------------------------------')
 
 
         def count_sentences_per_chunk(self):

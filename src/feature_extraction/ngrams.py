@@ -16,23 +16,33 @@ sys.path.append("..")
 from utils import DataHandler, get_filename_from_path, get_files_in_dir
 import os
 import numpy as np
+np.random.seed(6)
 import time
 import re
 
 
 class NgramCounter(DataHandler):
     def  __init__(self, language):
-        super().__init__(language, output_dir='ngram_counts', data_type='pkl')
-        self.nr_chunks_check = {}
+        super().__init__(language, output_dir='ngram_counts', data_type='pkl', test=False)
         self.nr_chunknames_check = {}
         self.unigrams = ['unigram', 'bigram', 'trigram']
         self.sizes = ['full', 'chunk']
         self.modes = [(item1, item2) for item1 in self.unigrams for item2 in self.sizes]
-        self.data_dict = None
         self.ch = ChunkHandler(self.language, self.tokens_per_chunk)
+        self.chunk_names = []
+
+    def get_chunknames(self, doc_path, nr_chunks, size):
+        bookname = get_filename_from_path(doc_path)
+        if size == 'chunk':
+            for idx in range(0, nr_chunks):
+                fn = f'{bookname}_{idx}'
+                self.chunk_names.append(fn)
+        else:
+            self.chunk_names.append(get_filename_from_path(doc_path))
 
 
     def load_chunks(self, mode):
+        self.chunk_names = []
         # Generator for loading tokenized chunks
         ntype, size = mode
         if size == 'chunk':
@@ -49,7 +59,7 @@ class NgramCounter(DataHandler):
         for doc_path in self.doc_paths:
             bookname = get_filename_from_path(doc_path)
             chunks = self.ch.load_data(file_name=bookname, remove_punct=False, lower=False, as_chunk=as_chunk, as_sent=as_sent)
-            self.nr_chunks_check[bookname] = len(chunks)
+            self.get_chunknames(doc_path, len(chunks), size)
 
             if as_sent:
                 new_chunks = []
@@ -62,23 +72,6 @@ class NgramCounter(DataHandler):
             for chunk in chunks:
                 yield chunk
                 
-    def get_chunk_names(self, size):
-        def count_lines(file_path):
-            with open(file_path, 'r') as f:
-                return sum(1 for _ in f)
-            
-        chunk_names = []
-        file_list = get_files_in_dir(self.ch.output_dir)
-
-        if size == 'chunk':
-            for file in file_list:
-                file_path = os.path.join(self.ch.output_dir, file)
-                nr_lines = count_lines(file_path)
-                self.nr_chunknames_check[get_filename_from_path(file_path)] = nr_lines
-                chunk_names.extend([f"{get_filename_from_path(file_path)}_{i}" for i in range(0, nr_lines)])
-        else:
-            chunk_names = [get_filename_from_path(dp) for dp in self.doc_paths]
-        return chunk_names
 
     def create_data(self, mode):
         ntype, size = mode
@@ -94,50 +87,65 @@ class NgramCounter(DataHandler):
                 ngram_range = (3, 3)
             cv = CountVectorizer(token_pattern=r'(?u)\b\w+\b', ngram_range=ngram_range, dtype=np.int32, max_features=2000)
 
-        file_names = self.get_chunk_names(size)
         dtm = cv.fit_transform(self.load_chunks(mode))
         words = cv.get_feature_names_out()
         words = ['-'.join(name.split()) for name in words] # for bi- and trigrams, join words
         # Create a dictionary to store everything
-        self.data_dict = {
+        data_dict = {
             'dtm': dtm,
             'words': words,
-            'file_names': file_names
+            'file_names': self.chunk_names
         }
 
-        if size == 'chunk':
-            print(self.nr_chunknames_check, self.nr_chunks_check)
-            assert self.nr_chunknames_check == self.nr_chunks_check, f'nr_chunknames_check and nr_chunks_check are not equal'
-            print(len(list(self.nr_chunknames_check.keys())), len(list(self.nr_chunks_check.keys())))
-            a=list(self.nr_chunknames_check.keys())
-            b=list(self.nr_chunks_check.keys())
-            for i, j in zip(a,b):
-                print(i, j)
-            assert list(self.nr_chunknames_check.keys()) == list(self.nr_chunks_check.keys()), f'keys are not equal'
         # Save the dictionary to a file
-        self.save_data(data=self.data_dict, ntype=mode[0], size=mode[1])
+        self.save_data(data=data_dict, ntype=mode[0], size=mode[1])
+
 
     def load_data(self, load=True, file_name=None, **kwargs):  
-        self.data_dict = super().load_data(load=load, file_name=file_name, **kwargs)
+        data_dict = super().load_data(load=load, file_name=file_name, **kwargs)
+        return data_dict
 
-    def load_values_for_chunk(self, file_name):
-        if self.data_dict is None:
+
+    def load_values_for_chunk(self, file_name, data_dict):
+        if data_dict is None:
             raise ValueError(f'Load data before loading values for a specific file.')
         
         # Find the index of the selected label in the labels list
-        selected_index = self.data_dict['file_names'].index(file_name)
+        idx = data_dict['file_names'].index(file_name)
 
         # Access the term frequency values for the specific document
-        term_frequencies_for_selected_document = self.data_dict['dtm'][selected_index].toarray()
-        print('term_frequencies_for_selected_document', type(term_frequencies_for_selected_document), term_frequencies_for_selected_document)
+        file_counts = data_dict['dtm'][idx].toarray()
 
-        # Convert the term frequency values to a dictionary for better understanding
-        file_ngram_counts = {self.data_dict['words'][i]: term_frequencies_for_selected_document[0][i] for i in range(len(self.data_dict['words']))}
-        return file_ngram_counts
+        file_counts = {data_dict['words'][i]: file_counts[0][i] for i in range(len(data_dict['words']))}
+        return file_counts
     
+
+    def load_all_ngrams(self, as_chunk=None, size=None):
+        if as_chunk is None and size is None:
+            raise ValueError("Either as_chunk or size must have a value, but both are None")
+        
+        # Check if both arguments are not None
+        if as_chunk is not None and size is not None:
+            raise ValueError("Both as_chunk and size cannot have values at the same time")
+    
+        if as_chunk is not None:
+            if as_chunk:
+                size = 'chunk'
+            else:
+                size = 'full'
+        
+        unigrams = self.load_data(file_name=f'unigram_{size}')
+        bigrams = self.load_data(file_name=f'bigram_{size}')
+        trigrams = self.load_data(file_name=f'trigram_{size}')
+
+        self.logger.info(f'Returning ngram data dicts.')
+        return {'unigram': unigrams, 'bigram': bigrams, 'trigram': trigrams}
+    
+
     def check_data(self):
         dc = self.DataChecker(self.language, ngrams_dir=self.output_dir)
         dc.check_filenames()
+        dc.check_rare_words()
         df = dc.get_total_unigram_freq()
         dc.plot_zipfs_law(df)
 
@@ -155,11 +163,11 @@ class NgramCounter(DataHandler):
             ch = ChunkHandler(self.language, self.tokens_per_chunk)
             nr_chunks_per_doc, total_nr_chunks = ch.DataChecker(self.language, ch.output_dir).count_chunks_per_doc()
             nr_texts = len(nr_chunks_per_doc)
-            for unigram in self.unigrams:
-                for size in self.sizes:
-                    self.nc.load_data(file_name=f'{unigram}_{size}')
+            for unigram in self.nc.unigrams:
+                for size in self.nc.sizes:
+                    data_dict = self.nc.load_data(file_name=f'{unigram}_{size}')
 
-                    fn = self.nc.data_dict['file_names']
+                    fn = data_dict['file_names']
                     nr_fn = len(fn)
                     print(f'nr texts: {nr_texts}, nr filenames: {nr_fn}')
 
@@ -169,16 +177,44 @@ class NgramCounter(DataHandler):
                         assert nr_fn == total_nr_chunks
 
 
+        def check_rare_words(self):
+            '''
+            Print some words that occur only once in the corpus and the file in which they occur.
+            '''
+            data_dict = self.nc.load_data(mode='unigram_chunk')
+            words = data_dict['words']
+
+            dtm = data_dict['dtm']
+
+            # Calculate the sum along axis 0 (columns) directly on the sparse matrix
+            dtm_sum = np.array(dtm.sum(axis=0))[0]
+
+            # Randomly select a word with count 1
+            unique_word_indices = np.where(dtm_sum == 1)[0]
+
+            for i in range(0, 10):
+                    # Find the indices where the unique word appears in the DTM
+                    random_unique_word_index = np.random.choice(unique_word_indices)
+                    
+                    # Get the indices of documents where this word appears directly from the sparse matrix
+                    document_indices = dtm[:, random_unique_word_index].nonzero()[0]
+                    
+                    # Retrieve the file name associated with the first document where the word appears
+                    idx = self.nc.data_dict['file_names'][int(document_indices[0])]
+                    
+                    # Print the randomly selected word and the indices of documents where it appears
+                    print(f"Randomly selected word with count 1: '{words[random_unique_word_index]}'")
+                    print(f"Indices of documents where this word appears: {idx}")
+
+
         def get_total_unigram_freq(self):
-            self.nc.load_data(mode='unigram_full')
-            words = self.nc.data_dict['words']
+            data_dict = self.nc.load_data(mode='unigram_full')
+            words = data_dict['words']
 
-            dtm = self.nc.data_dict['dtm']
-
-            # Ensure dtm is a dense NumPy array
-            dtm_dense = dtm.toarray()          
+            dtm = data_dict['dtm']
+   
             # Calculate the sum along axis 0
-            dtm_sum = np.sum(dtm_dense, axis=0)
+            dtm_sum = list(np.array(dtm.sum(axis=0))[0])
 
             data = {'word': words, 'count': dtm_sum}
             df = pd.DataFrame(data)

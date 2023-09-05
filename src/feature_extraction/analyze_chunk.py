@@ -1,82 +1,95 @@
 import sys
 sys.path.append("..")
-print(sys.path)
+import numpy as np
 from utils import get_filename_from_path
-import re
-from .process_rawtext import Postprocessor
+import time
 from .ngrams import NgramCounter
 
 class Chunk():
     def __init__(self,
         language,
+        doc_path,
+        as_chunk,
         tokens_per_chunk,
-        doc_path, 
-        chunk_id,
+        chunk_idx,
         text,
         sentences,
-        sbert_embeddings, 
-        d2v_embedding, 
-        unigram_counts=False, 
-        bigram_counts=False, 
-        trigram_counts=False, 
-        char_unigram_counts=False):
+        sbert_embedding, 
+        d2v_embeddings, 
+        ngrams,
+        get_ngrams=True,
+        get_char_counts=True):
 
         self.language = language
-        self.tokens_per_chunk = tokens_per_chunk
         self.doc_path = doc_path
-        self.chunk_id = chunk_id
-        self.chunkname = self.get_chunkname()
-        print('chunkname', self.chunkname)
+        self.as_chunk = as_chunk
+        self.tokens_per_chunk = tokens_per_chunk
+        self.chunk_idx = chunk_idx
         self.text = text
         self.sentences = sentences
-        self.sbert_embeddings = sbert_embeddings
-        self.d2v_embedding = d2v_embedding
-        self.unigram_counts, self.bigram_counts, self.trigram_counts = self.load_ngrams()
-        self.char_unigram_counts = char_unigram_counts
+        self.sbert_embedding = sbert_embedding
+        self.d2v_embeddings = d2v_embeddings
+        self.ngrams = ngrams
+        self.get_ngrams = get_ngrams
+        self.get_char_counts = get_char_counts
 
+        self.chunkname = self.get_chunkname()
+        self.sbert_embedding = self.load_sbert()
+        self.d2v_embeddings = self.d2v_embeddings[self.chunkname]
+        print('chunkname', self.chunkname)
 
-        # if unigram_counts == True:
-        #     self.unigram_counts = self.__find_unigram_counts()
-        # if bigram_counts == True:
-        #     self.bigram_counts = self.__find_bigram_counts()
-        # if self.trigram_counts == True:
-        #     self.trigram_counts = self.__find_trigram_counts()
-        # if self.char_unigram_counts == True:
-        #     self.char_unigram_counts = self.__find_char_unigram_counts()
+        if self.get_ngrams:
+            self.unigram_counts, self.bigram_counts, self.trigram_counts = self.load_ngrams()
+        if self.get_char_counts:
+            self.char_counts = self.get_char_counts()
+
+        # if self.get_ngrams:
+        #     for my_dict in [self.unigram_counts, self.bigram_counts, self.trigram_counts]: ######################3
+        #         first_10_elements = {k: my_dict[k] for k in list(my_dict.keys())[:10]}
+        #         print(first_10_elements)
+
+        # print('d2v')
+        # print(self.d2v_embeddings)
+        # print('sbert')
+        # print(self.sbert_embedding)
 
     def get_chunkname(self):
         fn = get_filename_from_path(self.doc_path)
-        if self.chunk_id is not None:
-            fn = f'{fn}_{self.chunk_id}'
+        if self.as_chunk:
+            fn = f'{fn}_{self.chunk_idx}'
         return fn
-
+    
+    
+    def load_sbert(self):
+        if self.as_chunk:
+            sbert = self.sbert_embedding[self.chunk_idx]
+        else:
+            # If whole document is used, combine the embeddings of the chunks into one 
+            all_sbert = []
+            for chunk_idx in self.sbert_embedding.keys():
+                print(type(self.sbert_embedding[chunk_idx]), self.sbert_embedding[chunk_idx].shape)
+                all_sbert.append(self.sbert_embedding[chunk_idx])
+            sbert  = np.concatenate(all_sbert, axis=0)
+        return sbert
+    
 
     def load_ngrams(self):
-        c = NgramCounter(self.language)
-        if self.chunk_id is None:
-            c.load_data(file_name='unigram_full')
-            uc = c.load_values_for_chunk(self.chunkname)
-            c.load_data(file_name='bigram_full')
-            bc = c.load_values_for_chunk(self.chunkname)
-            c.load_data(file_name='trigram_full')
-            tc = c.load_values_for_chunk(self.chunkname)
-        else:
-            c.load_data(file_name='unigram_chunk')
-            uc = c.load_values_for_chunk(self.chunkname)
-            c.load_data(file_name='bigram_chunk')
-            bc = c.load_values_for_chunk(self.chunkname)
-            c.load_data(file_name='trigram_chunk')
-            tc = c.load_values_for_chunk(self.chunkname)
+        start = time.time()
+        nc = NgramCounter(self.language)
+        uc = nc.load_values_for_chunk(file_name=self.chunkname, data_dict=self.ngrams['unigram'])
+        bc = nc.load_values_for_chunk(file_name=self.chunkname, data_dict=self.ngrams['bigram'])
+        tc = nc.load_values_for_chunk(file_name=self.chunkname, data_dict=self.ngrams['trigram'])
 
+        print(f'Time to load all ngram counts from file: {time.time()-start}')
         return uc, bc, tc
 
 
-    def __find_char_unigram_counts(self):
+    def get_char_counts(self):
         # Use raw text with punctuation but without capitalization
-        char_unigram_counts = {}
-        for character in self.text:
-            if character in char_unigram_counts.keys():
-                char_unigram_counts[character] += 1
+        char_counts = {}
+        for character in self.text.lower():
+            if character in char_counts.keys():
+                char_counts[character] += 1
             else:
-                char_unigram_counts[character] = 1
-        return char_unigram_counts
+                char_counts[character] = 1
+        return char_counts

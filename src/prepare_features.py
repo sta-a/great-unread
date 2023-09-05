@@ -25,9 +25,6 @@ class FeaturePreparer(DataHandler):
         # self.doc_paths = list(reversed(self.doc_paths))
         # print('doc paths sorted', self.doc_paths)
 
-    def load_text_tokenized(self):
-        chunks = Tokenizer(self.language, self.doc_paths, self.tokens_per_chunk).create_data(self.doc_paths[0], remove_punct=False, lower=False, as_chunk=True)
-        no_chunks = Tokenizer(self.language, self.doc_paths, self.tokens_per_chunk).create_data(self.doc_paths[0], remove_punct=False, lower=False, as_chunk=False)
 
     def sentence_tokenizer(self):
         t = SentenceTokenizer(self.language)
@@ -56,22 +53,25 @@ class FeaturePreparer(DataHandler):
 
     def chunker(self):
         c = ChunkHandler(self.language, self.tokens_per_chunk)
-        c.create_all_data()
+        # c.create_all_data()
         c.check_data()
 
 
     def ngramcounter(self):
-        c = NgramCounter(self.language)
-        c.create_all_data()
-        c.check_data()
-        # s = time.time()
-        # c.load_data(file_name='unigram_chunk')
-        # print(f'Time to load uni chunks: {time.time()-s}')
-        # # selected_index = c.data_dict['file_names']
-        # # print('selected_index', selected_index)
-        # file_ngram_counts = c.load_values_for_chunk(file_name='Kipling_Rudyard_How-the-Rhinoceros-Got-His-Skin_1902_0')
-        # print('file_ngram_counts', file_ngram_counts)
-        # # print(f'Time to load 1 chunk: {time.time()-s}')
+        nc = NgramCounter(self.language)
+        # nc.create_all_data()
+        # nc.check_data()
+        
+        s = time.time()
+        print('loading from file')
+        data_dict = nc.load_data(file_name='unigram_chunk')
+
+        print(f'Time to load uni chunks: {time.time()-s}')
+
+        s = time.time()
+        file_counts = nc.load_values_for_chunk(file_name='Kipling_Rudyard_How-the-Rhinoceros-Got-His-Skin_1902_0', data_dict=data_dict)
+        print('file_counts', file_counts)
+        print(f'Time to load 1 chunk: {time.time()-s}')
 
     def mfwextractor(self):
         m = MfwExtractor(self.language)
@@ -90,15 +90,15 @@ class FeaturePreparer(DataHandler):
         # self.load_text_tokenized()
         # self.sentence_tokenizer()
         # self.tokenizer()
-        self.chunker()
+        # self.chunker()
         # self.ngramcounter()
         # self.mfwextractor()
         # self.d2v()
-        # self.sbert()
+        self.sbert()
 
 
 remove = False
-for language in ['ger']:
+for language in ['eng', 'ger']:
     fp = FeaturePreparer(language)
     fp.run()
 

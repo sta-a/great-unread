@@ -2,18 +2,16 @@ import os
 import numpy as np
 import string
 import textstat
-from pathlib import Path
-from scipy.stats import entropy
-import sys
-sys.path.append("..")
-from .process_rawtext import ChunkHandler
-from .embeddings import SbertProcessor, D2vProcessor
-from .analyze_chunk import Chunk
 import logging
 import time
 import sys
 sys.path.append("..")
-from utils import load_list_of_lines, save_list_of_lines, get_filename_from_path
+from utils import get_filename_from_path
+from scipy.stats import entropy
+from .process_rawtext import ChunkHandler
+from .embeddings import SbertProcessor, D2vProcessor
+from .analyze_chunk import Chunk
+from .ngrams import NgramCounter
 
 
 class DocBasedFeatureExtractor():
@@ -24,102 +22,69 @@ class DocBasedFeatureExtractor():
         language,
         doc_path, 
         as_chunk,
+        ngrams=None,
         tokens_per_chunk=500,
-        unigram_counts=True, 
-        bigram_counts=True, 
-        trigram_counts=True, 
-        char_unigram_counts=True):
+        get_ngrams=True,
+        get_char_counts=True):
 
         self.logger = logging.getLogger(__name__)
         self.language = language
         self.doc_path = doc_path
         self.bookname = get_filename_from_path(self.doc_path)
         self.as_chunk = as_chunk
+        self.ngrams = ngrams
         self.tokens_per_chunk = tokens_per_chunk
-
-        # Parameters for creating chunks
-        self.unigram_counts = unigram_counts
-        self.bigram_counts = bigram_counts
-        self.trigram_counts = trigram_counts
-        self.char_unigram_counts = char_unigram_counts
-
+        self.get_ngrams = get_ngrams
+        self.get_char_counts = get_char_counts
 
         self.chunks = self.__get_chunks()
 
 
-    def load_d2v_embeddings(self):
-        if self.as_chunk:
-            mode = 'chunk'
-        else:
-            mode = 'doc'
-        d2v = D2vProcessor(self.language).load_data(file_name=self.bookname, mode=mode, subdir=True)
-        return d2v
-    
-    def load_sbert_embeddings(self):
-        sbert = SbertProcessor(self.language).load_data(file_name=self.bookname)
-        if self.as_chunk == False:
-            self.logger.info(f'Returning sbert embeddings for all chunks as one list.')
-            # If whole document is used, combine the embeddings of the chunks into one 
-            all_sbert = []
-            for chunk_id in sbert.keys():
-                all_sbert.append(sbert[chunk_id]) #####################3
-            sbert  = all_sbert
-        else:
-            self.logger.info(f'Returning sbert embeddings as dict with format chunk_id: embedding')
-        return sbert
-
-    def __get_chunks(self):
-        # Load data
+    def load_data_for_chunks(self):
         start = time.time()
         chunks_text = ChunkHandler(self.language, self.tokens_per_chunk).load_data(file_name=self.bookname, remove_punct=False, lower=False, as_chunk=self.as_chunk, as_sent=False)
         chunks_sents = ChunkHandler(self.language, self.tokens_per_chunk).load_data(file_name=self.bookname, remove_punct=False, lower=False, as_chunk=self.as_chunk, as_sent=True)
         assert len(chunks_text) == len(chunks_sents)
         
-        d2v_embeddings = self.load_d2v_embeddings()
-        sbert_embeddings = self.load_sbert_embeddings()
-        print(f'Time to load data for 1 doc: {time.time()-start}')
-
-        if not self.as_chunk:
-            chunks = []
-            for text, sentences in zip(chunks_text, chunks_sents):
-                start = time.time()
-                chunks.append(Chunk(
-                    language=self.language,
-                    tokens_per_chunk = self.tokens_per_chunk,
-                    doc_path = self.doc_path,
-                    chunk_id = None,
-                    text = text,
-                    sentences = sentences,
-                    sbert_embeddings = sbert_embeddings,
-                    d2v_embedding = d2v_embeddings[self.bookname],
-                    unigram_counts = self.unigram_counts,
-                    bigram_counts = self.bigram_counts,
-                    trigram_counts = self.trigram_counts,
-                    char_unigram_counts = self.char_unigram_counts))
-                print(f'Time to make chunk: {time.time()-start}')
-            return chunks
-
+        sbert_embedding = SbertProcessor(self.language).load_data(file_name=self.bookname, doc_path=self.doc_path)
+        if self.as_chunk:
+            mode = 'chunk'
         else:
-            chunks = []
-            chunk_id_counter = 0
-            for text, sentences in zip(chunks_text, chunks_sents):
-                start = time.time()
-                chunks.append(Chunk(
-                    language=self.language,
-                    tokens_per_chunk = self.tokens_per_chunk,
-                    doc_path = self.doc_path,
-                    chunk_id = chunk_id_counter,
-                    text = text,
-                    sentences = sentences,
-                    sbert_embeddings = sbert_embeddings[chunk_id_counter],
-                    d2v_embedding = d2v_embeddings[f'{self.bookname}_{str(chunk_id_counter)}'],
-                    unigram_counts = self.unigram_counts,
-                    bigram_counts = self.bigram_counts,
-                    trigram_counts = self.trigram_counts,
-                    char_unigram_counts = self.char_unigram_counts))
-                print(f'Time to make chunk: {time.time()-start}')
+            mode = 'full'
+        d2v_embeddings = D2vProcessor(self.language).load_data(file_name=self.bookname, mode=mode, subdir=True)
 
-                chunk_id_counter += 1
+        if self.ngrams is None and self.get_ngrams:
+            nc = NgramCounter(self.language)
+            ngrams = nc.load_all_ngrams(as_chunk=self.as_chunk)
+        else:
+            ngrams = self.ngrams
+
+        print(f'Time to load data for 1 doc: {time.time()-start}')
+        return chunks_text, chunks_sents, sbert_embedding, d2v_embeddings, ngrams
+
+    def __get_chunks(self):
+        chunks_text, chunks_sents, sbert_embedding, d2v_embeddings, ngrams = self.load_data_for_chunks()
+
+        chunks = []
+        chunk_idx_counter = 0
+        for text, sentences in zip(chunks_text, chunks_sents):
+            start = time.time()
+            chunks.append(Chunk(
+                language=self.language,
+                doc_path = self.doc_path,
+                as_chunk = self.as_chunk,
+                tokens_per_chunk = self.tokens_per_chunk,
+                chunk_idx = chunk_idx_counter,
+                text = text,
+                sentences = sentences,
+                sbert_embedding = sbert_embedding,
+                d2v_embeddings = d2v_embeddings,
+                ngrams = ngrams,
+                get_ngrams = self.get_ngrams,
+                get_char_counts = self.get_char_counts))
+            print(f'Time to make chunk: {time.time()-start}')
+
+            chunk_idx_counter += 1
             return chunks
 
 
@@ -146,7 +111,7 @@ class DocBasedFeatureExtractor():
             'unigram_entropy': self.get_unigram_entropy, # second order redundancy
             # 'average_paragraph_length': self.get_average_paragraph_length, # structural features
             # 0: self.get_average_sbert_sentence_embedding, 
-            1: self.get_d2v_embedding
+            1: self.get_d2v_embeddings
         }
 
         book_feature_mapping = {
@@ -183,34 +148,34 @@ class DocBasedFeatureExtractor():
     def get_ratio_of_punctuation_marks(self, chunk):
         punctuations = 0
         for character in string.punctuation:
-            punctuations += chunk.char_unigram_counts.get(character, 0)
-        all_characters = sum(list(chunk.char_unigram_counts.values()))
+            punctuations += chunk.char_counts.get(character, 0)
+        all_characters = sum(list(chunk.char_counts.values()))
         return punctuations / all_characters
 
     def get_ratio_of_digits(self, chunk):
         digits = 0
         all_characters = 0
         for character in [str(i) for i in range(10)]:
-            digits += chunk.char_unigram_counts.get(character, 0)
-        all_characters = sum(list(chunk.char_unigram_counts.values()))
+            digits += chunk.char_counts.get(character, 0)
+        all_characters = sum(list(chunk.char_counts.values()))
         return digits / all_characters
 
     def get_ratio_of_whitespaces(self, chunk):
-        return chunk.char_unigram_counts.get(' ', 0) / sum(list(chunk.char_unigram_counts.values()))
+        return chunk.char_counts.get(' ', 0) / sum(list(chunk.char_counts.values()))
 
     def get_ratio_of_exclamation_marks(self, chunk):
-        return chunk.char_unigram_counts.get('!', 0) / sum(list(chunk.char_unigram_counts.values()))
+        return chunk.char_counts.get('!', 0) / sum(list(chunk.char_counts.values()))
 
     def get_ratio_of_question_marks(self, chunk):
-        return chunk.char_unigram_counts.get('?', 0) / sum(list(chunk.char_unigram_counts.values()))
+        return chunk.char_counts.get('?', 0) / sum(list(chunk.char_counts.values()))
 
     def get_ratio_of_commas(self, chunk):
-        return chunk.char_unigram_counts.get(',', 0) / sum(list(chunk.char_unigram_counts.values()))
+        return chunk.char_counts.get(',', 0) / sum(list(chunk.char_counts.values()))
 
     def get_ratio_of_uppercase_letters(self, chunk):
         num_upper = 0
         num_alpha = 0
-        for char in chunk.text_tokenized:
+        for char in chunk.text:
             if char.isalpha():
                 num_alpha += 1
                 if char.isupper():
@@ -225,12 +190,12 @@ class DocBasedFeatureExtractor():
     #     return np.mean(split_lengths)
 
     def get_average_sbert_sentence_embedding(self, chunk):
-        average_sentence_embedding = np.array(chunk.sbert_embeddings).mean(axis=0)
+        average_sentence_embedding = np.array(chunk.sbert_embedding).mean(axis=0)
         average_sentence_embedding_features = dict((f'average_sentence_embedding_{index+1}', embedding_part) for index, embedding_part in enumerate(average_sentence_embedding))
         return average_sentence_embedding_features
 
-    def get_d2v_embedding(self, chunk):
-        d2v_embedding_features = dict((f'd2v_embedding_{index+1}', embedding_part) for index, embedding_part in enumerate(chunk.d2v_embedding))
+    def get_d2v_embeddings(self, chunk):
+        d2v_embedding_features = dict((f'd2v_embedding_{index+1}', embedding_part) for index, embedding_part in enumerate(chunk.d2v_embeddings))
         return d2v_embedding_features
 
     def get_average_number_of_words_in_sentence(self, chunk):
@@ -255,7 +220,7 @@ class DocBasedFeatureExtractor():
         return len(chunk.trigram_counts.keys()) / sum(chunk.trigram_counts.values())
 
     def get_text_length(self, chunk):
-        return len(chunk.text_tokenized)
+        return len(chunk.text)
 
     def get_average_word_length(self, chunk):
         word_lengths = []
@@ -283,7 +248,7 @@ class DocBasedFeatureExtractor():
     def get_trigram_entropy(self, chunk):
         temp_dict = {}
         for trigram, count in chunk.trigram_counts.items():
-            trigram = trigram.split()
+            trigram = trigram.split('-')
             left_and_middle = trigram[0] + ' ' + trigram[1]
             if left_and_middle in temp_dict.keys():
                 temp_dict[left_and_middle].append(count)
@@ -301,22 +266,22 @@ class DocBasedFeatureExtractor():
         return types/tokens
 
     def get_flesch_reading_ease_score(self, chunk):
-        return textstat.flesch_reading_ease(chunk.text_tokenized)
+        return textstat.flesch_reading_ease(chunk.text)
 
     # def get_gunning_fog(self, chunk):
     #     '''''''''
     #     Not implemented for German. If we can find 'easy words' in German, then we can implement it ourselves.
     #     '''
-    #     return textstat.gunning_fog(chunk.text_tokenized)
+    #     return textstat.gunning_fog(chunk.text)
 
     # book-based features
     def __get_intra_textual_variance(self, chunks, embedding_type):
         chunk_embeddings = []
         for chunk in chunks:
             if embedding_type == 'd2v':
-                chunk_embeddings.append(chunk.d2v_embedding)
+                chunk_embeddings.append(chunk.d2v_embeddings)
             # elif embedding_type == 'sbert':
-            #     chunk_embeddings.append(np.array(chunk.sbert_embeddings).mean(axis=0)) 
+            #     chunk_embeddings.append(np.array(chunk.sbert_embedding).mean(axis=0)) 
             else:
                 raise Exception(f'Not a valid embedding type {embedding_type}')
         average_chunk_embedding = np.array(chunk_embeddings).mean(axis=0)
@@ -336,11 +301,11 @@ class DocBasedFeatureExtractor():
         for chunk_idx in range(1, len(chunks)):
             #print('index', chunk_idx)
             if embedding_type == 'd2v':
-                current_chunk_embedding = chunks[chunk_idx].d2v_embedding
-                previous_chunk_embedding = chunks[chunk_idx - 1].d2v_embedding
+                current_chunk_embedding = chunks[chunk_idx].d2v_embeddings
+                previous_chunk_embedding = chunks[chunk_idx - 1].d2v_embeddings
             # elif embedding_type == 'sbert':
-            #     current_chunk_embedding = np.array(chunks[chunk_idx].sbert_embeddings).mean(axis=0)
-            #     previous_chunk_embedding = np.array(chunks[chunk_idx - 1].sbert_embeddings).mean(axis=0)
+            #     current_chunk_embedding = np.array(chunks[chunk_idx].sbert_embedding).mean(axis=0)
+            #     previous_chunk_embedding = np.array(chunks[chunk_idx - 1].sbert_embedding).mean(axis=0)
             else:
                 raise Exception(f'Not a valid embedding type {embedding_type}')
             #print('Norm:\n', np.linalg.norm(current_chunk_embedding - previous_chunk_embedding))

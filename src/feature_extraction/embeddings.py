@@ -20,8 +20,8 @@ from sentence_transformers import SentenceTransformer
 from .process_rawtext import ChunkHandler
 sys.path.append("..")
 from utils import get_filename_from_path, get_doc_paths, DataHandler, save_list_of_lines
-# logging.basicConfig(level=logging.DEBUG)
-# logging.getLogger().setLevel(logging.WARNING) # suppress SentenceTransformers batches output 
+logging.basicConfig(level=logging.DEBUG)
+logging.getLogger().setLevel(logging.WARNING) # suppress SentenceTransformers batches output 
 
 
 class SbertProcessor(DataHandler):
@@ -29,7 +29,7 @@ class SbertProcessor(DataHandler):
     ### Add multiprocessing
     
     def __init__(self, language, data_type='npz', tokens_per_chunk=500):
-        sbert_output_dir = f'sbert_sentence_embeddings_tpc_{tokens_per_chunk}'
+        sbert_output_dir = f'sbert_embeddings_tpc_{tokens_per_chunk}'
         super().__init__(language, output_dir=sbert_output_dir, data_type=data_type, tokens_per_chunk=tokens_per_chunk)
 
         if self.language == 'eng':
@@ -114,7 +114,8 @@ class D2vProcessor(DataHandler):
         else:
             self.n_cores = n_cores
 
-        self.modes = ['doc', 'chunk', 'both']
+        self.modes = ['full', 'chunk', 'both']
+
 
 
     def create_all_data(self):
@@ -138,28 +139,28 @@ class D2vProcessor(DataHandler):
         logging.info('\nPreparing data for D2vModel...\n')
         for doc_path in self.doc_paths:
             bookname = get_filename_from_path(doc_path)
-            chunk_id_counter = 0
+            chunk_idx_counter = 0
 
             chunks = ChunkHandler(self.language, self.tokens_per_chunk).load_data(file_name=bookname, remove_punct=True, lower=True, as_chunk=True, doc_path=doc_path)
             for chunk in chunks:
                 words = chunk.split()
                 assert len(words) < 10000 # D2v has token limit of 10'000
                 
-                if mode == 'doc':
+                if mode == 'full':
                     doc_tag = bookname
                     tagged_chunks.append(TaggedDocument(words=words, tags=[doc_tag]))
                 elif mode == 'both':
-                    doc_tag = [bookname, f'{bookname}_{chunk_id_counter}']
+                    doc_tag = [bookname, f'{bookname}_{chunk_idx_counter}']
                     tagged_chunks.append(TaggedDocument(words=words, tags=doc_tag))
                 elif mode == 'chunk':
-                    doc_tag = f'{bookname}_{chunk_id_counter}'
+                    doc_tag = f'{bookname}_{chunk_idx_counter}'
                     tagged_chunks.append(TaggedDocument(words=words, tags=[doc_tag]))
                 
                 if doc_path in self.doc_path_to_chunk_ids.keys():
                     self.doc_path_to_chunk_ids[doc_path].append(doc_tag)
                 else:
                     self.doc_path_to_chunk_ids[doc_path] = [doc_tag]
-                chunk_id_counter += 1
+                chunk_idx_counter += 1
 
         logging.info('\nPrepared data for D2vModel.\n')
         return tagged_chunks
@@ -187,19 +188,21 @@ class D2vProcessor(DataHandler):
         logging.info('\nSaving chunk vectors...\n')
         mode = kwargs['mode']
         self.add_subdir(mode)
-        dvs = {str(chunk_id): self.model.dv[chunk_id] for chunk_id in self.model.dv.index_to_key}
+        dvs = {str(chunk_idx): self.model.dv[chunk_idx] for chunk_idx in self.model.dv.index_to_key}
         print('dv keys', dvs.keys())
 
         if mode == 'chunk' or mode == 'both':
             ch = ChunkHandler(self.language, self.tokens_per_chunk)
             nr_chunks_per_doc, total_nr_chunks = ch.DataChecker(self.language, ch.output_dir).count_chunks_per_doc()
-            assert len(dvs) == total_nr_chunks ########################
+            
+            if mode == 'chunk':
+                assert len(dvs) == total_nr_chunks ########################
 
             for doc_path in self.doc_paths:
                 doc_dvs = {}
                 bookname = get_filename_from_path(doc_path)
-                for chunk_id in range(0, nr_chunks_per_doc[bookname]):
-                    chunkname = f'{bookname}_{chunk_id}'
+                for chunk_idx in range(0, nr_chunks_per_doc[bookname]):
+                    chunkname = f'{bookname}_{chunk_idx}'
                     doc_dvs[chunkname] = dvs[chunkname]
                 assert len(doc_dvs) == nr_chunks_per_doc[bookname]
 
@@ -232,12 +235,12 @@ class D2vProcessor(DataHandler):
     #     ranks = []
     #     second_ranks = []
     #     for doc_path in self.doc_paths:
-    #         chunk_id_counter = 0
+    #         chunk_idx_counter = 0
 
     #         chunks = ChunkHandler(self.language).load_data(doc_path, remove_punct=True, lower=True)
     #         for chunk in chunks:
     #             # Split text into word list
-    #             doc_tag = f'{get_filename_from_path(doc_path)}_{chunk_id_counter}'  ### Convert to int to save memory ################# use list with two tags instead
+    #             doc_tag = f'{get_filename_from_path(doc_path)}_{chunk_idx_counter}'  ### Convert to int to save memory ################# use list with two tags instead
     #             words = chunk.split()
     #             inferred_vector = self.model.infer_vector(words)
     #             sims = self.model.dv.most_similar([inferred_vector])
@@ -245,7 +248,7 @@ class D2vProcessor(DataHandler):
     #             rank = [docid for docid, sim in sims].index(doc_tag)
     #             ranks.append(rank)
     #             second_ranks.append(sims[1])
-    #             chunk_id_counter += 1
+    #             chunk_idx_counter += 1
     #     counter = Counter(ranks)
     #     print(counter)
 

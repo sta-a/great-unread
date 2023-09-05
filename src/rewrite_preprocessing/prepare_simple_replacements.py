@@ -24,8 +24,9 @@ more_lines = r"""
     Lamb_Charles_Hamlet_1807ƒw^oundƒwoundƒ2
     Lohenstein_Daniel_Arminius_1689ƒ \nƒ'ön'ƒ0
     Lohenstein_Daniel_Arminius_1689ƒ \ƒ'ö'ƒ1
-    Lohenstein_Daniel_Arminius_1689ƒ /ƒ\nƒ2
-    Lohenstein_Daniel_Arminius_1689ƒ[ƒ''ƒ3
+    Lohenstein_Daniel_Arminius_1689ƒ / ƒ ƒ2
+    Lohenstein_Daniel_Arminius_1689ƒ /ƒ ƒ3
+    Lohenstein_Daniel_Arminius_1689ƒ[ƒ''ƒ4
     Shelley_Mary_Mathilda_1820ƒ[ƒ''ƒ0
     Shelley_Mary_Mathilda_1820ƒ]ƒ''ƒ1
     Radcliffe_Ann_The-Romance-of-the-Forest_1791ƒt\orpidityƒtorpidityƒ0

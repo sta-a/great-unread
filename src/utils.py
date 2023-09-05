@@ -2,6 +2,7 @@
 # %load_ext autoreload
 # %autoreload 2
 import os
+import re
 from pathlib import Path
 import numpy as np
 import pandas as pd
@@ -70,7 +71,8 @@ def save_list_of_lines(lst, path, line_type):
         raise Exception(f'Not a valid line_type {line_type}')
     
 
-def find_overlapping_passages(path):
+# Only works for passages that are exactly equal, because of hashing
+def find_duplicated_lines(path):
     def hash_lines(lines):
         return [hashlib.md5(line.encode()).hexdigest() for line in lines]
 
@@ -83,7 +85,7 @@ def find_overlapping_passages(path):
             for j, other_line_hash in enumerate(line_hashes[i+1:], start=i+1):
                 if line_hash == other_line_hash:
                     match_ratio = difflib.SequenceMatcher(None, lines[i], lines[j]).ratio()
-                    if match_ratio > 0.5:  # Adjust this threshold as needed
+                    if match_ratio > 0.5:  # Doesn't work, only exact matches are found
                         matches.append((i, j, match_ratio))
 
         return matches
@@ -146,20 +148,8 @@ def check_equal_files(dir1, dir2):
         return False
     
 
-# # General function for finding a string in all code files
-# def search_string_in_files(directory, search_string, extension):
-#     for root, _, files in os.walk(directory):
-#         for file in files:
-#             if file.endswith(extension):
-#                 file_path = os.path.join(root, file)
-#                 if os.path.isfile(file_path):
-#                     with open(file_path, 'r') as f:
-#                         for line_number, line in enumerate(f, start=1):
-#                             if search_string.lower() in line.lower():
-#                                 print(f"Found '{search_string}' in '{os.path.basename(file_path)}' (Line {line_number}): \n{line.rstrip()}\n")
-
 # General function for finding a string in all code files
-def search_string_in_files(directory, search_string, extensions):
+def search_string_in_files(directory, search_string, extensions, full_word=False):
     for root, _, files in os.walk(directory):
         for file in files:
             if any(file.endswith(ext) for ext in extensions):
@@ -167,7 +157,17 @@ def search_string_in_files(directory, search_string, extensions):
                 if os.path.isfile(file_path):
                     with open(file_path, 'r') as f:
                         for line_number, line in enumerate(f, start=1):
-                            if search_string.lower() in line.lower():
+                            # if search_string.lower() in line.lower():
+
+                            # Use regular expressions to search for the word
+                            if full_word:
+                                pattern = r'\b{}\b'.format(re.escape(search_string))
+                            else:
+                                pattern = re.escape(search_string)
+                            
+                            match = re.search(pattern, line, re.IGNORECASE)
+                            if match:
+
                                 print(f"Found '{search_string}' in '{os.path.basename(file_path)}' (Line {line_number}): \n{line.rstrip()}\n")
 
 
@@ -196,7 +196,7 @@ class DataHandler():
             self.nr_texts = 605
         else:
             self.nr_texts = 547
-        self.print_logs = False
+        self.print_logs = True
 
         if self.test:
             self.doc_paths = get_doc_paths_sorted(self.text_raw_dir)[:3]
@@ -226,7 +226,7 @@ class DataHandler():
                 self.create_dir(output_dir)
         return output_dir
 
-    def create_data(self,**kwargs):
+    def create_data(self, **kwargs):
         raise NotImplementedError
     
     
@@ -273,7 +273,11 @@ class DataHandler():
                 # list of lists of strings
                 with open(file_path, 'w') as f:
                     for l in data:
-                        f.write(f'{self.separator.join(l)}\n')
+                        if 'txt_sep' in kwargs:
+                            sep = kwargs['txt_sep']
+                        else:
+                            sep = self.separator
+                        f.write(f'{sep.join(l)}\n')
                 self.logger.info(f'Writing list of lists to file using {self.separator} as the separator.')
         if self.print_logs:
             self.logger.info(f'Saved {data_type} data to {file_path}')
@@ -745,14 +749,11 @@ class DataChecks(DataHandler):
 #     c.get_collaborations()
 
 
-# # # Provide the directory path and the string to search for
-# directory_path = '/home/annina/scripts/great_unread_nlp/data/text_raw'
+# # Provide the directory path and the string to search for
+# directory_path = '/home/annina/scripts/great_unread_nlp/data/text_tokenized'
 # directory_path = '/home/annina/scripts/great_unread_nlp/src/'
-# search_string = 'text_tokenized'
-# search_string = 'count_chunks_per_doc'
+# search_string = ''
 # extension = ['.txt', '.py']
-# search_string_in_files(directory_path, search_string, extension)
-
-
+# search_string_in_files(directory_path, search_string, extension, full_word=False)
 
 # %%

@@ -12,7 +12,7 @@ from multiprocessing import Pool, cpu_count
 from pathlib import Path
 from feature_extraction.doc_based_feature_extractor import DocBasedFeatureExtractor
 from feature_extraction.corpus_based_feature_extractor import CorpusBasedFeatureExtractor
-from feature_extraction.embeddings import SbertProcessor, D2vProcessor
+from feature_extraction.ngrams import NgramCounter
 
 import sys
 sys.path.append("..")
@@ -21,12 +21,15 @@ from utils import DataHandler
 
 class FeatureProcessor(DataHandler):
     def __init__(self, language):
-        super().__init__(language, 'features')
+        super().__init__(language, 'features', test=True) #####################
         self.doc_paths = self.doc_paths[:None]
 
-    def get_doc_features_helper(self, doc_path, as_chunk):
-        fe = DocBasedFeatureExtractor(self.language, doc_path, as_chunk)
+    
+    def get_doc_features_helper(self, doc_path, as_chunk, ngrams):
+        print('as chunk:', as_chunk)
+        fe = DocBasedFeatureExtractor(self.language, doc_path, as_chunk, ngrams)
         chunk_features, book_features = fe.get_all_features()
+        print(chunk_features, book_features)
         return chunk_features, book_features
     
 
@@ -34,17 +37,21 @@ class FeatureProcessor(DataHandler):
         all_chunk_features = []
         all_book_features = []
 
+        # Load ngrams only once for efficiency
+        nc = NgramCounter(self.language)
+        ngrams = nc.load_all_ngrams(as_chunk=as_chunk)
+
         for doc_path in self.doc_paths:
             pickled_path = doc_path.replace('/text_raw', '/pickle') + f'_usechunks_{as_chunk}.pkl'
             pickled_dir = os.path.dirname(pickled_path)
-            print(pickled_dir, pickled_path)
             os.makedirs(pickled_dir, exist_ok=True) 
             if os.path.exists(pickled_path):
                 with open(pickled_path, 'rb') as f:
                     chunk_features, book_features = pickle.load(f)
-                print(book_features)
+                print('book features', book_features)
+
             else:
-                chunk_features, book_features = self.get_doc_features_helper(doc_path, as_chunk)
+                chunk_features, book_features = self.get_doc_features_helper(doc_path, as_chunk, ngrams)
                 with open(pickled_path, 'wb') as f:
                     pickle.dump((chunk_features, book_features), f)
                     self.logger.info(f'')
@@ -75,10 +82,10 @@ class FeatureProcessor(DataHandler):
     
     def get_corpus_features(self, as_chunk):
         cbfe = CorpusBasedFeatureExtractor(self.language, self.doc_paths, as_chunk)
-        # chunk_features, book_features = cbfe.get_all_features() ##############3
+        chunk_features, book_features = cbfe.get_all_features() ##############3
         print('cbfe get all features not called§')
         # Save book features only once (not when running with fulltext chunks)
-        # return chunk_features, book_features ###########################
+        return chunk_features, book_features ###########################
     
     def merge_features(self, doc_chunk_features, doc_book_features, doc_chunk_features_fulltext, corpus_chunk_features, corpus_book_features, corpus_chunk_features_fulltext):
         # Book features
@@ -117,27 +124,27 @@ class FeatureProcessor(DataHandler):
 
         doc_chunk_features, doc_book_features = self.get_doc_features(as_chunk=True)
         # Recalculate the chunk features for the whole book, which is treated as one chunk
-        # doc_chunk_features_fulltext, _ = self.get_doc_features(as_chunk=False)
+        doc_chunk_features_fulltext, _ = self.get_doc_features(as_chunk=False)
         
-        # corpus_chunk_features, corpus_book_features = self.get_corpus_features(as_chunk=True)
-        # # Recalculate the chunk features for the whole book, which is considered as one chunk
-        # corpus_chunk_features_fulltext, _ = self.get_corpus_features(as_chunk=False)
+        corpus_chunk_features, corpus_book_features = self.get_corpus_features(as_chunk=True)
+        # Recalculate the chunk features for the whole book, which is considered as one chunk
+        corpus_chunk_features_fulltext, _ = self.get_corpus_features(as_chunk=False)
 
-        # self.merge_features(
-        #     doc_chunk_features,
-        #     doc_book_features,
-        #     doc_chunk_features_fulltext,
-        #     corpus_chunk_features,
-        #     corpus_book_features,
-        #     corpus_chunk_features_fulltext
-        # )
+        self.merge_features(
+            doc_chunk_features,
+            doc_book_features,
+            doc_chunk_features_fulltext,
+            corpus_chunk_features,
+            corpus_book_features,
+            corpus_chunk_features_fulltext
+        )
 
-        runtime = time.time() - start
-        print('Runtime for all texts:', runtime)
-        with open('runtime_tracker.txt', 'a') as f:
-            f.write('\n2, multiprocessing\n')
-            f.write(f'nr_textruntime\n')
-            f.write(f'{round(runtime, 2)}\n')
+        # runtime = time.time() - start
+        # print('Runtime for all texts:', runtime)
+        # with open('runtime_tracker.txt', 'a') as f:
+        #     f.write('\n2, multiprocessing\n')
+        #     f.write(f'nr_textruntime\n')
+        #     f.write(f'{round(runtime, 2)}\n')
 
 for language in ['eng']:
     fe = FeatureProcessor(language).run()
