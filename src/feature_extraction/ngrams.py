@@ -1,7 +1,4 @@
 # %%
-# %load_ext autoreload
-# %autoreload 2
-
 import pandas as pd
 import joblib
 import pickle
@@ -25,8 +22,10 @@ class NgramCounter(DataHandler):
     def  __init__(self, language):
         super().__init__(language, output_dir='ngram_counts', data_type='pkl', test=False)
         self.nr_chunknames_check = {}
-        self.unigrams = ['unigram', 'bigram', 'trigram']
-        self.sizes = ['full', 'chunk']
+        # self.unigrams = ['unigram', 'bigram', 'trigram']
+        # self.sizes = ['full', 'chunk']
+        self.unigrams = ['trigram'] ######################################
+        self.sizes = ['full']
         self.modes = [(item1, item2) for item1 in self.unigrams for item2 in self.sizes]
         self.ch = ChunkHandler(self.language, self.tokens_per_chunk)
         self.chunk_names = []
@@ -50,25 +49,12 @@ class NgramCounter(DataHandler):
         else:
             as_chunk = False
 
-        if ntype == 'unigram':
-            as_sent = False
-        else: 
-            as_sent = True
-
         print('ntype: ', ntype, 'size: ', size)
         for doc_path in self.doc_paths:
             bookname = get_filename_from_path(doc_path)
-            chunks = self.ch.load_data(file_name=bookname, remove_punct=False, lower=False, as_chunk=as_chunk, as_sent=as_sent)
+            chunks = self.ch.load_data(file_name=bookname, remove_punct=False, lower=False, as_chunk=as_chunk, as_sent=False)
             self.get_chunknames(doc_path, len(chunks), size)
-
-            if as_sent:
-                new_chunks = []
-                for chunk in chunks:
-                    sentences = ['<BOS> ' + sent + ' <EOS>' for sent in chunk]
-                    chunk = ' '.join(sentences)   
-                    new_chunks.append(chunk) # Create simple list of strings, strings represent chunks  
-                chunks = new_chunks
-
+            
             for chunk in chunks:
                 yield chunk
                 
@@ -83,9 +69,12 @@ class NgramCounter(DataHandler):
         else:
             if ntype == 'bigram':
                 ngram_range = (2, 2)
+                # min_df = 10 #7
             else:
                 ngram_range = (3, 3)
-            cv = CountVectorizer(token_pattern=r'(?u)\b\w+\b', ngram_range=ngram_range, dtype=np.int32, max_features=2000)
+                # min_df = 10 #8
+            # cv = CountVectorizer(token_pattern=r'(?u)\b\w+\b', ngram_range=ngram_range, dtype=np.int32, max_features=2000)
+            cv = CountVectorizer(token_pattern=r'(?u)\b\w+\b', ngram_range=ngram_range, dtype=np.int32, min_df=1)
 
         dtm = cv.fit_transform(self.load_chunks(mode))
         words = cv.get_feature_names_out()
@@ -141,6 +130,40 @@ class NgramCounter(DataHandler):
         self.logger.info(f'Returning ngram data dicts.')
         return {'unigram': unigrams, 'bigram': bigrams, 'trigram': trigrams}
     
+
+    def filter_dtm(self, data_dict, min_docs=None, min_percent=None, max_docs=None, max_percent=None):
+        if min_docs is None and min_percent is None and max_docs is None and max_percent is None:
+            raise ValueError('Specify at least one filtering criterion.')
+
+        dtm = data_dict['dtm']
+        words = data_dict['words']
+
+        # Filter minimum
+        if min_docs is not None and min_percent is not None:
+            raise ValueError('Specify either the the minimum number or the minimum percent.')
+        if min_percent is not None:
+            min_docs = round(min_percent/100 * dtm.shape[0])
+        if min_docs is not None:
+            # Boolean mask dtm > 0: True if element is greater 0
+            # Sum over True values -> count in how many docs the word occurs
+            doc_frequency = np.array(np.sum(dtm > 0, axis=0))[0]
+            min_columns = np.where(doc_frequency >= min_docs)[0]
+            dtm = dtm[:, min_columns]
+            words = [words[i] for i in min_columns]
+
+        # Filter maximum
+        if max_docs is not None and max_percent is not None:
+            raise Exception('Specify either the the maximum number or the maximum percent.')
+        if max_percent is not None:
+            max_docs = round(max_percent/100 * dtm.shape[0])
+        if max_docs is not None:
+            doc_frequency = np.array(np.sum(dtm > 0, axis=0))[0] # Recalculate for reduced dtm
+            max_columns = np.where(doc_frequency <= max_docs)[0]
+            dtm = dtm[:, max_columns]
+            words = [words[i] for i in max_columns]
+
+        return dtm, words
+        
 
     def check_data(self):
         dc = self.DataChecker(self.language, ngrams_dir=self.output_dir)
@@ -200,7 +223,7 @@ class NgramCounter(DataHandler):
                     document_indices = dtm[:, random_unique_word_index].nonzero()[0]
                     
                     # Retrieve the file name associated with the first document where the word appears
-                    idx = self.nc.data_dict['file_names'][int(document_indices[0])]
+                    idx = data_dict['file_names'][int(document_indices[0])]
                     
                     # Print the randomly selected word and the indices of documents where it appears
                     print(f"Randomly selected word with count 1: '{words[random_unique_word_index]}'")
@@ -261,29 +284,43 @@ class NgramCounter(DataHandler):
 class MfwExtractor(DataHandler):
     '''
     Calculate MFW tables from word count matrix.
+    The output are the absolute and relative frequencies of the words with the highest relative frequencies in the corpus.
     '''
     def  __init__(self, language):
         super().__init__(language, output_dir='ngram_counts', data_type='csv')
-        self.df = self.prepare_df()
+        self.absdf, self.reldf = self.prepare_df() #Absolute and relative word frequencies
         self.modes = [500, 1000, 2000, 5000]
 
     def prepare_df(self):
-        df = NgramCounter(self.language).load_data(file_name='unigram_full.pkl')
+        # Get relative word frequcencies
+        data_dict = NgramCounter(self.language).load_data(file_name='unigram_full')
+        absdf = pd.DataFrame.sparse.from_spmatrix(data=data_dict['dtm'], columns=data_dict['words'], index=data_dict['file_names'])
         # Calculate relative frequencies
-        df = df.divide(df.sum(axis=1), axis=0)
+        reldf = absdf.divide(absdf.sum(axis=1), axis=0)
         # Sort according to relative frequencies
-        df = df[df.sum().sort_values(ascending=False).index]
-        return df
+        reldf = reldf[reldf.sum().sort_values(ascending=False).index]
+        return absdf, reldf
+    
 
     def create_data(self, **kwargs):
         mfw = kwargs['mode']
-        df = self.df.iloc[:, :mfw]
-        print(df.sum())
-        self.save_data(data=df, file_name=None, **kwargs)
+        reldf = self.reldf.iloc[:, :mfw]
+        reldf = reldf.sparse.to_dense()
+        # Save relative frequencies of words with the highest relative frequencies in the corpus
+        self.save_data(data=reldf, file_name=None, file_string='rel', **kwargs)
+        self.logger.info(f'Saved {mfw} words with highest relative word frequency to file.')
 
-    def create_filename(self, **kwargs):
-        file_name = super().create_filename(**kwargs, file_string='mfw')
-        print(file_name)
-        return file_name
+        # Input for stylo
+        absdf = self.absdf[reldf.columns.tolist()]
+        absdf = absdf.sparse.to_dense()
+        # Save absolute frequencies of words with the highest relative frequencies in the corpus
+        self.save_data(data=absdf, file_name=None, file_string='abs', **kwargs)
+        
+
+    # def create_filename(self, **kwargs):
+    #     file_string = kwargs['file_string']
+    #     file_name = super().create_filename(**kwargs, file_string=file_string)
+    #     print(file_name)
+    #     return file_name
     
 # %%

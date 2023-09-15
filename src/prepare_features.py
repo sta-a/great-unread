@@ -53,28 +53,39 @@ class FeaturePreparer(DataHandler):
 
     def chunker(self):
         c = ChunkHandler(self.language, self.tokens_per_chunk)
-        # c.create_all_data()
+        c.create_all_data()
         c.check_data()
 
 
     def ngramcounter(self):
         nc = NgramCounter(self.language)
-        # nc.create_all_data()
+        nc.unigrams = ['bigram', 'trigram']
+        nc.sizes = ['full']
+        nc.create_all_data()
         # nc.check_data()
         
-        s = time.time()
-        print('loading from file')
-        data_dict = nc.load_data(file_name='unigram_chunk')
+        # s = time.time()
+        # data_dict = nc.load_data(file_name='unigram_chunk')
+        # print(f'Time to load uni chunks: {time.time()-s}')
 
-        print(f'Time to load uni chunks: {time.time()-s}')
+        # s = time.time()
+        # file_counts = nc.load_values_for_chunk(file_name='Kipling_Rudyard_How-the-Rhinoceros-Got-His-Skin_1902_0', data_dict=data_dict)
+        # print(f'Time to load 1 chunk: {time.time()-s}')
 
-        s = time.time()
-        file_counts = nc.load_values_for_chunk(file_name='Kipling_Rudyard_How-the-Rhinoceros-Got-His-Skin_1902_0', data_dict=data_dict)
-        print('file_counts', file_counts)
-        print(f'Time to load 1 chunk: {time.time()-s}')
+    def ngramshapes(self):
+        nc = NgramCounter(self.language)
+        ngrams = nc.load_all_ngrams(as_chunk=False)
+        uc = ngrams['unigram']['dtm']
+        print(uc.shape)
+        uc = ngrams['bigram']['dtm']
+        print(uc.shape)
+        uc = ngrams['trigram']['dtm']
+        print(uc.shape)
+
 
     def mfwextractor(self):
         m = MfwExtractor(self.language)
+        # m.modes = [20]
         m.create_all_data()
 
     def d2v(self):
@@ -83,26 +94,26 @@ class FeaturePreparer(DataHandler):
 
     def sbert(self):
         s = SbertProcessor(self.language)
-        s.create_all_data()
-        # s.check_data()
+        # s.create_all_data()
+        # s.check_data() #############################
+        d = s.load_data(file_name='Kipling_Rudyard_How-the-Rhinoceros-Got-His-Skin_1902', doc_path='/home/annina/scripts/great_unread_nlp/data/text_raw/eng/Kipling_Rudyard_How-the-Rhinoceros-Got-His-Skin_1902.txt')
+        print(type(d), len(d))
 
     def run(self):
         # self.load_text_tokenized()
         # self.sentence_tokenizer()
         # self.tokenizer()
         # self.chunker()
-        # self.ngramcounter()
+        self.ngramcounter()
+        self.ngramshapes()
         # self.mfwextractor()
         # self.d2v()
-        self.sbert()
+        # self.sbert()
 
 
 remove = False
-for language in ['eng', 'ger']:
+for language in ['eng']:
     fp = FeaturePreparer(language)
     fp.run()
-
-
-
 
 # %%

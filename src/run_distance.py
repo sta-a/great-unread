@@ -1,7 +1,7 @@
 # %%
-%load_ext autoreload
-%autoreload 2
-%matplotlib inline
+# %load_ext autoreload
+# %autoreload 2
+# %matplotlib inline
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -65,28 +65,28 @@ class SimilarityNetwork(DataHandler):
         return mx
 
     def load_mxs(self):
-        # pydelta = PydeltaDist(self.language)
-        # # pydelta.modes = ['burrows-500']##############################################
-        # # pdmxs = pydelta.load_all_data()
+        pydelta = PydeltaDist(self.language)
+        pydelta.modes = ['burrows-20']##############################################
+        pdmxs = pydelta.load_all_data()
         # dd = D2vDist(self.language)
         # #dd.modes = ['doc'] ##############################################
         # dvmxs = dd.load_all_data()
         # #mxs = {**pdmxs}#, **dvmxs}
         # mxs = {**dvmxs}
 
-        mxs = []
-        for file_name in os.listdir(self.output_dir):
-            file_path = self.get_file_path(file_name=file_name)
-            if os.path.isfile(file_path) and file_name.endswith('.csv'):
-                file_name = os.path.splitext(file_name)[0]  # Extract file name without extension
+        # mxs = []
+        # for file_name in os.listdir(self.output_dir):
+        #     file_path = self.get_file_path(file_name=file_name)
+        #     if os.path.isfile(file_path) and file_name.endswith('.csv'):
+        #         file_name = os.path.splitext(file_name)[0]  # Extract file name without extension
 
-                mx = pd.read_csv(file_path, header=0, index_col=0)
-                # mx = self.set_diagonal(mx, np.nan)#################3
-                # mx = mx.iloc[:50, :50] ####################3
-                # Process the data as needed
-                mxs.append((file_name, mx))            
-        mxs = mxs
-        return mxs
+        #         mx = pd.read_csv(file_path, header=0, index_col=0)
+        #         # mx = self.set_diagonal(mx, np.nan)#################3
+        #         # mx = mx.iloc[:50, :50] ####################3
+        #         # Process the data as needed
+        #         mxs.append((file_name, mx))            
+        # mxs = mxs
+        # return mxs
 
 
     def network_clustering(self):
@@ -124,7 +124,7 @@ class SimilarityNetwork(DataHandler):
             network.get_clusters()
         
 
-sn = SimilarityNetwork(language='eng').simmx_clustering()
+sn = SimilarityNetwork(language='eng') #.simmx_clustering()
 
 
 # Heatmap:

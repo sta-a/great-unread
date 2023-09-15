@@ -11,6 +11,7 @@ scp -r /home/annina/scripts/great_unread_nlp/data/sentiscores/ stahla@euler.ethz
 scp -r /home/annina/scripts/great_unread_nlp/data/metadata/ stahla@euler.ethz.ch:/cluster/scratch/stahla/data/ 
 scp -r /home/annina/scripts/great_unread_nlp/data/features_None/ stahla@euler.ethz.ch:/cluster/scratch/stahla/data/
 scp -r /home/annina/scripts/great_unread_nlp/data/canonscores/ stahla@euler.ethz.ch:/cluster/scratch/stahla/data/
+scp -r /home/annina/scripts/great_unread_nlp/data/text_tokenized/ stahla@euler.ethz.ch:/cluster/scratch/stahla/data/
 
 
 #ssh stahla@euler.ethz.ch

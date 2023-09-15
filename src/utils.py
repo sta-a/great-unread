@@ -1,6 +1,4 @@
 # %%
-# %load_ext autoreload
-# %autoreload 2
 import os
 import re
 from pathlib import Path
@@ -752,7 +750,7 @@ class DataChecks(DataHandler):
 # # Provide the directory path and the string to search for
 # directory_path = '/home/annina/scripts/great_unread_nlp/data/text_tokenized'
 # directory_path = '/home/annina/scripts/great_unread_nlp/src/'
-# search_string = ''
+# search_string = 'Row and Column names for Elements'
 # extension = ['.txt', '.py']
 # search_string_in_files(directory_path, search_string, extension, full_word=False)
 

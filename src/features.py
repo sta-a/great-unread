@@ -6,6 +6,7 @@ import os
 import pickle
 import numpy as np
 import pandas as pd
+import shutil
 import time
 from itertools import repeat
 from multiprocessing import Pool, cpu_count
@@ -16,22 +17,30 @@ from feature_extraction.ngrams import NgramCounter
 
 import sys
 sys.path.append("..")
-from utils import DataHandler
+from utils import DataHandler, get_filename_from_path
 
 
 class FeatureProcessor(DataHandler):
     def __init__(self, language):
         super().__init__(language, 'features', test=True) #####################
         self.doc_paths = self.doc_paths[:None]
+        self.pickle_dir = self.text_raw_dir.replace('/text_raw', '/pickle')
+        os.makedirs(self.pickle_dir, exist_ok=True) 
 
     
     def get_doc_features_helper(self, doc_path, as_chunk, ngrams):
-        print('as chunk:', as_chunk)
         fe = DocBasedFeatureExtractor(self.language, doc_path, as_chunk, ngrams)
         chunk_features, book_features = fe.get_all_features()
-        print(chunk_features, book_features)
         return chunk_features, book_features
     
+    def load_pickle(self, path):
+        with open(path, 'rb') as f:
+            features = pickle.load(f)
+            return features
+    
+    def save_pickle(self, path, datatuple):
+        with open(path, 'wb') as f:
+            pickle.dump(datatuple, f)
 
     def get_doc_features(self, as_chunk):
         all_chunk_features = []
@@ -42,24 +51,18 @@ class FeatureProcessor(DataHandler):
         ngrams = nc.load_all_ngrams(as_chunk=as_chunk)
 
         for doc_path in self.doc_paths:
-            pickled_path = doc_path.replace('/text_raw', '/pickle') + f'_usechunks_{as_chunk}.pkl'
-            pickled_dir = os.path.dirname(pickled_path)
-            os.makedirs(pickled_dir, exist_ok=True) 
-            if os.path.exists(pickled_path):
-                with open(pickled_path, 'rb') as f:
-                    chunk_features, book_features = pickle.load(f)
-                print('book features', book_features)
-
+            pickle_path = os.path.join(self.pickle_dir, f'{get_filename_from_path(doc_path)}_usechunks_{as_chunk}.pkl')
+            
+            if os.path.exists(pickle_path):
+                chunk_features, book_features = self.load_pickle(pickle_path)
             else:
                 chunk_features, book_features = self.get_doc_features_helper(doc_path, as_chunk, ngrams)
-                with open(pickled_path, 'wb') as f:
-                    pickle.dump((chunk_features, book_features), f)
-                    self.logger.info(f'')
+                self.save_pickle(pickle_path, (chunk_features, book_features))
+
 
             all_chunk_features.extend(chunk_features)
             all_book_features.append(book_features)
 
-        print(len(all_chunk_features), len(all_book_features)) ##################################
         # Save book features only once (not when running with fulltext chunks)
         return all_chunk_features, all_book_features
        
@@ -83,7 +86,6 @@ class FeatureProcessor(DataHandler):
     def get_corpus_features(self, as_chunk):
         cbfe = CorpusBasedFeatureExtractor(self.language, self.doc_paths, as_chunk)
         chunk_features, book_features = cbfe.get_all_features() ##############3
-        print('cbfe get all features not called§')
         # Save book features only once (not when running with fulltext chunks)
         return chunk_features, book_features ###########################
     
@@ -98,7 +100,7 @@ class FeatureProcessor(DataHandler):
                     .merge(right=doc_chunk_features_fulltext, on='file_name', how='outer', validate='one_to_one')\
                     .merge(right=corpus_book_features, on='file_name', validate='one_to_one')\
                     .merge(right=corpus_chunk_features_fulltext, on='file_name', validate='one_to_one')
-        book_df.columns = [col + '_fulltext' if col != 'file_name' else col for col in book_df.columns]
+        book_df.columns = [col + '_full' if col != 'file_name' else col for col in book_df.columns]
 
         # Chunk features
         doc_chunk_features = pd.DataFrame(doc_chunk_features)
@@ -120,15 +122,52 @@ class FeatureProcessor(DataHandler):
             self.save_data(data=df, file_name=file_name)
     
     def run(self):
-        start = time.time()
+        gstart = time.time()
 
-        doc_chunk_features, doc_book_features = self.get_doc_features(as_chunk=True)
-        # Recalculate the chunk features for the whole book, which is treated as one chunk
-        doc_chunk_features_fulltext, _ = self.get_doc_features(as_chunk=False)
+        start = time.time()
+        path = os.path.join(self.pickle_dir, 'doc_chunk.pkl')
+        if os.path.exists(path):
+            doc_chunk_features, doc_book_features = self.load_pickle(path)
+        else:
+            doc_chunk_features, doc_book_features = self.get_doc_features(as_chunk=True)
+            self.save_pickle(path, (doc_chunk_features, doc_book_features))
+        print(f'Doc features: {time.time()-start}s.')
+
+        start = time.time()
+        path = os.path.join(self.pickle_dir, 'doc_full.pkl')
+        if os.path.exists(path):
+            doc_chunk_features_fulltext = self.load_pickle(path)[0]
+            print('type doc_chunk_features_fulltext', type(doc_chunk_features_fulltext))
+        else:
+            # Recalculate the chunk features for the whole book, which is treated as one chunk
+            doc_chunk_features_fulltext, _ = self.get_doc_features(as_chunk=False)
+            self.save_pickle(path, (doc_chunk_features_fulltext))
+        print(f'Doc full features: {time.time()-start}s.')
+
+
+        print('STarting corpus features----------------------------\n')
+
+        start = time.time()
+        path = os.path.join(self.pickle_dir, 'corpus_chunk.pkl')
+        if os.path.exists(path):
+            corpus_chunk_features, corpus_book_features = self.load_pickle(path)
+        else:
+            corpus_chunk_features, corpus_book_features = self.get_corpus_features(as_chunk=True)
+            self.save_pickle(path, (corpus_chunk_features, corpus_book_features))
+        print(f'Corpus features: {time.time()-start}s.')
+    
+
+        start = time.time()
+        path = os.path.join(self.pickle_dir, 'corpus_full.pkl')
+        if os.path.exists(path):
+            corpus_chunk_features_fulltext = self.load_pickle(path)[0]
+        else:
+            # Recalculate the chunk features for the whole book, which is considered as one chunk
+            corpus_chunk_features_fulltext, _ = self.get_corpus_features(as_chunk=False)
+            self.save_pickle(path, (corpus_chunk_features_fulltext))   
+        print(f'Corpus full features: {time.time()-start}s.')   
         
-        corpus_chunk_features, corpus_book_features = self.get_corpus_features(as_chunk=True)
-        # Recalculate the chunk features for the whole book, which is considered as one chunk
-        corpus_chunk_features_fulltext, _ = self.get_corpus_features(as_chunk=False)
+
 
         self.merge_features(
             doc_chunk_features,
@@ -139,14 +178,18 @@ class FeatureProcessor(DataHandler):
             corpus_chunk_features_fulltext
         )
 
-        # runtime = time.time() - start
-        # print('Runtime for all texts:', runtime)
+        runtime = time.time() - gstart
+        print('Runtime for all texts:', runtime)
         # with open('runtime_tracker.txt', 'a') as f:
         #     f.write('\n2, multiprocessing\n')
         #     f.write(f'nr_textruntime\n')
         #     f.write(f'{round(runtime, 2)}\n')
 
 for language in ['eng']:
+    fpath = '/home/annina/scripts/great_unread_nlp/data/features'
+    ppath = '/home/annina/scripts/great_unread_nlp/data/pickle'
+    if os.path.exists(ppath):
+        shutil.rmtree(ppath)
     fe = FeatureProcessor(language).run()
 
 # assert that nr of chunk features = nr of chunk in tokenizedwords

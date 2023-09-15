@@ -1,6 +1,4 @@
 # %%
-# %load_ext autoreload
-# %autoreload 2
 from sklearn.metrics import pairwise_distances
 import pickle
 import logging
@@ -161,8 +159,9 @@ class Distance(DataHandler):
         plt.xticks(rotation=90)
         ax.grid(False)
 
-        # file_name = self.create_filename(mode=mode, )
-        self.save_data(data=plt, data_type='svg', mode=mode)
+        file_name = self.create_filename(mode=mode)
+        print(file_name)
+        self.save_data(data=plt, data_type='png', mode=mode)
         plt.close()
         # plt.savefig('test', format="svg")
 
@@ -173,31 +172,31 @@ class D2vDist(Distance):
     '''
     def __init__(self, language, output_dir='distance'):
         super().__init__(language, output_dir)
-        self.modes = ['doc_tags', 'both']
+        self.modes = ['full', 'both']
 
 
-    def create_data(self,**kwargs):
+    def create_data(self, **kwargs):
         '''
         Create similarity matrix based on d2v embeddings for modes 'doc_tags' and 'both'.
         '''
         mode = kwargs['mode']
-        dp = D2vProcessor(self.language, output_dir=None, data_dir=self.data_dir)
-        dv_dict = dp.load_data(file_name=f'{mode}.npz')
+        dp = D2vProcessor(self.language)
 
         # Can only be used for doc_paths, not for chunks
         doc_dvs = {} 
         for doc_path in self.doc_paths:
             book_name = get_filename_from_path(doc_path)
-            doc_dvs[book_name] = dv_dict[book_name]
+            d2v_embeddings = dp.load_data(file_name=self.bookname, mode=mode, subdir=True)[book_name]
+            doc_dvs[book_name] = d2v_embeddings
         dv_dict = doc_dvs
 
         mx = self.calculate_distance(dv_dict)
-        mx.to_csv(os.path.join('/home/annina/scripts/great_unread_nlp/data/distance/', self.language, 'distmx', f'{mode}.csv')) ############################
+        #mx.to_csv(os.path.join('/home/annina/scripts/great_unread_nlp/data/distance/', self.language, 'distmx', f'{mode}.csv')) ############################
         mx = self.postprocess_mx(mx, mode, dist_to_sim=False)
         self.save_data(mx, mode=mode)
         self.logger.info(f'Created {mode} similarity matrix.')
 
-    def create_filename(self,**kwargs):
+    def create_filename(self, **kwargs):
         file_string = f"d2vtpc{self.tokens_per_chunk}"
         file_name = super().create_filename(**kwargs, file_string=file_string)
         return file_name
@@ -235,12 +234,13 @@ class PydeltaDist(Distance):
         # self.distances = ['burrows']
         # self.nmfw_values = [500]
         self.modes = [f'{item1}-{item2}' for item1 in self.distances for item2 in self.nmfw_values]
+        self.modes =  ['burrows-20'] ###################################
 
     def create_data(self,**kwargs):
         self.logger.info(f"Distance 'edersimple' is not calculated due to implementation error.")
         mode = kwargs['mode']
         mx = self.calculate_distance(mode=mode)
-        mx.to_csv(os.path.join('/home/annina/scripts/great_unread_nlp/data/distance/', self.language, 'distmx', f'{mode}.csv'))
+        #mx.to_csv(os.path.join('/home/annina/scripts/great_unread_nlp/data/distance/', self.language, 'distmx', f'{mode}.csv'))
         mx = self.postprocess_mx(mx, mode, dist_to_sim=True)
         self.save_data(mx, mode=mode)
         self.logger.info(f'Created {mode} similarity matrix.')
@@ -252,7 +252,7 @@ class PydeltaDist(Distance):
     def get_corpus(self, mode):
         distance, nmfw = self.get_params_from_mode(mode)
         mfwf = MfwExtractor(language=self.language)
-        mfwf.file_exists_or_create(mode=nmfw)
+        print('mfw file path: ', mfwf.get_file_path(file_name=None, mode=nmfw))
         corpus = delta.Corpus(mfwf.get_file_path(file_name=None, mode=nmfw))
         return corpus
 
@@ -300,7 +300,7 @@ class StyloDistance(PydeltaDist):
         self.logger.info(f'Created {mode} similarity matrix.')
     
 
-d = StyloDistance(language='eng')
-d.load_all_data()
+# d = StyloDistance(language='eng') #################################
+# d.load_all_data()
 
 # %%

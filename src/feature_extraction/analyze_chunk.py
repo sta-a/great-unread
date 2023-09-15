@@ -14,7 +14,7 @@ class Chunk():
         chunk_idx,
         text,
         sentences,
-        sbert_embedding, 
+        sbert_embeddings, 
         d2v_embeddings, 
         ngrams,
         get_ngrams=True,
@@ -27,21 +27,22 @@ class Chunk():
         self.chunk_idx = chunk_idx
         self.text = text
         self.sentences = sentences
-        self.sbert_embedding = sbert_embedding
+        self.sbert_embeddings = sbert_embeddings
         self.d2v_embeddings = d2v_embeddings
         self.ngrams = ngrams
         self.get_ngrams = get_ngrams
         self.get_char_counts = get_char_counts
 
         self.chunkname = self.get_chunkname()
-        self.sbert_embedding = self.load_sbert()
+        self.sbert_embeddings = self.load_sbert()
         self.d2v_embeddings = self.d2v_embeddings[self.chunkname]
-        print('chunkname', self.chunkname)
 
         if self.get_ngrams:
             self.unigram_counts, self.bigram_counts, self.trigram_counts = self.load_ngrams()
         if self.get_char_counts:
-            self.char_counts = self.get_char_counts()
+            countstart = time.time()
+            self.char_counts = self.count_chars()
+            print(f'{time.time()-countstart}s to calculate char counts.')
 
         # if self.get_ngrams:
         #     for my_dict in [self.unigram_counts, self.bigram_counts, self.trigram_counts]: ######################3
@@ -51,7 +52,7 @@ class Chunk():
         # print('d2v')
         # print(self.d2v_embeddings)
         # print('sbert')
-        # print(self.sbert_embedding)
+        # print(self.sbert_embeddings)
 
     def get_chunkname(self):
         fn = get_filename_from_path(self.doc_path)
@@ -62,29 +63,25 @@ class Chunk():
     
     def load_sbert(self):
         if self.as_chunk:
-            sbert = self.sbert_embedding[self.chunk_idx]
+            sbert = self.sbert_embeddings[self.chunk_idx]
         else:
-            # If whole document is used, combine the embeddings of the chunks into one 
+            # If whole document is used, combine the embeddings of all chunks into one 
             all_sbert = []
-            for chunk_idx in self.sbert_embedding.keys():
-                print(type(self.sbert_embedding[chunk_idx]), self.sbert_embedding[chunk_idx].shape)
-                all_sbert.append(self.sbert_embedding[chunk_idx])
+            for chunk_idx in self.sbert_embeddings.keys():
+                all_sbert.append(self.sbert_embeddings[chunk_idx])
             sbert  = np.concatenate(all_sbert, axis=0)
         return sbert
     
 
     def load_ngrams(self):
-        start = time.time()
         nc = NgramCounter(self.language)
         uc = nc.load_values_for_chunk(file_name=self.chunkname, data_dict=self.ngrams['unigram'])
         bc = nc.load_values_for_chunk(file_name=self.chunkname, data_dict=self.ngrams['bigram'])
         tc = nc.load_values_for_chunk(file_name=self.chunkname, data_dict=self.ngrams['trigram'])
-
-        print(f'Time to load all ngram counts from file: {time.time()-start}')
         return uc, bc, tc
 
 
-    def get_char_counts(self):
+    def count_chars(self):
         # Use raw text with punctuation but without capitalization
         char_counts = {}
         for character in self.text.lower():

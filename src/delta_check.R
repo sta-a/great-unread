@@ -1,71 +1,4 @@
 # Install and load required packages
-#install.packages("quanteda")
-# library(quanteda)
-
-# # Set the directory where the CSV files are located
-# csv_dir <- "/home/annina/scripts/great_unread_nlp/data/ngram_counts/eng"
-
-# # Get a list of all CSV files in the directory
-# csv_files <- list.files(csv_dir, pattern = "\\.csv$", full.names = TRUE)
-
-# # Create an empty list to store the delta results for each file
-# all_delta_results <- list()
-
-# # Iterate through each CSV file
-# for (csv_file in csv_files) {
-#   print(csv_file)
-#   # Read the document-term matrix from the CSV file
-#   dtm <- read.csv(csv_file)
-  # print(names(dtm))
-  # Check row names
-  # print("Row Names:")
-  # print(row.names(dtm))
-
-  # # Check column names
-  # print("Column Names:")
-  # print(colnames(dtm))
-
-
-  # any_missing <- any(is.na(dtm))
-  # print(any_missing)
-  # # # Convert the document-term matrix to a quanteda dfm object
-  # dfm <- as.dfm(dtm)
-  # print(dtm)
-  
-  # # Create a quanteda corpus from the dfm
-  # corpus <- corpus(dtm, text_field = "file_name")
-  
-  # # Calculate delta measures
-  # delta_measures <- c("burrows_delta", "zeta", "eders_delta", "cosine_delta",
-  #                     "quadratic_delta", "pearsons_delta", "likelihood_delta",
-  #                     "log_likelihood_delta", "chi_square_delta", "jensen_shannon_delta")
-  
-  # delta_results <- list()
-  # for (measure in delta_measures) {
-  #   deltas <- textstat_dist(corpus, method = measure)
-  #   delta_results[[measure]] <- deltas
-  # }
-  
-  # # Store the delta results for the current file in the list
-  # all_delta_results[[csv_file]] <- delta_results
-  
-  # # Create a new filename with "quanteda-" added at the beginning
-  # output_file <- paste0("quanteda-", basename(csv_file))
-  
-  # # Save each delta matrix as a separate CSV file
-  # for (measure in delta_measures) {
-  #   delta_matrix <- delta_results[[measure]]
-  #   # Replace missing values (NA) with 0
-  #   delta_matrix[is.na(delta_matrix)] <- 0
-  #   output_path <- file.path("/home/annina/scripts/great_unread_nlp/src/test", paste0(output_file, "-", measure, ".csv"))
-  #   write.table(delta_matrix, file = output_path, sep = ",", col.names = NA)
-  # }
-# }
-
-
-# -----------------------------------------------------------
-
-# Install and load required packages
 # install.packages("stylo")
 library(stylo)
 languages <- c("eng", "ger")
@@ -76,7 +9,7 @@ languages <- c("eng", "ger")
   print(csv_dir)
 
   # Get a list of all CSV files in the directory
-  csv_files <- list.files(csv_dir, pattern = "\\.csv$", full.names = TRUE)
+  csv_files <- list.files(csv_dir, pattern = "abs-[0-9]+\\.csv$", full.names = TRUE)
   # Create an empty list to store the delta results for each file
   print(csv_files)
 
@@ -107,15 +40,15 @@ languages <- c("eng", "ger")
     # Loop through each delta measure and calculate it for the given document term matrix
     for (delta_measure in delta_measures) {
       if (delta_measure == "burrows") {
-        delta_results[[delta_measure]] <- as.matrix(dist.delta(dtm))
+        delta_results[[delta_measure]] <- as.matrix(dist.delta(dtm, scale = TRUE))
       # } else if (delta_measure == "zeta") {
       #   delta_results[[delta_measure]] <- delta_zeta(dtm)
       } else if (delta_measure == "linear") {
-        delta_results[[delta_measure]] <- as.matrix(dist.argamon(dtm))
+        delta_results[[delta_measure]] <- as.matrix(dist.argamon(dtm, scale = TRUE))
       } else if (delta_measure == "eders") {
-        delta_results[[delta_measure]] <- as.matrix(dist.eder(dtm))
+        delta_results[[delta_measure]] <- as.matrix(dist.eder(dtm, scale = TRUE))
       } else if (delta_measure == "ederssimple") {
-        delta_results[[delta_measure]] <- as.matrix(dist.simple(dtm))
+        delta_results[[delta_measure]] <- as.matrix(dist.simple(dtm, scale = TRUE))
       # } else if (delta_measure == "dist.canberra") {
       #   delta_results[[delta_measure]] <- as.matrix(dist.canberra(dtm))
       #} else if (delta_measure == "cosine") {
@@ -148,8 +81,9 @@ languages <- c("eng", "ger")
       delta_matrix <- delta_results[[measure]]
       # Replace missing values (NA) with 0
       #delta_matrix[is.na(delta_matrix)] <- 0
-      output_path <- file.path(output_dir, paste0("dist-", measure, "-", number, ".csv"))
+      output_path <- file.path(output_dir, paste0(measure, "-", number, ".csv"))
       write.table(delta_matrix, file = output_path, sep = ",", col.names = NA)
     }
   }
 }
+

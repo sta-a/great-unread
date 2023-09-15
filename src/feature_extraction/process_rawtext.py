@@ -92,7 +92,7 @@ class SentenceTokenizer(DataHandler):
         sentences = self.tokenize_sentences(text)
 
         self.save_data(data=sentences, file_name=get_filename_from_path(doc_path))
-        self.check_data(sentences)
+        # self.check_data(sentences)
         return sentences
     
     def check_data(self, all_sentences):
@@ -278,7 +278,6 @@ class ChunkHandler(DataHandler):
         starty = time.time()
         for i, doc_path in enumerate(self.doc_paths):
             _ = self.load_data(load=False, file_name=get_filename_from_path(doc_path), doc_path=doc_path)
-        self.check_data()
         print(f'{time.time()-starty}s to split all texts into chunks.')
 
     def load_data(self, file_name=None, load=True, remove_punct=False, lower=False, as_chunk=True, as_sent=False, **kwargs):

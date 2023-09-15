@@ -31,16 +31,17 @@ class CorpusBasedFeatureExtractor():
         self.tokens_per_chunk = tokens_per_chunk
         self.nr_features = nr_features
         self.nlp = self.load_spacy_model()
-        self.ngrams = self.load_ngrams()
+        self.nc = NgramCounter(self.language)
+        self.ngrams = self.nc.load_all_ngrams(as_chunk=False)
+
 
         self.all_average_sbert_embeddings = []
         self.all_d2v_embeddings = []
         for doc_chunks in self.generate_chunks():
             curr_sbert = []
             curr_doc2vec = []
-            print('dochunks', len(doc_chunks))
             for chunk in doc_chunks:
-                curr_sbert.append(np.array(chunk.sbert_embedding).mean(axis=0))
+                curr_sbert.append(np.array(chunk.sbert_embeddings).mean(axis=0))
                 curr_doc2vec.append(chunk.d2v_embeddings)
             self.all_average_sbert_embeddings.append(curr_sbert)
             self.all_d2v_embeddings.append(curr_doc2vec)
@@ -59,12 +60,6 @@ class CorpusBasedFeatureExtractor():
             return nlp
         except OSError:
             print(f'The model {model_name} for Spacy is missing.')
-
-
-    def load_ngrams(self):
-        nc = NgramCounter(self.language)
-        ngrams = nc.load_all_ngrams(as_chunk=False)
-        return ngrams
 
 
     def generate_chunks(self,         
@@ -272,8 +267,8 @@ class CorpusBasedFeatureExtractor():
         return self.get_overlap_score('doc2vec')
     
 
-    # def get_overlap_score_sbert(self):
-    #     return self.get_overlap_score('sbert')
+    def get_overlap_score_sbert(self):
+        return self.get_overlap_score('sbert')
 
 
     def get_outlier_score(self, embedding_type):
@@ -313,47 +308,13 @@ class CorpusBasedFeatureExtractor():
     def get_outlier_score_doc2vec(self):
         return self.get_outlier_score('doc2vec')
 
-    # def get_outlier_score_sbert(self):
-    #     return self.get_outlier_score('sbert')
+    def get_outlier_score_sbert(self):
+        return self.get_outlier_score('sbert')
 
-
-    def filter_doc_term_matrix(self, data_dict, min_docs=None, min_percent=None, max_docs=None, max_percent=None):
-        if min_docs is None and min_percent is None and max_docs is None and max_percent is None:
-            raise ValueError('Specify at least one filtering criterion.')
-
-        dtm = data_dict['dtm']
-        words = data_dict['words']
-
-        # Filter minimum
-        if min_docs is not None and min_percent is not None:
-            raise ValueError('Specify either the the minimum number or the minimum percent.')
-        if min_percent is not None:
-            min_docs = round(min_percent/100 * dtm.shape[0])
-        if min_docs is not None:
-            # Boolean mask dtm > 0: True if element is greater 0
-            # Sum over True values -> count in how many docs the word occurs
-            doc_frequency = np.array(np.sum(dtm > 0, axis=0))[0]
-            min_columns = np.where(doc_frequency >= min_docs)[0]
-            dtm = dtm[:, min_columns]
-            words = [words[i] for i in min_columns]
-
-        # Filter maximum
-        if max_docs is not None and max_percent is not None:
-            raise Exception('Specify either the the maximum number or the maximum percent.')
-        if max_percent is not None:
-            max_docs = round(max_percent/100 * dtm.shape[0])
-        if max_docs is not None:
-            doc_frequency = np.array(np.sum(dtm > 0, axis=0))[0] # Recalculate for reduced dtm
-            max_columns = np.where(doc_frequency <= max_docs)[0]
-            dtm = dtm[:, max_columns]
-            words = [words[i] for i in max_columns]
-
-        return dtm, words
-    
 
     def get_distance_from_corpus(self, ngram_type, min_docs=None, min_percent=None, max_docs=None, max_percent=None):
         data_dict = self.ngrams[ngram_type]
-        dtm, words = self.filter_doc_term_matrix(data_dict, min_docs, min_percent, max_docs, max_percent)
+        dtm, _ = self.nc.filter_dtm(data_dict, min_docs, min_percent, max_docs, max_percent)
 
         dtm_sum = np.array(dtm.sum(axis=0))[0]
 
@@ -383,7 +344,7 @@ class CorpusBasedFeatureExtractor():
 
 
     def get_bigram_distance(self):
-        distances = self.get_distance_from_corpus(ngram_type='bigram', min_docs=2)
+        distances = self.get_distance_from_corpus(ngram_type='bigram', min_docs=2) ########################## alredy filtered
         return distances
 
 
@@ -465,7 +426,7 @@ class CorpusBasedFeatureExtractor():
     #         p.join()
 
     #     chunk_features = reduce(lambda df1, df2: df1.merge(df2, how='inner', on='file_name', validate='one_to_one'), chunk_features)
-    #     if self.tokens_per_chunk is None:
+    #     if self.as_chunk == False:
     #         chunk_features['file_name'] = chunk_features['file_name'].str.split('_').str[:4].str.join('_')
     #     else:
     #         book_features = reduce(lambda df1, df2: df1.merge(df2, how='inner', on='file_name', validate='one_to_one'), book_features)
@@ -486,10 +447,9 @@ class CorpusBasedFeatureExtractor():
             chunk_functions.append(self.get_production_distribution)
 
         book_functions = [self.get_overlap_score_doc2vec,
-                        self.get_outlier_score_doc2vec]
-                        # self.get_overlap_score_sbert,
-                        # self.get_outlier_score_sbert]
-        print('chunk functions', chunk_functions)
+                        self.get_outlier_score_doc2vec,
+                        self.get_overlap_score_sbert,
+                        self.get_outlier_score_sbert]
 
         chunk_features = []
         book_features = []
@@ -503,7 +463,7 @@ class CorpusBasedFeatureExtractor():
             book_features.append(features)
 
         chunk_features = reduce(lambda df1, df2: df1.merge(df2, how='inner', on='file_name', validate='one_to_one'), chunk_features)
-        if self.tokens_per_chunk is None:
+        if self.as_chunk==False:
             chunk_features['file_name'] = chunk_features['file_name'].str.split('_').str[:4].str.join('_')
         else:
             book_features = reduce(lambda df1, df2: df1.merge(df2, how='inner', on='file_name', validate='one_to_one'), book_features)
