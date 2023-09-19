@@ -6,6 +6,7 @@ from collections import Counter
 from multiprocessing import cpu_count
 from pathlib import Path
 import re
+from tqdm import tqdm
 import time
 
 import numpy as np
@@ -24,18 +25,38 @@ logging.basicConfig(level=logging.DEBUG)
 logging.getLogger().setLevel(logging.WARNING) # suppress SentenceTransformers batches output 
 
 
+class RewriteSbertData(DataHandler):
+    '''
+    Class for writing sbert embeddings that were stored per chunk to single file entry.
+    '''
+    def __init__(self, language, tokens_per_chunk):
+        sbert_output_dir = f'sbert_embeddings'
+        super().__init__(language, output_dir=sbert_output_dir, data_type='npz', tokens_per_chunk=tokens_per_chunk)
+        self.sb = SbertProcessor(self.language, tokens_per_chunk=500)
+
+    def process_and_save_data(self):
+        for doc_path in tqdm(self.doc_paths):
+            embeddings = []
+            sbert_embeddings = self.sb.load_data(file_name=get_filename_from_path(doc_path), doc_path=doc_path)
+            for chunk_idx in sbert_embeddings.keys():
+                embeddings.extend(sbert_embeddings[chunk_idx])
+            assert all(isinstance(item, np.ndarray) for item in embeddings)
+            self.save_data(file_name=get_filename_from_path(doc_path), data=embeddings)
+            original_path = os.path.join(self.output_dir, f'{get_filename_from_path(doc_path)}.{self.data_type}').replace('tpc_1000', 'tpc_500')
+            print(original_path)
+            assert os.path.exists(original_path)
+            if os.path.exists(original_path):
+                os.remove(original_path)
+
+
 class SbertProcessor(DataHandler):
+    def __init__(self, language, tokens_per_chunk, data_type='npz'):
+            super().__init__(language, output_dir='sbert_embeddings', data_type=data_type, tokens_per_chunk=tokens_per_chunk)
 
-    ### Add multiprocessing
-    
-    def __init__(self, language, data_type='npz', tokens_per_chunk=500):
-        sbert_output_dir = f'sbert_embeddings_tpc_{tokens_per_chunk}'
-        super().__init__(language, output_dir=sbert_output_dir, data_type=data_type, tokens_per_chunk=tokens_per_chunk)
-
-        if self.language == 'eng':
-            self.sentence_encoder = SentenceTransformer('all-mpnet-base-v2')
-        elif self.language == 'ger': # paraphrase-xlm-r-multilingual-v1
-            self.sentence_encoder = SentenceTransformer('T-Systems-onsite/cross-en-de-roberta-sentence-transformer')
+            if self.language == 'eng':
+                self.sentence_encoder = SentenceTransformer('all-mpnet-base-v2')
+            elif self.language == 'ger': # paraphrase-xlm-r-multilingual-v1
+                self.sentence_encoder = SentenceTransformer('T-Systems-onsite/cross-en-de-roberta-sentence-transformer')
 
 
     def create_data(self, doc_path):
@@ -46,7 +67,8 @@ class SbertProcessor(DataHandler):
         all_embeddings = []
         for chunk in chunks:
             embeddings = list(self.sentence_encoder.encode(chunk))
-            all_embeddings.append(embeddings)
+            all_embeddings.extend(embeddings)
+        self.logger.info('\nSaving embeddings.\n')
         self.save_data(file_name=get_filename_from_path(doc_path), data=all_embeddings)
         print(f'Time for {doc_path}: {time.time()-start}')
 
@@ -55,38 +77,24 @@ class SbertProcessor(DataHandler):
         for doc_path in self.doc_paths:
             _ = self.load_data(file_name=get_filename_from_path(doc_path), load=False, doc_path=doc_path)
 
-
-    def save_data_type(self, data, file_path, **kwargs):
-        # data = list of embeddings for each chunk
-        logging.info('\nSaving embeddings.\n')
-        data = {str(i): data[i] for i in range(0, len(data))}
-        np.savez_compressed(file_path, **data)
-        logging.info('Saved chunk vectors.')
-
-
     def load_data_type(self, file_path, **kwargs):
-        loaded_data = np.load(file_path)
-        
-        # Convert the loaded data to a dictionary
-        loaded_dict = {key: loaded_data[key] for key in loaded_data.files}
-        
-        # Convert keys back to integers
-        loaded_dict = {int(key): value for key, value in loaded_dict.items()}
-        
-        logging.info('Loaded chunk vectors.')
-        return loaded_dict
-    
+        data = np.load(file_path)['arr_0'] # List of arrays
+        print('format of sbert data: ', type(data))
+        data = np.array(data)
+        self.logger.info(f'Returning sbert embedding as an array of arrays.')
+        return data
+
+
     def check_data(self):
         # Check if there is one embedding for every sentence
         ch = ChunkHandler(self.language, self.tokens_per_chunk)
-        sentences_per_chunk = ch.DataChecker(self.language, ch.output_dir).count_sentences_per_chunk()
+        _, sentences_per_doc = ch.DataChecker(self.language, ch.output_dir).count_sentences_per_chunk()
         for doc_path in self.doc_paths:
             bookname = get_filename_from_path(doc_path)
+            nr_sents = sentences_per_doc[bookname]
             sbert = self.load_data(file_name=f'{bookname}.npz')
-            chunks = sentences_per_chunk[bookname]
-            for chunk_idx, count in chunks.items():
-                assert sbert[chunk_idx].shape[0] == count
-            self.logger.info(f'{self.__class__.__name__}: One embedding per sentence for {bookname}.')
+            assert len(sbert) == nr_sents
+            self.logger.info(f'One embedding per sentence for {bookname}.')
 
 
 # %%
@@ -102,9 +110,9 @@ class D2vProcessor(DataHandler):
     As infer_vector() uses the same optimized Cython functions as training behind-the-scenes, it also suffers from the same fixed-token-buffer size as training, where texts with more than 10000 tokens have all overflow tokens ignored.
 
     '''
-    def __init__(self, language, data_type='npz', tokens_per_chunk=500, dm=1, dm_mean=1, seed=42, n_cores=-1):
+    def __init__(self, language, tokens_per_chunk, dm=1, dm_mean=1, seed=42, n_cores=-1):
         d2v_output_dir = f'd2v_tpc_{tokens_per_chunk}'
-        super().__init__(language, output_dir=d2v_output_dir, data_type=data_type, tokens_per_chunk=tokens_per_chunk)
+        super().__init__(language, output_dir=d2v_output_dir, data_type='npz', tokens_per_chunk=tokens_per_chunk)
 
         self.dm = dm
         self.dm_mean = dm_mean

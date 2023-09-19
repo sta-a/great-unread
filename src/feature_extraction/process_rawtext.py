@@ -20,6 +20,7 @@ import multiprocessing
 from utils import DataHandler, check_equal_line_count, check_equal_files,  get_filename_from_path, get_files_in_dir, get_doc_paths_sorted
 from stats import TextStatistics
 from .preprocessor import Preprocessor
+import matplotlib.patches as mpatches
 
 
 class SentenceTokenizer(DataHandler):
@@ -85,7 +86,7 @@ class SentenceTokenizer(DataHandler):
         with open(doc_path, 'r') as reader:
             text = reader.read().strip()
         # Preprocess full text
-        pp = Preprocessor(self.language, doc_path)
+        pp = Preprocessor(self.language, doc_path, self.tokens_per_chunk)
         text = pp.preprocess_text(text)
         
         # Tokenize
@@ -177,11 +178,10 @@ class Tokenizer(DataHandler):
 
 class ChunkHandler(DataHandler):
     def __init__(self, language, tokens_per_chunk):
-        super().__init__(language=language, output_dir='text_chunks', data_type='txt', tokens_per_chunk=tokens_per_chunk)
+        super().__init__(language=language, output_dir=f'text_chunks_tpc_{tokens_per_chunk}', data_type='txt', tokens_per_chunk=tokens_per_chunk)
         self.tokens_per_chunk = tokens_per_chunk
         self.tolerance = 0.1 # Maximum allowed deviation from tokens per chunk
         self.t = Tokenizer(self.language)
-        self.print_logs = False
 
     def distribute_sents_to_chunks(self, sentences, limit):
         
@@ -194,14 +194,15 @@ class ChunkHandler(DataHandler):
             for sentence in sentences:
                 # Increase the length of the first few chunks
                 if n_inc != 0 and chunk_count < n_inc:
-                    current_tpc = self.tokens_per_chunk + 5*iteration
+                    current_tpc = self.tokens_per_chunk + iteration
                 else:
                     current_tpc = self.tokens_per_chunk
                 tokens = sentence.split()
                 assert len(tokens) < current_tpc, sentence
 
                 # Chunks can become longer than tpc
-                if cc_len < current_tpc:
+                # Round up or down to nearer sentence boundary
+                if (cc_len < current_tpc) or (cc_len + len(tokens) - current_tpc <= current_tpc - cc_len):
                     current_chunk.append(sentence)
                     cc_len += len(tokens)
                 else:
@@ -286,8 +287,7 @@ class ChunkHandler(DataHandler):
 
         chunks = None
         if load:
-            if self.print_logs:
-                self.logger.info(f'{self.__class__.__name__}: Loading {file_path} from file.')
+            self.logger.info(f'Loading {file_path} from file.')
             # List of strings, every string is a chunk
             chunks = self.load_data_type(file_path, **kwargs)
             chunks = Postprocessor(remove_punct=remove_punct, lower=lower).postprocess_chunks(chunks)
@@ -318,8 +318,8 @@ class ChunkHandler(DataHandler):
         token_counts_chunk = dc.compare_token_counts()
         nr_chunks_per_doc, total_nr_chunks = dc.count_chunks_per_doc()
         dc.check_chunks_for_shortests_texts(token_counts_chunk, nr_chunks_per_doc)
-        dc.count_tokens_per_chunk()
-        # dc.count_sentences_per_chunk()
+        dc.count_tokens_per_chunk(nr_chunks_per_doc)
+        sentences_per_chunk, sentences_per_doc = dc.count_sentences_per_chunk()
     
 
     class DataChecker(DataHandler):
@@ -379,16 +379,20 @@ class ChunkHandler(DataHandler):
 
 
         def count_sentences_per_chunk(self):
-            nested_dict = {}
-            # Nr chunks per doc
+            sentences_per_chunk = {}
+            sentences_per_doc = {}
+
             for chunk_path in self.chunk_paths:
+                total_count = 0
                 with open(chunk_path, 'r') as f:
                     file_dict = {}
                     for index, line in enumerate(f):
                         count = line.count(self.separator) + 1 # if there are x separators, there x+1 sentences
                         file_dict[index] = count
-                    nested_dict[get_filename_from_path(chunk_path)] = file_dict
-            return nested_dict
+                        total_count += count
+                    sentences_per_chunk[get_filename_from_path(chunk_path)] = file_dict
+                    sentences_per_doc[get_filename_from_path(chunk_path)] = total_count
+            return sentences_per_chunk, sentences_per_doc
 
 
         def count_chunks_per_doc(self):
@@ -448,7 +452,7 @@ class ChunkHandler(DataHandler):
             plt.close()
 
 
-        def count_tokens_per_chunk(self):
+        def count_tokens_per_chunk(self, nr_chunks_per_doc):
             ch = ChunkHandler(language=self.language, tokens_per_chunk=self.tokens_per_chunk)
 
             counts = {}
@@ -456,78 +460,161 @@ class ChunkHandler(DataHandler):
             for chunk_path in self.chunk_paths:
                 chunks = ch.load_data(file_name=get_filename_from_path(chunk_path))  # load chunks as a list of chunks
 
-                shortest = float('inf')  # Initialize with a large value
-                longest = 0
-                for chunk in chunks:
-                    chunk_length = len(chunk.split())
-                    shortest = min(shortest, chunk_length)
-                    longest = max(longest, chunk_length)
-                    lengths.append(chunk_length)  # Add length to the list
-
-                average = np.mean(lengths)
-                stddev = np.std(lengths)
-                # print(int(round(average)), int(round(stddev)))
-                
+                chunk_lengths = [len(chunk.split()) for chunk in chunks]
+                shortest = min(chunk_lengths)
+                longest = max(chunk_lengths)
+                average = np.mean(chunk_lengths)
+                stddev = np.std(chunk_lengths)
+                                
                 counts[get_filename_from_path(chunk_path)] = (shortest, longest, average, stddev)
 
-            self.plot_tokens_per_chunk(counts)
+            self.plot_tokens_per_chunk(counts, nr_chunks_per_doc)
 
 
-        def plot_tokens_per_chunk(self, counts):
-            sorted_counts = sorted(counts.items(), key=lambda x: x[1][0])  # Sort by shortest length
+        def plot_tokens_per_chunk(self, counts, nr_chunks_per_doc):
+                    sorted_counts = sorted(counts.items(), key=lambda x: x[1][0])  # Sort by shortest length
 
-            texts = [text for text, _ in sorted_counts]
-            shortest_lengths = [shortest for _, (shortest, _, _, _) in sorted_counts]
-            longest_lengths = [longest for _, (_, longest, _, _) in sorted_counts]
-            average_lengths = [average for _, (_, _, average, _) in sorted_counts]
-            stddev_lengths = [stddev for _, (_, _, _, stddev) in sorted_counts]
+                    file_names = [fn for fn, _ in sorted_counts]
+                    shortest_lengths = [shortest for _, (shortest, _, _, _) in sorted_counts]
+                    longest_lengths = [longest for _, (_, longest, _, _) in sorted_counts]
+                    average_lengths = [average for _, (_, _, average, _) in sorted_counts]
+                    stddev_lengths = [stddev for _, (_, _, _, stddev) in sorted_counts]
 
-            assert len(texts) == len(shortest_lengths) == len(longest_lengths) == len(average_lengths) == len(stddev_lengths) == self.nr_texts
+                    assert len(file_names) == len(shortest_lengths) == len(longest_lengths) == len(average_lengths) == len(stddev_lengths) == self.nr_texts
 
-            bar_width = 0.3
-            indices = np.arange(len(texts))
+                    bar_width = 0.3
+                    indices = np.arange(len(file_names))
 
-            plt.figure(figsize=(12, 6))
-            plt.bar(indices, shortest_lengths, bar_width, label='Shortest', color='r')
-            plt.bar(indices + bar_width, longest_lengths, bar_width, label='Longest', color='b')
-            # plt.bar(indices + 2*bar_width, average_lengths, bar_width, label='Average', color='g')
-            # plt.bar(indices + 3*bar_width, stddev_lengths, bar_width, label='Std. Deviation', color='purple')
 
-            plt.xlabel('Text')
-            plt.ylabel('Tokens per chunk')
-            plt.title('Tokens per chunk (Shortest and Longest)')
-            plt.legend()
+                    # Highlight texts with very few chunks
+                    short_texts = [1, 2, 3] # consider texts with 1-3 chunks
+                    bar_colors = ['b' for _ in file_names]
+                    for i, fn in enumerate(file_names):
+                        if nr_chunks_per_doc[fn] in short_texts:
+                            bar_colors[i] = 'g'  # Highlight in green for values 1, 2, and 3
 
-            ytick_positions = np.arange(0, max(longest_lengths) + 50, 100)
-            plt.yticks(ytick_positions)
 
-            tick_positions = np.arange(0, len(texts), 50)
-            tick_labels = [str(pos) for pos in tick_positions]  # Convert positions to strings
-            plt.xticks(tick_positions, tick_labels)  # Display tick positions as numbers on x-axis with rotation
+                    plt.figure(figsize=(12, 6))
+                    plt.bar(indices, shortest_lengths, bar_width, label='Shortest', color='r')
+                    plt.bar(indices + bar_width, longest_lengths, bar_width, label='Longest', color=bar_colors)
+                    # Create a dummy bar for legend entry
+                    plt.bar([-1], [0], width=0, label='Fewest Chunks', color='g')
+
+                    plt.xlabel('Text')
+                    plt.ylabel('Tokens per chunk')
+                    plt.title('Tokens per chunk (Shortest and Longest)')
+
+                    # legend = plt.legend()
+                    # # Find the legend item for 'Fewest Chunks' and change its color to green
+                    # for handle in legend.legendHandles:
+                    #     if handle.get_label() == 'Longest':
+                    #         handle.set_color('b')
+                    legend_patches = [
+                        mpatches.Patch(color='r', label='Shortest'),
+                        mpatches.Patch(color='b', label='Longest'),
+                        mpatches.Patch(color='g', label='Fewest Chunks')
+                    ]
+
+                    # Display the legend with custom legend patches
+                    plt.legend(handles=legend_patches, loc='upper right', bbox_to_anchor=(1.35, 1), facecolor='lightgrey')
+
+
+                    ytick_positions = np.arange(0, max(longest_lengths) + 50, 100)
+                    plt.yticks(ytick_positions)
+
+                    tick_positions = np.arange(0, len(file_names), 50)
+                    tick_labels = [str(pos) for pos in tick_positions]  # Convert positions to strings
+                    plt.xticks(tick_positions, tick_labels)  # Display tick positions as numbers on x-axis with rotation
+                    
+                    plt.tight_layout()
+                    self.save_data(data=plt, file_name='tokens-per-chunk-shortest-longest')
+
+
+                    # Second plot
+                    plt.figure(figsize=(12, 6))
+                    plt.bar(indices, stddev_lengths, bar_width, label='Std. Deviation', color='r')
+                    plt.bar(indices + bar_width, average_lengths, bar_width, label='Average', color=bar_colors)
+                    # Create a dummy bar for legend entry
+                    plt.bar([-1], [0], width=0, label='Fewest Chunks', color='g')
+
+                    plt.xlabel('Text')
+                    plt.ylabel('Tokens per chunk')
+                    plt.title('Tokens per chunk (Average and Std. Deviation)')
+
+                    legend_patches = [
+                        mpatches.Patch(color='r', label='Std. Deviation'),
+                        mpatches.Patch(color='b', label='Average'),
+                        mpatches.Patch(color='g', label='Fewest Chunks')
+                    ]
+
+                    # Display the legend with custom legend patches
+                    plt.legend(handles=legend_patches, loc='upper right', bbox_to_anchor=(1.35, 1), facecolor='lightgrey')
+
+
+                    ytick_positions = np.arange(0, max(stddev_lengths + average_lengths) + 20, 20)
+                    plt.yticks(ytick_positions)
+
+                    xtick_positions = np.arange(0, len(file_names), 50)
+                    xtick_labels = [str(pos) for pos in xtick_positions]  # Convert positions to strings
+                    plt.xticks(xtick_positions, xtick_labels)  # Display tick positions as numbers on x-axis with rotation
+                    
+                    plt.tight_layout()
+                    self.save_data(data=plt, file_name='tokens-per-chunk-average-stddev')
+
+
+        # def plot_tokens_per_chunk(self, counts, nr_chunks_per_doc):
+        #     sorted_counts = sorted(counts.items(), key=lambda x: x[1][0])  # Sort by shortest length
+
+        #     texts = [text for text, _ in sorted_counts]
+        #     shortest_lengths = [shortest for _, (shortest, _, _, _) in sorted_counts]
+        #     longest_lengths = [longest for _, (_, longest, _, _) in sorted_counts]
+        #     average_lengths = [average for _, (_, _, average, _) in sorted_counts]
+        #     stddev_lengths = [stddev for _, (_, _, _, stddev) in sorted_counts]
+
+        #     assert len(texts) == len(shortest_lengths) == len(longest_lengths) == len(average_lengths) == len(stddev_lengths) == self.nr_texts
+
+        #     bar_width = 0.3
+        #     indices = np.arange(len(texts))
+
+        #     plt.figure(figsize=(12, 6))
+        #     plt.bar(indices, shortest_lengths, bar_width, label='Shortest', color='r')
+        #     plt.bar(indices + bar_width, longest_lengths, bar_width, label='Longest', color='b')
+
+        #     plt.xlabel('Text')
+        #     plt.ylabel('Tokens per chunk')
+        #     plt.title('Tokens per chunk (Shortest and Longest)')
+        #     plt.legend()
+
+        #     ytick_positions = np.arange(0, max(longest_lengths) + 50, 100)
+        #     plt.yticks(ytick_positions)
+
+        #     tick_positions = np.arange(0, len(texts), 50)
+        #     tick_labels = [str(pos) for pos in tick_positions]  # Convert positions to strings
+        #     plt.xticks(tick_positions, tick_labels)  # Display tick positions as numbers on x-axis with rotation
             
-            plt.tight_layout()
-            self.save_data(data=plt, file_name='tokens-per-chunk-shortest-longest')
+        #     plt.tight_layout()
+        #     self.save_data(data=plt, file_name='tokens-per-chunk-shortest-longest')
 
 
-            # Second plot
-            plt.figure(figsize=(12, 6))
-            plt.bar(indices, stddev_lengths, bar_width, label='Std. Deviation', color='r')
-            plt.bar(indices + bar_width, average_lengths, bar_width, label='Average', color='b')
+        #     # Second plot
+        #     plt.figure(figsize=(12, 6))
+        #     plt.bar(indices, stddev_lengths, bar_width, label='Std. Deviation', color='r')
+        #     plt.bar(indices + bar_width, average_lengths, bar_width, label='Average', color='b')
 
-            plt.xlabel('Text')
-            plt.ylabel('Tokens per chunk')
-            plt.title('Tokens per chunk (Average and Std. Deviation)')
-            plt.legend()
+        #     plt.xlabel('Text')
+        #     plt.ylabel('Tokens per chunk')
+        #     plt.title('Tokens per chunk (Average and Std. Deviation)')
+        #     plt.legend()
 
-            ytick_positions = np.arange(0, max(stddev_lengths + average_lengths) + 20, 20)
-            plt.yticks(ytick_positions)
+        #     ytick_positions = np.arange(0, max(stddev_lengths + average_lengths) + 20, 20)
+        #     plt.yticks(ytick_positions)
 
-            xtick_positions = np.arange(0, len(texts), 50)
-            xtick_labels = [str(pos) for pos in xtick_positions]  # Convert positions to strings
-            plt.xticks(xtick_positions, xtick_labels)  # Display tick positions as numbers on x-axis with rotation
+        #     xtick_positions = np.arange(0, len(texts), 50)
+        #     xtick_labels = [str(pos) for pos in xtick_positions]  # Convert positions to strings
+        #     plt.xticks(xtick_positions, xtick_labels)  # Display tick positions as numbers on x-axis with rotation
             
-            plt.tight_layout()
-            self.save_data(data=plt, file_name='tokens-per-chunk-average-stddev')
+        #     plt.tight_layout()
+        #     self.save_data(data=plt, file_name='tokens-per-chunk-average-stddev')
 
 
 class Postprocessor():
@@ -556,7 +643,7 @@ class Postprocessor():
         for chunk in chunks:
             new_chunk = self.postprocess_text(chunk)
             new_chunks.append(new_chunk)
-        self.logger.info(f'{self.__class__.__name__}: Returning postprocessed text as list of chunks.')
+        self.logger.info(f'Returning postprocessed text as list of chunks.')
         return new_chunks
     
 

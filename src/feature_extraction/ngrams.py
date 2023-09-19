@@ -20,12 +20,10 @@ import re
 
 class NgramCounter(DataHandler):
     def  __init__(self, language):
-        super().__init__(language, output_dir='ngram_counts', data_type='pkl', test=False)
+        super().__init__(language, output_dir=f'ngram_counts', data_type='pkl', test=False)
         self.nr_chunknames_check = {}
-        # self.unigrams = ['unigram', 'bigram', 'trigram']
-        # self.sizes = ['full', 'chunk']
-        self.unigrams = ['trigram'] ######################################
-        self.sizes = ['full']
+        self.unigrams = ['unigram', 'bigram', 'trigram']
+        self.sizes = ['full', 'chunk']
         self.modes = [(item1, item2) for item1 in self.unigrams for item2 in self.sizes]
         self.ch = ChunkHandler(self.language, self.tokens_per_chunk)
         self.chunk_names = []
@@ -54,7 +52,7 @@ class NgramCounter(DataHandler):
             bookname = get_filename_from_path(doc_path)
             chunks = self.ch.load_data(file_name=bookname, remove_punct=False, lower=False, as_chunk=as_chunk, as_sent=False)
             self.get_chunknames(doc_path, len(chunks), size)
-            
+
             for chunk in chunks:
                 yield chunk
                 
@@ -69,12 +67,12 @@ class NgramCounter(DataHandler):
         else:
             if ntype == 'bigram':
                 ngram_range = (2, 2)
-                # min_df = 10 #7
+                min_df = 2 #7
             else:
                 ngram_range = (3, 3)
-                # min_df = 10 #8
+                min_df = 2 #8
             # cv = CountVectorizer(token_pattern=r'(?u)\b\w+\b', ngram_range=ngram_range, dtype=np.int32, max_features=2000)
-            cv = CountVectorizer(token_pattern=r'(?u)\b\w+\b', ngram_range=ngram_range, dtype=np.int32, min_df=1)
+            cv = CountVectorizer(token_pattern=r'(?u)\b\w+\b', ngram_range=ngram_range, dtype=np.int32, min_df=min_df)
 
         dtm = cv.fit_transform(self.load_chunks(mode))
         words = cv.get_feature_names_out()
@@ -93,19 +91,25 @@ class NgramCounter(DataHandler):
     def load_data(self, load=True, file_name=None, **kwargs):  
         data_dict = super().load_data(load=load, file_name=file_name, **kwargs)
         return data_dict
+    
 
-
-    def load_values_for_chunk(self, file_name, data_dict):
+    def load_values_for_chunk(self, file_name, data_dict, values_only=False):
         if data_dict is None:
             raise ValueError(f'Load data before loading values for a specific file.')
         
         # Find the index of the selected label in the labels list
         idx = data_dict['file_names'].index(file_name)
 
-        # Access the term frequency values for the specific document
-        file_counts = data_dict['dtm'][idx].toarray()
-
-        file_counts = {data_dict['words'][i]: file_counts[0][i] for i in range(len(data_dict['words']))}
+        if values_only:
+            # Access the term frequency values for the specific document
+            file_counts = data_dict['dtm'][idx]
+            # Get non-zero elements
+            file_counts = file_counts.data.tolist()
+        else:
+            # Access the term frequency values for the specific document
+            file_counts = data_dict['dtm'][idx].toarray()
+            file_counts = {data_dict['words'][i]: file_counts[0][i] for i in range(len(data_dict['words']))}
+            self.logger.info(f'Returning ngram counts as dict, including ngrams where count is 0.')
         return file_counts
     
 
@@ -132,9 +136,6 @@ class NgramCounter(DataHandler):
     
 
     def filter_dtm(self, data_dict, min_docs=None, min_percent=None, max_docs=None, max_percent=None):
-        if min_docs is None and min_percent is None and max_docs is None and max_percent is None:
-            raise ValueError('Specify at least one filtering criterion.')
-
         dtm = data_dict['dtm']
         words = data_dict['words']
 

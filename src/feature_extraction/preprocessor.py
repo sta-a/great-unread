@@ -14,7 +14,7 @@ import time
 
 class Preprocessor(DataHandler):
     # Preprocess text before sentence tokenization        
-    def __init__(self, language, doc_path, output_dir='preprocess', tokens_per_chunk=500, data_type='csv'):
+    def __init__(self, language, doc_path, tokens_per_chunk, output_dir='preprocess', data_type='csv'):
         super().__init__(language=language, tokens_per_chunk=tokens_per_chunk, data_type=data_type)  
         self.language = language
         self.output_dir = os.path.join(self.data_dir, output_dir) # No language subdirs

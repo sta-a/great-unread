@@ -8,7 +8,6 @@ import numpy as np
 import pandas as pd
 import shutil
 import time
-from itertools import repeat
 from multiprocessing import Pool, cpu_count
 from pathlib import Path
 from feature_extraction.doc_based_feature_extractor import DocBasedFeatureExtractor
@@ -27,12 +26,6 @@ class FeatureProcessor(DataHandler):
         self.pickle_dir = self.text_raw_dir.replace('/text_raw', '/pickle')
         os.makedirs(self.pickle_dir, exist_ok=True) 
 
-    
-    def get_doc_features_helper(self, doc_path, as_chunk, ngrams):
-        fe = DocBasedFeatureExtractor(self.language, doc_path, as_chunk, ngrams)
-        chunk_features, book_features = fe.get_all_features()
-        return chunk_features, book_features
-    
     def load_pickle(self, path):
         with open(path, 'rb') as f:
             features = pickle.load(f)
@@ -41,6 +34,12 @@ class FeatureProcessor(DataHandler):
     def save_pickle(self, path, datatuple):
         with open(path, 'wb') as f:
             pickle.dump(datatuple, f)
+    
+    def get_doc_features_helper(self, doc_path, as_chunk, ngrams):
+        fe = DocBasedFeatureExtractor(language=self.language, doc_path=doc_path, as_chunk=as_chunk, tokens_per_chunk=self.tokens_per_chunk, ngrams=ngrams)
+        chunk_features, book_features = fe.get_all_features()
+        return chunk_features, book_features
+    
 
     def get_doc_features(self, as_chunk):
         all_chunk_features = []
@@ -51,13 +50,13 @@ class FeatureProcessor(DataHandler):
         ngrams = nc.load_all_ngrams(as_chunk=as_chunk)
 
         for doc_path in self.doc_paths:
-            pickle_path = os.path.join(self.pickle_dir, f'{get_filename_from_path(doc_path)}_usechunks_{as_chunk}.pkl')
+            # pickle_path = os.path.join(self.pickle_dir, f'{get_filename_from_path(doc_path)}_usechunks_{as_chunk}.pkl')
             
-            if os.path.exists(pickle_path):
-                chunk_features, book_features = self.load_pickle(pickle_path)
-            else:
-                chunk_features, book_features = self.get_doc_features_helper(doc_path, as_chunk, ngrams)
-                self.save_pickle(pickle_path, (chunk_features, book_features))
+            # if os.path.exists(pickle_path):
+            #     chunk_features, book_features = self.load_pickle(pickle_path)
+            # else:
+            chunk_features, book_features = self.get_doc_features_helper(doc_path, as_chunk, ngrams)
+                #self.save_pickle(pickle_path, (chunk_features, book_features))
 
 
             all_chunk_features.extend(chunk_features)
@@ -65,26 +64,10 @@ class FeatureProcessor(DataHandler):
 
         # Save book features only once (not when running with fulltext chunks)
         return all_chunk_features, all_book_features
-       
-    # def get_doc_features(self):
-    #     all_chunk_features = []
-    #     all_book_features = []
 
-    #     nr_processes = max(cpu_count() - 2, 1)
-    #     with Pool(processes=nr_processes) as pool:
-    #         # res = pool.map(self.get_doc_features_helper, self.doc_paths) #ChatGPT
-    #         # res = pool.starmap(self.get_doc_features_helper, zip(self.doc_paths))
-    #         res = pool.map(self.get_doc_features_helper, self.doc_paths)
-    #         for doc_features in res:
-    #             all_chunk_features.extend(doc_features[0])
-    #             all_book_features.append(doc_features[1])
-
-    #     print(len(all_chunk_features), len(all_book_features)) ##################################
-    #     # Save book features only once (not when running with fulltext chunks)
-    #     return all_chunk_features, all_book_features
     
     def get_corpus_features(self, as_chunk):
-        cbfe = CorpusBasedFeatureExtractor(self.language, self.doc_paths, as_chunk)
+        cbfe = CorpusBasedFeatureExtractor(self.language, self.doc_paths, as_chunk, self.tokens_per_chunk)
         chunk_features, book_features = cbfe.get_all_features() ##############3
         # Save book features only once (not when running with fulltext chunks)
         return chunk_features, book_features ###########################
@@ -92,6 +75,8 @@ class FeatureProcessor(DataHandler):
     def merge_features(self, doc_chunk_features, doc_book_features, doc_chunk_features_fulltext, corpus_chunk_features, corpus_book_features, corpus_chunk_features_fulltext):
         # Book features
         doc_book_features = pd.DataFrame(doc_book_features)
+        doc_chunk_features = pd.DataFrame(doc_chunk_features)
+        print(doc_chunk_features_fulltext)
         doc_chunk_features_fulltext = pd.DataFrame(doc_chunk_features_fulltext)
 
         print('doc_book_features: ', doc_book_features.shape, 'doc_chunk_features_fulltext: ', doc_chunk_features_fulltext.shape, 'corpus_book_features: ', corpus_book_features.shape, 'corpus_chunk_features_fulltext: ', corpus_chunk_features_fulltext.shape)
@@ -103,16 +88,15 @@ class FeatureProcessor(DataHandler):
         book_df.columns = [col + '_full' if col != 'file_name' else col for col in book_df.columns]
 
         # Chunk features
-        doc_chunk_features = pd.DataFrame(doc_chunk_features)
         chunk_df = doc_chunk_features.merge(right=corpus_chunk_features, on='file_name', how='outer', validate='one_to_one')
         # Remove chunk id from file_name
         chunk_df['file_name'] = chunk_df['file_name'].str.split('_').str[:4].str.join('_')
         chunk_df.columns = [col + '_chunk' if col != 'file_name' else col for col in chunk_df.columns]
 
         # Combine book features and averages of chunksaveraged chunk features
-        # baac = book and averaged chunk
+        # baac: book and averaged chunk
         baac_df = book_df.merge(chunk_df.groupby('file_name').mean().reset_index(drop=False), on='file_name', validate='one_to_many')
-        # cacb = chunk and copied book
+        # cacb: chunk and copied book
         cacb_df = chunk_df.merge(right=book_df, on='file_name', how='outer', validate='many_to_one')
         print(book_df.shape, chunk_df.shape, baac_df.shape, cacb_df.shape)
 
@@ -167,8 +151,6 @@ class FeatureProcessor(DataHandler):
             self.save_pickle(path, (corpus_chunk_features_fulltext))   
         print(f'Corpus full features: {time.time()-start}s.')   
         
-
-
         self.merge_features(
             doc_chunk_features,
             doc_book_features,
@@ -185,13 +167,22 @@ class FeatureProcessor(DataHandler):
         #     f.write(f'nr_textruntime\n')
         #     f.write(f'{round(runtime, 2)}\n')
 
+        
+
 for language in ['eng']:
     fpath = '/home/annina/scripts/great_unread_nlp/data/features'
     ppath = '/home/annina/scripts/great_unread_nlp/data/pickle'
     if os.path.exists(ppath):
         shutil.rmtree(ppath)
+    
     fe = FeatureProcessor(language).run()
 
 # assert that nr of chunk features = nr of chunk in tokenizedwords
+
+
+
+
+
+
 
 # %%

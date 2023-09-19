@@ -11,40 +11,45 @@ import scipy
 import pickle
 import time
 from sklearn.neighbors import BallTree
+import spacy
 import sys
 sys.path.append("..")
 from utils import load_list_of_lines, save_list_of_lines, get_filename_from_path
 from .production_rule_extractor import ProductionRuleExtractor
 from .doc_based_feature_extractor import DocBasedFeatureExtractor
 from .ngrams import NgramCounter
-import spacy
 
 
 class CorpusBasedFeatureExtractor():
     '''Get features for which the whole corpus needs to be considered.'''
-    def __init__(self, language, doc_paths, as_chunk, tokens_per_chunk=500, nr_features=100):
+    def __init__(self, language, doc_paths, as_chunk, tokens_per_chunk, nr_features=100):
         self.language = language
         self.doc_paths = doc_paths
-        print(self.doc_paths)
         self.as_chunk = as_chunk
-        print('as_chunk: ', self.as_chunk)
         self.tokens_per_chunk = tokens_per_chunk
         self.nr_features = nr_features
         self.nlp = self.load_spacy_model()
         self.nc = NgramCounter(self.language)
-        self.ngrams = self.nc.load_all_ngrams(as_chunk=False)
+        self.ngrams = self.nc.load_all_ngrams(as_chunk=self.as_chunk)
+        self.generate_chunks = self.get_chunks()
+        print(len(self.generate_chunks))
 
 
         self.all_average_sbert_embeddings = []
         self.all_d2v_embeddings = []
-        for doc_chunks in self.generate_chunks():
+        for doc_chunks in self.generate_chunks:
+            print(len(doc_chunks))
             curr_sbert = []
             curr_doc2vec = []
             for chunk in doc_chunks:
+                print(type(chunk))
                 curr_sbert.append(np.array(chunk.sbert_embeddings).mean(axis=0))
                 curr_doc2vec.append(chunk.d2v_embeddings)
+                print(np.array(chunk.sbert_embeddings).mean(axis=0).shape, chunk.d2v_embeddings.shape) #########################
             self.all_average_sbert_embeddings.append(curr_sbert)
             self.all_d2v_embeddings.append(curr_doc2vec)
+        print(f'all_average_sbert_embeddings', len(self.all_average_sbert_embeddings), len(self.all_average_sbert_embeddings[0]))
+        print(f'all_d2v_embeddings', len(self.all_d2v_embeddings), len(self.all_d2v_embeddings[0]))
 
 
     def load_spacy_model(self):
@@ -62,21 +67,43 @@ class CorpusBasedFeatureExtractor():
             print(f'The model {model_name} for Spacy is missing.')
 
 
-    def generate_chunks(self,         
-            get_ngrams=False,
-            get_char_counts=False):
-        
 
-        for doc_path in self.doc_paths:
+    def get_chunks(self,         
+        get_ngrams=False,
+        get_char_counts=False):
+        
+        s = time.time()
+        chunks = []
+        for doc_path in tqdm(self.doc_paths):
             doc_chunks = DocBasedFeatureExtractor(
                 language=self.language,
                 doc_path=doc_path,
                 as_chunk=self.as_chunk,
-                ngrams=self.ngrams,
                 tokens_per_chunk=self.tokens_per_chunk, 
+                ngrams=self.ngrams,
                 get_ngrams=False,
                 get_char_counts=False).chunks
-            yield doc_chunks
+            chunks.append(doc_chunks)
+        object_size = sys.getsizeof(chunks) #############################a
+        print(f"Size of the chunks of 1 doc: {object_size} bytes")
+        print(f'{time.time()-s}s to get all chunksf')
+        return chunks
+
+    # def generate_chunks(self,         
+    #     get_ngrams=False,
+    #     get_char_counts=False):
+        
+
+    #     for doc_path in tqdm(self.doc_paths):
+    #         doc_chunks = DocBasedFeatureExtractor(
+    #             language=self.language,
+    #             doc_path=doc_path,
+    #             as_chunk=self.as_chunk,
+    #             tokens_per_chunk=self.tokens_per_chunk, 
+    #             ngrams=self.ngrams,
+    #             get_ngrams=False,
+    #             get_char_counts=False).chunks
+    #         yield doc_chunks
     
 
     def tag_chunks(self, tag_type, gram_type):
@@ -123,7 +150,7 @@ class CorpusBasedFeatureExtractor():
 
         tagged_chunks = {}
         corpus_tag_counter = Counter()
-        for doc_chunks in self.generate_chunks():
+        for doc_chunks in self.generate_chunks:
             for chunk in doc_chunks:
                 chunk_tag_counter = tag_chunk(chunk, tag_type, gram_type)
                 tagged_chunks[chunk.chunkname] = chunk_tag_counter
@@ -182,7 +209,7 @@ class CorpusBasedFeatureExtractor():
         chunk_production_counters = {}
         corpus_production_counter = Counter()
 
-        for doc_chunks in self.generate_chunks():
+        for doc_chunks in self.generate_chunks:
             for chunk in doc_chunks:
                 chunk_production_counter = self.get_book_production_counts(chunk.text, pre)
                 chunk_production_counters[chunk.chunkname] = chunk_production_counter
@@ -312,18 +339,18 @@ class CorpusBasedFeatureExtractor():
         return self.get_outlier_score('sbert')
 
 
-    def get_distance_from_corpus(self, ngram_type, min_docs=None, min_percent=None, max_docs=None, max_percent=None):
+    def get_corpus_distance(self, ngram_type, min_docs=None, min_percent=None, max_docs=None, max_percent=None):
         data_dict = self.ngrams[ngram_type]
         dtm, _ = self.nc.filter_dtm(data_dict, min_docs, min_percent, max_docs, max_percent)
 
         dtm_sum = np.array(dtm.sum(axis=0))[0]
 
         distances = {}
-        for idx, file_name in enumerate(data_dict['file_names']):
+        for idx, file_name in tqdm(enumerate(data_dict['file_names'])):
             # Access the term frequency values for the specific document
             file_counts = dtm[idx].toarray()
             corpus_counts = dtm_sum - file_counts
-            cosine_distance = scipy.spatial.distance.cosine(corpus_counts, file_counts)
+            cosine_distance = scipy.spatial.distance.cosine(corpus_counts, file_counts) # use sim or dist??? ################3
             distances[file_name] = cosine_distance
 
         # Turn both keys and values of a dict into columns of a df.
@@ -332,24 +359,26 @@ class CorpusBasedFeatureExtractor():
 
 
     def get_unigram_distance(self):
-        distances = self.get_distance_from_corpus(ngram_type='unigram', min_docs=2)
+        distances = self.get_corpus_distance(ngram_type='unigram', min_docs=2)
         return distances
 
 
     def get_unigram_distance_limited(self):
         #Filter for mid-frequency words
-        distances = self.get_distance_from_corpus(ngram_type='unigram', min_percent=5, max_percent=50)
+        distances = self.get_corpus_distance(ngram_type='unigram', min_percent=5, max_percent=50)
         distances = distances.rename(columns={'unigram_distance': 'unigram_distance_limited'})
         return distances
 
 
     def get_bigram_distance(self):
-        distances = self.get_distance_from_corpus(ngram_type='bigram', min_docs=2) ########################## alredy filtered
+        # min_docs is 2 by default, filtering not necessary
+        distances = self.get_corpus_distance(ngram_type='bigram')
         return distances
 
 
     def get_trigram_distance(self):
-        distances = self.get_distance_from_corpus(ngram_type='trigram', min_docs=2)
+        # min_docs is 2 by default, filtering not necessary
+        distances = self.get_corpus_distance(ngram_type='trigram')
         return distances
 
 
@@ -455,12 +484,16 @@ class CorpusBasedFeatureExtractor():
         book_features = []
 
         for func in chunk_functions:
+            s = time.time()
             features = func()
             chunk_features.append(features)
+            print(f'{time.time()-s} to calculate {func}')
 
         for func in book_functions:
+            s = time.time()
             features = func()
             book_features.append(features)
+            print(f'{time.time()-s} to calculate {func}')
 
         chunk_features = reduce(lambda df1, df2: df1.merge(df2, how='inner', on='file_name', validate='one_to_one'), chunk_features)
         if self.as_chunk==False:

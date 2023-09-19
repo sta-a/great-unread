@@ -173,14 +173,14 @@ class DataHandler():
     '''
     Base class for creating, saving, and loading data.
     '''
-    def __init__(self, language=None, output_dir=None, create_outdir=False, data_type='csv', modes=None, tokens_per_chunk=500, data_dir='/home/annina/scripts/great_unread_nlp/data', test=False):
+    def __init__(self, language=None, output_dir=None, create_outdir=False, data_type='csv', modes=None, tokens_per_chunk=1000, data_dir='/home/annina/scripts/great_unread_nlp/data', test=False):
         '''
         create_outdir: If True, create output dir when class is initialized.
         '''
         self.test = test
         self.language = language
         self.data_dir = data_dir
-        self.logger = logging.getLogger(__name__)
+
         self.output_dir = self.create_output_dir(output_dir, create_outdir)
         self.text_raw_dir = os.path.join(self.data_dir, 'text_raw', language)
         self.doc_paths = get_doc_paths(self.text_raw_dir)
@@ -194,7 +194,15 @@ class DataHandler():
             self.nr_texts = 605
         else:
             self.nr_texts = 547
-        self.print_logs = True
+
+        # Set the logger's name to the class name
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger.setLevel(logging.WARNING)  # Set the logger's threshold level
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.WARNING)  # Set the handler's threshold level
+        formatter = logging.Formatter('%(levelname)s - %(name)s - %(message)s')
+        console_handler.setFormatter(formatter)
+        self.logger.addHandler(console_handler)
 
         if self.test:
             self.doc_paths = get_doc_paths_sorted(self.text_raw_dir)[:3]
@@ -206,7 +214,7 @@ class DataHandler():
                 print(f"Directory '{dir_path}' created successfully.")
             except OSError as e:
                 print(f"Error creating directory '{dir_path}\n': {e}")
-            self.logger.info(f'{self.__class__.__name__}: Created dir {dir_path}')
+            self.logger.info(f'Created dir {dir_path}')
 
     
     def add_subdir(self, subdir):
@@ -253,6 +261,8 @@ class DataHandler():
             data.savefig(file_path, format='svg')
         elif data_type == 'png':
             data.savefig(file_path, format='png')
+        elif data_type == 'npz':
+            np.savez(file_path, data)
         elif data_type =='dict':
             with open(file_path, 'w') as f:
                 for key, value in data.items():
@@ -277,8 +287,7 @@ class DataHandler():
                             sep = self.separator
                         f.write(f'{sep.join(l)}\n')
                 self.logger.info(f'Writing list of lists to file using {self.separator} as the separator.')
-        if self.print_logs:
-            self.logger.info(f'Saved {data_type} data to {file_path}')
+        self.logger.info(f'Saved {data_type} data to {file_path}')
 
 
     def file_exists_or_create(self, file_path=None, file_name=None, **kwargs):
@@ -288,23 +297,19 @@ class DataHandler():
             file_path = self.get_file_path(file_name, **kwargs)
 
         if not self.file_exists(file_path=file_path):
-            if self.print_logs:
-                self.logger.info(f'{self.__class__.__name__}: Creating data for {file_path}.')
+            self.logger.info(f'Creating data for {file_path}.')
             self.create_data(**kwargs)
         # else:
-        #     if self.print_logs:
-        #         self.logger.info(f'{self.__class__.__name__}: already exists: {file_path}')
+        #     self.logger.info(f'already exists: {file_path}')
 
     def load_data(self, load=True, file_name=None, **kwargs):
-        if self.print_logs:
-            self.logger.info(f'Loading data. If create_data loads data from file, doc_path must be passed with kwargs.')
+        self.logger.info(f'Loading data. If create_data loads data from file, doc_path must be passed with kwargs.')
         file_path = self.get_file_path(file_name=file_name, **kwargs)
         self.file_exists_or_create(file_path=file_path, **kwargs)
 
         data = None
         if load:
-            if self.print_logs:
-                self.logger.info(f'{self.__class__.__name__}: Loading {file_path} from file.')
+            self.logger.info(f'Loading {file_path} from file.')
             data = self.load_data_type(file_path, **kwargs)
         return data
     
@@ -358,14 +363,13 @@ class DataHandler():
                 fdata_type = os.path.splitext(file_name_or_path)[1]
                 fdata_type = fdata_type[1:] # Remove dot
                 if fdata_type != data_type:
-                    raise ValueError(f'{self.__class__.__name__}: File extension ({file_name_or_path}) and data_type passed as kwarg ({data_type}) are not equal.')
+                    raise ValueError(f'File extension ({file_name_or_path}) and data_type passed as kwarg ({data_type}) are not equal.')
         else:
             if file_name_or_path is not None:
                 data_type = os.path.splitext(file_name_or_path)[1]
                 data_type = data_type[1:] # Remove dot
                 if data_type != self.data_type:
-                    if self.print_logs:
-                        self.logger.info(f'{self.__class__.__name__}: File extension ({data_type}) and class data type ({self.data_type}) are different. Using file name extension.')
+                    self.logger.info(f'File extension ({data_type}) and class data type ({self.data_type}) are different. Using file name extension.')
             else:
                 data_type = self.data_type
         return data_type
@@ -391,8 +395,7 @@ class DataHandler():
         if ending_count == 0:
             data_type = self.get_custom_datatype(**kwargs) # Get data type, don't pass file_name because it has no extension
             file_name = f'{file_name}.{data_type}'
-            if self.print_logs:
-                self.logger.info(f'{self.__class__.__name__}: Added extension to file name: {file_name}')
+            self.logger.info(f'Added extension to file name: {file_name}')
         elif ending_count == 1:
             _ = self.get_custom_datatype(file_name_or_path=file_name, **kwargs) # Pass file_name to check it, return value is ignored because file_name already has extension
             if not file_name.endswith(self.data_types):
@@ -405,8 +408,8 @@ class DataHandler():
     def get_file_path(self, file_name=None, **kwargs):
         if file_name is None and not kwargs:
             raise ValueError("Either 'file_name' or kwargs must be provided.")
-        elif file_name is not None and kwargs and self.print_logs:
-            self.logger.info(f'{self.__class__.__name__}: Both file_name and kwargs were passed to get_file_path().') # file_name is used, kwargs are ignored. \nfile_name: {file_name}. \nkwargs: {kwargs}')
+        elif file_name is not None and kwargs:self.logger.info(f'Both file_name and kwargs were passed to get_file_path().')
+             # file_name is used, kwargs are ignored. \nfile_name: {file_name}. \nkwargs: {kwargs}')
         if file_name is None:
             file_name = self.create_filename(**kwargs)
         file_name = self.validate_filename(file_name=file_name, **kwargs)
@@ -747,11 +750,11 @@ class DataChecks(DataHandler):
 #     c.get_collaborations()
 
 
-# # Provide the directory path and the string to search for
-# directory_path = '/home/annina/scripts/great_unread_nlp/data/text_tokenized'
-# directory_path = '/home/annina/scripts/great_unread_nlp/src/'
-# search_string = 'Row and Column names for Elements'
-# extension = ['.txt', '.py']
-# search_string_in_files(directory_path, search_string, extension, full_word=False)
+# Provide the directory path and the string to search for
+directory_path = '/home/annina/scripts/great_unread_nlp/data/text_tokenized'
+directory_path = '/home/annina/scripts/great_unread_nlp/src/'
+search_string = '__class__.__name__'
+extension = ['.txt', '.py']
+search_string_in_files(directory_path, search_string, extension, full_word=False)
 
 # %%

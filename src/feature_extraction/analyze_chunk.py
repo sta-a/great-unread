@@ -12,6 +12,7 @@ class Chunk():
         as_chunk,
         tokens_per_chunk,
         chunk_idx,
+        sent_counter,
         text,
         sentences,
         sbert_embeddings, 
@@ -25,6 +26,7 @@ class Chunk():
         self.as_chunk = as_chunk
         self.tokens_per_chunk = tokens_per_chunk
         self.chunk_idx = chunk_idx
+        self.sent_counter = sent_counter
         self.text = text
         self.sentences = sentences
         self.sbert_embeddings = sbert_embeddings
@@ -32,6 +34,8 @@ class Chunk():
         self.ngrams = ngrams
         self.get_ngrams = get_ngrams
         self.get_char_counts = get_char_counts
+
+        assert len(self.sentences) == len(self.sbert_embeddings)
 
         self.chunkname = self.get_chunkname()
         self.sbert_embeddings = self.load_sbert()
@@ -42,7 +46,8 @@ class Chunk():
         if self.get_char_counts:
             countstart = time.time()
             self.char_counts = self.count_chars()
-            print(f'{time.time()-countstart}s to calculate char counts.')
+            # if as_chunk == False:
+            #     print(f'{time.time()-countstart}s to calculate char counts.')
 
         # if self.get_ngrams:
         #     for my_dict in [self.unigram_counts, self.bigram_counts, self.trigram_counts]: ######################3
@@ -62,22 +67,18 @@ class Chunk():
     
     
     def load_sbert(self):
-        if self.as_chunk:
-            sbert = self.sbert_embeddings[self.chunk_idx]
+        if not self.as_chunk:
+            return np.concatenate(self.sbert_embeddings, axis=0)
         else:
-            # If whole document is used, combine the embeddings of all chunks into one 
-            all_sbert = []
-            for chunk_idx in self.sbert_embeddings.keys():
-                all_sbert.append(self.sbert_embeddings[chunk_idx])
-            sbert  = np.concatenate(all_sbert, axis=0)
-        return sbert
+            return self.sbert_embeddings
     
 
     def load_ngrams(self):
         nc = NgramCounter(self.language)
-        uc = nc.load_values_for_chunk(file_name=self.chunkname, data_dict=self.ngrams['unigram'])
-        bc = nc.load_values_for_chunk(file_name=self.chunkname, data_dict=self.ngrams['bigram'])
-        tc = nc.load_values_for_chunk(file_name=self.chunkname, data_dict=self.ngrams['trigram'])
+        uc = nc.load_values_for_chunk(file_name=self.chunkname, data_dict=self.ngrams['unigram'], values_only=False)
+        uc = {ngram: count for ngram, count in uc.items() if count != 0}
+        bc = nc.load_values_for_chunk(file_name=self.chunkname, data_dict=self.ngrams['bigram'], values_only=True)
+        tc = nc.load_values_for_chunk(file_name=self.chunkname, data_dict=self.ngrams['trigram'], values_only=True)
         return uc, bc, tc
 
 
