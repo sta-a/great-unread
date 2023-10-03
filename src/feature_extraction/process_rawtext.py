@@ -81,7 +81,7 @@ class SentenceTokenizer(DataHandler):
         
 
     def create_data(self, doc_path=None):
-        self.logger.info(f'Tokenizing sentences: {doc_path}')
+        self.logger.debug(f'Tokenizing sentences: {doc_path}')
 
         with open(doc_path, 'r') as reader:
             text = reader.read().strip()
@@ -139,7 +139,7 @@ class Tokenizer(DataHandler):
 
         
     def tokenize_words(self, sentences):
-        self.logger.info(f'Tokenizing words.')
+        self.logger.debug(f'Tokenizing words.')
         start = time.time()
         new_sentences = []
         for doc in self.nlp.pipe(sentences, batch_size=1, disable=["tagger", "parser", "ner"], n_process=multiprocessing.cpu_count()-2):
@@ -158,7 +158,7 @@ class Tokenizer(DataHandler):
         return new_sentences
 
     def create_data(self, doc_path=None):
-        self.logger.info(f'Tokenizing sentences: {doc_path}')
+        self.logger.debug(f'Tokenizing sentences: {doc_path}')
 
         st = SentenceTokenizer(self.language)
         sentences = st.load_data(file_name=get_filename_from_path(doc_path), doc_path=doc_path)
@@ -261,7 +261,7 @@ class ChunkHandler(DataHandler):
     
     def create_data(self, doc_path=None):
         bookname = get_filename_from_path(doc_path)
-        self.logger.info(f'\n----------------------------\nCreating chunks. {bookname}')
+        self.logger.debug(f'\n----------------------------\nCreating chunks. {bookname}')
         sentences = self.t.load_data(file_name=bookname, doc_path=doc_path)
         chunks = self.distribute_sents_to_chunks(sentences, doc_path)
 
@@ -287,7 +287,7 @@ class ChunkHandler(DataHandler):
 
         chunks = None
         if load:
-            self.logger.info(f'Loading {file_path} from file.')
+            self.logger.debug(f'Loading {file_path} from file.')
             # List of strings, every string is a chunk
             chunks = self.load_data_type(file_path, **kwargs)
             chunks = Postprocessor(remove_punct=remove_punct, lower=lower).postprocess_chunks(chunks)
@@ -404,6 +404,10 @@ class ChunkHandler(DataHandler):
                 with open(chunk_path, 'r') as f:
                     nr_chunks = sum(1 for _ in f)
                     nr_chunks_per_doc[get_filename_from_path(chunk_path)] = nr_chunks
+
+            # Save to file
+            df = pd.DataFrame(list(nr_chunks_per_doc.items()), columns=['file_name', 'nr_chunks'])
+            self.save_data(data=df, file_name='chunks_per_doc.csv', )
 
             # Calculate total number of chunks
             total_nr_chunks = sum(nr_chunks_per_doc.values())

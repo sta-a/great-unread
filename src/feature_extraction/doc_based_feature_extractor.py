@@ -11,6 +11,7 @@ from .process_rawtext import ChunkHandler
 from .embeddings import SbertProcessor, D2vProcessor
 from .analyze_chunk import Chunk
 from .ngrams import NgramCounter
+import pickle
 
 
 class DocBasedFeatureExtractor():
@@ -36,9 +37,7 @@ class DocBasedFeatureExtractor():
         self.get_ngrams = get_ngrams
         self.get_char_counts = get_char_counts
 
-        s = time.time()
-        self.chunks = self.__get_chunks()
-        # print(f'{time.time()-s}s to get all chunks')
+        self.chunks = self.get_chunks()
 
 
     def load_data_for_chunks(self):
@@ -47,6 +46,7 @@ class DocBasedFeatureExtractor():
         assert len(chunks_text) == len(chunks_sents)
         
         sbert_embeddings = SbertProcessor(self.language, self.tokens_per_chunk).load_data(file_name=self.bookname, doc_path=self.doc_path)
+
         if self.as_chunk:
             mode = 'chunk'
         else:
@@ -61,7 +61,7 @@ class DocBasedFeatureExtractor():
 
         return chunks_text, chunks_sents, sbert_embeddings, d2v_embeddings, ngrams
 
-    def __get_chunks(self):
+    def get_chunks(self):
         chunks_text, chunks_sents, sbert_embeddings, d2v_embeddings, ngrams = self.load_data_for_chunks()
 
         chunks = []
@@ -85,7 +85,7 @@ class DocBasedFeatureExtractor():
 
             chunk_idx_counter += 1
             sent_counter += len(sentences)
-            return chunks
+        return chunks
 
 
     def get_all_features(self):
@@ -190,8 +190,7 @@ class DocBasedFeatureExtractor():
     #     return np.mean(split_lengths)
 
     def get_average_sbert_embeddings(self, chunk):
-        average_embedding = chunk.sbert_embeddings.mean(axis=0)
-        average_embedding_features = dict((f'average_sbert_embedding_{index+1}', embedding_part) for index, embedding_part in enumerate(average_embedding))
+        average_embedding_features = dict((f'average_sbert_embedding_{index+1}', embedding_part) for index, embedding_part in enumerate(np.array(chunk.sbert_embeddings).mean(axis=0)))
         return average_embedding_features
 
     def get_d2v_embeddings(self, chunk):
@@ -220,30 +219,31 @@ class DocBasedFeatureExtractor():
         return len(chunk.sentences)
     
     def get_longest_word_length(self, chunk):
-        word_lengths = []
-        for word, _ in chunk.unigram_counts.items():
-            word_lengths.append(len(word))
-        return max(word_lengths)
+        return len(max(chunk.unigram_counts['words'], key=len))
 
     def get_average_word_length(self, chunk):
-        word_lengths = []
-        for word, count in chunk.unigram_counts.items():
-            word_lengths.append(len(word) * count)
-        return np.mean(word_lengths)
+        words = chunk.unigram_counts['words']
+        counts = chunk.unigram_counts['counts']
+        assert len(words) == len(counts)
+        total_length = sum(len(word) * count for word, count in zip(words, counts))
+        total_count = sum(counts)
+        return total_length / total_count
 
     def get_unigram_entropy(self, chunk):
-        return entropy(list(chunk.unigram_counts.values()))
+        return entropy(chunk.unigram_counts['counts'])
     
     def get_bigram_entropy(self, chunk):
-        return entropy(chunk.bigram_counts)
+        return entropy(chunk.bigram_counts['counts'])
     
     def get_trigram_entropy(self, chunk):
-        return entropy(chunk.trigram_counts)
+        return entropy(chunk.trigram_counts['counts'])
     
     def get_type_token_ratio(self, chunk):
         # Type-token ratio according to Algee-Hewitt et al. (2016)
-        tokens = sum(chunk.unigram_counts.values())
-        types = len(chunk.unigram_counts)
+        words = chunk.unigram_counts['words']
+        counts = chunk.unigram_counts['counts']
+        tokens = sum(counts)
+        types = len(words)
         return types/tokens
 
     def get_flesch_reading_ease_score(self, chunk):
@@ -255,8 +255,11 @@ class DocBasedFeatureExtractor():
     #     '''
     #     return textstat.gunning_fog(chunk.text)
 
-    # book-based features
-    def __get_intra_textual_variance(self, chunks, embedding_type):
+    def get_intra_textual_variance(self, chunks, embedding_type):
+        # Euclidean distance of a novel's chunks to its centroid
+        # Cannot be calculated unless there are more than 1 chunk
+        if len(chunks) == 1:
+            return np.nan
         chunk_embeddings = []
         for chunk in chunks:
             if embedding_type == 'd2v':
@@ -270,14 +273,14 @@ class DocBasedFeatureExtractor():
         return np.mean(euclidean_distances)
 
     def get_d2v_intra_textual_variance(self, chunks):
-        return self.__get_intra_textual_variance(chunks, 'd2v')
+        return self.get_intra_textual_variance(chunks, 'd2v')
 
     def get_sbert_intra_textual_variance(self, chunks):
-        return self.__get_intra_textual_variance(chunks, 'sbert')
+        return self.get_intra_textual_variance(chunks, 'sbert')
 
-    def __get_stepwise_distance(self, chunks, embedding_type):
+    def get_stepwise_distance(self, chunks, embedding_type):
         if len(chunks) == 1:
-            return 0
+            return np.nan
         euclidean_distances = []
         for chunk_idx in range(1, len(chunks)):
             if embedding_type == 'd2v':
@@ -288,17 +291,13 @@ class DocBasedFeatureExtractor():
                 previous_chunk_embedding = chunks[chunk_idx - 1].sbert_embeddings.mean(axis=0)
             else:
                 raise Exception(f'Not a valid embedding type {embedding_type}')
-            print('Norm:\n', np.linalg.norm(current_chunk_embedding - previous_chunk_embedding))
             euclidean_distances.append(np.linalg.norm(current_chunk_embedding - previous_chunk_embedding))
-        print('Mean\n: ', np.mean(euclidean_distances))
 
-        # Calculate the mean by dividing by n-1
-        n = len(euclidean_distances)
-        mean_distance = np.sum(euclidean_distances) / (n - 1)
+        mean_distance = np.sum(euclidean_distances) / len(euclidean_distances)
         return mean_distance
 
     def get_d2v_stepwise_distance(self, chunks):
-        return self.__get_stepwise_distance(chunks, 'd2v')
+        return self.get_stepwise_distance(chunks, 'd2v')
 
     def get_sbert_stepwise_distance(self, chunks):
-        return self.__get_stepwise_distance(chunks, 'sbert')
+        return self.get_stepwise_distance(chunks, 'sbert')

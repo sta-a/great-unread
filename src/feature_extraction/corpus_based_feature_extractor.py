@@ -8,6 +8,7 @@ from collections import Counter
 from functools import wraps, reduce
 from multiprocessing import current_process, Queue, Process, cpu_count
 import scipy
+import multiprocessing
 import pickle
 import time
 from sklearn.neighbors import BallTree
@@ -15,41 +16,44 @@ import spacy
 import sys
 sys.path.append("..")
 from utils import load_list_of_lines, save_list_of_lines, get_filename_from_path
-from .production_rule_extractor import ProductionRuleExtractor
 from .doc_based_feature_extractor import DocBasedFeatureExtractor
 from .ngrams import NgramCounter
 
 
 class CorpusBasedFeatureExtractor():
     '''Get features for which the whole corpus needs to be considered.'''
-    def __init__(self, language, doc_paths, as_chunk, tokens_per_chunk, nr_features=100):
+    def __init__(self, language, doc_paths, as_chunk, pickle_dir, tokens_per_chunk, nr_features=100):
         self.language = language
         self.doc_paths = doc_paths
         self.as_chunk = as_chunk
+        print(f'as chunk: {self.as_chunk}')
+        self.pickle_dir = pickle_dir
         self.tokens_per_chunk = tokens_per_chunk
         self.nr_features = nr_features
         self.nlp = self.load_spacy_model()
         self.nc = NgramCounter(self.language)
         self.ngrams = self.nc.load_all_ngrams(as_chunk=self.as_chunk)
-        self.generate_chunks = self.get_chunks()
-        print(len(self.generate_chunks))
 
+        if self.as_chunk:
+            self.all_average_sbert_embeddings, self.all_d2v_embeddings = self.load_embeddings()
 
-        self.all_average_sbert_embeddings = []
-        self.all_d2v_embeddings = []
-        for doc_chunks in self.generate_chunks:
-            print(len(doc_chunks))
-            curr_sbert = []
-            curr_doc2vec = []
-            for chunk in doc_chunks:
-                print(type(chunk))
-                curr_sbert.append(np.array(chunk.sbert_embeddings).mean(axis=0))
-                curr_doc2vec.append(chunk.d2v_embeddings)
-                print(np.array(chunk.sbert_embeddings).mean(axis=0).shape, chunk.d2v_embeddings.shape) #########################
-            self.all_average_sbert_embeddings.append(curr_sbert)
-            self.all_d2v_embeddings.append(curr_doc2vec)
-        print(f'all_average_sbert_embeddings', len(self.all_average_sbert_embeddings), len(self.all_average_sbert_embeddings[0]))
-        print(f'all_d2v_embeddings', len(self.all_d2v_embeddings), len(self.all_d2v_embeddings[0]))
+    def load_embeddings(self):
+        path = os.path.join(self.pickle_dir, f'cbfe_embeddings_aschunk_{self.as_chunk}.pkl')
+        if os.path.exists(path):
+            all_average_sbert_embeddings,  all_d2v_embeddings = self.load_pickle(path)
+        else:
+            all_average_sbert_embeddings = []
+            all_d2v_embeddings = []
+            for doc_chunks in self.generate_chunks():
+                curr_sbert = []
+                curr_doc2vec = []
+                for chunk in doc_chunks:
+                    curr_sbert.append(np.array(chunk.sbert_embeddings).mean(axis=0))
+                    curr_doc2vec.append(chunk.d2v_embeddings)
+                all_average_sbert_embeddings.append(curr_sbert)
+                all_d2v_embeddings.append(curr_doc2vec)
+            self.save_pickle(path, (all_average_sbert_embeddings, all_d2v_embeddings))
+        return all_average_sbert_embeddings, all_d2v_embeddings
 
 
     def load_spacy_model(self):
@@ -60,21 +64,17 @@ class CorpusBasedFeatureExtractor():
         else:
             raise Exception(f'Not a valid language {self.language}')
 
-        try:
-            nlp = spacy.load(model_name)
-            return nlp
-        except OSError:
-            print(f'The model {model_name} for Spacy is missing.')
+        nlp = spacy.load(model_name, disable=["lemmatizer"])
+        return nlp
 
 
 
-    def get_chunks(self,         
+    def generate_chunks(self,         
         get_ngrams=False,
         get_char_counts=False):
         
-        s = time.time()
-        chunks = []
-        for doc_path in tqdm(self.doc_paths):
+
+        for doc_path in tqdm(self.doc_paths): 
             doc_chunks = DocBasedFeatureExtractor(
                 language=self.language,
                 doc_path=doc_path,
@@ -83,27 +83,7 @@ class CorpusBasedFeatureExtractor():
                 ngrams=self.ngrams,
                 get_ngrams=False,
                 get_char_counts=False).chunks
-            chunks.append(doc_chunks)
-        object_size = sys.getsizeof(chunks) #############################a
-        print(f"Size of the chunks of 1 doc: {object_size} bytes")
-        print(f'{time.time()-s}s to get all chunksf')
-        return chunks
-
-    # def generate_chunks(self,         
-    #     get_ngrams=False,
-    #     get_char_counts=False):
-        
-
-    #     for doc_path in tqdm(self.doc_paths):
-    #         doc_chunks = DocBasedFeatureExtractor(
-    #             language=self.language,
-    #             doc_path=doc_path,
-    #             as_chunk=self.as_chunk,
-    #             tokens_per_chunk=self.tokens_per_chunk, 
-    #             ngrams=self.ngrams,
-    #             get_ngrams=False,
-    #             get_char_counts=False).chunks
-    #         yield doc_chunks
+            yield doc_chunks
     
 
     def tag_chunks(self, tag_type, gram_type):
@@ -150,7 +130,7 @@ class CorpusBasedFeatureExtractor():
 
         tagged_chunks = {}
         corpus_tag_counter = Counter()
-        for doc_chunks in self.generate_chunks:
+        for doc_chunks in self.generate_chunks():
             for chunk in doc_chunks:
                 chunk_tag_counter = tag_chunk(chunk, tag_type, gram_type)
                 tagged_chunks[chunk.chunkname] = chunk_tag_counter
@@ -184,53 +164,10 @@ class CorpusBasedFeatureExtractor():
                     result_df = current_df
                 else:
                     result_df = result_df.merge(current_df, on='file_name')
+        
+        # Remove chunk index from file name
+        # result_df['file_name'] = result_df['file_name'].str.split('_').str[:4].str.join('_') #######################################
         return result_df
-
-    def get_book_production_counts(self, book, pre):
-        chunk_production_counter = Counter()
-        for sentence in book:
-            sentence_production_counter = pre.get_sentence_production_counter(sentence)
-            chunk_production_counter.update(sentence_production_counter)
-        return chunk_production_counter
-
-    def get_production_distribution(self):
-        '''
-        Returns an empty dataframe if the language is German. Reason is explained in
-        docstring of ProductionRuleExtractor.
-        '''
-        if self.language == 'ger':
-            raise Exception('Not implemented for German.')
-        elif self.language == 'eng':
-            pass
-        else:
-            raise Exception('Not a valid language')
-
-        pre = ProductionRuleExtractor()
-        chunk_production_counters = {}
-        corpus_production_counter = Counter()
-
-        for doc_chunks in self.generate_chunks:
-            for chunk in doc_chunks:
-                chunk_production_counter = self.get_book_production_counts(chunk.text, pre)
-                chunk_production_counters[chunk.chunkname] = chunk_production_counter
-                corpus_production_counter.update(chunk_production_counter)
-
-        # get first k tags of corpus_tag_counter
-        corpus_production_counter = sorted([(tag, count) for tag, count in corpus_production_counter.items()], key=lambda x: -x[1])[:self.nr_features]
-        corpus_production_counter = [tag for tag, count in corpus_production_counter]
-
-        data = []
-
-        # get first k tags of each chunk_tag_counter
-        for chunk_name, chunk_prodution_counter in chunk_production_counters.items():
-            current_chunks_chosen_production_counts = dict([(production_type, chunk_prodution_counter[production_type]) for production_type in corpus_production_counter])
-            current_chunks_chosen_production_counts_sum = sum([count for tag, count in current_chunks_chosen_production_counts.items()])
-            current_chunks_chosen_production_counts = dict([(tag, count/current_chunks_chosen_production_counts_sum) for tag, count in current_chunks_chosen_production_counts.items()])
-            current_chunks_chosen_production_counts['file_name'] = chunk_name
-            data.append(current_chunks_chosen_production_counts)
-
-        df = pd.DataFrame(data)
-        return df
 
 
     def get_overlap_score(self, embedding_type):
@@ -252,18 +189,17 @@ class CorpusBasedFeatureExtractor():
         for i in range(0, len(n_chunks_per_doc)):
             all_labels.append(list(range(sum(n_chunks_per_doc[:i]), sum(n_chunks_per_doc[:i+1]))))
 
-        # Get list of chunk arrays
+        # Get list of all embeddings
         labels = []
-        chunk_embeddings_list = []
-        for embeddings_per_doc in all_embeddings:
-            for chunk_embedding in embeddings_per_doc:
-                chunk_embeddings_list.append(chunk_embedding)
+ 
+        # Create an array of all embedding arrays
+        all_embeddings = np.concatenate([*map(np.vstack, all_embeddings)])
 
         # Find centroid that has the smallest distance to current chunk embedding (nearest neighbour)
         # BallTree algorithm (Cranenburgh2019)
         # Find k nearest neighbours to each centroid, with k being the number of chunks in a text
         all_predictions = []
-        tree = BallTree(chunk_embeddings_list, metric='euclidean')
+        tree = BallTree(all_embeddings, metric='euclidean')
         for centroid, curr_n_chunks_per_doc in zip(centroids, n_chunks_per_doc):
             # indices of k nearest neighbors of centroid
             indices = tree.query(X=centroid.reshape(1,-1), k=curr_n_chunks_per_doc, return_distance=False).tolist()
@@ -312,6 +248,7 @@ class CorpusBasedFeatureExtractor():
         for index, embeddings_per_doc in enumerate(all_embeddings):
             centroids.append(np.array(embeddings_per_doc).mean(axis=0))
 
+
         # Find distance to nearest centroid
         outlier_scores = []
         file_names = []
@@ -343,19 +280,71 @@ class CorpusBasedFeatureExtractor():
         data_dict = self.ngrams[ngram_type]
         dtm, _ = self.nc.filter_dtm(data_dict, min_docs, min_percent, max_docs, max_percent)
 
-        dtm_sum = np.array(dtm.sum(axis=0))[0]
+        # Get total count of each word
+        dtm_sum = dtm.sum(axis=0)
 
+        # Not possible to work with sparse matrices because dtm_sum is not sparse (does not contain any 0) and because broadcasting for subtraction of csr matrices is not implemented
         distances = {}
         for idx, file_name in tqdm(enumerate(data_dict['file_names'])):
+            # if idx < 5: 
             # Access the term frequency values for the specific document
             file_counts = dtm[idx].toarray()
             corpus_counts = dtm_sum - file_counts
-            cosine_distance = scipy.spatial.distance.cosine(corpus_counts, file_counts) # use sim or dist??? ################3
+            cosine_distance = scipy.spatial.distance.cosine(corpus_counts, file_counts)
             distances[file_name] = cosine_distance
-
         # Turn both keys and values of a dict into columns of a df.
         distances = pd.DataFrame(distances.items(), columns=['file_name', f'{ngram_type}_distance'])
         return distances 
+
+
+
+    # def get_corpus_distance(self, ngram_type, min_docs=None, min_percent=None, max_docs=None, max_percent=None):
+    #     data_dict = self.ngrams[ngram_type]
+    #     dtm, _ = self.nc.filter_dtm(data_dict, min_docs, min_percent, max_docs, max_percent)
+
+    #     # Get total count of each word
+    #     dtm_sum = dtm.sum(axis=0)
+    #     dtm_sum_norm = np.linalg.norm(dtm_sum)
+    #     dtm_sum_t = dtm_sum.T
+
+    #     num_docs = len(data_dict['file_names'])
+    #     batch_size = 100
+    #     batch_size = batch_size or num_docs  # Use batch size equal to the number of documents if not specified.
+
+    #     # Initialize an empty DataFrame to store distances
+    #     distances = pd.DataFrame(columns=['file_name', f'{ngram_type}_distance'])
+
+    #     for start_idx in tqdm(range(0, num_docs, batch_size)):
+    #         start = time.time()
+    #         end_idx = min(start_idx + batch_size, num_docs)
+
+    #         # Calculate cosine distances for the current batch
+    #         batch_dtm = dtm[start_idx:end_idx]
+    #         batch_dtm_diff = dtm_sum - batch_dtm
+    #         print('dtm_sum_norm', dtm_sum_norm, 'np.linalg.norm(batch_dtm_diff, axis=1)', np.linalg.norm(batch_dtm_diff, axis=1).shape)
+    #         print('(batch_dtm_diff @ dtm_sum_t)', (batch_dtm_diff @ dtm_sum_t).shape, '(np.linalg.norm(batch_dtm_diff, axis=1) * dtm_sum_norm)', (np.linalg.norm(batch_dtm_diff, axis=1) * dtm_sum_norm).shape)
+            
+    #         numerator = (batch_dtm_diff @ dtm_sum_t)#.flatten()
+    #         print('numerator', type(numerator), numerator.shape, numerator)
+    #         # denominator = (np.linalg.norm(batch_dtm_diff, axis=1) * dtm_sum_norm)
+    #         # denominator = denominator[:, np.newaxis] # Make it 2D
+    #         # print('denominator', type(denominator), denominator.shape, denominator)
+    #         # batch_dists = numerator / denominator
+            
+    #         # print('batch_dists', type(batch_dists), batch_dists.shape, batch_dists)
+
+    #         # batch_dists = 1 - batch_dists
+
+    #         # print('batch_dists', type(batch_dists), batch_dists.shape)
+
+    #         # # Add distances for the current batch to the DataFrame
+    #         # batch_file_names = data_dict['file_names'][start_idx:end_idx]
+    #         # print(len(batch_file_names), batch_dists.flatten().shape)
+    #         batch_dists = pd.DataFrame({'file_name': batch_file_names, f'{ngram_type}_distance': batch_dists.flatten()})
+    #         distances = pd.concat([distances, batch_dists], ignore_index=True)
+    #         print(f'{time.time()-start}s to process one batch.')
+    #     return distances
+
 
 
     def get_unigram_distance(self):
@@ -380,125 +369,125 @@ class CorpusBasedFeatureExtractor():
         # min_docs is 2 by default, filtering not necessary
         distances = self.get_corpus_distance(ngram_type='trigram')
         return distances
+    
+    def get_dependency_labels_distribution(self, docs):
+        doc_dist = Counter()
+        chunk_dists = []
+        for chunk in docs:
+            # Extract dependency labels
+            dependency_labels = [token.dep_ for token in chunk]
 
-
-    # def get_all_features(self):
-
-    #     def multiprocessing_decorator(queue):
-    #         def inner_decorator(func):
-    #             @wraps(func)
-    #             def wrapper(*args, **kwargs):
-    #                 print(f'Starting process: {current_process().name}.')
-    #                 features = func()
-    #                 queue.put(features)
-    #             return wrapper
-    #         return inner_decorator
-
-    #     chunk_queue = Queue()
-    #     book_queue = Queue()
-
-    #     chunk_functions = [self.get_unigram_distance,
-    #                         self.get_unigram_distance_limited,
-    #                         self.get_bigram_distance,
-    #                         self.get_trigram_distance,
-    #                         self.get_tag_distribution]
-    #     if self.language == 'eng':
-    #         chunk_functions.append(self.get_production_distribution)
+            # Calculate the distribution
+            chunk_dist = Counter(dependency_labels)
+            doc_dist.update(chunk_dist)
+            chunk_dists.append(chunk_dist)
+        return doc_dist, chunk_dists
             
-    #     book_functions = [self.get_overlap_score_doc2vec,
-    #                         self.get_outlier_score_doc2vec]
-    #                         # self.get_overlap_score_sbert,
-    #                         # self.get_outlier_score_sbert]
-    #     print('chunk functions', chunk_functions)
-        
-    #     # Decorate functions to make them useable for multiprocessing
-    #     # Reverse chunk_functions to start get_tag_distribution() and get_production_distribution() first
-    #     chunk_functions = reversed([multiprocessing_decorator(chunk_queue)(func) for func in chunk_functions])
-    #     book_functions = [multiprocessing_decorator(book_queue)(func) for func in book_functions]
-        
-    #     # Create new process for every function
-    #     chunk_processes = [Process(target=func, name=func.__name__) for func in chunk_functions]
-    #     if self.as_chunk == True:
-    #         book_processes = [Process(target=func, name=func.__name__) for func in book_functions]
-    #     else:
-    #         book_processes = []
-    #     processes = chunk_processes + book_processes
 
-    #     nr_processes = max(cpu_count() - 4, 1) ####################     
-    #     def _start_process(p):
-    #         # Limit the number of cores used to avoid oversubscription
-    #         alive = sum([p.is_alive() for p in processes])
-    #         print('nr. processes alive', alive)
-    #         if alive <= (nr_processes):
-    #             p.start()
-    #         else:
-    #             time.sleep(15)
-    #             _start_process(p)
-    #     for p in processes:
-    #         print('nr. processes alive', sum([p.is_alive() for p in processes]))
-    #         _start_process(p)
+    def get_sentence_dependencies(self):
+        all_chunk_dists = []
+        all_doc_dist = []
 
-    #     chunk_features = []
-    #     book_features = []
+        # Use chunk-based processing for fulltext features because some texts are too long to be handled in one piece
+        for doc_chunks in self.generate_chunks():
+            chunks = {}
+            first_chunk = True
+            for chunk in doc_chunks:
+                
+                if first_chunk:
+                    bookname = get_filename_from_path(chunk.doc_path) # Save book name for later use
+                    first_chunk = False
 
-    #     # Take elements from queues before joining processes
-    #     while True:
-    #         alive = any([p.is_alive() for p in processes])
-    #         if not chunk_queue.empty():
-    #             chunk_features.append(chunk_queue.get())
-    #         if not book_queue.empty():
-    #             book_features.append(book_queue.get())
-    #         if not alive:
-    #             break
-            
-    #     for p in processes:
-    #         p.join()
+                chunks[chunk.chunkname] = chunk.text
+            docs = list(self.nlp.pipe(chunks.values(), batch_size=6, disable=['tagger', 'ner'], n_process=multiprocessing.cpu_count()-2))
 
-    #     chunk_features = reduce(lambda df1, df2: df1.merge(df2, how='inner', on='file_name', validate='one_to_one'), chunk_features)
-    #     if self.as_chunk == False:
-    #         chunk_features['file_name'] = chunk_features['file_name'].str.split('_').str[:4].str.join('_')
-    #     else:
-    #         book_features = reduce(lambda df1, df2: df1.merge(df2, how='inner', on='file_name', validate='one_to_one'), book_features)
+            doc_dist, chunk_dists = self.get_dependency_labels_distribution(docs)
+
+            # Convert the list of Counters to a list of dictionaries
+            chunk_dists = [dict(counter) for counter in chunk_dists]
+            df = pd.DataFrame(chunk_dists).fillna(0)
+            df['file_name'] = list(chunks.keys())
+            all_chunk_dists.append(df)
+
+            doc_dist = dict(doc_dist)
+            df = pd.DataFrame(doc_dist, index=[0]).fillna(0)
+            df['file_name'] = bookname
+            all_doc_dist.append(df)
 
 
-    #     return chunk_features, book_features
+        result = []
+        for dfs in [all_chunk_dists, all_doc_dist]:
 
+            df = pd.concat(dfs, ignore_index=True, sort=False, axis=0)
+            df = df.fillna(0)
+
+            # Get relative frequencies
+            df = df.set_index('file_name', inplace=False)
+            df = df.div(df.sum(axis=1), axis=0)
+            df = df.reset_index(inplace=False)
+
+            result.append(df)
+
+        return result
+
+
+    def load_pickle(self, path):
+        with open(path, 'rb') as f:
+            features = pickle.load(f)
+            return features
+    
+    def save_pickle(self, path, data):
+        with open(path, 'wb') as f:
+            pickle.dump(data, f)
+
+    def call_function(self, func):
+        print(func.__name__)
+        path = os.path.join(self.pickle_dir, f'{func.__name__}_aschunk_{self.as_chunk}.pkl')
+        if os.path.exists(path):
+            features = self.load_pickle(path)
+        else:
+            features = func()
+            self.save_pickle(path, features)
+        return features
+    
     def get_all_features(self):
-        chunk_queue = []
-        book_queue = []
-
         chunk_functions = [self.get_unigram_distance,
                         self.get_unigram_distance_limited,
                         self.get_bigram_distance,
                         self.get_trigram_distance,
                         self.get_tag_distribution]
-        if self.language == 'eng':
-            chunk_functions.append(self.get_production_distribution)
 
         book_functions = [self.get_overlap_score_doc2vec,
                         self.get_outlier_score_doc2vec,
                         self.get_overlap_score_sbert,
-                        self.get_outlier_score_sbert]
+                        self.get_outlier_score_sbert,
+                        self.get_sentence_dependencies]
 
         chunk_features = []
         book_features = []
 
+        
         for func in chunk_functions:
-            s = time.time()
-            features = func()
+            features = self.call_function(func)
             chunk_features.append(features)
-            print(f'{time.time()-s} to calculate {func}')
+            
+        if self.as_chunk:
+            for func in book_functions:
+                features = self.call_function(func)
+                if func.__name__ == 'get_sentence_dependencies':
+                    chunk_df, doc_df = features
+                    chunk_features.append(chunk_df)
+                    book_features.append(doc_df)
+                else:
+                    book_features.append(features)
 
-        for func in book_functions:
-            s = time.time()
-            features = func()
-            book_features.append(features)
-            print(f'{time.time()-s} to calculate {func}')
+        if self.language == 'eng':
+            # Correct for error in pickled file, features ok but filenames not
+            chunk_features[4]['file_name'] = chunk_features[0]['file_name'].values
+
 
         chunk_features = reduce(lambda df1, df2: df1.merge(df2, how='inner', on='file_name', validate='one_to_one'), chunk_features)
-        if self.as_chunk==False:
-            chunk_features['file_name'] = chunk_features['file_name'].str.split('_').str[:4].str.join('_')
-        else:
+        if self.as_chunk:
             book_features = reduce(lambda df1, df2: df1.merge(df2, how='inner', on='file_name', validate='one_to_one'), book_features)
 
         return chunk_features, book_features

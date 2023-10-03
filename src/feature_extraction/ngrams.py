@@ -77,14 +77,12 @@ class NgramCounter(DataHandler):
         dtm = cv.fit_transform(self.load_chunks(mode))
         words = cv.get_feature_names_out()
         words = ['-'.join(name.split()) for name in words] # for bi- and trigrams, join words
-        # Create a dictionary to store everything
         data_dict = {
             'dtm': dtm,
             'words': words,
             'file_names': self.chunk_names
         }
 
-        # Save the dictionary to a file
         self.save_data(data=data_dict, ntype=mode[0], size=mode[1])
 
 
@@ -107,9 +105,13 @@ class NgramCounter(DataHandler):
             file_counts = file_counts.data.tolist()
         else:
             # Access the term frequency values for the specific document
+            itime = time.time()
             file_counts = data_dict['dtm'][idx].toarray()
+            print(f'time to find idx in mx: {time.time()-itime}s')
+            dtime = time.time()
             file_counts = {data_dict['words'][i]: file_counts[0][i] for i in range(len(data_dict['words']))}
-            self.logger.info(f'Returning ngram counts as dict, including ngrams where count is 0.')
+            print(f'time to create dict: {time.time()-dtime}s')
+            self.logger.debug(f'Returning ngram counts as dict, including ngrams where count is 0.')
         return file_counts
     
 
@@ -131,7 +133,7 @@ class NgramCounter(DataHandler):
         bigrams = self.load_data(file_name=f'bigram_{size}')
         trigrams = self.load_data(file_name=f'trigram_{size}')
 
-        self.logger.info(f'Returning ngram data dicts.')
+        self.logger.debug(f'Returning ngram data dicts.')
         return {'unigram': unigrams, 'bigram': bigrams, 'trigram': trigrams}
     
 
@@ -242,7 +244,7 @@ class NgramCounter(DataHandler):
 
             data = {'word': words, 'count': dtm_sum}
             df = pd.DataFrame(data)
-            self.save_data(data=df, file_name='unigram_counts.csv', pandas_index=False)
+            self.save_data(data=df, file_name='unigram_counts.csv')
             return df
         
         def plot_zipfs_law(self, df):
@@ -307,15 +309,16 @@ class MfwExtractor(DataHandler):
         mfw = kwargs['mode']
         reldf = self.reldf.iloc[:, :mfw]
         reldf = reldf.sparse.to_dense()
+        # Reset the index and rename the new column to "file_name"
+        reldf = reldf.reset_index().rename(columns={'index': 'file_name'})
         # Save relative frequencies of words with the highest relative frequencies in the corpus
         self.save_data(data=reldf, file_name=None, file_string='rel', **kwargs)
-        self.logger.info(f'Saved {mfw} words with highest relative word frequency to file.')
+        self.logger.debug(f'Saved {mfw} words with highest relative word frequency to file.')
 
-        # Input for stylo
-        absdf = self.absdf[reldf.columns.tolist()]
-        absdf = absdf.sparse.to_dense()
-        # Save absolute frequencies of words with the highest relative frequencies in the corpus
-        self.save_data(data=absdf, file_name=None, file_string='abs', **kwargs)
+        # absdf = self.absdf[reldf.columns.tolist()]
+        # absdf = self.postprocess_df(absdf)
+        # # Save absolute frequencies of words with the highest relative frequencies in the corpus
+        # self.save_data(data=absdf, file_name=None, file_string='abs', **kwargs)
         
 
     # def create_filename(self, **kwargs):

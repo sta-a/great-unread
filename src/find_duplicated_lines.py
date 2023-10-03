@@ -86,7 +86,7 @@ class DupSentencesFinder(DataHandler):
 
         filename = os.path.basename(doc_path)
         file_path = os.path.join(path, filename)
-        self.logger.info(f'Comparing sentences for {filename}.')
+        self.logger.debug(f'Comparing sentences for {filename}.')
         similarity_threshold = 0.8 
 
         similar_sentences = self.find_similar_sentences_exact(file_path, similarity_threshold)

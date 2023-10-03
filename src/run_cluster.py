@@ -1,6 +1,6 @@
 # %%
-# %load_ext autoreload
-# %autoreload 2
+%load_ext autoreload
+%autoreload 2
 # %matplotlib inline
 
 import matplotlib.pyplot as plt
@@ -65,12 +65,13 @@ class SimilarityNetwork(DataHandler):
         return mx
 
     def load_mxs(self):
-        pydelta = PydeltaDist(self.language)
-        pydelta.modes = ['burrows-20']##############################################
-        pdmxs = pydelta.load_all_data()
-        # dd = D2vDist(self.language)
-        # #dd.modes = ['doc'] ##############################################
-        # dvmxs = dd.load_all_data()
+        # pydelta = PydeltaDist(self.language)
+        # pydelta.modes = ['burrows-20'] 
+        # pdmxs = pydelta.load_all_data()
+
+        dd = D2vDist(language=self.language)
+        #dd.modes = ['doc'] ##############################################
+        dvmxs = dd.load_all_data()
         # #mxs = {**pdmxs}#, **dvmxs}
         # mxs = {**dvmxs}
 
@@ -136,6 +137,8 @@ sn = SimilarityNetwork(language='eng') #.simmx_clustering()
 # # # find eta
 # # eta = 0.1
 # set all values below eta to 0
+
+
 
 
 # %%

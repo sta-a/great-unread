@@ -254,7 +254,7 @@ class DataHandler():
             index = True
             if 'pandas_index' in kwargs:
                 index = kwargs['pandas_index']
-            data.to_csv(file_path, header=True, sep=sep, index=index)
+            data.to_csv(file_path, header=True, sep=sep, index=index, na_rep=np.nan)
         elif data_type == 'pkl':
             joblib.dump(data, file_path)
         elif data_type == 'svg':
@@ -287,7 +287,7 @@ class DataHandler():
                             sep = self.separator
                         f.write(f'{sep.join(l)}\n')
                 self.logger.info(f'Writing list of lists to file using {self.separator} as the separator.')
-        self.logger.info(f'Saved {data_type} data to {file_path}')
+        self.logger.debug(f'Saved {data_type} data to {file_path}')
 
 
     def file_exists_or_create(self, file_path=None, file_name=None, **kwargs):
@@ -297,19 +297,19 @@ class DataHandler():
             file_path = self.get_file_path(file_name, **kwargs)
 
         if not self.file_exists(file_path=file_path):
-            self.logger.info(f'Creating data for {file_path}.')
+            self.logger.debug(f'Creating data for {file_path}.')
             self.create_data(**kwargs)
         # else:
-        #     self.logger.info(f'already exists: {file_path}')
+        #     self.logger.debug(f'already exists: {file_path}')
 
     def load_data(self, load=True, file_name=None, **kwargs):
-        self.logger.info(f'Loading data. If create_data loads data from file, doc_path must be passed with kwargs.')
+        self.logger.debug(f'Loading data. If create_data loads data from file, doc_path must be passed with kwargs.')
         file_path = self.get_file_path(file_name=file_name, **kwargs)
         self.file_exists_or_create(file_path=file_path, **kwargs)
 
         data = None
         if load:
-            self.logger.info(f'Loading {file_path} from file.')
+            self.logger.debug(f'Loading {file_path} from file.')
             data = self.load_data_type(file_path, **kwargs)
         return data
     
@@ -395,7 +395,7 @@ class DataHandler():
         if ending_count == 0:
             data_type = self.get_custom_datatype(**kwargs) # Get data type, don't pass file_name because it has no extension
             file_name = f'{file_name}.{data_type}'
-            self.logger.info(f'Added extension to file name: {file_name}')
+            self.logger.debug(f'Added extension to file name: {file_name}')
         elif ending_count == 1:
             _ = self.get_custom_datatype(file_name_or_path=file_name, **kwargs) # Pass file_name to check it, return value is ignored because file_name already has extension
             if not file_name.endswith(self.data_types):
@@ -408,7 +408,7 @@ class DataHandler():
     def get_file_path(self, file_name=None, **kwargs):
         if file_name is None and not kwargs:
             raise ValueError("Either 'file_name' or kwargs must be provided.")
-        elif file_name is not None and kwargs:self.logger.info(f'Both file_name and kwargs were passed to get_file_path().')
+        elif file_name is not None and kwargs:self.logger.debug(f'Both file_name and kwargs were passed to get_file_path().')
              # file_name is used, kwargs are ignored. \nfile_name: {file_name}. \nkwargs: {kwargs}')
         if file_name is None:
             file_name = self.create_filename(**kwargs)
@@ -421,7 +421,7 @@ class DataHandler():
                     if 'mode' in kwargs:
                         mode = kwargs['mode']
                         self.add_subdir(mode)
-                        self.logger.info(f'Set subdir to mode {mode}.')
+                        self.logger.debug(f'Set subdir to mode {mode}.')
                     else:
                         raise ValueError(f'Pass or initialize subdir, or pass mode to get_file_path().')
             elif isinstance(kwargs['subdir'], str):
@@ -750,11 +750,11 @@ class DataChecks(DataHandler):
 #     c.get_collaborations()
 
 
-# Provide the directory path and the string to search for
-directory_path = '/home/annina/scripts/great_unread_nlp/data/text_tokenized'
-directory_path = '/home/annina/scripts/great_unread_nlp/src/'
-search_string = '__class__.__name__'
-extension = ['.txt', '.py']
-search_string_in_files(directory_path, search_string, extension, full_word=False)
+# # Provide the directory path and the string to search for
+# directory_path = '/home/annina/scripts/great_unread_nlp/data/text_tokenized'
+# directory_path = '/home/annina/scripts/great_unread_nlp/src/'
+# search_string = '__class__.__name__'
+# extension = ['.txt', '.py']
+# search_string_in_files(directory_path, search_string, extension, full_word=False)
 
 # %%

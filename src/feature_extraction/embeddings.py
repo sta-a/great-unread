@@ -27,7 +27,9 @@ logging.getLogger().setLevel(logging.WARNING) # suppress SentenceTransformers ba
 
 class RewriteSbertData(DataHandler):
     '''
-    Class for writing sbert embeddings that were stored per chunk to single file entry.
+    Class for changing the way sbert embeddings are stored.
+    Take embeddings that were stored in the format chunk_id: embedding and combine them into one file per text.
+    For accessing embeddings belonging to a chunk, use sentence-based indexing. There is one embedding per sentence.
     '''
     def __init__(self, language, tokens_per_chunk):
         sbert_output_dir = f'sbert_embeddings'
@@ -43,7 +45,6 @@ class RewriteSbertData(DataHandler):
             assert all(isinstance(item, np.ndarray) for item in embeddings)
             self.save_data(file_name=get_filename_from_path(doc_path), data=embeddings)
             original_path = os.path.join(self.output_dir, f'{get_filename_from_path(doc_path)}.{self.data_type}').replace('tpc_1000', 'tpc_500')
-            print(original_path)
             assert os.path.exists(original_path)
             if os.path.exists(original_path):
                 os.remove(original_path)
@@ -60,7 +61,6 @@ class SbertProcessor(DataHandler):
 
 
     def create_data(self, doc_path):
-        # print(f'Creating data for {doc_path}')
         chunks = ChunkHandler(self.language, self.tokens_per_chunk).load_data(file_name=get_filename_from_path(doc_path), remove_punct=False, lower=False, as_chunk=True, as_sent=True, doc_path=doc_path)
         
         start = time.time()
@@ -68,7 +68,7 @@ class SbertProcessor(DataHandler):
         for chunk in chunks:
             embeddings = list(self.sentence_encoder.encode(chunk))
             all_embeddings.extend(embeddings)
-        self.logger.info('\nSaving embeddings.\n')
+        self.logger.debug('\nSaving embeddings.\n')
         self.save_data(file_name=get_filename_from_path(doc_path), data=all_embeddings)
         print(f'Time for {doc_path}: {time.time()-start}')
 
@@ -79,7 +79,6 @@ class SbertProcessor(DataHandler):
 
     def load_data_type(self, file_path, **kwargs):
         data = np.load(file_path)['arr_0'] # List of arrays
-        print('format of sbert data: ', type(data))
         data = np.array(data)
         self.logger.info(f'Returning sbert embedding as an array of arrays.')
         return data
@@ -94,10 +93,9 @@ class SbertProcessor(DataHandler):
             nr_sents = sentences_per_doc[bookname]
             sbert = self.load_data(file_name=f'{bookname}.npz')
             assert len(sbert) == nr_sents
-            self.logger.info(f'One embedding per sentence for {bookname}.')
+            self.logger.debug(f'One embedding per sentence for {bookname}.')
 
 
-# %%
 class D2vProcessor(DataHandler):
     '''
     mode: 
@@ -129,7 +127,6 @@ class D2vProcessor(DataHandler):
     def create_all_data(self):
         # Check if file exists and create it if necessary
         for mode in self.modes:
-            print(mode)
             _ = self.create_data(load=False, mode=mode)
 
 
@@ -197,7 +194,6 @@ class D2vProcessor(DataHandler):
         mode = kwargs['mode']
         self.add_subdir(mode)
         dvs = {str(chunk_idx): self.model.dv[chunk_idx] for chunk_idx in self.model.dv.index_to_key}
-        print('dv keys', dvs.keys())
 
         if mode == 'chunk' or mode == 'both':
             ch = ChunkHandler(self.language, self.tokens_per_chunk)

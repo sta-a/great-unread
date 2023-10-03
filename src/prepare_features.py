@@ -90,7 +90,6 @@ class FeaturePreparer(DataHandler):
 
     def mfwextractor(self):
         m = MfwExtractor(self.language)
-        # m.modes = [20]
         m.create_all_data()
 
     def d2v(self):
@@ -100,7 +99,7 @@ class FeaturePreparer(DataHandler):
     def sbert(self):
         s = SbertProcessor(language=self.language, tokens_per_chunk=self.tokens_per_chunk)
         # s.create_all_data()
-        s.check_data() #############################
+        s.check_data() 
         # d = s.load_data(file_name='Kipling_Rudyard_How-the-Rhinoceros-Got-His-Skin_1902', doc_path='/home/annina/scripts/great_unread_nlp/data/text_raw/eng/Kipling_Rudyard_How-the-Rhinoceros-Got-His-Skin_1902.txt')
         # print(type(d), len(d))
 
@@ -113,12 +112,12 @@ class FeaturePreparer(DataHandler):
         # self.sentence_tokenizer()
         # self.tokenizer()
         # self.chunker()
-        self.ngramcounter()
-        self.ngram_chunkloader()
-        self.ngramshapes()
+        # self.ngramcounter()
+        # self.ngram_chunkloader()
+        # self.ngramshapes()
         self.mfwextractor()
         # self.d2v()
-        self.sbert()
+        # self.sbert()
         # self.rewrite_sbert()
 
 

@@ -180,13 +180,13 @@ class D2vDist(Distance):
         Create similarity matrix based on d2v embeddings for modes 'doc_tags' and 'both'.
         '''
         mode = kwargs['mode']
-        dp = D2vProcessor(self.language)
+        dp = D2vProcessor(language=self.language, tokens_per_chunk=self.tokens_per_chunk)
 
         # Can only be used for doc_paths, not for chunks
         doc_dvs = {} 
         for doc_path in self.doc_paths:
             book_name = get_filename_from_path(doc_path)
-            d2v_embeddings = dp.load_data(file_name=self.bookname, mode=mode, subdir=True)[book_name]
+            d2v_embeddings = dp.load_data(file_name=book_name, mode=mode, subdir=True)[book_name]
             doc_dvs[book_name] = d2v_embeddings
         dv_dict = doc_dvs
 
@@ -225,51 +225,52 @@ class D2vDist(Distance):
         mx = mx.applymap(lambda x: 0.5 * (x + 1))
         return mx
     
+class PydeltaDist():
+    pass
+# class PydeltaDist(Distance):
+#     def __init__(self, language, output_dir='distance'):
+#         super().__init__(language, output_dir)
+#         self.distances = ['burrows', 'cosinedelta', 'eder', 'quadratic']
+#         self.nmfw_values = [500, 1000, 2000, 5000]
+#         # self.distances = ['burrows']
+#         # self.nmfw_values = [500]
+#         self.modes = [f'{item1}-{item2}' for item1 in self.distances for item2 in self.nmfw_values]
+#         self.modes =  ['burrows-20'] ###################################
 
-class PydeltaDist(Distance):
-    def __init__(self, language, output_dir='distance'):
-        super().__init__(language, output_dir)
-        self.distances = ['burrows', 'cosinedelta', 'eder', 'quadratic']
-        self.nmfw_values = [500, 1000, 2000, 5000]
-        # self.distances = ['burrows']
-        # self.nmfw_values = [500]
-        self.modes = [f'{item1}-{item2}' for item1 in self.distances for item2 in self.nmfw_values]
-        self.modes =  ['burrows-20'] ###################################
+#     def create_data(self,**kwargs):
+#         self.logger.info(f"Distance 'edersimple' is not calculated due to implementation error.")
+#         mode = kwargs['mode']
+#         mx = self.calculate_distance(mode=mode)
+#         #mx.to_csv(os.path.join('/home/annina/scripts/great_unread_nlp/data/distance/', self.language, 'distmx', f'{mode}.csv'))
+#         mx = self.postprocess_mx(mx, mode, dist_to_sim=True)
+#         self.save_data(mx, mode=mode)
+#         self.logger.info(f'Created {mode} similarity matrix.')
 
-    def create_data(self,**kwargs):
-        self.logger.info(f"Distance 'edersimple' is not calculated due to implementation error.")
-        mode = kwargs['mode']
-        mx = self.calculate_distance(mode=mode)
-        #mx.to_csv(os.path.join('/home/annina/scripts/great_unread_nlp/data/distance/', self.language, 'distmx', f'{mode}.csv'))
-        mx = self.postprocess_mx(mx, mode, dist_to_sim=True)
-        self.save_data(mx, mode=mode)
-        self.logger.info(f'Created {mode} similarity matrix.')
+#     def get_params_from_mode(self, mode):
+#         distance, nmfw = mode.split('-')
+#         return distance, int(nmfw)
 
-    def get_params_from_mode(self, mode):
-        distance, nmfw = mode.split('-')
-        return distance, int(nmfw)
+#     def get_corpus(self, mode):
+#         distance, nmfw = self.get_params_from_mode(mode)
+#         mfwf = MfwExtractor(language=self.language)
+#         print('mfw file path: ', mfwf.get_file_path(file_name=None, mode=nmfw))
+#         corpus = delta.Corpus(mfwf.get_file_path(file_name=None, mode=nmfw))
+#         return corpus
 
-    def get_corpus(self, mode):
-        distance, nmfw = self.get_params_from_mode(mode)
-        mfwf = MfwExtractor(language=self.language)
-        print('mfw file path: ', mfwf.get_file_path(file_name=None, mode=nmfw))
-        corpus = delta.Corpus(mfwf.get_file_path(file_name=None, mode=nmfw))
-        return corpus
-
-    def calculate_distance(self, mode):
-        distance, nmfw = self.get_params_from_mode(mode)
-        corpus = self.get_corpus(mode=mode)
-        if distance == 'burrows':
-            mx = delta.functions.burrows(corpus)
-        elif distance == 'cosinedelta':
-            mx = delta.functions.cosine_delta(corpus)
-        elif distance == 'eder':
-            mx = delta.functions.eder(corpus)
-        elif distance == 'edersimple':
-            mx = delta.functions.eder_simple(corpus)
-        elif distance == 'quadratic':
-            mx = delta.functions.quadratic(corpus)
-        return mx
+#     def calculate_distance(self, mode):
+#         distance, nmfw = self.get_params_from_mode(mode)
+#         corpus = self.get_corpus(mode=mode)
+#         if distance == 'burrows':
+#             mx = delta.functions.burrows(corpus)
+#         elif distance == 'cosinedelta':
+#             mx = delta.functions.cosine_delta(corpus)
+#         elif distance == 'eder':
+#             mx = delta.functions.eder(corpus)
+#         elif distance == 'edersimple':
+#             mx = delta.functions.eder_simple(corpus)
+#         elif distance == 'quadratic':
+#             mx = delta.functions.quadratic(corpus)
+#         return mx
 
 
 class StyloDistance(PydeltaDist):

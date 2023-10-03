@@ -35,7 +35,7 @@ class Preprocessor(DataHandler):
             return None
 
     def preprocess_text(self, text):
-        self.logger.info(f'Preprocessing.')
+        self.logger.debug(f'Preprocessing.')
         text = self.preprocess_individual_files(text)
         if self.simple_rep_df is not None:
             for _, row in self.simple_rep_df.iterrows():
@@ -89,7 +89,7 @@ class Preprocessor(DataHandler):
         # Clean up whitespace
         text = text.split()
         text = ' '.join(text)
-        self.logger.info(f'Finished preprocessing.')
+        self.logger.debug(f'Finished preprocessing.')
         return text
 
     def check_annotations(self, text):
