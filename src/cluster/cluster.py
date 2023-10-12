@@ -9,11 +9,12 @@ from matplotlib import pyplot as plt
 import networkx as nx
 from networkx import edge_betweenness_centrality as betweenness
 from networkx.algorithms.community.centrality import girvan_newman
-from .network_viz import MetadataHandler
 import os
 import sys
 sys.path.append("..")
+
 from utils import DataHandler, TextsByAuthor
+from .network_viz import MetadataHandler
 
 import logging
 logging.basicConfig(level=logging.DEBUG)

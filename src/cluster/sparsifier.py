@@ -1,12 +1,10 @@
 import pandas as pd
 import numpy as np
 import copy
-from .distance_create import Distance
-import logging
 import sys
 sys.path.append("..")
 from utils import TextsByAuthor
-logging.basicConfig(level=logging.DEBUG)
+from .create import SimMx
 
 import logging
 logging.basicConfig(level=logging.DEBUG)
@@ -42,11 +40,11 @@ class Sparsifier():
             return mx
 
       def filter_threshold(self, mx):
-            vals = Distance(None).get_triangular(mx)
-            threshold_value = np.quantile(a=vals, q=self.spars_param)
-            mx[mx<threshold_value] = 0
+            vals = SimMx(self.language).get_triangular(mx)
+            threshold = np.quantile(a=vals, q=self.spars_param)
+            mx[mx<thresholthresholdd_value] = 0
             mx = self.set_diagonal(mx, 0)
-            print(f'Nr vals before filtering: {mx.shape[0]**2}. Nr vals after filtering: {np.count_nonzero(mx.values)}.')
+            print(f'Threshold: {threshold}. Nr vals before filtering: {mx.shape[0]**2}. Nr vals after filtering: {np.count_nonzero(mx.values)}.')
             return mx
 
       def filter_min_author_similarity(self, mx):

@@ -1,7 +1,7 @@
 # Install and load required packages
 # install.packages("stylo")
 library(stylo)
-languages <- c("eng", "ger")
+languages <- c("eng") #, "ger" ##########################
 
   for (language in languages) {
   # Set the directory where the CSV files are located
@@ -9,11 +9,12 @@ languages <- c("eng", "ger")
   print(csv_dir)
 
   # Get a list of all CSV files in the directory
-  csv_files <- list.files(csv_dir, pattern = "abs-[0-9]+\\.csv$", full.names = TRUE)
+  csv_files <- list.files(csv_dir, pattern = "rel-[0-9]+\\.csv$", full.names = TRUE)
   # Create an empty list to store the delta results for each file
-  print(csv_files)
+  # print(csv_files)
+  
+  
 
-  all_delta_results <- list()
   # Iterate through each CSV file
   for (csv_file in csv_files) {
 
@@ -23,10 +24,11 @@ languages <- c("eng", "ger")
 
     # Calculate delta measures
     delta_measures <- c("burrows", 
-    # "zeta", 
-    "linear", 
-    "eder", 
+    "argamon", 
+    "eder",
     "edersimple")
+
+    # "zeta", 
     # "canberra"
     # "cosine", 
     # "quadratic",
@@ -41,14 +43,14 @@ languages <- c("eng", "ger")
     for (delta_measure in delta_measures) {
       if (delta_measure == "burrows") {
         delta_results[[delta_measure]] <- as.matrix(dist.delta(dtm, scale = TRUE))
+      } else if (delta_measure == "argamon") {
+        delta_results[[delta_measure]] <- as.matrix(dist.argamon(dtm, scale = TRUE))
+      } else if (delta_measure == "eder") {
+        delta_results[[delta_measure]] <- as.matrix(dist.eder(dtm, scale = TRUE))
+      } else if (delta_measure == "edersimple") {
+        delta_results[[delta_measure]] <- as.matrix(dist.simple(dtm))
       # } else if (delta_measure == "zeta") {
       #   delta_results[[delta_measure]] <- delta_zeta(dtm)
-      } else if (delta_measure == "linear") {
-        delta_results[[delta_measure]] <- as.matrix(dist.argamon(dtm, scale = TRUE))
-      } else if (delta_measure == "eders") {
-        delta_results[[delta_measure]] <- as.matrix(dist.eder(dtm, scale = TRUE))
-      } else if (delta_measure == "ederssimple") {
-        delta_results[[delta_measure]] <- as.matrix(dist.simple(dtm, scale = TRUE))
       # } else if (delta_measure == "dist.canberra") {
       #   delta_results[[delta_measure]] <- as.matrix(dist.canberra(dtm))
       #} else if (delta_measure == "cosine") {
@@ -68,8 +70,7 @@ languages <- c("eng", "ger")
       }
     }
 
-    all_delta_results[[csv_file]] <- delta_results
-    output_dir <- file.path("/home/annina/scripts/great_unread_nlp/data/distance", language, "stylo")
+    output_dir <- file.path("/home/annina/scripts/great_unread_nlp/data/similarity", language, "stylo_distances")
     dir.create(output_dir, showWarnings = FALSE)
 
     # Extract the number using regular expression
@@ -78,7 +79,9 @@ languages <- c("eng", "ger")
 
     # Save each delta matrix as a separate CSV file
     for (measure in delta_measures) {
+      # print(measure)
       delta_matrix <- delta_results[[measure]]
+      # print(delta_matrix[1:2, 1:2])
       # Replace missing values (NA) with 0
       #delta_matrix[is.na(delta_matrix)] <- 0
       output_path <- file.path(output_dir, paste0(measure, "-", number, ".csv"))
@@ -86,4 +89,3 @@ languages <- c("eng", "ger")
     }
   }
 }
-

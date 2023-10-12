@@ -211,9 +211,9 @@ class DataHandler():
         if not os.path.exists(dir_path):
             try:
                 os.makedirs(dir_path) # Create dir and parent dirs if necessary
-                print(f"Directory '{dir_path}' created successfully.")
+                self.logger.info(f"Directory '{dir_path}' created.")
             except OSError as e:
-                print(f"Error creating directory '{dir_path}\n': {e}")
+                self.logger.info(f"Error creating directory '{dir_path}\n': {e}")
             self.logger.info(f'Created dir {dir_path}')
 
     
@@ -248,13 +248,12 @@ class DataHandler():
         data_type = self.get_custom_datatype(file_name_or_path=file_path, **kwargs)
 
         if data_type == 'csv':
-            sep = ','
-            if 'pandas_sep' in kwargs:
-                sep = kwargs['pandas_sep']
-            index = True
-            if 'pandas_index' in kwargs:
-                index = kwargs['pandas_index']
-            data.to_csv(file_path, header=True, sep=sep, index=index, na_rep=np.nan)
+            kwargs_dict = {'index': False, 'na_rep': np.nan, 'sep': ',', 'header': True}
+            if 'pandas_kwargs' in kwargs:
+                pandas_kwargs = kwargs['pandas_kwargs']
+                kwargs_dict.update(pandas_kwargs)
+
+            data.to_csv(file_path, **kwargs_dict)
         elif data_type == 'pkl':
             joblib.dump(data, file_path)
         elif data_type == 'svg':
@@ -281,10 +280,7 @@ class DataHandler():
                 # list of lists of strings
                 with open(file_path, 'w') as f:
                     for l in data:
-                        if 'txt_sep' in kwargs:
-                            sep = kwargs['txt_sep']
-                        else:
-                            sep = self.separator
+                        sep = kwargs.get('txt_sep', self.separator)
                         f.write(f'{sep.join(l)}\n')
                 self.logger.info(f'Writing list of lists to file using {self.separator} as the separator.')
         self.logger.debug(f'Saved {data_type} data to {file_path}')
@@ -315,10 +311,7 @@ class DataHandler():
     
     def load_data_type(self, file_path, **kwargs):
         if self.data_type == 'csv':
-            sep = ','
-            if 'pandas_sep' in kwargs:
-                sep = kwargs['pandas_sep']
-            data = pd.read_csv(file_path, header=0, index_col=0, sep=sep)
+            data = pd.read_csv(file_path, header=0, index_col=0, sep=',')
 
         elif self.data_type == 'npz':
             data = np.load(file_path)['arr_0'].tolist()
@@ -334,11 +327,10 @@ class DataHandler():
                           
         return data
 
-    def create_all_data(self):
+    def create_all_data(self, **kwargs):
         # Check if file exists and create it if necessary
         for mode in self.modes:
-            print(mode)
-            _ = self.load_data(load=False, mode=mode)
+            _ = self.load_data(load=False, mode=mode, **kwargs)
 
 
     # def create_all_data(self):
@@ -348,11 +340,11 @@ class DataHandler():
     #     print(f'{time.time()-startc}s to tokenize all texts')
 
     
-    def load_all_data(self):
+    def load_all_data(self, **kwargs):
         # Check if file exists, create it if necessary, return all data
         all_data = {}
         for mode in self.modes:
-            data  = self.load_data(load=True, mode=mode)
+            data  = self.load_data(load=True, mode=mode, **kwargs)
             all_data[mode] = data
         return all_data
     
@@ -376,6 +368,7 @@ class DataHandler():
 
     def create_filename(self, **kwargs):
         data_type = self.get_custom_datatype(**kwargs)
+        
         if 'file_string' in kwargs:
             file_string = kwargs['file_string'] + '-'
         else:
@@ -386,7 +379,15 @@ class DataHandler():
             if isinstance(value, tuple):
                 kwargs[key] = '_'.join(value)
 
-        kwargs_str = '_'.join(f"{str(value)}" for key, value in kwargs.items() if key != 'file_string')
+        use_kwargs_for_fn = kwargs.get('use_kwargs_for_fn', True)
+        if use_kwargs_for_fn == True:
+            kwargs_str = '_'.join(f"{str(value)}" for key, value in kwargs.items() if key != 'file_string')
+        elif use_kwargs_for_fn == False:
+            kwargs_str = ''
+        elif use_kwargs_for_fn == 'mode':
+            assert 'mode' in kwargs, f'If use_kwargs_for_fn=mode, mode must be passed.'
+            kwargs_str = kwargs.get('mode')
+
         file_name = f"{file_string}{kwargs_str}.{data_type}"
         return file_name
     
@@ -671,7 +672,7 @@ class DataChecks(DataHandler):
 
         fn_mapping = fn_mapping.loc[fn_mapping['edit-dist'] <= dist_cutoff].loc[:, ['metadata-fn', 'rawdocs-fn']]
         fn_mapping = fn_mapping.drop_duplicates()
-        self.save_data(data=fn_mapping, file_name=f'compare_filenames_{self.language}.csv', pandas_index=False)
+        self.save_data(data=fn_mapping, file_name=f'compare_filenames_{self.language}.csv')
         # fn_mapping.to_csv(f'compare_filenames_{self.language}.csv', index=False)
         # Check if all columns contain only unique values
         assert (fn_mapping.nunique() == fn_mapping.shape[0]).all()
@@ -730,7 +731,7 @@ class DataChecks(DataHandler):
 
         # Get author_viaf of authors that are involved in collaborations
         collabs = df[df['author_viaf'].astype(str).str.contains(r'\|', na=False, regex=True)]
-        self.save_data(data=collabs, file_name=f'collaborations-{self.language}.csv', pandas_index=False)
+        self.save_data(data=collabs, file_name=f'collaborations-{self.language}.csv')
         # collabs.to_csv(f'collaborations-{self.language}.csv')
         no_collabs = df[~df['author_viaf'].astype(str).str.contains(r'\|', na=False, regex=True)]
         coll_av = df.loc[df['author_viaf'].astype(str).str.contains(r'\|', na=False, regex=True), 'author_viaf'].tolist()
@@ -753,7 +754,7 @@ class DataChecks(DataHandler):
 # # Provide the directory path and the string to search for
 # directory_path = '/home/annina/scripts/great_unread_nlp/data/text_tokenized'
 # directory_path = '/home/annina/scripts/great_unread_nlp/src/'
-# search_string = '__class__.__name__'
+# search_string = 'pandas_sep'
 # extension = ['.txt', '.py']
 # search_string_in_files(directory_path, search_string, extension, full_word=False)
 

@@ -6,11 +6,11 @@ import matplotlib.pyplot as plt
 import random
 import pandas as pd
 import pygraphviz as pgv
-from .cluster import SimmxCluster, NetworkCluster
-from .network_viz import ColorMap, ShapeMap
 import sys
 sys.path.append("..")
 from utils import DataHandler
+from .cluster import SimmxCluster, NetworkCluster
+from .network_viz import ColorMap, ShapeMap
 
 
 class Network(DataHandler):
