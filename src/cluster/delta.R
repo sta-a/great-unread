@@ -1,7 +1,7 @@
 # Install and load required packages
 # install.packages("stylo")
 library(stylo)
-languages <- c("eng") #, "ger" ##########################
+languages <- c("eng", "ger")
 
   for (language in languages) {
   # Set the directory where the CSV files are located
@@ -23,10 +23,13 @@ languages <- c("eng") #, "ger" ##########################
 
 
     # Calculate delta measures
-    delta_measures <- c("burrows", 
+    # dist.cosine has a bug
+    # dist.minmax is too slow
+    delta_measures <- c("burrows",
     "argamon", 
     "eder",
-    "edersimple")
+    "edersimple",
+    "cosinedelta")
 
     # "zeta", 
     # "canberra"
@@ -49,12 +52,16 @@ languages <- c("eng") #, "ger" ##########################
         delta_results[[delta_measure]] <- as.matrix(dist.eder(dtm, scale = TRUE))
       } else if (delta_measure == "edersimple") {
         delta_results[[delta_measure]] <- as.matrix(dist.simple(dtm))
+      } else if (delta_measure == "minmax") {
+        delta_results[[delta_measure]] <- as.matrix(dist.minmax(dtm))
+      } else if (delta_measure == "cosinedelta") {
+        delta_results[[delta_measure]] <- as.matrix(dist.wurzburg(dtm))
+      # } else if (delta_measure == "cosine") {
+      #   delta_results[[delta_measure]] <- as.matrix(dist.cosine(dtm))
       # } else if (delta_measure == "zeta") {
       #   delta_results[[delta_measure]] <- delta_zeta(dtm)
       # } else if (delta_measure == "dist.canberra") {
       #   delta_results[[delta_measure]] <- as.matrix(dist.canberra(dtm))
-      #} else if (delta_measure == "cosine") {
-      #   delta_results[[delta_measure]] <- delta_cosine(dtm)
       # } else if (delta_measure == "quadratic") {
       #   delta_results[[delta_measure]] <- delta_quadratic(dtm)
       # } else if (delta_measure == "pearsons") {

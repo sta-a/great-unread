@@ -2,6 +2,11 @@
 # %load_ext autoreload
 # %autoreload 2
 
+'''
+Functions and classes for calculating and plotting essential metrics of the corpus.
+'''
+
+
 import logging
 logging.getLogger("matplotlib.font_manager").setLevel(logging.ERROR)
 import matplotlib.pyplot as plt
@@ -11,12 +16,12 @@ import numpy as np
 import pickle
 from collections import Counter
 import os
-from utils import DataHandler, get_filename_from_path, get_files_in_dir
+from utils import DataHandler, get_filename_from_path, get_files_in_dir, DataLoader
 #from hpo_functions import get_data, ColumnTransformer
 
 class TextStatistics(DataHandler):
-    def __init__(self, language, create_outdir=False):
-        super().__init__(language, output_dir='text_statistics', create_outdir=create_outdir, data_type='svg')
+    def __init__(self, language):
+        super().__init__(language, output_dir='text_statistics', data_type='svg')
         self.text_tokenized_dir = self.text_raw_dir.replace('/text_raw', '/text_tokenized') 
 
     def get_longest_shortest_text(self):
@@ -68,29 +73,97 @@ class TextStatistics(DataHandler):
         plt.close()
 
 
-# for language in ['ger']:
-#     ts = TextStatistics(language)
-#     ts.get_longest_shortest_text()
+
+class PlotCanonscores(DataHandler):
+    def __init__(self, language):
+        super().__init__(language, output_dir='text_statistics', data_type='svg')
+        self.df = DataLoader(self.language).prepare_metadata(type='canon')
+
+    
+    def plot(self):
+        df = self.df.sort_values(by='canon')
+
+        min_score = df['canon'].min()
+        max_score = df['canon'].max()
+
+        print(f"Minimum Score: {min_score}")
+        print(f"Maximum Score: {max_score}")
+
+        plt.figure(figsize=(12, 6))
+        plt.bar(range(len(df)), df['canon'])
+        plt.title('Canon Scores Distribution')
+        plt.xlabel('Texts')
+        plt.ylabel('Scores')
+        
+        print(df)
+        x_ticks = range(0, len(df), 100)
+        # plt.xticks(x_ticks, df.iloc[x_ticks]['file_name'], rotation=45, ha='right')
+        plt.xticks(x_ticks, [str(i) for i in x_ticks], rotation=45, ha='right')
+
+        self.save_data(data=plt, data_type='svg', file_name=f'canon-scores')
+        plt.close()
+
+
+class PlotFeatureDist(DataHandler):
+    def __init__(self, language):
+        super().__init__(language, output_dir='text_statistics', data_type='svg')
+
+
+    def plot(self):
+        df = DataLoader(self.language).prepare_features()
+        fig, axes = plt.subplots(nrows=13, ncols=7, figsize=(30, 40))
+
+        # Flatten the 2D array of axes for easier indexing
+        axes = axes.flatten()
+
+        for i, column in enumerate(df.columns):
+            self.df[column].hist(ax=axes[i], bins=20)
+            axes[i].set_title(column)
+
+        # Adjust layout to prevent overlapping
+        plt.tight_layout()
+
+        # Save the figure
+        self.save_data(data=plt, data_type='svg', file_name=f'feature-dist')
+        plt.close()
+
+
+
+
+# for language in ['eng', 'ger']:
+# #     ts = TextStatistics(language)
+# #     ts.get_longest_shortest_text()
+
+#     # pc = PlotCanonscores(language)
+#     # pc.plot()
+
+#     pfd = PlotFeatureDist(language)
+#     pfd.plot()
 
 
 
 
 
 
-# # %%
-# task = 'regression-importances'
-# label_type = 'canon'
-# # Importances are calculated on cacb features
-# features = 'book'
-
-# data_dir = '../data'
-# canonscores_dir = os.path.join(data_dir, 'canonscores')
-# n_outer_folds = 5
 
 
 
-# # %%
-# # Nr reviewed texts after contradicting labels were removed: 191
+
+
+# %%
+task = 'regression-importances'
+label_type = 'canon'
+# Importances are calculated on cacb features
+features = 'book'
+
+data_dir = '../data'
+canonscores_dir = os.path.join(data_dir, 'canonscores')
+n_outer_folds = 5
+
+
+
+# %%
+# Nr reviewed texts after contradicting labels were removed: 191
 # for language in languages:
 #     # Use full features set for classification to avoid error with underrepresented classes
 #     sentiscores_dir = os.path.join(data_dir, 'sentiscores', language)
@@ -149,32 +222,3 @@ class TextStatistics(DataHandler):
 #     print(new_file_names)
 
 
-
-# # %%
-# # Plot canon scores distribution
-# import matplotlib.pyplot as plt
-
-# for language in languages:
-#     sentiscores_dir = os.path.join(data_dir, 'sentiscores', language)
-#     metadata_dir = os.path.join(data_dir, 'metadata', language)
-#     features_dir = features_dir = os.path.join(data_dir, 'features_None', language)
-
-#     X, y = get_data(language, task, label_type, features, features_dir, canonscores_dir, sentiscores_dir, metadata_dir)
-#     threshold = 0.5
-#     above_threshold = y.loc[y['y'] >= threshold]
-#     print(f'Nr texts with canon score above {threshold}: {above_threshold.shape}')
-
-#     fig = plt.figure()
-#     ax = fig.add_subplot(1,1,1)# Set the title of plot
-#     ax.plot(y['y'].sort_values(), label=language)
-#     ax.set_title(f'Canon scores distribution {language}')
-#     plt.show()
-
-
-    
-# # %%
-# # Get # tokens in texts
-
-# # %%
-
-# %%

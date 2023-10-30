@@ -11,6 +11,7 @@ from collections import Counter
 import joblib
 import logging
 import Levenshtein
+from itertools import combinations
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -102,19 +103,19 @@ def find_duplicated_lines(path):
 
 
 
-def check_equal_line_count(dir1, dir2, extension):
+def check_equal_line_count(dir_eng, dir_ger, extension):
     '''
-    Extension: the extension of the files in dir2
+    Extension: the extension of the files in dir_ger
     '''
-    files1 = os.listdir(dir1)
-    files2 = os.listdir(dir2)
+    files1 = os.listdir(dir_eng)
+    files2 = os.listdir(dir_ger)
 
     for file_name in files1:
         base_name, ext = os.path.splitext(file_name)
         matching_file = f"{base_name}.{extension}"
         if matching_file in files2:
-            tok_path = os.path.join(dir1, file_name)
-            chunk_path = os.path.join(dir2, matching_file)
+            tok_path = os.path.join(dir_eng, file_name)
+            chunk_path = os.path.join(dir_ger, matching_file)
 
             line_count1 = sum(1 for _ in open(tok_path))
             line_count2 = sum(1 for _ in open(chunk_path))
@@ -123,26 +124,26 @@ def check_equal_line_count(dir1, dir2, extension):
                 return True
             else:
                 print(f'{base_name}: Unequal nr lines in both dirs.')
-                print(f'Nr lines {dir1}: {line_count1}')
-                print(f'Nr lines {dir2}: {line_count2}')
+                print(f'Nr lines {dir_eng}: {line_count1}')
+                print(f'Nr lines {dir_ger}: {line_count2}')
                 return False
 
 
-def check_equal_files(dir1, dir2):
-    files1 = set(filename for filename in os.listdir(dir1) if os.path.isfile(os.path.join(dir1, filename)))
-    files2 = set(filename for filename in os.listdir(dir2) if os.path.isfile(os.path.join(dir2, filename)))
+def check_equal_files(dir_eng, dir_ger):
+    files1 = set(filename for filename in os.listdir(dir_eng) if os.path.isfile(os.path.join(dir_eng, filename)))
+    files2 = set(filename for filename in os.listdir(dir_ger) if os.path.isfile(os.path.join(dir_ger, filename)))
 
     common_files = files1.intersection(files2)
-    unique_files_dir1 = files1 - common_files
-    unique_files_dir2 = files2 - common_files
+    unique_files_dir_eng = files1 - common_files
+    unique_files_dir_ger = files2 - common_files
 
-    if not unique_files_dir1 and not unique_files_dir2:
-        print(f'The directories "{dir1}" and "{dir2}" contain the same files.')
+    if not unique_files_dir_eng and not unique_files_dir_ger:
+        print(f'The directories "{dir_eng}" and "{dir_ger}" contain the same files.')
         return True
     else:
         print('The directories do not contain the same files.')
-        print('Files unique to dir1:', unique_files_dir1)
-        print('Files unique to dir2:', unique_files_dir2)
+        print('Files unique to dir_eng:', unique_files_dir_eng)
+        print('Files unique to dir_ger:', unique_files_dir_ger)
         return False
     
 
@@ -173,15 +174,13 @@ class DataHandler():
     '''
     Base class for creating, saving, and loading data.
     '''
-    def __init__(self, language=None, output_dir=None, create_outdir=False, data_type='csv', modes=None, tokens_per_chunk=1000, data_dir='/home/annina/scripts/great_unread_nlp/data', test=False):
-        '''
-        create_outdir: If True, create output dir when class is initialized.
-        '''
+    def __init__(self, language=None, output_dir=None, data_type='csv', modes=None, tokens_per_chunk=1000, data_dir='/home/annina/scripts/great_unread_nlp/data', test=False):
+
         self.test = test
         self.language = language
         self.data_dir = data_dir
 
-        self.output_dir = self.create_output_dir(output_dir, create_outdir)
+        self.output_dir = self.create_output_dir(output_dir)
         self.text_raw_dir = os.path.join(self.data_dir, 'text_raw', language)
         self.doc_paths = get_doc_paths(self.text_raw_dir)
         self.data_type = data_type
@@ -208,34 +207,36 @@ class DataHandler():
             self.doc_paths = get_doc_paths_sorted(self.text_raw_dir)[:3]
 
     def create_dir(self, dir_path):
-        if not os.path.exists(dir_path):
-            try:
-                os.makedirs(dir_path) # Create dir and parent dirs if necessary
-                self.logger.info(f"Directory '{dir_path}' created.")
-            except OSError as e:
-                self.logger.info(f"Error creating directory '{dir_path}\n': {e}")
-            self.logger.info(f'Created dir {dir_path}')
+        try:
+            os.makedirs(dir_path, exist_ok=True) # Create dir and parent dirs if necessary
+            self.logger.info(f"Created dir '{dir_path}'.")
+        except OSError as e:
+            self.logger.info(f"Error creating directory '{dir_path}\n': {e}")
 
     
-    def add_subdir(self, subdir):
+    def add_subdir(self, subdir=None):
+        if subdir is None:
+            subdir = self.__class__.__name__.lower()
+            self.logger.info(f'Adding subdir as class name.')
         self.subdir = os.path.join(self.output_dir, subdir)
         if not os.path.exists(self.subdir):
             self.create_dir(self.subdir)
 
 
-    def create_output_dir(self, output_dir, create_outdir):
+    def create_output_dir(self, output_dir):
         if self.data_dir is None or output_dir is None or self.language is None:
             output_dir = None
         else:
             output_dir = os.path.join(self.data_dir, output_dir, self.language)
-            if not os.path.exists(output_dir) and create_outdir:
+            if not os.path.exists(output_dir):
                 self.create_dir(output_dir)
         return output_dir
+
 
     def create_data(self, **kwargs):
         raise NotImplementedError
     
-    
+
     def save_data(self, data, file_name=None, **kwargs):
         file_path  = self.get_file_path(file_name, **kwargs)
         dir_path = Path(file_path).parent
@@ -409,7 +410,8 @@ class DataHandler():
     def get_file_path(self, file_name=None, **kwargs):
         if file_name is None and not kwargs:
             raise ValueError("Either 'file_name' or kwargs must be provided.")
-        elif file_name is not None and kwargs:self.logger.debug(f'Both file_name and kwargs were passed to get_file_path().')
+        elif file_name is not None and kwargs:
+            self.logger.debug(f'Both file_name and kwargs were passed to get_file_path().')
              # file_name is used, kwargs are ignored. \nfile_name: {file_name}. \nkwargs: {kwargs}')
         if file_name is None:
             file_name = self.create_filename(**kwargs)
@@ -424,7 +426,7 @@ class DataHandler():
                         self.add_subdir(mode)
                         self.logger.debug(f'Set subdir to mode {mode}.')
                     else:
-                        raise ValueError(f'Pass or initialize subdir, or pass mode to get_file_path().')
+                        self.add_subdir(None) # Add subdir with class name
             elif isinstance(kwargs['subdir'], str):
                 assert self.subdir is None, f'Subdir is already initialized.'
                 self.add_subdir(kwargs['subdir'])
@@ -449,13 +451,18 @@ class TextsByAuthor(DataHandler):
         self.filenames = filenames
         if self.filenames is None:
             self.filenames = self.get_filenames()
+
+        self.alias_dict = {
+            'Hoffmansthal_Hugo': ['Hoffmansthal_Hugo-von'], 
+            'Schlaf_Johannes': ['Holz-Schlaf_Arno-Johannes'],
+            'Arnim_Bettina': ['Arnim-Arnim_Bettina-Gisela'],
+            'Stevenson_Robert-Louis': ['Stevenson-Grift_Robert-Louis-Fanny-van-de', 
+                                        'Stevenson-Osbourne_Robert-Louis-Lloyde']}
         self.author_filename_mapping, self.nr_texts_per_author = self.create_data()
 
     def get_filenames(self):
         filenames = os.listdir(self.output_dir)
-        print(filenames)
         filenames = [os.path.splitext(filename)[0] for filename in filenames]
-        print(self.output_dir, filenames)
         return filenames
     
 
@@ -469,17 +476,11 @@ class TextsByAuthor(DataHandler):
             if author in author_filename_mapping:
                 author_filename_mapping[author].append(file_name)
             else:
-                author_filename_mapping[author] = []
-                author_filename_mapping[author].append(file_name)
+                author_filename_mapping[author] = [file_name]
                 
-        # Aggregate if author has collaborations with others
-            agg_dict = {'Hoffmansthal_Hugo': ['Hoffmansthal_Hugo-von'], 
-                        'Schlaf_Johannes': ['Holz-Schlaf_Arno-Johannes'],
-                        'Arnim_Bettina': ['Arnim-Arnim_Bettina-Gisela'],
-                        'Stevenson_Robert-Louis': ['Stevenson-Grift_Robert-Louis-Fanny-van-de', 
-                                                    'Stevenson-Osbourne_Robert-Louis-Lloyde']}
-            
-        for author, aliases in agg_dict.items():
+
+        # Aggregate if author has collaborations with others         
+        for author, aliases in self.alias_dict.items():
             if author in authors:
                 for alias in aliases:
                     if alias in authors:
@@ -488,35 +489,35 @@ class TextsByAuthor(DataHandler):
                         authors = [author for author in authors if author != alias]
         
         nr_texts_per_author = Counter(authors)
-        # author_filename_mapping: dict{author name: [list with all works by author]}
+        # author_filename_mapping: dict{author name: [list of works by author]}
         # nr_texts_per_author: dict{author name: nr texts by author}
         return author_filename_mapping, nr_texts_per_author
 
 
-class DataChecks(DataHandler):
+class MetadataChecks(DataHandler):
     '''
-    Compare the metadata with each other to check consistency.
+    Compare the metadata files with each other to check consistency.
     Compare file names of raw docs with metadata.
     '''
 
     def __init__(self, language):
-        super().__init__(language, data_type='csv') 
-        self.language = language
+        super().__init__(language, output_dir='corpus_corrections', data_type='csv') 
         self.dfs = self.load_dfs()
-        self.output_dir = os.path.join(self.data_dir, 'corpus_corrections')
-        # self.print_cols()
-        # self.compare_df_values()
-        # self.compare_rawdocs_dfs()
 
-    def load_dfs(self):
-        # 'sentiscores', [], []),
-        # dirs_with_files = [
-        #     ('metadata', ['authors.csv'], ['author_viaf', 'name', 'first_name', 'gender']),
-        #     ('metadata', [f'{self.language.upper()}_texts_meta.csv'], ['author_viaf', 'name', 'first_name', 'gender']),
-        #     ('metadata', [f'{self.language.upper()}_texts_circulating-libs.csv'], ['author_viaf', 'name', 'first_name', 'gender']),
-        #     ('canonscores', [], []),
-        # ]
-        dirs = ['metadata', 'canonscores', 'sentiscores']
+    def run(self):
+        # self.print_cols()
+        self.compare_df_values()
+        self.compare_rawdocs_dfs()
+        # self.check_pub_year() # Can only be run if there are no errors in file names
+
+    def load_dfs(self, df_to_load=None):
+        '''
+        If df_to_load is not None, load only the specified df
+        '''
+        if df_to_load is None:
+            dirs = ['metadata', 'canonscores', 'sentiscores']
+        else:
+            dirs = [df_to_load]
 
         all_dfs = {}
 
@@ -535,17 +536,40 @@ class DataChecks(DataHandler):
 
                 df = pd.read_csv(file_path, header=0, sep=None, engine='python')
                 
-                # Remove whitespace from author_viaf column
                 if 'author_viaf' in df.columns:
-                    df['author_viaf'] = df['author_viaf'].astype(str).str.replace(r'\s', '', regex=True)
-                    # print(f'{filename}: Removed whitespace from author_viaf column.')
+                    df['author_viaf'] = self.check_av_col(df['author_viaf'])
+
+                # Find all columns that contain year numbers
+                # year_column = self.find_year_column(df)
+                # if year_column is not None:
+                #     print(f"{filename}: The year column is: {year_column}")
 
                 all_dfs[filename] = df
-
-                # print(f"File Path: {file_path}")
-                # print(f"Columns: {', '.join(df.columns.tolist())}")
-                # print('\n')
         return all_dfs
+    
+    def check_av_col(self, col):
+        # Remove whitespace from author_viaf column
+        col = col.astype(str).str.replace(r'\s', '', regex=True)
+        assert not col.astype(str).str.contains(r'\s', na=False).any(), f'The author_viaf column contains whitespace.'
+        # Check if author_viaf col contains anything besides numbers and the '|' character
+        # rows_with_condition = col[col.astype(str).str.contains(r'[^0-9|]+')]
+        # print(rows_with_condition)
+        # assert col.astype(str).str.contains(r'[^0-9|]+').any() == False ################################
+
+        return col
+    
+
+    def find_year_column(self, df):
+        """
+        Find column name if df that contains year numbers.
+        """
+        for column in df.columns:
+            # Check if at least one value in the column matches the year pattern
+            if df[column].dropna().astype(str).apply(lambda x: bool(re.match(r'\b\d{4}\b', x))).any():
+                return column
+
+        # If no year column is found
+        return None
 
                 
     def print_cols(self):
@@ -572,64 +596,145 @@ class DataChecks(DataHandler):
 
     def compare_df_values(self):
         # Compare every pair of dfs
-        for key1, df1 in self.dfs.items():
-            for key2, df2 in self.dfs.items():
-                if key1 != key2:
-                    dfs_dict = {key1: df1, key2: df2}
-                    self.compare_dfs_pairwise(dfs_dict)
+        for (fn1, df1), (fn2, df2) in combinations(self.dfs.items(), 2):
+            dfs_dict = {fn1: df1, fn2: df2}
+            self.compare_dfs_pairwise(dfs_dict)
 
     def compare_dfs_pairwise(self, dfs_dict):
 
-        for key, df in dfs_dict.items():
+        for fn, df in dfs_dict.items():
             if 'text_id' in df.columns and 'id' in df.columns:
-                raise ValueError(f"{key} contains duplicate column names: {', '.join(df.columns)}")
+                raise ValueError(f"{fn} contains duplicate column names: {', '.join(df.columns)}")
             if 'text_id' in df.columns:
                 df.rename(columns={'text_id': 'id'}, inplace=True)
 
-        for key, df in dfs_dict.items():
+        for fn, df in dfs_dict.items():
             assert not df.columns.duplicated().any()
 
-        keys = list(dfs_dict.keys())
+        file_names = list(dfs_dict.keys())
+
+        df0_cols = set(dfs_dict[file_names[0]].columns)
+        df1_cols = set(dfs_dict[file_names[1]].columns)
 
         unique_cols = ['id', 'file_name'] # Cols which must have a unique value in every row
-        main_cols = unique_cols + ['author_viaf'] # Cols to check
+        main_cols = unique_cols + ['author_viaf', 'pub_year'] # Cols to check
         # Cols from main cols that are in both dfs
-        main_common_columns = list(set(dfs_dict[keys[0]].columns) & set(dfs_dict[keys[1]].columns) & set(main_cols))
+        main_cols = list(df0_cols & df1_cols & set(main_cols))
         # Cols from unique cols that are in both dfs
-        unique_common_cols = list(set(unique_cols) & set(main_common_columns))
+        unique_cols = list(set(unique_cols) & set(main_cols))
         
         # Check if values that should be unique are duplicated
         # (Sentiscores files can have duplicated values because they have multiple entries for the same text if a review appeared in different magazines)
-        if unique_common_cols:
-            if not self.is_sentifile(keys):
+        if unique_cols:
+            if not self.is_sentifile(file_names):
                 for key, df in dfs_dict.items():
-                    for col in unique_common_cols:
+                    for col in unique_cols:
                         assert df[col].nunique(dropna=True) == df[col].size, f'Column "{col}" not unique in {key}.'
 
                 # Some dfs don't have entries for all texts
                 # User 'inner' merge to ignore them
                 try:
-                    df = pd.merge(dfs_dict[keys[0]][unique_common_cols], dfs_dict[keys[1]][unique_common_cols], on=unique_common_cols, how='inner', validate='one_to_one')
+                    df = pd.merge(dfs_dict[file_names[0]][unique_cols], dfs_dict[file_names[1]][unique_cols], on=unique_cols, how='inner', validate='one_to_one')
                     assert not df.isna().any().any()
                 except pd.errors.MergeError as e:
                     print(e)
             else:
                 try:
-                    df = pd.merge(dfs_dict[keys[0]][unique_common_cols], dfs_dict[keys[1]][unique_common_cols], on=unique_common_cols, how='outer')
+                    df = pd.merge(dfs_dict[file_names[0]][unique_cols], dfs_dict[file_names[1]][unique_cols], on=unique_cols, how='outer')
                     assert not df.isna().any().any()
                 except pd.errors.MergeError as e:
                     print(e)
 
-        # Merge dfs to check if rows contain the same unique cols in both dfs
-        if main_common_columns:
+        # Merge dfs to check if rows contain the same values in both dfs
+        if main_cols:
             try:
-                df = pd.merge(dfs_dict[keys[0]][main_common_columns], dfs_dict[keys[1]][main_common_columns], on=main_common_columns, how='outer')
+                df = pd.merge(dfs_dict[file_names[0]][main_cols], dfs_dict[file_names[1]][main_cols], on=main_cols, how='outer')
                 assert not df.isna().any().any()
             except pd.errors.MergeError as e:
                 print(e)
 
 
+        # Ignore death and birth dates, errors in data
+        # # Check year numbers
+        # # 'pub_year' is not in same df as the other two
+        # date_fn = None
+        # year_fn = None
+        # if 'date_birth' in df0_cols and 'date_death' in df0_cols:
+        #     date_fn = file_names[0]
+        # elif 'date_birth' in df1_cols and 'date_death' in df1_cols:
+        #     date_fn = file_names[1]
+        
+        # if 'pub_year' in df0_cols:
+        #     year_fn = file_names[0]
+        # elif 'pub_year' in df1_cols:
+        #     year_fn = file_names[1]
+
+        # print(date_fn, year_fn)
+        # if (date_fn is not None) and (year_fn is not None):
+        #     print('date_fn', date_fn, 'year_fn', year_fn)
+        #     dbdf = dfs_dict[date_fn]
+        #     dbdf.loc[dbdf['name'] == 'Goldsmith', 'date_birth'] = 1728
+        #     dbdf.loc[dbdf['name'] == 'Goldsmith', 'date_death'] = 1774
+        #     self.logger.warning(f"Corrected Goldsmith's birth and death dates.")
+
+        #     pydf = dfs_dict[year_fn]
+        #     df = dbdf.merge(pydf, how='outer', on='author_viaf')
+        #     assert not df['author_viaf'].isnull().any()
+
+        #     df['date_birth'] = self.process_yearcol(df['date_birth'])
+        #     df['date_death'] = self.process_yearcol(df['date_death'])
+        #     df['pub_year'] = self.process_yearcol(df['pub_year'])
+
+
+        #     rows = df[pd.notna(df['date_birth']) & pd.notna(df['date_death'])]
+        #     rows['diff'] = rows['date_death'] - rows['date_birth']
+        #     print(rows.sort_values(by='diff'))
+        #     # assert (rows['date_death'] - rows['date_birth']).ge(20).all()
+
+
+        #     rows = df[pd.notna(df['date_birth']) & pd.notna(df['pub_year'])]
+        #     # assert (rows['pub_year'] - rows['date_birth']).ge(15).all()
+
+        #     # Possible errors in this part
+        #     rows = df[pd.notna(df['pub_year']) & pd.notna(df['date_death'])] ############################
+        #     # print(rows['pub_year'].dtypes, rows['date_death'].dtypes)
+        #     # print((rows['date_death'] - rows['pub_year']).sort_values())
+        #     df['pub-death-diff'] = (df['date_death'] - df['pub_year'])
+        #     df = df[['file_name', 'author_viaf', 'pub_year', 'date_death', 'pub-death-diff']].sort_values(by='pub-death-diff')
+        #     self.save_data(data=df, file_name=f'compare-years-{self.language}.csv')
+        #     df.to_csv('pub-death-year', index=False)
+        #     # assert (rows['pub_year'] <= rows['date_death']).all()
+
+
+
+    def process_yearcol(self, input_col):
+        def process_string(input_str):
+            if pd.isna(input_str):  # Use pd.isna() to check for NaN
+                return np.nan
+            
+            parts = [int(part) for part in re.split('[|?]', str(input_str)) if part.isdigit()]
+
+            if not parts:  # Check if parts is an empty list
+                print(f'parts is not Nan and not a digit')
+            elif len(parts) == 2:
+                return min(parts)
+            elif '?' in str(input_str):
+                return parts[0]
+            else:
+                return parts[0]
+
+        if input_col.dtype in [np.int64, np.float64]:
+            return input_col
+        else:
+            return input_col.apply(process_string)
+
+
+
+
     def compare_rawdocs_dfs(self):
+        '''
+        Check if file names of raw texts and file names in 'file_name' column of dfs are the same
+        '''
         text_raw_dir = os.path.join(self.data_dir, 'text_raw', self.language)
         rdfn = os.listdir(text_raw_dir)
         assert all(filename.endswith('.txt') for filename in rdfn), "Not all files have the '.txt' extension."
@@ -644,8 +749,6 @@ class DataChecks(DataHandler):
 
                 common_files = rdfn.intersection(dffn)
                 df_unique = sorted(dffn - common_files)
-                # if not df_unique:
-                #     print(f'No unique fn in {key}.')
 
                 if df_unique:
                     for str1 in df_unique:
@@ -670,37 +773,134 @@ class DataChecks(DataHandler):
         else:
             dist_cutoff = 4
 
-        fn_mapping = fn_mapping.loc[fn_mapping['edit-dist'] <= dist_cutoff].loc[:, ['metadata-fn', 'rawdocs-fn']]
-        fn_mapping = fn_mapping.drop_duplicates()
+        fn_mapping = fn_mapping.loc[fn_mapping['edit-dist'] <= dist_cutoff].loc[:, ['metadata-fn', 'rawdocs-fn', 'file']]
+        fn_mapping = fn_mapping.sort_values(by='file')
         self.save_data(data=fn_mapping, file_name=f'compare_filenames_{self.language}.csv')
-        # fn_mapping.to_csv(f'compare_filenames_{self.language}.csv', index=False)
+
         # Check if all columns contain only unique values
+        fn_mapping = fn_mapping[['metadata-fn', 'rawdocs-fn']]
+        fn_mapping = fn_mapping.drop_duplicates()
         assert (fn_mapping.nunique() == fn_mapping.shape[0]).all()
         return fn_mapping
-    
 
-    def prepare_metadata(self, data):
-        fn_mapping = self.compare_rawdocs_dfs()
+
+    def check_pub_year(self):
+        for fn, df in self.dfs.items():
+            if 'pub_year' in df.columns:
+                print(f'Checking year for {fn}.')
+
+                fn_mapping = self.compare_rawdocs_dfs()
+                fn_mapping = dict(zip(fn_mapping['metadata-fn'], fn_mapping['rawdocs-fn']))
+
+                df.loc[:, 'file_name'] = df['file_name'].replace(to_replace=fn_mapping)
+
+                df['fn_year'] = df['file_name'].str[-4:].astype(int)
+
+                rows_not_meeting_condition = df[df['fn_year'] != df['pub_year']]
+                print(f"Rows where 'fn-year' and 'pub_year' don't contain the same value in {fn}:")
+                print(rows_not_meeting_condition)
+
+                assert (df['fn_year']  == df['pub_year']).all()
+
+
+
+class DataLoader(DataHandler):
+    '''
+    Load various data frames to be used in other classes.
+    '''
+    def __init__(self, language):
+        super().__init__(language, output_dir=None, data_type='csv') 
+
+
+    def prepare_canon_df(self, fn_mapping):
+        # Load data
+        file_name = '210907_regression_predict_02_setp3_FINAL.csv'
+        path = os.path.join(self.data_dir, 'canonscores', file_name)
+        df = pd.read_csv(path, sep=';')
+
+        df = df.loc[:, ['file_name', 'm3']]
+        df.loc[:, 'file_name'] = df['file_name'].replace(to_replace=fn_mapping)
+        df = df.rename(columns={'m3': 'canon'})
+        df = df.sort_values(by='file_name', axis=0, ascending=True, na_position='first')
+        df = df.drop_duplicates(subset='file_name')
+
+        # Select rows from current language (df contains data for both eng and ger)
+        # Get a list of filenames without the '.txt' extension
+        rdfn = [f.rstrip('.txt') for f in os.listdir(self.text_raw_dir) if f.endswith(".txt")]
+        # Select rows from the DataFrame where 'file_name' is in the list of filenames
+        df = df[df['file_name'].isin(rdfn)]
+        # Check if all filenames in the directory are in the DataFrame
+        assert all(file_name in df['file_name'].values for file_name in rdfn)
+        assert len(df) == self.nr_texts
+        return df
+
+
+    # def set_gender_collaborations(self, df, authors):
+    #     assert not df['author_viaf'].isna().any()
+
+    #     # Get author_viaf of authors that are involved in collaborations
+    #     coll_avs = df.loc[df['author_viaf'].astype(str).str.contains(r'\|', na=False, regex=True), 'author_viaf'].tolist()
+    #     print(coll_avs)
+    #     # Set gender for collaboration
+    #     for coll_av in coll_avs:
+    #         genders = []
+    #         av1, av2 = coll_av.split('|')
+    #         print(av1, av2)
+    #         print(authors.loc[authors['author_viaf']==av1, 'gender'])
+    #         genders.append(authors.loc[authors['author_viaf']==av1, 'gender'])
+    #         genders.append(authors.loc[authors['author_viaf']==av2, 'gender'])
+
+    #         print('genders', genders)
+
+    #         if all(value == 'm' for value in genders):
+    #             g = 'm'
+    #         elif all(value == 'f' for value in genders):
+    #             g = 'f'
+    #         else:
+    #             g = 'b'
+
+    #         df.loc[df['author_viaf'] == coll_av, 'gender'] = g
+
+    #     return df
+
+
+
+
+    def prepare_metadata(self, type):
+        mc = MetadataChecks(self.language) 
+        fn_mapping = mc.compare_rawdocs_dfs()
         fn_mapping = dict(zip(fn_mapping['metadata-fn'], fn_mapping['rawdocs-fn']))
 
-        if data == 'canon':
-            file_name = '210907_regression_predict_02_setp3_FINAL.csv'
-            df = self.dfs[file_name]
-            df = df.loc[:, ['file_name', 'm3']]
-            df.loc[:, 'file_name'] = df['file_name'].replace(to_replace=fn_mapping)
+        # There are inconsistencies between the file names of the raw docs and the file names in older data frames.
+        # Correct the old file names 
+        if type == 'canon':
+            df = self.prepare_canon_df(fn_mapping)
+
         
-        elif data == 'meta' or data == 'gender':
-            df = self.dfs[f'{self.language.upper()}_texts_meta.csv']
+        elif type == 'meta' or type == 'gender':
+            self.output_dir = self.create_output_dir('metadata')
+            self.logger.info(f'Created output dir from inside function.')
+
+            file_name = f'{self.language.upper()}_texts_meta.csv'
+            df = pd.read_csv(os.path.join(self.output_dir, file_name), sep=';')
+            # Remove whitespace from author_viaf column
+            df['author_viaf'] = mc.check_av_col(df['author_viaf'])
             df.loc[:, 'file_name'] = df['file_name'].replace(to_replace=fn_mapping)
 
-            if data == 'gender':
-                authors = self.dfs['authors.csv']
+
+            if type == 'gender':
+                file_name = f'authors_{self.language}.csv'
+                authors = pd.read_csv(os.path.join(self.output_dir, file_name), sep=';')
+
                 authors = authors.loc[:, ['author_viaf', 'gender']]
     
                 df = df.merge(authors, how='left', on='author_viaf', validate='many_to_one')
-                # Check if whitespace has been removed
-                assert not df['author_viaf'].astype(str).str.contains(r'\s', na=False).any(), f'The author_viaf column contains whitespace.'
-                df = df.loc[:, ['file_name', 'gender']]
+                assert len(df) == self.nr_texts
+
+                # Remove whitespace from author_viaf column
+                df['author_viaf'] = mc.check_av_col(df['author_viaf'])
+
+                df = df.loc[:, ['file_name', 'gender', 'author_viaf']]
                 df.loc[:, 'gender'] = df['gender'].replace(to_replace={'w':'f'})
 
                 # Set anonymous values to 'a'
@@ -708,54 +908,77 @@ class DataChecks(DataHandler):
                 # Set the value 'Female' in the 'Gender' column for the matched rows
                 df.loc[mask, 'gender'] = 'a' # a for anonymous
 
+
+                # Find gender of collaborating authors (easier to do by hand)
+                # self.set_gender_collaborations(df, authors)
+
+                # collaboration_rows = df[df['author_viaf'].astype(str).str.contains(r'\|', na=False, regex=True)]
+                # for fn in collaboration_rows['file_name'].to_list():
+                #     print(fn)
+
+
                 if self.language == 'ger':
                     df.loc[df['file_name'] == 'Hebel_Johann-Peter_Kannitverstan_1808', 'gender'] = 'm'
                     df.loc[df['file_name'] == 'May_Karl_Ardistan-und-Dschinnistan_1909', 'gender'] = 'm'
                     df.loc[df['file_name'] == 'May_Karl_Das-Waldroeschen_1883', 'gender'] = 'm'
+                    df.loc[df['file_name'] == 'Arnim-Arnim_Bettina-Gisela_Rattenzuhausbeiuns_1844', 'gender'] = 'f'
+                    df.loc[df['file_name'] == 'Holz-Schlaf_Arno-Johannes_Papa-Hamlet_1889', 'gender'] = 'm'
 
+
+                # Edith Somerville: f
+                # Martin Ross: f (pseudonym of Violet Florence Martin)
+                # Robert Louis Stevenson: m
+                # Frances "Fanny" Matilda Van de Grift Osbourne Stevenson: f
+                # Samuel Lloyd Osbourne: m
                 if self.language == 'eng':
+                    df.loc[df['file_name'] == 'Somerville-Ross_Edith-Martin_An-Irish-Cousin_1889', 'gender'] = 'f'
                     df.loc[df['file_name'] == 'Somerville-Ross_Edith-Martin_Experience-of-an-Irish-RM_1899', 'gender'] = 'f'
                     df.loc[df['file_name'] == 'Somerville-Ross_Edith-Martin_The-Real-Charlotte_1894', 'gender'] = 'f'
-                    df.loc[df['file_name'] == 'Stevenson-Grift_Robert-Louis-Fanny-van-de_The-Dynamiter_1885', 'gender'] = 'b' # Both male and female writer
-                print(df['gender'].unique())
-                # assert df['gender'].isin(['f', 'm', 'a', 'b']).all()
-                # assert not df.isna().any().any()
-                print(df['gender'].value_counts())
+                    df.loc[df['file_name'] == 'Stevenson-Grift_Robert-Louis-Fanny-van-de_The-Dynamiter_1885', 'gender'] = 'b' # Both male and female author
+                    df.loc[df['file_name'] == 'Stevenson-Osbourne_Robert-Louis-Lloyde_The-Ebb-Tide_1894', 'gender'] = 'm'
+                
+
+                # print(df['gender'].value_counts())
+                assert df['gender'].isin(['f', 'm', 'a', 'b']).all()
+                assert not df.isna().any().any()
+                
+        df = df.set_index('file_name', inplace=False)
+        assert len(df) == self.nr_texts
+        self.logger.info(f'Returning df with file_name as index.')
         return df
 
-    def get_collaborations(self):
-        df = self.prepare_metadata(data='meta')
-        assert not df['author_viaf'].isna().any()
-        # Check if author_viaf col contains anything besides numbers and the '|' character
-        assert df['author_viaf'].astype(str).str.contains(r'[^0-9|]+').any() == False
 
-        # Get author_viaf of authors that are involved in collaborations
-        collabs = df[df['author_viaf'].astype(str).str.contains(r'\|', na=False, regex=True)]
-        self.save_data(data=collabs, file_name=f'collaborations-{self.language}.csv')
-        # collabs.to_csv(f'collaborations-{self.language}.csv')
-        no_collabs = df[~df['author_viaf'].astype(str).str.contains(r'\|', na=False, regex=True)]
-        coll_av = df.loc[df['author_viaf'].astype(str).str.contains(r'\|', na=False, regex=True), 'author_viaf'].tolist()
-        coll_av = list(set(val for item in coll_av for val in item.split('|')))
+    def prepare_features(self):
+        '''
+        Return features table for full-book features
+        '''
+        self.output_dir = self.create_output_dir('features')
+        self.logger.info(f'Created output dir from inside function.')
 
-        # Find works by collaborating authors that are not collaborations
-        # Eng: Stevenson_Robert-Louis is the only collaborating author that has other texts
-        # Ger: Arnim_Bettina, Schlaf_Johannes
-        nocolls = no_collabs[no_collabs['author_viaf'].isin(coll_av)]
-        print(collabs, '\n\n', nocolls, '\n', coll_av)
+        path = os.path.join(self.output_dir, 'book.csv')
+        df = pd.read_csv(path, index_col='file_name')
+
+        strings_to_drop = ['average_sbert_embedding_', 'd2v_embedding_', 'pos_bigram_', 'pos_trigram_']
+        columns_to_drop = [col for col in df.columns if any(substring in col for substring in strings_to_drop)]
+        df = df.drop(columns=columns_to_drop, inplace=False)
+        self.logger.info(f'Returning df with file_name as index.')
+        return df
+    
 
 
-# for lang in ['eng', 'ger']:
-#     c = DataChecks(lang)
-#     c.compare_df_values()
-#     c.compare_rawdocs_dfs()
-#     c.get_collaborations()
+
+
+# mh = MetadataChecks('eng').run()
+# dl = DataLoader('ger').prepare_metadata('gender')
+
 
 
 # # Provide the directory path and the string to search for
 # directory_path = '/home/annina/scripts/great_unread_nlp/data/text_tokenized'
 # directory_path = '/home/annina/scripts/great_unread_nlp/src/'
-# search_string = 'pandas_sep'
+# search_string = "medoid"
 # extension = ['.txt', '.py']
 # search_string_in_files(directory_path, search_string, extension, full_word=False)
+
 
 # %%

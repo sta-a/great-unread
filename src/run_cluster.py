@@ -2,27 +2,21 @@
 %load_ext autoreload
 %autoreload 2
 
-
-# %matplotlib inline
-
-
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
 import numpy as np
-import networkx as nx
-import networkit as nk
 import itertools
 import sys
 sys.path.append("..")
-from utils import DataHandler, TextsByAuthor
-from sklearn.pipeline import Pipeline
+from utils import DataHandler
 import itertools
 
 from cluster.create import D2vDist, Delta
 from cluster.network import NXNetwork
-from cluster.cluster import SimmxCluster
+from cluster.cluster import SimmxCluster, NetworkCluster, ExtEval, IntEval, MxReorder
 from cluster.sparsifier import Sparsifier
+from cluster.cluster_utils import CombinationInfo
 
 import logging
 logging.basicConfig(level=logging.DEBUG)
@@ -35,74 +29,102 @@ logging.getLogger().setLevel(logging.WARNING)
 
 
 
-# # %%
-class SimilarityNetwork(DataHandler):
+class SimilarityClustering(DataHandler):
+    ATTRS = ['gender', 'author', 'canon', 'year', 'features']
+    
     def __init__(self, language):
         super().__init__(language=language, output_dir='similarity', data_type='csv')
         self.mxs = self.load_mxs()
 
     def load_mxs(self):
-        # # Delta distance mxs
-        # delta = Delta(self.language)
-        # # delta.create_all_data(use_kwargs_for_fn='mode')
-        # all_delta = delta.load_all_data(use_kwargs_for_fn='mode')
+        full = False
+        if full:
+            # Delta distance mxs
+            delta = Delta(self.language)
+            # delta.create_all_data(use_kwargs_for_fn='mode')
+            all_delta = delta.load_all_data(use_kwargs_for_fn='mode', subdir=True)
 
 
-        # # D2v distance mxs
-        # d2v = D2vDist(language=self.language)
-        # all_d2v = d2v.load_all_data(use_kwargs_for_fn='mode', file_string=d2v.file_string)
-        # mxs = {**all_delta, **all_d2v}
-        # for k, v in mxs.items():
-        #     print(k, v)
+            # D2v distance mxs
+            d2v = D2vDist(language=self.language)
+            all_d2v = d2v.load_all_data(use_kwargs_for_fn='mode', file_string=d2v.file_string, subdir=True)
+            mxs = {**all_delta, **all_d2v}
+            for k, v in mxs.items():
+                print(k, v)
 
-        # D2v distance mxs
-        d2v = D2vDist(language=self.language)
-        d2v.modes = ['both']
-        all_d2v = d2v.load_all_data(use_kwargs_for_fn='mode', file_string=d2v.file_string)
-        mxs = {**all_d2v}
-        for k, v in mxs.items():
-            print(k, v)
-
+        else:
+            # D2v distance mxs
+            d2v = D2vDist(language=self.language)
+            d2v.modes = ['both']
+            all_d2v = d2v.load_all_data(use_kwargs_for_fn='mode', file_string=d2v.file_string, subdir=True)
+            mxs = {**all_d2v}
         return mxs
 
 
     def network_clustering(self):
-        sparsifier = Sparsifier()
-        spars_modes = sparsifier.modes
-        spars_parameters = sparsifier.threshold_params
-        network = NXNetwork(self.language)
+        # for mx, spars_mode, cluster_alg in itertools.product(self.mxs.values(), Sparsifier.MODES.keys(), NetworkCluster.ALGS):
+        for mx, spars_mode, cluster_alg in itertools.product(self.mxs.values(), ['threshold'], ['gn']):
+            print('------------------------', mx.name, spars_mode, cluster_alg)
+            spars_params = Sparsifier.MODES[spars_mode]
+            for spars_param in spars_params:
+                sparsifier = Sparsifier(self.language, mx, spars_mode, spars_param)
+                mx = sparsifier.sparsify()
 
-        # Iterate over all combinations and run the steps
-        combinations = list(itertools.product(self.mxs, spars_modes, spars_parameters, network.network_cluster_algs, network.attribute_names))
-        combinations = list(itertools.product(self.mxs, ['threshold'], spars_parameters, ['gn'], ['gender']))
-        for mx_tuple, spars_mode, spars_parameter, cluster_alg, attribute_name in combinations:
-            print('------------------------')
-            print(mx_tuple[0], spars_mode, spars_parameter, cluster_alg, attribute_name)
+                network = NXNetwork(self.language, mx=mx, cluster_alg=cluster_alg)
+                cl = network.get_clusters()
+                print(cl)
 
-            sparsifier = Sparsifier(self.language, mx_tuple[1], spars_mode, spars_parameter)
-            spars_mx = sparsifier.sparsify()
+                # # for attr in self.ATTRS:
+                # for attr in ['gender']: #, 'author', 'canon', 'year']:
+                #     info = CombinationInfo(mxname=mx.name, cluster_alg=cluster_alg, attr=attr, param_comb=param_comb)
 
-            network = NXNetwork(self.language, name_mx_tup=(f'{mx_tuple[0]}-{spars_mode}', spars_mx), cluster_alg=cluster_alg, attribute_name=attribute_name)
-            network.get_clusters()
+
+
+    # def simmx_clustering(self):
+    #     for mx, cluster_alg in itertools.product(self.mxs.values(), SimmxCluster.ALGS.keys()):
+    #         print('------------------------')
+
+    #         sc = SimmxCluster(self.language, mx, cluster_alg)
+    #         param_combs = sc.get_param_combinations()
+    #         for param_comb in param_combs:
+    #             clusters = sc.cluster(**param_comb)
+    #             inteval = IntEval(mx, clusters, param_comb).evaluate()
+
+    #             for attr in self.ATTRS:
+    #              £   for order in MxReorder.ORDERS:
+    #                     info = CombinationInfo(mxname=mx.name, cluster_alg=cluster_alg, attr=attr, order=order, param_comb=param_comb)
+    #                     ce = ExtEval(self.language, mx, clusters, info, inteval, param_comb)
+    #                     ce.evaluate()
 
 
     def simmx_clustering(self):
-        network = NXNetwork(self.language)
+        for mx, cluster_alg in itertools.product(self.mxs.values(), ['hierarchical']):
+            sc = SimmxCluster(self.language, mx, cluster_alg)
+            param_combs = sc.get_param_combinations()
+            print(param_combs)
+            for param_comb in param_combs:
+                clusters = sc.cluster(**param_comb)
+                inteval = IntEval(mx, clusters, param_comb).evaluate()
 
-        # Iterate over all combinations and run the steps
-        combinations = list(itertools.product(self.mxs, network.simmx_cluster_algs, network.attribute_names))
-        combinations = list(itertools.product(self.mxs, ['spectral'], ['author']))
-        for mx_tuple, cluster_alg, attribute_name in combinations:
-            print('------------------------')
-            print(mx_tuple[0], cluster_alg, attribute_name )
+                for attr in ['gender']: #'gender', 'author', 'canon', 'year'
+                    for order in ['olo']:
+                        info = CombinationInfo(mxname=mx.name, cluster_alg=cluster_alg, attr=attr, order=order, param_comb=param_comb)
+                        print(info.as_df())
+                        ce = ExtEval(self.language, mx, clusters, info, inteval, param_comb)
+                        ce.evaluate()
 
-            # Create clusters using the network
-            network = NXNetwork(self.language, name_mx_tup=mx_tuple, cluster_alg=cluster_alg, attribute_name=attribute_name)
-            network.get_clusters()
+
         
 
-sn = SimilarityNetwork(language='eng')# .simmx_clustering()
+sn = SimilarityClustering(language='eng').simmx_clustering()
 
+
+# Elbow for internal cluster evaluation
+
+
+
+# Hierarchical clustering:
+# From scipy documentation, ignored here: Methods ‘centroid’, ‘median’, and ‘ward’ are correctly defined only if Euclidean pairwise metric is used. If y is passed as precomputed pairwise distances, then it is the user’s responsibility to assure that these distances are in fact Euclidean, otherwise the produced result will be incorrect.
 
 # Heatmap:
 # Create a heatmap of the similarity matrix to visualize the pairwise similarities between data points.
@@ -113,8 +135,6 @@ sn = SimilarityNetwork(language='eng')# .simmx_clustering()
 # # # find eta
 # # eta = 0.1
 # set all values below eta to 0
-
-
 
 
 # %%

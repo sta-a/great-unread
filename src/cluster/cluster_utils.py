@@ -1,3 +1,5 @@
+# %%
+
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
@@ -5,7 +7,7 @@ import colorcet as cc
 import itertools
 import sys
 sys.path.append("..")
-from utils import DataHandler, DataChecks, TextsByAuthor
+from utils import DataHandler, DataLoader, TextsByAuthor
 
 import logging
 logging.basicConfig(level=logging.DEBUG)
@@ -18,55 +20,65 @@ class MetadataHandler(DataHandler):
     def __init__(
             self,
             language = None,
-            attribute_name=None,
+            attr=None,
             ):
-        super().__init__(language, output_dir=None)
-        self.attribute_name = attribute_name
+        super().__init__(language, output_dir='similarity', data_type='png')
+        self.attr = attr
+        self.metadf = self.get_metadata()
 
 
     def get_metadata(self):
-        if self.attribute_name == 'canon':
-            df = DataChecks(self.language).prepare_metadata(data=self.attribute_name)
-            df = df.rename(columns={'m3': 'score'})
-            df = df.sort_values(by='file_name', axis=0, ascending=True, na_position='first')
-            df = df.drop_duplicates(subset='file_name')
+        if self.attr == 'canon':
+            df = DataLoader(self.language).prepare_metadata(type=self.attr)
         # discretize
         # file_group_mapping['scores'].apply(lambda x: 'r' if x > threshold else 'b')
 
-        elif self.attribute_name == 'gender':
-            df = DataChecks(self.language).prepare_metadata(data=self.attribute_name)
-        else:
-            df = None
+        elif self.attr == 'gender':
+            df = DataLoader(self.language).prepare_metadata(type=self.attr)
+
+        elif self.attr == 'features':
+            df = DataLoader(self.language).prepare_features() # file name is index
+
+        elif self.attr == 'author':
+            author_filename_mapping = TextsByAuthor(self.language).author_filename_mapping
+            df = pd.DataFrame([(author, work) for author, works in author_filename_mapping.items() for work in works],
+                            columns=['author', 'file_name'])
+            df = df.set_index('file_name', inplace=False)
+
+        elif self.attr == 'year':
+            fn = [os.path.splitext(f)[0] for f in os.listdir(self.text_raw_dir) if f.endswith('.txt')]
+            df = pd.DataFrame({'file_name': fn})
+            df['year'] = df['file_name'].str[-4:].astype(int)
+            df = df.set_index('file_name', inplace=False)
+        
         return df
     
     def match_attr_value(self):
-        if self.attribute_name == 'author':
+        if self.attr == 'author':
             mapping = self.map_author()
         
-        elif self.attribute_name == 'canon':
+        elif self.attr == 'canon':
             mapping = self.map_canon()
         
-        elif self.attribute_name == 'gender':
+        elif self.attr == 'gender':
             mapping = self.map_gender()
         return mapping
 
 
 
-
 class ColorMap(MetadataHandler):
     '''
-    If attribute_name is set, map filenames to color according to attribute.
+    If attr is set, map filenames to color according to attribute.
     If cluster_list is set, map each cluster to a color.
     '''
     def __init__(
             self,
             language=None,
-            attribute_name=None, 
+            attr=None, 
             cluster_list=None):
-        super().__init__(attribute_name=attribute_name, language=language)
+        super().__init__(attr=attr, language=language)
         self.cluster_list = cluster_list
-        self.metadf = self.get_metadata()
-        if self.attribute_name is not None and self.cluster_list is not None:
+        if self.attr is not None and self.cluster_list is not None:
             raise ValueError('Pass either attribute name of cluster list.')
 
     @staticmethod
@@ -94,22 +106,16 @@ class ColorMap(MetadataHandler):
         '''
         Map each filename to a color so that texts by the same author have the same color.
         '''
-        # author_filename_mapping: dict{author name: [list with all works by author]}
-        author_filename_mapping = TextsByAuthor().author_filename_mapping
         colors = ColorMap.get_colors_discrete()
-        author_color_mapping = {author: self.color_for_pygraphviz(next(colors)) for author, _ in author_filename_mapping.items()}
 
-        fn_color_mapping = {fn: author_color_mapping[author] for author, filenames in author_filename_mapping.items() for fn in filenames}
+        author_color_mapping = {author: self.color_for_pygraphviz(next(colors)) for author in self.metadfdf['author'].unique()}
+        fn_color_mapping = {index: author_color_mapping[row['author']] for index, row in self.metadf.iterrows()}
 
-        # fn_color_mapping = {}
-        # for author, list_of_filenames in author_filename_mapping.items():
-        #     for fn in list_of_filenames:
-        #         fn_color_mapping[fn] = author_color_mapping[author]
         return fn_color_mapping
 
     def map_canon(self):
         #self.metadf = self.self.metadf.loc[self.metadf['file_name'].isin(self.cluster_list)]
-        fn_color_mapping = {row['file_name']: self.get_colors_sequential(row['score']) for _, row in self.metadf.iterrows()}
+        fn_color_mapping = {row['file_name']: self.get_colors_sequential(row['canon']) for _, row in self.metadf.iterrows()}
         return fn_color_mapping
     
     def map_gender(self):
@@ -124,7 +130,6 @@ class ColorMap(MetadataHandler):
             raise ValueError('Not a valid clustering.')
         
         colors = ColorMap.get_colors_discrete()
-        print(len(self.cluster_list))
         for cluster in self.cluster_list:
             color = self.color_for_pygraphviz(next(colors))
             for fn in cluster:
@@ -132,7 +137,7 @@ class ColorMap(MetadataHandler):
         return fn_color_mapping
 
     def get_color_map(self):
-        if self.attribute_name is not None:
+        if self.attr is not None:
             fn_color_mapping = self.match_attr_value()
         elif self.cluster_list is not None:
             fn_color_mapping = self.map_cluster()
@@ -142,21 +147,20 @@ class ColorMap(MetadataHandler):
 
 class ShapeMap(MetadataHandler):
     '''
-    If attribute_name is set, map filenames to shape according to attribute.
+    If attr is set, map filenames to shape according to attribute.
     If cluster_list is set, map each cluster to a shape.
     '''
     def __init__(
             self,
             language=None,
-            attribute_name=None,
+            attr=None,
             cluster_list=None):
         super().__init__( language=language)
-        self.attribute_name = attribute_name
+        self.attr = attr
         self.cluster_list = cluster_list
-        self.metadf = self.get_metadata()
         self.shapes = itertools.cycle(['egg', 'invtrapezium', 'star', 'cylinder', 'cds', 'terminator', 'box', 'tripleoctagon','Mdiamond', 'Mcircle', 'Mdiamond', 'Mcircle', 'Msquare', 'circle', 'diamond', 'doublecircle', 'doubleoctagon', 'ellipse', 'hexagon', 'house', 'invhouse', 'invtriangle', 'none', 'octagon', 'oval', 'parallelogram', 'pentagon', 'plaintext', 'point', 'polygon', 'rectangle', 'septagon', 'square', 'tab', 'trapezium', 'triangle'])
 
-        if self.attribute_name is not None and self.cluster_list is not None:
+        if self.attr is not None and self.cluster_list is not None:
             raise ValueError('Pass either attribute name of cluster list.')
 
     def color_for_pygraphviz(self, color):
@@ -181,7 +185,7 @@ class ShapeMap(MetadataHandler):
 
     # def map_canon(self):
     #     #self.metadf = self.self.metadf.loc[self.metadf['file_name'].isin(self.cluster_list)]
-    #     fn_shape_mapping = {row['file_name']: self.get_shapes_sequential(row['score']) for _, row in self.metadf.iterrows()}
+    #     fn_shape_mapping = {row['file_name']: self.get_shapes_sequential(row['canon']) for _, row in self.metadf.iterrows()}
     #     return fn_shape_mapping
     
     def map_gender(self):
@@ -192,7 +196,7 @@ class ShapeMap(MetadataHandler):
     
 
     def get_shape_map(self):
-        if self.attribute_name is not None:
+        if self.attr is not None:
             fn_shape_mapping = self.match_attr_value()
         else:
             fn_shape_mapping = self.map_cluster()
@@ -209,3 +213,48 @@ class ShapeMap(MetadataHandler):
             for fn in cluster:
                 fn_shape_mapping[fn] = shape
         return fn_shape_mapping
+    
+    
+# class CombinationInfo:
+#     def __init__(self, mxname, cluster_alg, attr, param_comb):
+#         self.mxname = mxname
+#         self.cluster_alg = cluster_alg
+#         self.attr = attr
+#         self.param_comb = self.paramcomb_to_string(param_comb)
+
+#     def paramcomb_to_string(self, param_comb):
+#         return'-'.join([f'{key}-{value}' for key, value in param_comb.items()])
+
+#     def as_string(self):
+#         return f'{self.mxname}_{self.cluster_alg}_{self.attr}_{self.param_comb}'
+
+#     def as_df(self):
+#         # data = {key: [getattr(self, key)] for key in ['mxname', 'cluster_alg', 'attr']}
+#         # data.update(self.param_comb)
+
+#         return pd.DataFrame([vars(self)], index=[0])
+#         # print(df)
+#         # param_comb = self.paramcomb_to_string()
+#         # df['param_comb'] = param_comb
+
+#     def as_dict(self):
+#         return {'mxname': self.mxname, 'cluster_alg': self.cluster_alg, 'attr': self.attr, 'param_comb': self.param_comb}
+
+class CombinationInfo:
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
+        self.param_comb = self.paramcomb_to_string(self.param_comb)
+
+    def paramcomb_to_string(self, param_comb):
+        return '-'.join([f'{key}-{value}' for key, value in param_comb.items()])
+
+    def as_string(self):
+        return '_'.join(str(value) for value in self.__dict__.values())
+
+    def as_df(self):
+        # data = {key: [value] for key, value in self.__dict__.items()}
+        # return pd.DataFrame([data], index=[0])
+        return pd.DataFrame([vars(self)], index=[0])
+
+    def as_dict(self):
+        return self.__dict__

@@ -412,6 +412,11 @@ class CorpusBasedFeatureExtractor():
             doc_dist = dict(doc_dist)
             df = pd.DataFrame(doc_dist, index=[0]).fillna(0)
             df['file_name'] = bookname
+
+            # Add 'sd_' prefix to every column label except 'file_name'
+            df.columns = ['sentd_' + col if col != 'file_name' else col for col in df.columns]
+            print(df.columns)
+            
             all_doc_dist.append(df)
 
 

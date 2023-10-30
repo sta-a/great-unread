@@ -154,7 +154,7 @@ class FeatureProcessor(DataHandler):
         )
         
 
-for language in ['eng', 'ger']:
+for language in ['ger']:
     fe = FeatureProcessor(language).run()
 
 
@@ -284,7 +284,7 @@ class FeatureChecker(DataHandler):
                 self.outfile.write(f"\nColumns with mostly zero values:\n")
                 self.outfile.write('\n\t'.join(mostly_zero_columns))
             else:
-                self.outfile.write(f"\nNo columns with mostly zero vlaues.")
+                self.outfile.write(f"\nNo columns with mostly zero vlaues.") 
            
             # Check for rows with duplicated values
             duplicated_rows = df.duplicated()

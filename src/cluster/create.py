@@ -7,7 +7,7 @@ import os
 import math
 import pandas as pd
 from sklearn.metrics import pairwise_distances
-from scipy.spatial.distance import minkowski
+from scipy.spatial.distance import minkowski, squareform, cosine
 from sklearn.metrics.pairwise import cosine_similarity
 from scipy.stats import zscore
 import numpy as np
@@ -31,26 +31,30 @@ class SimMx(DataHandler):
     '''
     Class for distance/smiliarity matrices
     '''
-    def __init__(self, language, name=None, mx=None, normalized=None, is_sim=None, output_dir='similarity'):
+    def __init__(self, language, name=None, mx=None, normalized=True, is_sim=True, is_directed=False, is_condensed=False, output_dir='similarity'):
         super().__init__(language, output_dir)
+        self.add_subdir('simmxs')
         self.name = name
         self.mx = mx
         self.normalized = normalized
         self.is_sim = is_sim
+        self.is_directed = is_directed
+        self.is_condensed = False
 
     def postprocess_mx(self, **kwargs):
+        self.plot_similarity_distribution(**kwargs)
         self.min_max_normalization()
-        self.distance_to_similarity()
+        self.dist_to_sim()
 
         self.set_diagonal(value=1)
         self.plot_similarity_distribution(**kwargs)
 
         assert self.mx.index.equals(self.mx.columns)
-        assert self.mx.equals(self.mx.T) # Check if symmetric
-        # Check if the mx has 1 only on the diagonal
-        assert not np.any((self.mx.values != np.eye(len(self.mx))) & (self.mx.values == 1))
-        # assert not mx.isnull().values.any()
-        # assert mx.all().all()
+        assert self.mx.equals(self.mx.T) # Check symmetry
+        # Check if 1 is only on the diagonal
+        # assert not np.any((self.mx.values != np.eye(len(self.mx))) & (self.mx.values == 1))
+        print('self.mx.isnull().values.any()', self.mx.isnull().values.any())
+        print('self.mx.all().all()', self.mx.all().all()) # Check if all values are True
 
     def find_zero_elements(self):
         # Find rows and cols with value 0
@@ -78,21 +82,52 @@ class SimMx(DataHandler):
             self.normalized = True
         self.mx = mx
 
-    def distance_to_similarity(self):
+    def dist_to_condensed(self):
         '''
-        Invert distances to obtain similarities.
+        Condensed matrix, input for scipy.cluster.hierarchy.linkage.
         '''
+        if self.is_sim:
+            raise ValueError(f'Condensed matrix can only me calculated for distance matrix, not for similarity matrix.')
+    
+        mx = self.mx
+        if not self.is_condensed:
+            mx = squareform(mx, checks=True)
+            self.is_condensed = True
+        self.mx = mx
+
+    def dist_to_sim(self):
+        self.invert_mx(to_sim=True)
+
+
+    def sim_to_dist(self):
+        self.invert_mx(to_sim=False)
+
+
+    def invert_mx(self, to_sim):
+        '''
+        Invert similarities to obtain distances and vice versa.
+        '''
+        if to_sim:
+            is_sim_target = True
+            diag_val = 1
+        else:
+            is_sim_target = False
+            diag_val = 0
+
         assert self.normalized, f'Matrix must be normalized before it is turned into similarity.'
         mx = self.mx
-        if not self.is_sim:
+
+        if not self.is_sim == is_sim_target:
+            non_null_values = mx[mx.isnull().values]
+            
             # Assert that there are no Nan
             assert not mx.isnull().values.any()
             # Assert that there are no zero similarities (ignore the diagonal)
             values = self.get_triangular()
             assert not np.any(values == 0)
             mx = 1 - mx
-            assert np.all(np.diagonal(mx) == 1), 'Not all values on the diagonal are 1.'
-            self.is_sim = True
+            # assert np.all(np.diagonal(mx) == diag_val), 'Not all values on the diagonal are 1.'
+            self.is_sim = is_sim_target
         self.mx = mx
 
     def set_diagonal(self, value):
@@ -102,7 +137,6 @@ class SimMx(DataHandler):
         '''
         #df.values[[np.arange(df.shape[0])]*2] = value
         mx = self.mx
-        print("Diagonal values:", np.unique(mx.values.diagonal()))
         for i in range(0, mx.shape[0]):
             mx.iloc[i, i] = value
         self.mx = mx
@@ -152,26 +186,28 @@ class SimMx(DataHandler):
         if self.name.split('-')[0] == 'cosinedelta':
             binsize = 10
             xtick_step = 50
-        #ax.hist(vals, bins = np.arange(0,max(vals) + 0.1, binsize), log=True, ec='black', color='black') #kwargs set edge color
-        ax.hist(vals, bins='auto', log=True, ec='black', color='black') #kwargs set edge color
+        #ax.hist(vals, bins = np.arange(0,max(vals) + 0.1, binsize), log=True, ec='black', color='black')
+        ax.hist(vals, bins='auto', log=True, ec='black', color='black')
 
-        data_min = min(vals) ###################################
-        data_max = max(vals)
-        tick_step = math.floor(0.05 * data_max)
-        # ax.set_xticks(np.arange(0, data_max + tick_step, tick_step))
-        # ax.set_xticks(range(min(vals), max(vals)+1, 5))
-
-        ax.set_xlabel(f'Similarity')
+        if self.is_sim:
+            xlabel = 'Similarity'
+        else:
+            xlabel = 'Distance'
+        ax.set_xlabel(xlabel)
         ax.set_ylabel('Frequency')
         ax.set_title(f'{self.name.capitalize()} distribution')
         #plt.xticks(np.arange(0, max(vals) + 0.1, step=xtick_step))
         plt.xticks(rotation=90)
         ax.grid(False)
 
-        self.save_data(data=plt, data_type='png', mode=self.name, use_kwargs_for_fn='mode', **kwargs)
+        if self.normalized:
+            file_name = f'{self.name}-norm'
+        else:
+            file_name = f'{self.name}-unnorm'
+        # Pass file name as mode instead of file name because kwargs might contain more information about the file name
+        # This way, the kwargs are dealt with automatically
+        self.save_data(data=plt, subdir=True, data_type='svg', mode=file_name, use_kwargs_for_fn='mode', **kwargs)
         plt.close()
-        # plt.savefig('test', format="svg")
-
 
 
 class SimMxCreator(DataHandler):
@@ -180,6 +216,7 @@ class SimMxCreator(DataHandler):
     '''
     def __init__(self, language, output_dir='similarity'):
         super().__init__(language, output_dir)
+        self.add_subdir('simmxs')
 
     def calculate_similarity(self):
         pass
@@ -193,7 +230,7 @@ class SimMxCreator(DataHandler):
         mx = pd.DataFrame(mx, index=self.df.index, columns=self.df.index)
         sm = SimMx(language=self.language, name=mode, mx=mx, normalized=False, is_sim=False)
         sm.postprocess_mx()
-        self.save_data(data=sm.mx, file_name=sm.name, **kwargs)
+        self.save_data(data=sm.mx, file_name=sm.name, subir=True, use_kwargs_for_fn='mode', pandas_kwargs={'index': True}, **kwargs)
         self.logger.debug(f'Created similarity matrix.')
 
     def load_data(self, load=True, file_name=None, **kwargs):
@@ -208,8 +245,8 @@ class D2vDist(SimMxCreator):
     '''
     Create similarity matrices based on doc2vec docuement vectors.
     '''
-    def __init__(self, language, output_dir='similarity'):
-        super().__init__(language, output_dir)
+    def __init__(self, language):
+        super().__init__(language)
         self.modes = ['full', 'both']
         self.file_string = 'd2v'
 
@@ -234,7 +271,7 @@ class D2vDist(SimMxCreator):
         sm.postprocess_mx(file_string=self.file_string)
         # Scale values of cosine similarity from [-1, 1] to [0, 1]
         # mx = mx.applymap(lambda x: 0.5 * (x + 1))
-        self.save_data(data=sm.mx, mode=sm.name, file_string=self.file_string)
+        self.save_data(data=sm.mx, subdir=True, mode=sm.name, file_string=self.file_string, use_kwargs_for_fn='mode', pandas_kwargs={'index': True})
         self.logger.debug(f'Created {mode} similarity matrix.')
 
 
@@ -261,54 +298,6 @@ class D2vDist(SimMxCreator):
         return mx
     
 
-# class PydeltaDist(SimMxCreator):
-#     def __init__(self, language, output_dir='similarity'):
-#         super().__init__(language, output_dir)
-#         self.add_subdir('pydelta')
-#         self.distances = ['burrows', 'cosinedelta', 'eder', 'quadratic']
-#         self.nmfw_values = [500, 1000, 2000, 5000]
-#         # self.distances = ['burrows']
-#         # self.nmfw_values = [500]
-#         self.modes = [f'{item1}-{item2}' for item1 in self.distances for item2 in self.nmfw_values]
-
-#     def create_data(self,**kwargs):
-#         self.logger.info(f"Distance 'edersimple' is not calculated due to implementation error.")
-#         mode = kwargs['mode']
-#         mx = self.calculate_similarity(mode=mode)
-#         #mx.to_csv(os.path.join('/home/annina/scripts/great_unread_nlp/data/similarity/', self.language, 'distmx', f'{mode}.csv'))
-#         mx = self.postprocess_mx(mx, mode, dist_to_sim=True)
-#         self.save_data(mx, mode=mode)
-#         self.logger.info(f'Created {mode} similarity matrix.')
-
-#     def get_params_from_mode(self, mode):
-#         distance, nmfw = mode.split('-')
-#         return distance, int(nmfw)
-
-#     def get_corpus(self, mode):
-#         distance, nmfw = self.get_params_from_mode(mode)
-#         mfwf = MfwExtractor(language=self.language)
-#         print('mfw file path: ', mfwf.get_file_path(file_name=None, mode=nmfw))
-#         corpus = delta.Corpus(mfwf.get_file_path(file_name=None, mode=nmfw))
-#         return corpus
-
-#     def calculate_distance(self, mode):
-#         distance, nmfw = self.get_params_from_mode(mode)
-#         corpus = self.get_corpus(mode=mode)
-#         if distance == 'burrows':
-#             mx = delta.functions.burrows(corpus)
-#         elif distance == 'cosinedelta':
-#             mx = delta.functions.cosine_delta(corpus)
-#         elif distance == 'eder':
-#             mx = delta.functions.eder(corpus)
-#         elif distance == 'edersimple':
-#             mx = delta.functions.eder_simple(corpus)
-#         elif distance == 'quadratic':
-#             mx = delta.functions.quadratic(corpus)
-#         return mx
-
-
-
-
 class DistanceMetrics():
     '''
     Delta Distance metrics.
@@ -332,6 +321,7 @@ class DistanceMetrics():
         return self.registry[name]['duplicated']
     
     def register_functions(self):
+        # Sources: Stylo, Evert2017, Jannidis2015 (Pydelta)
         # Register stylo function names as aliases
         self.register('burrows', self.burrows, 'burrows')
         self.register('burrows_argamon', self.burrows_argamon, 'burrows', True)
@@ -340,6 +330,15 @@ class DistanceMetrics():
         self.register('argamon_quadratic', self.argamon_quadratic, 'argamon')
         self.register('argamon_quadratic_argamon', self.argamon_quadratic_argamon, 'argamon', True)
         self.register('argamon_linear', self.argamon_linear) # Not implemented in stylo
+        self.register('cosinedelta', self.cosinedelta, 'cosinedelta')
+        self.register('cosinesim', self.cosinesim) # Implemented in Stylo as 'dist.cosine', but code has bug
+        self.register('minmax', self.minmax) # Implemented in Stylo as 'minmax', but too slow for big matrix. Tested with toy example, see minmax dir
+        self.register('canberra', 'canberra')
+        self.register('braycurtis', 'braycurtis')
+        self.register('chebyshev', 'chebyshev')
+        self.register('sqeuclidean', 'sqeuclidean')
+        self.register('correlation', 'correlation')
+        self.register('manhattan', 'manhattan') # Manhattan distance without z-score transformation
 
     def burrows(self, row1, row2, std_dev):
             assert len(row1) == len(row2) == len(std_dev)
@@ -392,17 +391,34 @@ class DistanceMetrics():
         # Partially implemented in Pydelta
         return minkowski(row1, row2, p=1, w=1/b)
 
+    def cosinesim(self, df):
+        # Cosine similarity between pairs of rows
+        return cosine_similarity(df)
+
+    def minmax(self, row1, row2):
+        # Ruzicka Distance, Weighted Jaccard distance
+        row1 = row1.reshape(-1, 1)
+        row2 = row2.reshape(-1, 1)
+        q = np.concatenate([row1,row2], axis=1)
+        sim = np.sum(np.amin(q,axis=1))/np.sum(np.amax(q,axis=1))
+        return 1 - sim
+
+    def cosinedelta(self, row1, row2):
+        # Angular delta (Evert2017, Smith & Aldridge 2011)
+        return cosine(row1, row2)
+
 
 
 class Delta(SimMxCreator):
-    def __init__(self, language, output_dir='similarity'):
-        super().__init__(language, output_dir)
-        self.add_subdir('delta_distances')
-        self.input_dir = self.output_dir.replace('similarity', 'ngram_counts')
+    def __init__(self, language):
+        super().__init__(language)
+        # self.add_subdir('delta_distances')
+        self.input_dir = os.path.join(self.data_dir, 'ngram_counts', self.language)
         self.input_dfs = self.load_mfw_dfs()
         self.nmfws = list(reversed(self.input_dfs.keys())) # Reverse so that small numbers come first for faster calculation during testing
         self.metrics = DistanceMetrics()
         self.modes = [f'{metric}-{nmfw}' for metric in self.metrics.registry.keys() for nmfw in self.nmfws]
+        self.n_jobs = -1
 
 
     def load_mfw_dfs(self):
@@ -425,19 +441,34 @@ class Delta(SimMxCreator):
 
               
     def calculate_similarity(self, metric, df):
-        if metric == 'eder' or metric=='argamon_quadratic':
+        # Z-Score
+        if metric in ['eder', 'argamon_quadratic', 'cosinedelta']:
             df = zscore(df, axis=0)
-            mx = pd.DataFrame(pairwise_distances(df.values, metric=self.metrics.get_func(metric)), index=df.index, columns=df.index)
-        elif metric == 'argamon_linear':
+            mx = pd.DataFrame(pairwise_distances(df.values, metric=self.metrics.get_func(metric), n_jobs=self.n_jobs), index=df.index, columns=df.index)
+        
+        # Eder's weighting factor
+        elif metric in ['argamon_linear']:
             # Calculate b for linear Delta
             x = df - df.median()
             b = x.abs().sum() / len(df.columns) # Sum over all documents and divide by nmfw
-            mx = pd.DataFrame(pairwise_distances(df.values, metric=self.metrics.get_func(metric), b=b), index=df.index, columns=df.index)
-        elif metric == 'edersimple':
-            mx = pd.DataFrame(pairwise_distances(df.values, metric=self.metrics.get_func(metric)), index=df.index, columns=df.index)
-        else:
+            mx = pd.DataFrame(pairwise_distances(df.values, metric=self.metrics.get_func(metric), n_jobs=self.n_jobs, b=b), index=df.index, columns=df.index)
+        
+        # Std dev
+        elif metric in ['burrows', 'burrows_argamon', 'argamon_quadratic_argamon']:
             std_dev = df.std(axis=0)
-            mx = pd.DataFrame(pairwise_distances(df.values, metric=self.metrics.get_func(metric),  std_dev=std_dev), index=df.index, columns=df.index)
+            mx = pd.DataFrame(pairwise_distances(df.values, metric=self.metrics.get_func(metric),  n_jobs=self.n_jobs, std_dev=std_dev), index=df.index, columns=df.index)
+        
+        # No additional input, or metric function from sklearn
+        elif metric in ['edersimple', 'minmax', 'canberra', 'braycurtis', 'chebyshev', 'sqeuclidean', 'correlation', 'manhattan']:
+            mx = pd.DataFrame(pairwise_distances(df.values, metric=self.metrics.get_func(metric), n_jobs=self.n_jobs), index=df.index, columns=df.index)
+        
+        # Calculation on whole df instead of rows
+        elif metric in ['cosinesim']:
+            func = self.metrics.get_func(metric)
+            mx = pd.DataFrame(data=func(df), index=df.index, columns=df.index)
+        
+        else:
+            raise NotImplementedError(f"Metric '{metric}' is not supported.")
         return mx
 
 
@@ -445,14 +476,14 @@ class Delta(SimMxCreator):
         mode = kwargs.get('mode')
 
         metric, nmfw = mode.split('-')
+        print(mode, metric, nmfw)
         df = self.input_dfs[nmfw]
         mx = self.calculate_similarity(metric, df)
-        self.save_data(data=mx, mode=mode, subdir=True)
         self.compare_with_stylo(mode, mx)
 
         sm = SimMx(language=self.language, name=mode, mx=mx, normalized=False, is_sim=False)
         sm.postprocess_mx()
-        self.save_data(data=sm.mx, mode=sm.name)
+        self.save_data(data=sm.mx, subdir=True, mode=sm.name, use_kwargs_for_fn='mode', pandas_kwargs={'index': True})
         self.logger.debug(f'Created {mode} similarity matrix.')
 
 
