@@ -5,6 +5,7 @@ import time
 import re
 import os
 import math
+from copy import deepcopy
 import pandas as pd
 from sklearn.metrics import pairwise_distances
 from scipy.spatial.distance import minkowski, squareform, cosine
@@ -31,7 +32,12 @@ class SimMx(DataHandler):
     '''
     Class for distance/smiliarity matrices
     '''
-    def __init__(self, language, name=None, mx=None, normalized=True, is_sim=True, is_directed=False, is_condensed=False, output_dir='similarity'):
+    def __init__(self, language, name=None, mx=None, normalized=True, is_sim=True, is_directed=False, is_condensed=False, has_dmx=True, output_dir='similarity'):
+
+        # Check input
+        if not is_sim and not has_dmx:
+            raise ValueError('If is_sim is False, has_dmx must be True.')
+
         super().__init__(language, output_dir)
         self.add_subdir('simmxs')
         self.name = name
@@ -39,7 +45,41 @@ class SimMx(DataHandler):
         self.normalized = normalized
         self.is_sim = is_sim
         self.is_directed = is_directed
-        self.is_condensed = False
+        self.is_condensed = is_condensed
+        self.has_dmx = has_dmx
+
+        if self.is_sim:
+            if self.has_dmx:
+                self.dmx = self.invert_mx()
+        else:
+            self.dmx = self.mx
+            assert self.has_dmx
+            self.mx = self.invert_mx()
+            self.is_sim = True
+        
+        assert self.is_sim
+
+
+    def invert_mx(self, to_dist=True):
+        '''
+        Invert similarities to obtain distances and vice versa.
+        '''
+        assert self.normalized, f'Matrix must be normalized before it is turned into similarity.'
+        if to_dist:
+            mx = deepcopy(self.mx)
+        else:
+            mx = deepcopy(self.dmx)
+
+        # non_null_values = mx[mx.isnull().values]
+        # Assert that there are no Nan
+        assert not mx.isnull().values.any()
+        # Assert that there are no zero similarities (ignore the diagonal)
+        values = self.get_triangular()
+        assert not np.any(values == 0)
+        mx = 1 - mx
+        # assert np.all(np.diagonal(mx) == diag_val), 'Not all values on the diagonal are 1.'
+        return mx
+
 
     def postprocess_mx(self, **kwargs):
         self.plot_similarity_distribution(**kwargs)
@@ -82,53 +122,18 @@ class SimMx(DataHandler):
             self.normalized = True
         self.mx = mx
 
+
     def dist_to_condensed(self):
         '''
         Condensed matrix, input for scipy.cluster.hierarchy.linkage.
         '''
-        if self.is_sim:
-            raise ValueError(f'Condensed matrix can only me calculated for distance matrix, not for similarity matrix.')
-    
-        mx = self.mx
+        assert self.has_dmx
+        dmx = deepcopy(self.dmx)
         if not self.is_condensed:
-            mx = squareform(mx, checks=True)
+            dmx = squareform(dmx, checks=True)
             self.is_condensed = True
-        self.mx = mx
+        self.dmx = dmx
 
-    def dist_to_sim(self):
-        self.invert_mx(to_sim=True)
-
-
-    def sim_to_dist(self):
-        self.invert_mx(to_sim=False)
-
-
-    def invert_mx(self, to_sim):
-        '''
-        Invert similarities to obtain distances and vice versa.
-        '''
-        if to_sim:
-            is_sim_target = True
-            diag_val = 1
-        else:
-            is_sim_target = False
-            diag_val = 0
-
-        assert self.normalized, f'Matrix must be normalized before it is turned into similarity.'
-        mx = self.mx
-
-        if not self.is_sim == is_sim_target:
-            non_null_values = mx[mx.isnull().values]
-            
-            # Assert that there are no Nan
-            assert not mx.isnull().values.any()
-            # Assert that there are no zero similarities (ignore the diagonal)
-            values = self.get_triangular()
-            assert not np.any(values == 0)
-            mx = 1 - mx
-            # assert np.all(np.diagonal(mx) == diag_val), 'Not all values on the diagonal are 1.'
-            self.is_sim = is_sim_target
-        self.mx = mx
 
     def set_diagonal(self, value):
         '''
@@ -210,7 +215,7 @@ class SimMx(DataHandler):
         plt.close()
 
 
-class SimMxCreator(DataHandler):
+class SimMxCreatorBase(DataHandler):
     '''
     Base class for calculating distance matrices
     '''
@@ -241,7 +246,7 @@ class SimMxCreator(DataHandler):
 
     
 
-class D2vDist(SimMxCreator):
+class D2vDist(SimMxCreatorBase):
     '''
     Create similarity matrices based on doc2vec docuement vectors.
     '''
@@ -409,7 +414,7 @@ class DistanceMetrics():
 
 
 
-class Delta(SimMxCreator):
+class Delta(SimMxCreatorBase):
     def __init__(self, language):
         super().__init__(language)
         # self.add_subdir('delta_distances')

@@ -11,6 +11,7 @@ from collections import Counter
 import joblib
 import logging
 import Levenshtein
+import networkx as nx
 from itertools import combinations
 
 logging.basicConfig(level=logging.DEBUG)
@@ -186,7 +187,7 @@ class DataHandler():
         self.data_type = data_type
         self.modes = modes
         self.tokens_per_chunk = tokens_per_chunk
-        self.data_types = ('.npz', '.csv', '.pkl', '.txt', '.svg', '.png')
+        self.data_types = ('.npz', '.csv', '.pkl', '.txt', '.svg', '.png', '.graphml')
         self.separator = 'ƒ'
         self.subdir = None
         if self.language == 'eng':
@@ -255,18 +256,24 @@ class DataHandler():
                 kwargs_dict.update(pandas_kwargs)
 
             data.to_csv(file_path, **kwargs_dict)
+
         elif data_type == 'pkl':
             joblib.dump(data, file_path)
+
         elif data_type == 'svg':
             data.savefig(file_path, format='svg')
+
         elif data_type == 'png':
             data.savefig(file_path, format='png')
+
         elif data_type == 'npz':
             np.savez(file_path, data)
+
         elif data_type =='dict':
             with open(file_path, 'w') as f:
                 for key, value in data.items():
                     f.write(f"{key}, {value}\n")
+
         elif data_type == 'txt':
             assert isinstance(data, list)
             list_of_strings = all(isinstance(element, str) for element in data)
@@ -284,6 +291,10 @@ class DataHandler():
                         sep = kwargs.get('txt_sep', self.separator)
                         f.write(f'{sep.join(l)}\n')
                 self.logger.info(f'Writing list of lists to file using {self.separator} as the separator.')
+
+        elif data_type == 'graphml':
+            nx.write_graphml(data, file_path)
+
         self.logger.debug(f'Saved {data_type} data to {file_path}')
 
 
