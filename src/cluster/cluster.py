@@ -19,7 +19,6 @@ import sys
 sys.path.append("..")
 from utils import TextsByAuthor
 
-
 import logging
 logging.basicConfig(level=logging.DEBUG)
 # # Suppress logger messages by 'matplotlib.ticker
@@ -27,6 +26,67 @@ logging.basicConfig(level=logging.DEBUG)
 # ticker_logger = logging.getLogger('matplotlib.ticker')
 # ticker_logger.setLevel(logging.WARNING)
 
+test = True
+
+class Clusters():
+    '''
+    sklearn: Result of clustering algorithm is a list with cluster assingments as ints.
+    networkx: Result is a list of sets, each set representing a cluster
+    '''
+    def __init__(self, cluster_alg, mx, clusters):
+        self.cluster_alg = cluster_alg
+        self.mx = mx
+        self.initial_clusts = clusters
+        self.preprocess()
+        self.df = self.as_df()
+    
+
+    def preprocess(self):
+        # Preprocess self.initial_clusts
+        if isinstance(self.initial_clusts, np.ndarray):
+            self.initial_clusts = self.initial_clusts.tolist()
+
+        if self.cluster_alg == 'dbscan' and all(element == -1 for element in self.initial_clusts):
+            self.logger.error(f'DBSCAN only returns noisy samples with value -1.')
+
+        if all(isinstance(cluster, int) for cluster in self.initial_clusts):
+            self.type = 'intlist'
+        elif all(isinstance(cluster, set) for cluster in self.initial_clusts):
+            self.type = 'setlist'
+        else:
+            raise ValueError('The format of the clusters is neither a list of integers nor a list of sets.')
+
+
+    def as_df(self):
+        # sklearn
+        if self.type == 'intlist':
+            # Zip file names and cluster assingments
+            assert (self.mx.mx.columns == self.mx.mx.index).all()
+            clusters = dict(zip(self.mx.mx.index, self.initial_clusts))
+            clusters = pd.DataFrame(list(clusters.items()), columns=['file_name', 'cluster'])
+
+            cluster_counts = clusters['cluster'].value_counts()
+            label_mapping = {label: rank for rank, (label, count) in enumerate(cluster_counts.sort_values(ascending=False).items())}
+            clusters['cluster'] = clusters['cluster'].map(label_mapping)
+
+
+        # nx.louvain_communities
+        elif self.type == 'setlist':
+            # Sort the sets by length in descending order
+            sorted_sets = sorted(self.initial_clusts, key=len, reverse=True)
+
+            data = {'file_name': [], 'cluster': []}
+            for i, cluster_set in enumerate(sorted_sets):
+                data['file_name'].extend(cluster_set)
+                data['cluster'].extend([i] * len(cluster_set))
+
+            clusters = pd.DataFrame(data)
+
+        clusters = clusters.set_index('file_name')
+        clusters = clusters.sort_index()
+        return clusters
+    
+    
 class ClusterBase():
     ALGS = None
 
@@ -65,106 +125,54 @@ class ClusterBase():
         method = getattr(self, self.cluster_alg)
         clusters = method(**kwargs)
 
-        clusters = self.get_cluster_df(clusters)
+        clusters = Clusters(self.cluster_alg, self.mx, clusters)
         
-        print('\n--------------------\nCluster counts\n-----------------------\n\n', clusters['cluster'].value_counts())
 
-        if clusters['cluster'].nunique() == 1:
+        if clusters.df['cluster'].nunique() == 1:
             clusters = None
             self.logger.info(f'All data points put into the same cluster.')
 
         return clusters
         
-        
-    def get_cluster_df(self, clusters):
-        '''
-        sklearn: Result of clustering algorithm is a list with cluster assingments as ints.
-        networkx: Result is a list of sets, each set representing a cluster
-        '''
-        if isinstance(clusters, np.ndarray):
-            clusters = clusters.tolist()
-
-        if self.cluster_alg == 'dbscan' and all(element == -1 for element in clusters):
-            self.logger.error(f'DBSCAN only returns noisy samples with value -1.')
-        print(clusters)
-
-        # sklearn
-        if all(isinstance(cluster, int) for cluster in clusters):
-            # assert all(isinstance(item, (int, np.int64)) for item in clusters)
-            # Change labels so that the biggest cluster has label 0, the second biggest cluster has label 1, and so on.
-            counter = Counter(clusters)
-            # Create a mapping of integer to its rank based on frequency
-            rank_mapping = {value: rank for rank, (value, _) in enumerate(counter.most_common())}
-            # Replace each integer in the list with its rank
-            clusters = [rank_mapping[value] for value in clusters]
-
-
-            assert (self.mx.mx.columns == self.mx.mx.index).all()
-            clusters = dict(zip(self.mx.mx.index, clusters))
-            clusters = pd.DataFrame(list(clusters.items()), columns=['file_name', 'cluster'])
-            self.logger.info(f'Created cluster df for list of ints.')
-
-        # nx.louvain_communities
-        elif all(isinstance(cluster, set) for cluster in clusters):
-
-            # Sort the sets by length in descending order
-            sorted_sets = sorted(clusters, key=len, reverse=True)
-
-            data = {'file_name': [], 'cluster': []}
-            for i, cluster_set in enumerate(sorted_sets):
-                
-                # Append data to the dictionary
-                data['file_name'].extend(cluster_set)
-                data['cluster'].extend([i] * len(cluster_set))
-
-            clusters = pd.DataFrame(data)
-            self.logger.info(f'Created cluster df for list of sets.')
-
-
-        else:
-            raise ValueError('The format of the clusters is neither a list of integers nor a list of sets.')
-
-        clusters = clusters.set_index('file_name')
-        return clusters
-    
 
 class SimmxCluster(ClusterBase):
     '''
     Clustering on a similarity matrix
     '''
-    # ALGS = {
-    #     'hierarchical': {
-    #         'nclust': [5, 10],
-    #         'method': ['single', 'complete', 'average', 'weighted', 'centroid', 'median', 'ward'],
-    #     },
-    #     'spectral': {
-    #         'nclust': [5],
-    #     },
-    #     'kmedoids': {
-    #         'nclust': [5],
-    #     },
-    #     'dbscan': {
-    #         'eps': [0.1, 0.3, 0.5, 0.7, 0.9],
-    #         'min_samples': [5, 10, 30],
-    #     },
-    # }
-
     ALGS = {
         'hierarchical': {
-            'nclust': [2],
-            'method': ['single'],
-        },
+            'nclust': [5, 10],
+            'method': ['single', 'complete', 'average', 'weighted', 'centroid', 'median', 'ward'],
+            },
         'spectral': {
-            'nclust': [2],
-        },
+            'nclust': [5],
+            },
         'kmedoids': {
-            'nclust': [2],
-        },
+            'nclust': [5],
+            },
         'dbscan': {
-            'eps': [0.01],
-            'min_samples': [5],
-        },
+            'eps': [0.1, 0.3, 0.5, 0.7, 0.9],
+            'min_samples': [5, 10, 30],
+            },
     }
+
+    if test:
+        ALGS = {
+            'hierarchical': {
+                'nclust': [2],
+                'method': ['single'],
+                },
+            'spectral': {
+                'nclust': [2],
+                },
+            'kmedoids': {
+                'nclust': [2],
+                },
+            'dbscan': {
+                'eps': [0.01],
+                'min_samples': [5],
+                },
+        }
 
     def __init__(self, language=None, cluster_alg=None, mx=None):
         super().__init__(language=language, cluster_alg=cluster_alg)
@@ -205,23 +213,24 @@ class SimmxCluster(ClusterBase):
 
 
 class NetworkCluster(ClusterBase):
-    # ALGS = {'girvan': {
-    #             'noparam': [None], # Girvan, Newman (2002): Community structure in social and biological networks
-    #         },            
-    #         'lpa': {
-    #             'noparam': [None],
-    #         },
-    #         'louvain': {
-    #             'resolution': [100, 10, 1, 0.1, 0.01],
-    #         },
-    # }
-
-    ALGS = {'girvan': {},           
-            'lpa': {},
+    ALGS = {'girvan': {
+                'noparam': [None], # Girvan, Newman (2002): Community structure in social and biological networks
+            },            
+            'lpa': {
+                'noparam': [None],
+            },
             'louvain': {
-                'resolution': [1],
+                'resolution': [100, 10, 1, 0.1, 0.01],
             },
     }
+
+    if test:
+        ALGS = {'girvan': {},           
+                'lpa': {},
+                'louvain': {
+                    'resolution': [1],
+                },
+        }
 
     def __init__(self, language, cluster_alg, network):
         super().__init__(language, cluster_alg)
@@ -235,8 +244,6 @@ class NetworkCluster(ClusterBase):
         return list(asyn_lpa_communities(self.graph))
 
     def louvain(self, **kwargs):
-        for k, v in kwargs.items():
-            print(k,v)
         return louvain_communities(self.graph, weight='weight', seed=11, resolution=kwargs['resolution'])
     
 

@@ -6,6 +6,7 @@ from collections import Counter
 import numpy as np
 from matplotlib import pyplot as plt
 import networkx as nx
+from networkx.algorithms.community import modularity
 from copy import deepcopy
 from itertools import product
 import random
@@ -18,6 +19,9 @@ from sklearn.linear_model import LogisticRegression
 
 from .visualize import MxViz, NkViz
 from .cluster_utils import MetadataHandler, ColorMap
+import sys
+sys.path.append("..")
+from utils import DataHandler
 import logging
 logging.basicConfig(level=logging.DEBUG)
 
@@ -26,13 +30,9 @@ class MxIntEval():
     '''
     Evaluate cluster quality based on internal criteria
     '''
-    def __init__(self, mx, clusters, param_comb):
-        print(clusters)
+    def __init__(self, mx, clusters):
         self.mx = mx
-        self.clusters = clusters # cluster df with file_name and cluster cols
-        self.param_comb = param_comb
-
-        print('clust', self.clusters)
+        self.clusters = clusters # df with file_name and cluster cols
 
     def evaluate(self):
         if self.clusters is None:
@@ -42,99 +42,136 @@ class MxIntEval():
         evals = {'silhouette_score': sc}
         return pd.DataFrame([evals])
 
-    def silhouette_score(self):  
-        assert all(self.mx.dmx.index == list(self.clusters['cluster'].index))
-        sc = silhouette_score(X=self.mx.dmx, labels=list(self.clusters['cluster']), metric='precomputed')
+    def silhouette_score(self):
+        clusters = self.clusters.df
+        assert all(self.mx.dmx.index == clusters['cluster'].index)
+        sc = silhouette_score(X=self.mx.dmx, labels=list(clusters['cluster']), metric='precomputed')
         return round(sc, 3)
+    
 
-
-
-class Eval(MetadataHandler):
-    def __init__(self, language, clusters, info, param_comb):
-        self.info = info
-        super().__init__(language=language, attr=self.info.attr)
-        self.clusters = clusters
+class NkIntEval():
+    '''
+    Evaluate cluster quality based on internal criteria
+    '''
+    def __init__(self, network, clusters, cluster_alg, param_comb):
+        self.network = network
+        self.clusters = clusters # df with file_name and cluster cols
+        self.cluster_alg = cluster_alg
         self.param_comb = param_comb
-        self.test = True
+
+    def evaluate(self):
+        mod = np.nan
+        if self.clusters is not None:
+            if self.cluster_alg == 'louvain': #######################################
+                mod = self.modularity()
+        evals = {'modularity': mod}
+        return pd.DataFrame([evals])
+
+    def modularity(self):
+        assert self.clusters.type == 'setlist'
+        mod = modularity(self.network.graph, self.clusters.initial_clusts, resolution=self.param_comb['resolution'])
+        return mod
 
 
-    def add_clustering_to_metadf(self):
-        # Combine file names, attributes, and cluster assignments
-        metadf = self.get_metadata()
-        metadf = pd.merge(metadf, self.clusters, left_index=True, right_index=True, validate='1:1')
-        if not self.test:
-            assert len(metadf) == self.nr_texts
-        return metadf
 
-
-class MxExtEval(Eval):
+class ExtEval(DataHandler):
     '''
     Evaluate cluster quality with an external criterion (the ground truths)
     '''
-    def __init__(self, language, mx, clusters, info, param_comb, inteval):
-        super().__init__(language, clusters, info, param_comb)
-        self.mx = mx
+    def __init__(self, language, mode, viz, clusters, info, param_comb, inteval):
+        super().__init__(language, output_dir='similarity')
+        self.mode = mode
+        self.viz = viz
+        self.clusters = clusters
+        self.info = info
+        self.param_comb = param_comb
         self.inteval = inteval
-        self.add_subdir('mxeval')
+        self.metadf = None
 
-    def evaluate(self):
-        if self.clusters is None:
-            cat = ['gender', 'author']
-            cont = ['canon', 'year', 'features']
+        self.add_subdir('eval')
 
-            if self.attr in cat:
-                empty_df = pd.DataFrame([{'ARI': np.nan}])
-                self.write_categorical(empty_df)
-            else:
-                empty_df = pd.DataFrame([[np.nan, np.nan, np.nan, np.nan]], columns=['feature', 'plot_name', 'anova-pval', 'logreg-accuracy'])
-                self.write_continuous(empty_df)
+        self.eval_clust()
 
-        else:
-            self.metadf = self.add_clustering_to_metadf()
-            self.scv = MxViz(self.language, self.mx, self.clusters, self.info, self.param_comb, self.metadf)
-            eval_methods = {
-                'gender': self.eval_gender,
-                'author': self.eval_author,
-                'canon': self.eval_continuous,
-                'year': self.eval_continuous,
-                'features': self.eval_continuous,
+
+    def eval_clust(self):
+        # Visualize clusters with heatmap
+        # Get nr elements per cluster for plot
+        df = self.clusters.df.copy(deep=True)
+        self.viz.set_metadf(df)
+        value_counts = df['cluster'].value_counts()
+        nelements = ', '.join([f'label{val}-{count}' for val, count in value_counts.items()])
+        counts = {'nclust': df['cluster'].nunique(), 'nelements': nelements}
+        counts = pd.DataFrame([counts])
+        self.viz.visualize(plttitle=counts)
+
+
+    def add_clust_to_metadf(self):
+        # Combine file names, attributes, and cluster assignments
+        mh = MetadataHandler(language = self.language, attr=self.info.attr)
+        metadf = mh.get_metadata()
+        metadf = pd.merge(metadf, self.clusters.df, left_index=True, right_index=True, validate='1:1')
+        metadf = mh.add_color(metadf, attr='cluster')
+        # self.viz.set_metadf(metadf) ######################################
+        return metadf
+    
+
+    def set_params(self):
+        scale = {'gender': 'cat', 'author': 'cat', 'canon': 'cont', 'year': 'cont', 'features': 'cont'}
+        eval_methods = {
+            'gender': self.eval_gender,
+            'author': self.eval_author,
+            'canon': self.eval_continuous,
+            'year': self.eval_continuous,
+            'features': self.eval_continuous,
+            }
+        file_name = {
+            'cat': 'categorical_results.csv',
+            'cont': 'continuous_results.csv',
             }
 
-            if self.attr in eval_methods:
-                eval_methods[self.attr]()
+        self.scale = scale[self.info.attr]
+        self.eval_method = eval_methods[self.info.attr]
+        self.file_name = file_name[self.info.attr]
+
+
+    def set_info(self, info):
+        self.info = info
+
+
+    def evaluate(self, info):
+        self.set_info(info)
+        self.set_params()
+        self.metadf = self.add_clust_to_metadf()
+
+        if self.clusters is None:
+            if self.scale == 'cat':
+                empty_df = pd.DataFrame([{'ARI': np.nan}])
+                self.write_eval(empty_df)
             else:
-                raise NotImplementedError(f"Evaluation for attribute '{self.attr}' not implemented.")
+                empty_df = pd.DataFrame([[np.nan, np.nan, np.nan, np.nan]], columns=['feature', 'plot_name', 'anova-pval', 'logreg-accuracy'])
+                self.write_eval(empty_df)
+
+        else:
+            evaldf = self.eval_method()
+            self.write_eval(evaldf)
 
 
-    def write_eval(self, df, file_name):
-        path = os.path.join(self.subdir, file_name)
-
+    def write_eval(self, evaldf):
         info = self.info.as_df()
-        info = pd.concat([info] * len(df), ignore_index=True)
-        inteval = pd.concat([self.inteval] * len(df), ignore_index=True)
-        df = pd.concat([info, inteval, df], axis=1)
+        df = pd.concat([info, self.inteval, evaldf], axis=1)
 
-        if not os.path.exists(path):
-            with open(path, 'w') as f:
-                f.write(f"{','.join(df.columns)}\n")
+        # if not os.path.exists(path):
+        #     with open(path, 'w') as f:
+        #         f.write(f"{','.join(df.columns)}\n")
 
-        df.to_csv(path, mode='a', header=False, index=False, na_rep='NA')
-
-
-    def write_continuous(self, df):
-        self.write_eval(df, file_name='continuous_results.csv')
-
-    
-    def write_categorical(self, df):
-        self.write_eval(df, file_name='categorical_results.csv')
+        self.save_data(data=df, 
+                       file_name = self.file_name, 
+                       subdir=True, data_type='csv', 
+                       pandas_kwargs={'mode': 'a', 'header': False, 'index': False, 'na_rep': 'NA'})
 
 
     def eval_gender(self):
-        # Evaluate only if there are 2 clusters
-        if self.param_comb['nclust'] != 2:
-            return
-
-        df = self.metadf
+        df = self.metadf.copy(deep=True)
 
         confusion_table = pd.crosstab(df['gender'], df['cluster'], margins=True, margins_name='Total')
         print('confusion_table\n\n-----------------------------\n', confusion_table, '\n-----------------------------------------\n\n')
@@ -146,15 +183,9 @@ class MxExtEval(Eval):
 
         # Calculate Adjusted Rand Index
         ari_score = adjusted_rand_score(gender_col, df['cluster'])
+        return pd.DataFrame([{'ARI': round(ari_score, 3)}])
 
-        # Get nr elements per cluster for plot
-        value_counts = df['cluster'].value_counts()
-        nelements = ', '.join([f'label{val}-{count}' for val, count in value_counts.items()])
-        qual = {'nclust': len(self.clusters), 'nelements': nelements, 'ARI': round(ari_score, 3)}
-        qual = pd.DataFrame([qual])
-        self.scv.draw_heatmap(qual)
-        self.write_categorical(qual[['ARI']])
-    
+
     
     def eval_author(self):
         true_labels = []
@@ -205,15 +236,13 @@ class MxExtEval(Eval):
         assert len(true_labels) == len(pred_labels)
 
         ari_score = adjusted_rand_score(true_labels, pred_labels)
-        qual = {'nclust': len(self.clusters), 'ARI': round(ari_score, 3)}
-        qual = pd.DataFrame([qual])
-        self.scv.draw_heatmap(qual)
-        self.write_categorical(qual[['ARI']])
+        return pd.DataFrame([{'ARI': round(ari_score, 3)}])
 
     
     def eval_continuous(self):
         results = []
 
+        # If attr is 'features', iterate through all columns of the extracted features df
         for col_name in self.metadf.columns:
             if col_name == 'cluster':
                 continue  # Skip the 'cluster' column itself
@@ -236,7 +265,7 @@ class MxExtEval(Eval):
             results.append((col_name, f'logreg-{self.info.as_string()}-{col_name}.png', round(anova, 3), round(logreg, 3)))
 
         result = pd.DataFrame(results, columns=['feature', 'plot_name', 'anova-pval', 'logreg-accuracy'])
-        self.write_continuous(result)
+        return result
 
 
     def anova(self, X_cluster):
@@ -246,26 +275,40 @@ class MxExtEval(Eval):
         return pval[0]
     
     
-    def logreg(self, feature, X, y):
+    def logreg(self, feature, X, y_true):
         # Multinomial logistic regression to evaluate relationship between clustering and continuous variable
         model = LogisticRegression(max_iter=1000)
-        model.fit(X, y)
+        model.fit(X, y_true)
         
         y_pred = model.predict(X)
 
-        self.scv.draw_logreg(feature, model, X, y, y_pred)
+        # Visualize the decision boundary
+        plt.figure(figsize=(10, 6))
+        plt.grid(True)
 
-        return accuracy_score(y_true=y, y_pred=y_pred)
+        # Generate a range of values for X for plotting the decision boundary
+        X_range = np.linspace(min(X), max(X), 300).reshape(-1, 1)
+        # Predict the corresponding y values for the X_range
+        y_range = model.predict(X_range)
+
+        # Plot the decision boundary
+        plt.plot(X_range, y_range, color='red', linewidth=3, label='Decision Boundary')
+
+        # Scatter plot for the data points
+        plt.scatter(X, y_true, c=y_pred, cmap='Set1', edgecolors='k', marker='o', s=100, label='Clusters (logreg)')
+
+        # Set labels and title
+        plt.xlabel(f'{feature.capitalize()}')
+        plt.ylabel('Clusters (Cluster Alg)')
+        plt.title('Logistic Regression')
+
+        plt.yticks(np.unique(y_true))
+
+        # Display the legend
+        plt.legend()
+        self.save_data(data=plt, data_type='png', subdir=True, file_name=f'logreg-{self.info.as_string()}-{feature}.png')
+        plt.close()
+
+        return accuracy_score(y_true=y_true, y_pred=y_pred)
     
 
-    
-class NkExtEval(Eval):
-    def __init__(self, language, network, clusters, info, param_comb):
-        super().__init__(language, clusters, info, param_comb)
-        self.network = network
-        self.add_subdir('nkeval')
-    
-    def evaluate(self):
-        self.metadf = self.add_clustering_to_metadf()
-        nv = NkViz(self.language, self.network, self.info, self.metadf)
-        nv.draw_nx()

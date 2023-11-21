@@ -536,3 +536,5 @@ class Delta(SimMxCreatorBase):
             all_data[mode] = data
         return all_data
 
+
+# %%

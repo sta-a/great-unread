@@ -1,6 +1,6 @@
 # %%
-# %load_ext autoreload
-# %autoreload 2
+%load_ext autoreload
+%autoreload 2
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -16,10 +16,10 @@ import itertools
 from cluster.create import D2vDist, Delta
 from cluster.network import NXNetwork
 from cluster.cluster import SimmxCluster, NetworkCluster
-from cluster.evaluate import MxExtEval, MxIntEval, NkExtEval
-from cluster.visualize import MxReorder
+from cluster.evaluate import ExtEval, MxIntEval, NkIntEval
+from cluster.visualize import MxReorder, NkViz, MxViz
 from cluster.sparsifier import Sparsifier
-from cluster.cluster_utils import CombinationInfo
+from cluster.cluster_utils import CombinationInfo, MetadataHandler
 
 import logging
 logging.basicConfig(level=logging.DEBUG)
@@ -34,7 +34,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 class SimilarityClustering(DataHandler):
     ATTRS = ['gender', 'author', 'canon', 'year', 'features']
-    
+
     def __init__(self, language):
         super().__init__(language=language, output_dir='similarity', data_type='csv')
         self.mxs = self.load_mxs()
@@ -63,50 +63,55 @@ class SimilarityClustering(DataHandler):
             all_d2v = d2v.load_all_data(use_kwargs_for_fn='mode', file_string=d2v.file_string, subdir=True)
             mxs = {**all_d2v}
 
-        return mxs
-
-
-    # def simmx_clustering(self):
-    #     for mx, cluster_alg in itertools.product(self.mxs.values(), SimmxCluster.ALGS.keys()):
-    #         print('------------------------')
-
-    #         sc = SimmxCluster(self.language, cluster_alg, mx)
-    #         param_combs = sc.get_param_combinations()
-    #         for param_comb in param_combs:
-    #             clusters = sc.cluster(**param_comb)
-    #             inteval = MxIntEval(mx, clusters, param_comb).evaluate()
-
-    #             for attr in self.ATTRS:
-    #                 for order in MxReorder.ORDERS:
-    #                     info = CombinationInfo(mxname=mx.name, cluster_alg=cluster_alg, attr=attr, order=order, param_comb=param_comb)
-    #                     ce = MxExtEval(self.language, mx, clusters, info, param_comb, inteval)
-    #                     ce.evaluate()
+        mxs_list = []
+        for name, mx in mxs.items():
+            mx.name = name
+            mxs_list.append(mx)
+        return mxs_list
 
 
     def simmx_clustering(self):
-        for mx, cluster_alg in itertools.product(self.mxs.values(), ['hierarchical']):
-            sc = SimmxCluster(self.language, cluster_alg, mx)
-            param_combs = sc.get_param_combinations()
-            print(param_combs)
-            for param_comb in param_combs:
-                clusters = sc.cluster(**param_comb)
-                inteval = MxIntEval(mx, clusters, param_comb).evaluate()
+        for mx in self.mxs:
+            for attr in self.ATTRS:
+                for order in MxReorder.ORDERS:
+                # for order in ['olo']:
+                    info = CombinationInfo(mxname=mx.name, attr=attr, order=order)
+                    print(info.as_string())
+                    viz = MxViz(self.language, mx, info)
+                    if attr != 'features':
+                        viz.load_metadata()
+                        viz.visualize(plttitle='attrviz')
+                    # else:
 
-                for attr in ['gender']: #'gender', 'author', 'canon', 'year'
-                    for order in ['olo']:
-                        info = CombinationInfo(mxname=mx.name, cluster_alg=cluster_alg, attr=attr, order=order, param_comb=param_comb)
-                        print(info.as_df())
-                        me = MxExtEval(self.language, mx, clusters, info, param_comb, inteval)
-                        me.evaluate()
+
+
+        # # for mx, cluster_alg in itertools.product(self.mxs, SimmxCluster.ALGS.keys()):
+        # for mx, cluster_alg in itertools.product(self.mxs, ['hierarchical']):
+        #     sc = SimmxCluster(self.language, cluster_alg, mx)
+        #     param_combs = sc.get_param_combinations()
+
+        #     for param_comb in param_combs:
+        #         print(param_comb)
+        #         clusters = sc.cluster(**param_comb)
+        #         inteval = MxIntEval(mx, clusters).evaluate()
+
+        #         # for order in MxReorder.ORDERS:
+        #         for order in ['olo']:
+        #             info = CombinationInfo(mxname=mx.name, cluster_alg=cluster_alg, attr='cluster', order=order, param_comb=param_comb)
+        #             viz = MxViz(self.language, mx, info)
+        #             ee = ExtEval(self.language, 'mx', viz, clusters, info, param_comb, inteval)
+
+        #             # for attr in self.ATTRS:
+        #             for attr in ['gender']:
+        #                     info = CombinationInfo(mxname=mx.name, cluster_alg=cluster_alg, attr=attr, param_comb=param_comb)
+        #                     ee.evaluate(info)
 
 
 
 
     def network_clustering(self):
-        # for mx, spars_mode, cluster_alg in itertools.product(self.mxs.values(), Sparsifier.MODES.keys(), NetworkCluster.ALGS):
-        for mx, spars_mode, cluster_alg in itertools.product(self.mxs.values(), ['threshold'], ['louvain']):
-            print('------------------------', mx.name, spars_mode, cluster_alg)
-            # mx.mx = mx.mx.iloc[:50, :50]
+        for mx, spars_mode, cluster_alg in itertools.product(self.mxs, Sparsifier.MODES.keys(), NetworkCluster.ALGS):
+        # for mx, spars_mode, cluster_alg in itertools.product(self.mxs, ['threshold'], ['louvain']):
             spars_params = Sparsifier.MODES[spars_mode]
             for spars_param in spars_params:
                 sparsifier = Sparsifier(self.language, mx, spars_mode, spars_param)
@@ -116,22 +121,27 @@ class SimilarityClustering(DataHandler):
 
                 nc = NetworkCluster(self.language, cluster_alg, network)
                 param_combs = nc.get_param_combinations()
-                print(param_combs)
                 for param_comb in param_combs:
                     clusters = nc.cluster(**param_comb)
-                
-                    # for attr in self.ATTRS:
-                    for attr in ['gender']: #, 'author', 'canon', 'year']:
-                        info = CombinationInfo(mxname=mx.name, cluster_alg=cluster_alg, attr=attr, param_comb=param_comb)
-                        ne = NkExtEval(self.language, network, clusters, info, param_comb)
-                        ne.evaluate()
-                        print(info.as_df())
+                    inteval = NkIntEval(network, clusters, cluster_alg, param_comb).evaluate()
+                    for prog in NkViz.PROGS:
+                        for attr in self.ATTRS + ['clust']:
+                        # for attr in ['gender']:
+                            info = CombinationInfo(mxname=mx.name, cluster_alg=cluster_alg, prog=prog, attr=attr, param_comb=param_comb)
+                            viz = NkViz(self.language, network, info)
+                            ee = ExtEval(self.language, 'nk', viz, clusters, info, param_comb, inteval)
+                            ee.evaluate()
+
+import time
+mh = MetadataHandler('eng')
+s = time.time()
+x = mh.get_metadata()
+print(f'{time.time()-s} s')
+# sn = SimilarityClustering(language='eng').network_clustering()
+# sn = SimilarityClustering(language='eng').simmx_clustering()
 
 
-
-sn = SimilarityClustering(language='eng').network_clustering()
-
-
+# Attr in networkviz
 # Elbow for internal cluster evaluation
 
 
@@ -150,42 +160,5 @@ sn = SimilarityClustering(language='eng').network_clustering()
 # set all values below eta to 0
 
 
+
 # %%
-# class MxViz(DataHandler):
-#     def _relabel_axis(self):
-#         labels = self.ax.get_ymajorticklabels()
-#         for label in labels:
-#             color = self.file_group_mapping.loc[self.file_group_mapping['file_name'] ==label.get_text(), 'group_color']
-#             label = label.set_color(str(color.values[0]))
-
-
-#     def draw_mds(self, clusters):
-#         print(f'Drawing MDS.')
-#         df = MDS(n_components=2, dissimilarity='precomputed', random_state=6, metric=True).fit_transform(self.mx)
-#         df = pd.DataFrame(df, columns=['comp1', 'comp2'], index=self.mx.index)
-#         df = df.merge(self.file_group_mapping, how='inner', left_index=True, right_on='file_name', validate='one_to_one')
-#         df = df.merge(clusters, how='inner', left_on='file_name', right_index=True, validate='1:1')
-
-#         def _group_cluster_color(row):
-#             color = None
-#             if row['group_color'] == 'b' and row['cluster'] == 0:
-#                 color = 'darkblue'
-#             elif row['group_color'] == 'b' and row['cluster'] == 1:
-#                 color = 'royalblue'
-#             elif row['group_color'] == 'r' and row['cluster'] == 0:
-#                 color = 'crimson'
-#             #elif row['group_color'] == 'r' and row['cluster'] == 0:
-#             else:
-#                 color = 'deeppink'
-#             return color
-
-#         df['group_cluster_color'] = df.apply(_group_cluster_color, axis=1)
-
-
-#         fig = plt.figure(figsize=(5,5))
-#         ax = fig.add_subplot(1,1,1)
-#         plt.scatter(df['comp1'], df['comp2'], color=df['group_cluster_color'], s=2, label="MDS")
-#         plt.title = self.plot_name
-#         self.save(plt, 'kmedoids-MDS', dpi=500)
-
-

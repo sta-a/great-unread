@@ -17,7 +17,7 @@ class Sparsifier():
       MODES = {
             'threshold': [0.9],
             'author': [None],
-            'passthrough': [None]
+            #'passthrough': [None]
       }
 
       '''
