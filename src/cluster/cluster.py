@@ -26,7 +26,6 @@ logging.basicConfig(level=logging.DEBUG)
 # ticker_logger = logging.getLogger('matplotlib.ticker')
 # ticker_logger.setLevel(logging.WARNING)
 
-test = True
 
 class Clusters():
     '''
@@ -37,29 +36,25 @@ class Clusters():
         self.cluster_alg = cluster_alg
         self.mx = mx
         self.initial_clusts = clusters
+        self.logger = logging.getLogger(__name__)
+        self.logger.setLevel(logging.DEBUG)
         self.preprocess()
         self.df = self.as_df()
     
 
     def preprocess(self):
-        # Preprocess self.initial_clusts
+        # Preprocess initial clusters
         if isinstance(self.initial_clusts, np.ndarray):
             self.initial_clusts = self.initial_clusts.tolist()
 
         if self.cluster_alg == 'dbscan' and all(element == -1 for element in self.initial_clusts):
-            self.logger.error(f'DBSCAN only returns noisy samples with value -1.')
-
-        if all(isinstance(cluster, int) for cluster in self.initial_clusts):
-            self.type = 'intlist'
-        elif all(isinstance(cluster, set) for cluster in self.initial_clusts):
-            self.type = 'setlist'
-        else:
-            raise ValueError('The format of the clusters is neither a list of integers nor a list of sets.')
+            self.logger.info(f'DBSCAN only returns noisy samples with value -1.')
 
 
     def as_df(self):
         # sklearn
-        if self.type == 'intlist':
+        # List of ints
+        if all(isinstance(cluster, int) for cluster in self.initial_clusts):
             # Zip file names and cluster assingments
             assert (self.mx.mx.columns == self.mx.mx.index).all()
             clusters = dict(zip(self.mx.mx.index, self.initial_clusts))
@@ -68,10 +63,10 @@ class Clusters():
             cluster_counts = clusters['cluster'].value_counts()
             label_mapping = {label: rank for rank, (label, count) in enumerate(cluster_counts.sort_values(ascending=False).items())}
             clusters['cluster'] = clusters['cluster'].map(label_mapping)
-
-
-        # nx.louvain_communities
-        elif self.type == 'setlist':
+            
+        # nx
+        # List of sets
+        elif all(isinstance(cluster, set) for cluster in self.initial_clusts):
             # Sort the sets by length in descending order
             sorted_sets = sorted(self.initial_clusts, key=len, reverse=True)
 
@@ -82,6 +77,9 @@ class Clusters():
 
             clusters = pd.DataFrame(data)
 
+        else:
+            raise ValueError('The format of the clusters is neither a list of integers nor a list of sets.')
+        
         clusters = clusters.set_index('file_name')
         clusters = clusters.sort_index()
         return clusters
@@ -90,8 +88,9 @@ class Clusters():
 class ClusterBase():
     ALGS = None
 
-    def __init__(self, language=None, cluster_alg=None):
+    def __init__(self, language=None, mx=None, cluster_alg=None):
         self.language = language
+        self.mx = mx
         self.cluster_alg = cluster_alg
         self.attr_params = {'gender': 2, 'author': self.get_nr_authors()}
         self.n_jobs = -1
@@ -123,10 +122,11 @@ class ClusterBase():
     def cluster(self, **kwargs):
         # Get method name, which is the same as the name of the clustering algorithm
         method = getattr(self, self.cluster_alg)
+        start = time.time()
         clusters = method(**kwargs)
+        print(f'{time.time()-start}s to calculate alg:{self.cluster_alg} clusters.')
 
         clusters = Clusters(self.cluster_alg, self.mx, clusters)
-        
 
         if clusters.df['cluster'].nunique() == 1:
             clusters = None
@@ -156,27 +156,9 @@ class SimmxCluster(ClusterBase):
             },
     }
 
-    if test:
-        ALGS = {
-            'hierarchical': {
-                'nclust': [2],
-                'method': ['single'],
-                },
-            'spectral': {
-                'nclust': [2],
-                },
-            'kmedoids': {
-                'nclust': [2],
-                },
-            'dbscan': {
-                'eps': [0.01],
-                'min_samples': [5],
-                },
-        }
 
     def __init__(self, language=None, cluster_alg=None, mx=None):
-        super().__init__(language=language, cluster_alg=cluster_alg)
-        self.mx = mx
+        super().__init__(language=language, mx=mx, cluster_alg=cluster_alg)
     
 
     def spectral(self, **kwargs):
@@ -213,34 +195,28 @@ class SimmxCluster(ClusterBase):
 
 
 class NetworkCluster(ClusterBase):
-    ALGS = {'girvan': {
-                'noparam': [None], # Girvan, Newman (2002): Community structure in social and biological networks
-            },            
-            'lpa': {
-                'noparam': [None],
+    ALGS = {
+        # 'girvan': { # Too slow
+        #     'noparam': [None], # Girvan, Newman (2002): Community structure in social and biological networks
+        #     },            
+        'alpa': {
+            'noparam': [None],
             },
-            'louvain': {
-                'resolution': [100, 10, 1, 0.1, 0.01],
+        'louvain': {
+            'resolution': [100, 10, 1, 0.1, 0.01],
             },
     }
 
-    if test:
-        ALGS = {'girvan': {},           
-                'lpa': {},
-                'louvain': {
-                    'resolution': [1],
-                },
-        }
 
     def __init__(self, language, cluster_alg, network):
-        super().__init__(language, cluster_alg)
         self.network = network
         self.graph = network.graph
+        super().__init__(language=language, mx=network.mx, cluster_alg=cluster_alg)
         # for edge in self.graph.edges(data=True):
         #     source, target, weight = edge
         #     print(f"Edge: {source} - {target}, Weight: {weight['weight']}")
 
-    def lpa(self, **kwargs):
+    def alpa(self, **kwargs):
         return list(asyn_lpa_communities(self.graph))
 
     def louvain(self, **kwargs):

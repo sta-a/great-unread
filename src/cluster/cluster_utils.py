@@ -3,29 +3,36 @@
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
+import numpy as np
+from typing import List
 import colorcet as cc
 import itertools
 import sys
 sys.path.append("..")
 from sklearn.preprocessing import minmax_scale
 from copy import deepcopy
+from matplotlib import markers
 from utils import DataHandler, DataLoader, TextsByAuthor
 
 import logging
 logging.basicConfig(level=logging.DEBUG)
 # Suppress logger messages by 'matplotlib.ticker
 # Set the logging level to suppress debug output
-ticker_logger = logging.getLogger('matplotlib.ticker')
-ticker_logger.setLevel(logging.WARNING)
+# ticker_logger = logging.getLogger('matplotlib.ticker')
+# ticker_logger.setLevel(logging.WARNING)
 
 class MetadataHandler(DataHandler):
     def __init__(self, language):
         super().__init__(language, output_dir='similarity', data_type='png')
 
 
-    def get_metadata(self):
-        canon = DataLoader(self.language).prepare_metadata(type='canon')
+    def get_metadata(self, add_color=True):
         gender = DataLoader(self.language).prepare_metadata(type='gender')
+        gender = gender[['gender']]
+        gender['gender'] = gender['gender'].map({'m': 0, 'f': 1, 'a': 2, 'b': 3})
+
+        canon = DataLoader(self.language).prepare_metadata(type='canon')
+
         features = DataLoader(self.language).prepare_features()
 
         author_filename_mapping = TextsByAuthor(self.language).author_filename_mapping
@@ -40,59 +47,77 @@ class MetadataHandler(DataHandler):
 
 
         # Merge dataframes based on their indices
-        df_list = [canon, gender, features, author, year]
-        merged_df = pd.DataFrame()
+        df_list = [gender, author, year, canon, features]
+        metadf = pd.DataFrame()
         for df in df_list:
-            if merged_df.empty:
-                merged_df = df
+            if metadf.empty:
+                metadf = df
             else:
-                merged_df = pd.merge(merged_df, df, left_index=True, right_index=True, how='inner', validate='1:1')
+                metadf = pd.merge(metadf, df, left_index=True, right_index=True, how='inner', validate='1:1')
 
-        assert len(merged_df) == self.nr_texts
-        return merged_df
+        assert len(metadf) == self.nr_texts
 
-    # def get_metadata(self):
-    #     if self.attr == 'canon':
-    #         df = DataLoader(self.language).prepare_metadata(type=self.attr)
-    #     # discretize
-    #     # file_group_mapping['scores'].apply(lambda x: 'r' if x > threshold else 'b')
+        if add_color:
+            cm = ColorMap(metadf)
+            for col in metadf.columns:
+                cm.add_color_column(col)
+            metadf = cm.metadf
+        return metadf
 
-    #     elif self.attr == 'gender':
-    #         df = DataLoader(self.language).prepare_metadata(type=self.attr)
-
-    #     elif self.attr == 'features':
-    #         df = DataLoader(self.language).prepare_features() # file name is index
-
-    #     elif self.attr == 'author':
-    #         author_filename_mapping = TextsByAuthor(self.language).author_filename_mapping
-    #         df = pd.DataFrame([(author, work) for author, works in author_filename_mapping.items() for work in works],
-    #                         columns=['author', 'file_name'])
-    #         df = df.set_index('file_name', inplace=False)
-
-    #     elif self.attr == 'year':
-    #         fn = [os.path.splitext(f)[0] for f in os.listdir(self.text_raw_dir) if f.endswith('.txt')]
-    #         df = pd.DataFrame({'file_name': fn})
-    #         df['year'] = df['file_name'].str[-4:].astype(int)
-    #         df = df.set_index('file_name', inplace=False)
-        
-    #     return df
     
     
-    def add_color(self, df, attr, col_name=None):
-        # Add color column
-        self.cm = ColorMap(df, attr, col_name)
-        df = self.cm.get_color_map()
+    def add_color_to_df(self, metadf, colname):
+        # Add a color column to a df
+        self.cm = ColorMap(metadf)
+        metadf = self.cm.add_color_column(colname)
+        metadf = self.cm.metadf
 
-        assert len(df) == self.nr_texts
-        return df
+        assert len(metadf) == self.nr_texts
+        return metadf
     
+    
+    def add_shape_to_df(self, metadf):
+        # Add a shape column for the cluster column
+        self.cm = ShapeMap(metadf)
+        metadf = self.cm.add_shape_column()
+        metadf = self.cm.metadf
+
+        assert len(metadf) == self.nr_texts
+        return metadf
+
+
+class ShapeMap():
+    # Available shapes in nx
+    SHAPES = {'nx': ['egg', 'invtrapezium', 'star', 'cylinder', 'cds', 'terminator', 'box', 'tripleoctagon','Mdiamond', 'Mcircle', 'Mdiamond', 'Mcircle', 'Msquare', 'circle', 'diamond', 'doublecircle', 'doubleoctagon', 'ellipse', 'hexagon', 'house', 'invhouse', 'invtriangle', 'none', 'octagon', 'oval', 'parallelogram', 'pentagon', 'plaintext', 'point', 'polygon', 'rectangle', 'septagon', 'square', 'tab', 'trapezium', 'triangle'],
+              'plt': ['o', 'x', '*', 'd', '+', 'p', '<', 'P', '_', '3', 'H', '>', '|', 's', '1', 'v', 'h', '8', '2', 'D', '4', 'X', '^']}
+    
+    def __init__(self, metadf):
+        self.metadf = metadf
+        self.logger = logging.getLogger(__name__)
+        self.logger.setLevel(logging.DEBUG)
+
+    def add_shape_column(self):
+        self.map_list(lst='nx')
+        self.map_list(lst='plt')
+
+    def map_list(self, lst):
+        # Map each cluster to a shape. 
+        # Cluster with label 0 is mapped to the first list element, label 1 to the second element, and so on.
+        # If end of the list is reached, start from the beginning of the list.
+
+        # Map clusters to indices in the SHAPES list
+        self.metadf[f'clst_shape_{lst}'] = self.metadf['cluster'] % len(self.SHAPES[lst])
+        # Map indices to shapes
+        self.metadf[f'clst_shape_{lst}'] = self.metadf[f'clst_shape_{lst}'].apply(lambda x: self.SHAPES[lst][x])
+        if self.metadf['cluster'].nunique() > len(self.SHAPES[lst]):
+            self.logger.warning(f'Number of unique elements in "cluster" exceeds the number of shapes in SHAPES list. Different clusters have the same shape.')
+
 
 class Colors():
     def __init__(self):
         # Lut: the number of colors that are generated from the color map
-        # Set to a high value to get a new color for values that are close together
-        self.cmap = plt.cm.get_cmap('BuPu', lut=10000) # gist_yarg
-
+        # Set to a high value to get a different color for values that are close together
+        self.cmap = plt.cm.get_cmap('coolwarm', lut=10000) # gist_yarg
 
     @staticmethod
     def get_colors_discrete():
@@ -106,6 +131,8 @@ class Colors():
         '''
         val: Number between 0 and 1
         '''
+        if pd.isna(val):
+            return 'green'
         color = self.cmap(val)
         return color
     
@@ -116,128 +143,83 @@ class Colors():
 
 class ColorMap(Colors):
     '''
-    Map the column with name 'attr' of metadf to a color.
-    'attr' is either a metadata attribute (gender, author etc.), or the cluster assingments.
+    Map a column of metadf to a color.
+    The columns is either a metadata attribute (gender, author etc.), or the cluster assingments.
     '''
-    def __init__(self, metadf, attr, col_name):
+    def __init__(self, metadf, pgv=False):
         super().__init__()
         self.metadf = metadf
-        self.attr = attr
-        self.col_name = col_name
-        if self.col_name is None:
-            self.col_name = self.attr
-        self.pgv = False
+        self.pgv = pgv
 
 
-    def get_color_map(self):
-        if self.attr == 'gender':
-            self.map_gender()
-        elif (self.attr == 'cluster') or (self.attr == 'author'):
-            self.map_categorical()
-        elif (self.attr == 'canon') or (self.attr == 'year') or (self.attr == 'features'):
-            self.map_continuous()
-
-        # Color column contains unhashable lists
-        # Convert to tuples
-        color_col = self.metadf['color'].apply(tuple)
-        assert self.metadf[self.col_name].nunique() == color_col.nunique()
+    def add_color_column(self, colname):
+        if colname == 'gender':
+            self.map_gender(colname)
+        elif (colname == 'cluster') or (colname == 'author'):
+            self.map_categorical(colname)
+        else:
+            self.map_continuous(colname)
 
         # Transform format so it is compatible with pgv
         if self.pgv:
-            self.metadf['color'] = self.metadf['color'].apply(self.color_for_pygraphviz)
-
-        return self.metadf
+            self.metadf[f'{colname}_color'] = self.metadf[f'{colname}_color'].apply(self.color_for_pygraphviz)
 
 
-    def map_gender(self):
-        gender_color_map = {'f': 'red', 'm': 'blue', 'b': 'yellow', 'a': 'lightgreen'}
-        self.metadf['color'] = self.metadf['gender'].map(gender_color_map)
+    def map_gender(self, colname):
+        gender_color_map = {0: 'blue', 1: 'red', 2: 'lightgreen', 3: 'yellow'}
+        self.metadf[f'{colname}_color'] = self.metadf['gender'].map(gender_color_map)
     
-    def map_categorical(self):
-        self.metadf['color'] = self.metadf[self.col_name].map(dict(zip(sorted(self.metadf[self.col_name].unique()), self.get_colors_discrete())))
+    def map_categorical(self, colname):
+        self.metadf[f'{colname}_color'] = self.metadf[colname].map(dict(zip(sorted(self.metadf[colname].unique()), self.get_colors_discrete())))
 
-    def map_continuous(self):
+    def map_continuous(self, colname):
         # Scale values so that lowest value is 0 and highest value is 1
-        scaled_col = minmax_scale(self.metadf[self.col_name])
-        self.metadf['color'] = pd.Series(scaled_col).apply(self.get_colors_sequential)
-    
-
-class ShapeMap():
-    # Available shapes in nx
-    SHAPES = ['egg', 'invtrapezium', 'star', 'cylinder', 'cds', 'terminator', 'box', 'tripleoctagon','Mdiamond', 'Mcircle', 'Mdiamond', 'Mcircle', 'Msquare', 'circle', 'diamond', 'doublecircle', 'doubleoctagon', 'ellipse', 'hexagon', 'house', 'invhouse', 'invtriangle', 'none', 'octagon', 'oval', 'parallelogram', 'pentagon', 'plaintext', 'point', 'polygon', 'rectangle', 'septagon', 'square', 'tab', 'trapezium', 'triangle']
-    
-    def __init__(self, metadf):
-        self.metadf = metadf
-
-    def map_shape(self):
-        # Map each cluster to a shape. 
-        # Cluster with label 0 is mapped to the first list element, label 1 to the second element, and so on.
-        # If end of the list is reached, start from the beginning of the list.
-
-        # Map clusters to shapes
-        self.metadf['shape'] = self.metadf['cluster'] % len(self.SHAPES)
-        self.metadf['shape'] = self.metadf['shape'].apply(lambda x: self.SHAPES[x])
-        return self.metadf
-
+        scaled_col = pd.Series(minmax_scale(self.metadf[colname]))
+        color_col = scaled_col.apply(self.get_colors_sequential)
+        self.metadf = self.metadf.assign(newcol=color_col.values).rename(columns={'newcol': f'{colname}_color'})
 
 
 class CombinationInfo:
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
+        self.omit_default = ['metadf', 'param_comb', 'spars_param', 'omit_default']
+        self.extra = '' # Store additional information
         if 'param_comb' in kwargs:
-            self.param_comb = self.paramcomb_to_string(self.param_comb)
+            self.paramcomb_to_string()
 
-    def paramcomb_to_string(self, param_comb):
-        return '-'.join([f'{key}-{value}' for key, value in param_comb.items()])
+        if 'spars' in kwargs and 'spars_param' in kwargs:
+            self.spars_to_string()
 
-    def as_string(self, omit=None):
-        if omit is None:
-            omit = []
-        return '_'.join(str(value) for key, value in self.__dict__.items() if key not in omit)
+    def spars_to_string(self):
+        self.spars = f'{self.spars}-{str(self.replace_dot(self.spars_param))}'
 
-    def as_df(self):
-        # data = {key: [value] for key, value in self.__dict__.items()}
-        # return pd.DataFrame([data], index=[0])
-        return pd.DataFrame([vars(self)], index=[0])
+    def paramcomb_to_string(self):
+        if bool(self.__dict__['param_comb']):
+            self.params = '-'.join([f'{key}-{self.replace_dot(value)}' for key, value in self.param_comb.items()])
+
+    def replace_dot(self, value):
+        # Use '%' to mark dot in float
+        if isinstance(value, float):
+            return str(value).replace('.', '%')
+        return value
+
+    def as_string(self, omit: List[str] = []):
+        omit_lst = self.omit_default + ['extra'] + omit
+
+        filtered_values = []
+        for key, value in self.__dict__.items():
+            if key not in omit_lst:
+                if value is not None and (not isinstance(value, dict)):
+                    filtered_values.append(str(self.replace_dot(value)))
+
+        return '_'.join(filtered_values)
+    
+    def as_df(self, omit: List[str] = []):
+        omit_lst = self.omit_default + omit
+        data = {key: value for key, value in self.__dict__.items() if key not in omit_lst}
+        return pd.DataFrame([data], index=[0])
 
     def as_dict(self):
         return self.__dict__
     
 
-
-# %%
-# class MxViz(DataHandler):
-
-
-#     def draw_mds(self, clusters):
-#         print(f'Drawing MDS.')
-#         df = MDS(n_components=2, dissimilarity='precomputed', random_state=6, metric=True).fit_transform(self.mx)
-#         df = pd.DataFrame(df, columns=['comp1', 'comp2'], index=self.mx.index)
-#         df = df.merge(self.file_group_mapping, how='inner', left_index=True, right_on='file_name', validate='one_to_one')
-#         df = df.merge(clusters, how='inner', left_on='file_name', right_index=True, validate='1:1')
-
-#         def _group_cluster_color(row):
-#             color = None
-#             if row['group_color'] == 'b' and row['cluster'] == 0:
-#                 color = 'darkblue'
-#             elif row['group_color'] == 'b' and row['cluster'] == 1:
-#                 color = 'royalblue'
-#             elif row['group_color'] == 'r' and row['cluster'] == 0:
-#                 color = 'crimson'
-#             #elif row['group_color'] == 'r' and row['cluster'] == 0:
-#             else:
-#                 color = 'deeppink'
-#             return color
-
-#         df['group_cluster_color'] = df.apply(_group_cluster_color, axis=1)
-
-
-#         fig = plt.figure(figsize=(5,5))
-#         ax = fig.add_subplot(1,1,1)
-#         plt.scatter(df['comp1'], df['comp2'], color=df['group_cluster_color'], s=2, label="MDS")
-#         plt.title = self.plot_name
-#         self.save(plt, 'kmedoids-MDS', dpi=500)
-
-
-
-# %%

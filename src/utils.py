@@ -238,8 +238,11 @@ class DataHandler():
         raise NotImplementedError
     
 
-    def save_data(self, data, file_name=None, **kwargs):
-        file_path  = self.get_file_path(file_name, **kwargs)
+    def save_data(self, data, file_name=None, file_path=None, **kwargs):
+        assert (file_name is not None and file_path is None) or (file_name is None and file_path is not None), \
+            "Either 'file_name' or 'file_path' must be provided, and the other should be None."
+        if file_name is not None:
+            file_path  = self.get_file_path(file_name, **kwargs)
         dir_path = Path(file_path).parent
         if not os.path.exists(dir_path):
             Path(dir_path).mkdir(parents=True, exist_ok=False)
@@ -250,21 +253,16 @@ class DataHandler():
         data_type = self.get_custom_datatype(file_name_or_path=file_path, **kwargs)
 
         if data_type == 'csv':
-            kwargs_dict = {'index': False, 'na_rep': np.nan, 'sep': ',', 'header': True}
-            if 'pandas_kwargs' in kwargs:
-                pandas_kwargs = kwargs['pandas_kwargs']
-                kwargs_dict.update(pandas_kwargs)
-
+            # Default parameters, update if pandas_kwargs is passed 
+            kwargs_dict = {'index': False, 'na_rep': np.nan, 'sep': ',', 'header': True, **kwargs.get('pandas_kwargs', {})}
             data.to_csv(file_path, **kwargs_dict)
 
         elif data_type == 'pkl':
             joblib.dump(data, file_path)
 
-        elif data_type == 'svg':
-            data.savefig(file_path, format='svg')
-
-        elif data_type == 'png':
-            data.savefig(file_path, format='png')
+        elif data_type == 'svg' or data_type == 'png':
+            kwargs_dict = {'dpi': 300, **kwargs.get('plt_kwargs', {})}
+            data.savefig(file_path, format=data_type, **kwargs_dict)
 
         elif data_type == 'npz':
             np.savez(file_path, data)
@@ -950,8 +948,9 @@ class DataLoader(DataHandler):
                 
 
                 # print(df['gender'].value_counts())
-                assert df['gender'].isin(['f', 'm', 'a', 'b']).all()
+                assert df['gender'].isin(['m', 'f', 'a', 'b']).all()
                 assert not df.isna().any().any()
+                self.logger.info(f"Returning gender as strings ('m', 'f', 'a', 'b').")
                 
         df = df.set_index('file_name', inplace=False)
         assert len(df) == self.nr_texts
@@ -976,11 +975,6 @@ class DataLoader(DataHandler):
         return df
     
 
-
-
-
-# mh = MetadataChecks('eng').run()
-# dl = DataLoader('ger').prepare_metadata('gender')
 
 
 

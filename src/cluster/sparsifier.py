@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import copy
+import time
 import sys
 sys.path.append("..")
 from utils import TextsByAuthor
@@ -37,6 +38,7 @@ class Sparsifier():
             return mx
 
       def sparsify(self):
+            start = time.time()
             mx = copy.deepcopy(self.mx.mx)
             if self.mode == 'threshold':
                   mx = self.filter_threshold(mx)
@@ -50,6 +52,7 @@ class Sparsifier():
             elif self.mode == 'passthrough':
                   # Return unchanged matrix
                   simmx = self.simmx
+            print(f'{time.time()-start}s to sparsify with {self.mode}-{self.spars_param}.')
             return simmx
 
       def filter_threshold(self, mx):
@@ -57,7 +60,9 @@ class Sparsifier():
             threshold = np.quantile(a=vals, q=self.spars_param)
             mx[mx<threshold] = 0
             # mx = self.set_diagonal(mx, 0)
-            print(f'Threshold: {threshold}. Nr vals before filtering: {mx.shape[0]**2}. Nr vals after filtering: {np.count_nonzero(mx.values)}.')
+            print(f'Threshold: {threshold}.')
+            print(f'Nr vals before filtering: {mx.shape[0]**2}.')
+            print(f'Nr vals after filtering: {np.count_nonzero(mx.values)}.')
             return mx
 
       def filter_min_author_similarity(self, mx):

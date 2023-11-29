@@ -32,12 +32,10 @@ class MxReorder():
 
     ORDERS = ['fn', 'olo']
 
-    def __init__(self, language, mx, info, metadf):
+    def __init__(self, language, mx, info):
         self.language = language
         self.mx = mx
         self.info = info
-        self.attr = self.info.attr
-        self.metadf = metadf
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.DEBUG)
 
@@ -46,6 +44,7 @@ class MxReorder():
         order_methods = {
             'fn': self.order_fn,
             'olo': self.order_olo,
+            'continuous': self.order_cont,
         }
 
         if self.info.order in order_methods:
@@ -60,22 +59,27 @@ class MxReorder():
         assert ordmx.index.equals(ordmx.columns), 'Index and columns of ordmx must be equal.'
 
         return ordmx
+    
+    def order_cont(self):
+        df = self.info.metadf.copy(deep=True)
+        file_names = df.sort_values(by=self.info.attr).index.tolist()
+        return self.mx.mx.loc[file_names, file_names]
 
     def order_fn(self):
         # Sort rows and columns of each cluster (respectively attribute value) according to file name, which starts with the name of the author
         ordmxs = []
 
         # Get index labels belonging to the current cluster
-        for cluster in self.metadf[self.attr].unique():
-            file_names = self.metadf[self.metadf[self.attr] == cluster].index.tolist()
+        for cluster in self.info.metadf[self.info.attr].unique():
+            file_names = self.info.metadf[self.info.metadf[self.info.attr] == cluster].index.tolist()
 
             df = self.mx.mx.loc[:, file_names].sort_index(axis=1)
             ordmxs.append(df)
         ordmx = pd.concat(ordmxs, axis=1)
 
         ordmxs = []
-        for cluster in self.metadf[self.attr].unique():
-            file_names = self.metadf[self.metadf[self.attr] == cluster].index.tolist()
+        for cluster in self.info.metadf[self.info.attr].unique():
+            file_names = self.info.metadf[self.info.metadf[self.info.attr] == cluster].index.tolist()
             df = ordmx.loc[file_names, :].sort_index(axis=0)
             ordmxs.append(df)
         ordmx = pd.concat(ordmxs, axis=0)
@@ -85,13 +89,13 @@ class MxReorder():
     def order_olo(self):
         ordered_fns = []
         # Get unique cluster lables, sorted from rarest to most common label
-        unique_clust = self.metadf[self.attr].value_counts().sort_values().index.tolist()
+        unique_clust = self.info.metadf[self.info.attr].value_counts().sort_values().index.tolist()
 
         # Iterate over unique attribute values
         for cluster in unique_clust:
 
             # Extract file names for the current cluster
-            file_names = self.metadf[self.metadf[self.attr] == cluster].index.tolist()
+            file_names = self.info.metadf[self.info.metadf[self.info.attr] == cluster].index.tolist()
 
             # If 1 or 2 elements in cluster, order doesn't matter
             if len(file_names) <=2:
@@ -119,8 +123,6 @@ class MxReorder():
         assert (ordmx.mx.shape[0] == nr_texts) and (ordmx.mx.shape[1] == nr_texts) 
 
         # Reorder the final matrix based on the optimal order of clusters ############################
-
-        self.logger.info(f'OLO matrix reorder.')
         return ordmx
 
 
@@ -129,119 +131,131 @@ class MxViz(DataHandler):
         super().__init__(language, output_dir='similarity', data_type='png')
         self.mx = mx
         self.info = info
-        self.attr=self.info.attr
         self.n_jobs = -1
 
-        self.metadf = None
+        self.colname = f'{self.info.attr}_color'
         self.add_subdir('mxviz')
 
-    def load_metadata(self):
-        mh = MetadataHandler(language = self.language, attr=self.attr)
-        metadf = mh.get_metadata()
-        metadf = mh.add_color(metadf, self.attr)
-        self.metadf = metadf
 
-    def set_metadf(self, metadf):
+    def set_info(self, info):
         # Set metadf from outside class
-        self.metadf = metadf
+        self.info = info
+        self.colname = f'{self.info.attr}_color'
 
-    def visualize(self, plttitle):
-        if isinstance(plttitle, pd.DataFrame):
-            plttitle = ', '.join([f'{col}: {val}' for col, val in plttitle.iloc[0].items()])
-        self.draw_heatmap(plttitle)
-        self.draw_mds(plttitle)
+    def visualize(self, pltname, plttitle=None):
+        if pltname == 'evalviz':
+            fig = plt.figure(constrained_layout=True, figsize=(8,8))
+            ax1 = fig.add_subplot(2, 2, 1)
+            ax2 = fig.add_subplot(2, 2, 2)
+            ax3 = fig.add_subplot(2, 2, 3, projection='3d')
+            ax4 = fig.add_subplot(2, 2, 4, projection='3d')
 
-
-    def draw_mds(self, plttitle):
-        # Apply classical MDS
-        mds_2d = MDS(n_components=2, dissimilarity='precomputed', normalized_stress='auto', n_jobs=self.n_jobs, random_state=8)
-        X_mds_2d = mds_2d.fit_transform(self.mx.dmx)
-
-        # Apply non-metric MDS
-        nonmetric_mds_2d = MDS(n_components=2, metric=False, dissimilarity='precomputed', normalized_stress='auto', n_jobs=self.n_jobs, random_state=8)
-        X_nonmetric_mds_2d = nonmetric_mds_2d.fit_transform(self.mx.dmx)
-
-        # Apply classical MDS in 3D
-        mds_3d = MDS(n_components=3, dissimilarity='precomputed', normalized_stress='auto', n_jobs=self.n_jobs, random_state=8)
-        X_mds_3d = mds_3d.fit_transform(self.mx.dmx)
-
-        # Apply non-metric MDS in 3D
-        nonmetric_mds_3d = MDS(n_components=3, metric=False, dissimilarity='precomputed', normalized_stress='auto', n_jobs=self.n_jobs, random_state=8)
-        X_nonmetric_mds_3d = nonmetric_mds_3d.fit_transform(self.mx.dmx)
-
-        # Visualize results in a single plot with four subplots
-        fig = plt.figure(figsize=(16, 12))
-
-        # 2D Classical MDS
-        ax1 = fig.add_subplot(2, 2, 1)
-        ax1.scatter(X_mds_2d[:, 0], X_mds_2d[:, 1], c=self.metadf.loc[self.mx.dmx.index, 'color'])
-        ax1.set_title('Classical MDS (2D)')
-
-        # 2D Non-metric MDS
-        ax2 = fig.add_subplot(2, 2, 2)
-        ax2.scatter(X_nonmetric_mds_2d[:, 0], X_nonmetric_mds_2d[:, 1], c=self.metadf.loc[self.mx.dmx.index, 'color'])
-        ax2.set_title('Non-metric MDS (2D)')
-
-        # 3D Classical MDS
-        ax3 = fig.add_subplot(2, 2, 3, projection='3d')
-        ax3.scatter(X_mds_3d[:, 0], X_mds_3d[:, 1], X_mds_3d[:, 2], c=self.metadf.loc[self.mx.dmx.index, 'color'])
-        ax3.set_title('Classical MDS (3D)')
-
-        # 3D Non-metric MDS
-        ax4 = fig.add_subplot(2, 2, 4, projection='3d')
-        ax4.scatter(X_nonmetric_mds_3d[:, 0], X_nonmetric_mds_3d[:, 1], X_nonmetric_mds_3d[:, 2], c=self.metadf.loc[self.mx.dmx.index, 'color'])
-        ax4.set_title('Non-metric MDS (3D)')
-
-        # Set super title for the entire plot
+        else:
+            fig = plt.figure(constrained_layout=True, figsize=(16,8))
+            gs = fig.add_gridspec(2,4)
+            ax1 = fig.add_subplot(gs[0, 0])
+            ax2 = fig.add_subplot(gs[0, 1])
+            ax3 = fig.add_subplot(gs[1, 0], projection='3d')
+            ax4 = fig.add_subplot(gs[1, 1], projection='3d')
+            ax5 = fig.add_subplot(gs[:, 2:])
+            self.draw_heatmap(ax5)
+            
+        self.draw_mds(pltname, ax1, ax2, ax3, ax4)
         fig.suptitle(plttitle)
-
-        # Save the plot
-        self.save_data(data=fig, subdir=True, file_name=f'mds-{self.info.as_string()}.{self.data_type}')
-
-        plt.show()
+        self.save_data(data=fig, subdir=True, file_name=f'{pltname}-{self.info.as_string()}.{self.data_type}', plt_kwargs={'dpi': 300})
 
 
-    def draw_heatmap(self, plttitle):
-        # Draw heatmap
-        ordmx = MxReorder(self.language, self.mx, self.info, self.metadf).order()
+    def draw_mds(self, pltname, ax1, ax2, ax3, ax4):
+            # Store layouts because it takes a lot of time to calculate them
+            pkl_path = self.get_file_path(file_name=f'mds-{self.mx.name}.pkl', subdir=True) 
+            if os.path.exists(pkl_path):
+                with open(pkl_path, 'rb') as f:
+                    df = pickle.load(f)
  
+            else:
+                # Apply classical MDS
+                mds_2d = MDS(n_components=2, dissimilarity='precomputed', normalized_stress='auto', n_jobs=self.n_jobs, random_state=8)
+                X_mds_2d = mds_2d.fit_transform(self.mx.dmx)
+
+                # Apply non-metric MDS
+                nonmetric_mds_2d = MDS(n_components=2, metric=False, dissimilarity='precomputed', normalized_stress='auto', n_jobs=self.n_jobs, random_state=8)
+                X_nonmetric_mds_2d = nonmetric_mds_2d.fit_transform(self.mx.dmx)
+
+                # Apply classical MDS in 3D
+                mds_3d = MDS(n_components=3, dissimilarity='precomputed', normalized_stress='auto', n_jobs=self.n_jobs, random_state=8)
+                X_mds_3d = mds_3d.fit_transform(self.mx.dmx)
+
+                # Apply non-metric MDS in 3D
+                nonmetric_mds_3d = MDS(n_components=3, metric=False, dissimilarity='precomputed', normalized_stress='auto', n_jobs=self.n_jobs, random_state=8)
+                X_nonmetric_mds_3d = nonmetric_mds_3d.fit_transform(self.mx.dmx)
+
+
+                df = pd.DataFrame({
+                    'X_mds_2d_0': X_mds_2d[:, 0],
+                    'X_mds_2d_1': X_mds_2d[:, 1],
+                    'X_nonmetric_mds_2d_0': X_nonmetric_mds_2d[:, 0],
+                    'X_nonmetric_mds_2d_1': X_nonmetric_mds_2d[:, 1],
+                    'X_mds_3d_0': X_mds_3d[:, 0],
+                    'X_mds_3d_1': X_mds_3d[:, 1],
+                    'X_mds_3d_2': X_mds_3d[:, 2],
+                    'X_nonmetric_mds_3d_0': X_nonmetric_mds_3d[:, 0],
+                    'X_nonmetric_mds_3d_1': X_nonmetric_mds_3d[:, 1],
+                    'X_nonmetric_mds_3d_2': X_nonmetric_mds_3d[:, 2],
+                    })
+
+                with open(pkl_path, 'wb') as f:
+                    pickle.dump(df, f)
+
+            df = df.assign(color=self.info.metadf.loc[self.mx.dmx.index, self.colname].values)
+            df = df.assign(shape=['o']*len(self.mx.dmx))
+            if pltname == 'evalviz':
+                df = df.assign(shape=self.info.metadf.loc[self.mx.dmx.index, 'clst_shape_plt'].values)
+
+            start = time.time()
+            for shape in df['shape'].unique():
+                sdf = df[df['shape'] == shape]
+                kwargs = {'c': sdf['color'], 'marker': shape, 's': 10}
+                ax1.scatter(sdf['X_mds_2d_0'], sdf['X_mds_2d_1'], **kwargs)
+                ax2.scatter(sdf['X_nonmetric_mds_2d_0'], sdf['X_nonmetric_mds_2d_1'], **kwargs)
+                ax3.scatter(sdf['X_mds_3d_0'], sdf['X_mds_3d_1'], sdf['X_mds_3d_2'], **kwargs)
+                ax4.scatter(sdf['X_nonmetric_mds_3d_0'], sdf['X_nonmetric_mds_3d_1'], sdf['X_nonmetric_mds_3d_2'], **kwargs)
+            print(f'{time.time()-start}s to make mds plots with iteration')
+
+            ax1.set_title('Classical MDS (2D)')
+            ax2.set_title('Non-metric MDS (2D)')
+            ax3.set_title('Classical MDS (3D)')
+            ax4.set_title('Non-metric MDS (3D)')
+
+
+
+    def draw_heatmap(self, ax5):
+        # Draw heatmap
+        ordmx = MxReorder(self.language, self.mx, self.info).order()
+
         # hot_r, viridis, plasma, inferno
         # ordmx = np.triu(ordmx) ####################
-        plt.imshow(ordmx, cmap='plasma', interpolation='nearest')
-        plt.axis('off')  # Remove the axis/grid
+        im = ax5.imshow(ordmx, cmap='RdBu', interpolation='nearest')
+        ax5.axis('off')  # Remove the axis/grid
 
         # Add a color bar to the heatmap for better understanding of the similarity values
-        plt.colorbar()
-
-        # Add axis labels and title (optional)
-        # plt.xlabel('Data Points')
-        # plt.ylabel('Data Points')
-
-        plt.title(plttitle, fontsize=8)
-
-        self.save_data(data=plt, subdir=True, file_name=f'heatmap-{self.info.as_string()}.{self.data_type}')
-        plt.close()
-    
+        cbar = plt.colorbar(im, ax=ax5, fraction=0.05, pad=0.1)
 
 
 class NkViz(DataHandler):
-    # PROGS = ['fdp', 'dot', 'neato', 'sfdp', 'circo', 'twopi', 'osage']
-    PROGS = ['fdp']
+    PROGS = ['neato', 'sfdp'] # dot (for directed graphs), circo,  'twopi', 'osage', fdp
 
     def __init__(self, language, network, info):
-        super().__init__(language, output_dir='similarity', data_type='svg')
+        super().__init__(language, output_dir='similarity', data_type='png')
         self.network = network
         self.graph = self.network.graph
         self.info = info
-        self.attr=self.info.attr
         self.prog = self.info.prog
 
         self.add_subdir('nkviz')
         self.logger.info(f'Drawing graph for {self.info.as_string()}')
 
-    def set_metadf(self, metadf):
-        self.metadf = metadf
-        assert 'color' in self.metadf.columns
+    def set_info(self, info):
+        self.info = info
      
 
     def save_graphml(self, node_colors, pos):
@@ -258,11 +272,11 @@ class NkViz(DataHandler):
         #     print(f"Node {node} attributes: {attributes}")
 
 
-    def visualize(self, plttitle=None):
+    def visualize(self, pltname, plttitle=None):
         # Use pygraphviz for node positions, nx for visualizatoin
         
         # Store layouts because it takes a lot of time to calculate them
-        pkl_path = self.get_file_path(file_name=f'pos-{self.info.as_string(omit=[self.attr])}.pkl', subdir=True) 
+        pkl_path = self.get_file_path(file_name=f'pos-{self.info.as_string(omit=[self.info.attr])}.pkl', subdir=True) 
         if os.path.exists(pkl_path):
             with open(pkl_path, 'rb') as f:
                 pos = pickle.load(f)
@@ -275,80 +289,61 @@ class NkViz(DataHandler):
                 pickle.dump(pos, f)
         
 
-        # Order the colors in according to the graph nodes
-        node_colors = self.metadf['color'].to_dict()
-        nodes = list(self.graph.nodes)
-        node_colors = dict(sorted(node_colors.items(), key=lambda x: nodes.index(x[0])))
-        assert list(node_colors.keys()) == nodes
+        # Order the colors and shapes in according to the graph nodes
+        #nodes = list(self.graph.nodes)
+
+        node_colors = self.info.metadf[f'{self.info.attr}_color'].to_dict()
+        # node_colors = dict(sorted(node_colors.items(), key=lambda x: nodes.index(x[0])))
+        # assert list(node_colors.keys()) == nodes
         
+        if pltname == 'evalviz':
+            node_shapes = self.info.metadf['clst_shape_plt'].to_dict()
+            # node_shapes = dict(sorted(node_shapes.items(), key=lambda x: nodes.index(x[0])))
+            #assert list(node_shapes.keys()) == nodes
+        else:
+            node_shapes = {key: 'o' for key in node_colors}
+
+        df = pd.DataFrame({'color': node_colors, 'shape': node_shapes})
+        print(df)
+
+
         # pos = dict(sorted(pos.items(), key=lambda x: nodes.index(x[0])))
         # assert list(pos.keys()) == nodes
         # self.save_graphml(node_colors, pos)
+            
 
-        start = time.time()
+        # Draw nodes with different shapes
+        # Only one shape can be passed at a time, no lists
         fig, ax = plt.subplots(figsize=(8, 8))
-        nx.draw_networkx(
-            self.graph, 
-            pos, 
-            ax=ax, 
-            node_size=10,
-            width=0.1,
-            with_labels=False,  
-            node_color=list(node_colors.values()))
+        for shape in df['shape'].unique():
+            sdf = df[df['shape'] == shape]
+            nx.draw_networkx_nodes(self.graph, 
+                                   pos, 
+                                   ax=ax,
+                                   nodelist=sdf.index.tolist(), 
+                                   node_shape=shape,
+                                   node_color=sdf['color'],
+                                   node_size=10)
+
+        # Draw edges
+        # nx.draw_networkx_edges(self.graph, pos, ax=ax, width=0.1)
+
+
+
+
+
+        # nx.draw_networkx(
+        #     self.graph, 
+        #     pos, 
+        #     ax=ax, 
+        #     node_size=10,
+        #     width=0.1,
+        #     with_labels=False,  
+        #     node_color=list(node_colors.values()))
         
         if plttitle is not None:
-            title = ', '.join([f'{col}: {val}' for col, val in plttitle.iloc[0].items()])
-            plt.title(title, fontsize=8)
+            plt.title(plttitle, fontsize=8)
 
 
         ax.grid(False)
-        
-        print(f'{time.time()-start}s to draw nx plot.')
-        self.save_data(data=plt, data_type=self.data_type, subdir=True, file_name=f'nk-{self.info.as_string()}.{self.data_type}')
-
-
-
-    # def draw_pgv(self):
-
-    #     def nx_to_pgv(graph):
-    #         return nx.nx_agraph.to_agraph(graph)
-        
-    #     metadf = self.cm.get_color_map(pgv=True)
-    #     start = time.time()
-    #     graph = nx_to_pgv(self.network.graph)
-
-    #     for node in graph.nodes():
-    #         # graph.get_node(node).attr['color'] = self.colormap[node]
-    #         # graph.get_node(node).attr['shape'] = self.shapemap[node]
-    #         graph.get_node(node).attr['fillcolor'] = metadf.loc[node, 'color']
-    #         graph.get_node(node).attr['style'] = 'filled'
-    #         graph.get_node(node).attr['fixedsize'] = 'true'
-    #         graph.get_node(node).attr['width'] = graph.get_node(node).attr['height'] = 1
-    #         # graph.edge_attr['penwidth'] = 1.0 
-    #         # graph.graph_attr['label'] = f'{self.attr}-{self.cluster_alg}-{self.language}'
-    #         graph.get_node(node).attr['label'] = '' # Remove label
-
-
-    #     file_path = self.get_file_path(file_name=f'network-{self.info.as_string()}.{self.data_type}', subdir=True)
-    #     graph.draw(file_path, prog='fdp')
-    #     # img = graph.draw(prog='fdp') 
-    #     # display(Image(img))
-    #     self.logger.info(f'Created pygraphviz grap.')
-    #     print(f'{time.time()-start}s to produce pgv graph.')
-
-    #     # for edge in graph.edges():
-    #     #     source, target = edge  # Unpack the source and target nodes of the edge
-    #     #     weight = graph.get_edge(source, target).attr['weight']  # Get the weight of the edge
-    #     #     print(f"Edge from {source} to {target}, Weight: {weight}")
-
-    #     # Show in IDE
-    #     if self.data_type != 'svg':
-    #         img = plt.imread(file_path)
-    #         # Create a matplotlib figure and display the graph image
-    #         fig, ax = plt.subplots(figsize=(6, 4))
-    #         ax.axis('off')
-    #         # ax.set_title(file_name)
-    #         ax.imshow(img)
-    #         # Show the graph in the IDE
-    #         plt.show()
-
+        self.save_data(data=plt, data_type=self.data_type, subdir=True, file_name=f'{pltname}_{self.info.as_string()}.{self.data_type}')
