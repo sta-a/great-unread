@@ -43,6 +43,7 @@ class SimMx(DataHandler):
         self.name = name
         self.mx = mx
         self.normalized = normalized
+        self.min_max_normalization()
         self.is_sim = is_sim
         self.is_directed = is_directed
         self.is_condensed = is_condensed
@@ -82,10 +83,6 @@ class SimMx(DataHandler):
 
 
     def postprocess_mx(self, **kwargs):
-        self.plot_similarity_distribution(**kwargs)
-        self.min_max_normalization()
-        self.dist_to_sim()
-
         self.set_diagonal(value=1)
         self.plot_similarity_distribution(**kwargs)
 
@@ -112,7 +109,6 @@ class SimMx(DataHandler):
 
     def min_max_normalization(self):
         mx = self.mx
-        print(f'Before normalization: Max similarity: {mx.max().max()}. Min similarity: {mx.min().min()}.')
         if not self.normalized:
             # Normalize values in matrix to the range between 0 and 1
             min_val = mx.min().min()
@@ -205,13 +201,10 @@ class SimMx(DataHandler):
         plt.xticks(rotation=90)
         ax.grid(False)
 
-        if self.normalized:
-            file_name = f'{self.name}-norm'
-        else:
-            file_name = f'{self.name}-unnorm'
+
         # Pass file name as mode instead of file name because kwargs might contain more information about the file name
         # This way, the kwargs are dealt with automatically
-        self.save_data(data=plt, subdir=True, data_type='svg', mode=file_name, use_kwargs_for_fn='mode', **kwargs)
+        self.save_data(data=plt, subdir=True, data_type='svg', file_name=f'{self.name}', **kwargs)
         plt.close()
 
 

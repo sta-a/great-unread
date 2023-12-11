@@ -72,7 +72,7 @@ class NkIntEval():
         else:
             res = 1 ######################3
         mod = modularity(self.network.graph, self.clusters.initial_clusts, resolution=res)
-        return mod
+        return round(mod, 3)
 
 
 
@@ -80,19 +80,29 @@ class ExtEval(DataHandler):
     '''
     Evaluate cluster quality with an external criterion (the ground truths)
     '''
-    def __init__(self, language, mode, viz, clusters, info, inteval):
+    def __init__(self, language, mode, viz, clusters, info, inteval, network):
         super().__init__(language, output_dir='similarity')
         self.mode = mode
         self.viz = viz
         self.clusters = clusters
         self.info = info
         self.inteval = inteval
-        self.merge_clust_meta_dfs()
+        self.network = network
+        self.cat_attrs = ['gender', 'author']
 
         self.add_subdir(f'{self.mode}eval')
+        self.file_paths = self.get_file_paths()
 
+        self.merge_clust_meta_dfs()
         self.eval_clust()
 
+
+    def get_file_paths(self):
+        paths = {}
+        for fn in ['cont', 'cat']:
+            paths[fn] = self.get_file_path(file_name=f'{fn}_results.csv', subdir=True)
+        return paths
+        
 
     def merge_clust_meta_dfs(self):
         if self.clusters is not None:
@@ -102,6 +112,14 @@ class ExtEval(DataHandler):
             # Add color for clusters
             metadf = mh.add_color_to_df(metadf, 'cluster')
             metadf = mh.add_shape_to_df(metadf)
+
+            # Create a new col for categorical attributes that matches a number to every cluster-attribute combination
+            # Map the new cols to colors
+            for ca in self.cat_attrs:
+                colname = f'{ca}_cluster'
+                metadf[colname] = metadf.groupby(['gender', 'cluster']).ngroup()
+                metadf = mh.add_color_to_df(metadf, colname)
+
             self.info.metadf = metadf
             self.viz.set_info(self.info)
 
@@ -112,16 +130,24 @@ class ExtEval(DataHandler):
             # Get nr elements per cluster
             cluster_column = self.info.metadf['cluster']
             value_counts = cluster_column.value_counts()
-            # nelements = ', '.join([f'label{val}-{count}' for val, count in value_counts.items()])
-            nelements = ', '.join(f'label{val}-{count}' for val, count in value_counts.items())
-            self.plttitle = f'nclust: {cluster_column.nunique()}, nelements: {nelements}'
-            self.viz.visualize(pltname='clstviz', plttitle=self.plttitle)
+            nclust = cluster_column.nunique()
+
+            # Count clusters with only one data point
+            iso_cluster_count = sum(count == 1 for count in value_counts)
+                
+            clst_str = ', '.join(f'label{val}-{count}' for val, count in value_counts.items() if count>1)
+            if iso_cluster_count > 0:
+                clst_str += f', isolated-{iso_cluster_count}'
+
+            self.clst_info = pd.DataFrame({'nclust': nclust,'clst_str': clst_str}, index=[0])
+            self.plttitle = f'nclust: {nclust}, {clst_str}'
+
+            _ = self.viz.visualize(pltname='clstviz', plttitle=self.plttitle)
 
     
     def set_params(self):
-        if self.info.attr in ['gender', 'author']:
+        if self.info.attr in self.cat_attrs:
             self.scale = 'cat'
-            self.file_name = 'categorical_results.csv'
 
             if self.info.attr == 'gender':
                 self.eval_method = self.eval_gender
@@ -131,7 +157,6 @@ class ExtEval(DataHandler):
         else:
             self.scale = 'cont'
             self.eval_method = self.eval_continuous
-            self.file_name = 'continuous_results.csv'
 
         self.viz.set_info(self.info)
 
@@ -142,7 +167,7 @@ class ExtEval(DataHandler):
         self.set_params()
 
         if self.clusters is None:
-            self.info.extra = 'one_cluster'
+            # self.info.extra = 'one_cluster'
             if self.scale == 'cat':
                 empty_df = pd.DataFrame([{'ARI': np.nan}])
                 self.write_eval(empty_df)
@@ -152,16 +177,39 @@ class ExtEval(DataHandler):
 
         else:
             evaldf = self.eval_method()
-            print(evaldf)
-            self.write_eval(evaldf)
-            self.viz.visualize(pltname='evalviz', plttitle=self.plttitle)
+
+            eetitle = ','.join([f'{col}: {evaldf.iloc[0][col]}' for col in evaldf.columns])
+            ietitle = ','.join([f'{col}: {self.inteval.iloc[0][col]}' for col in self.inteval.columns])
+
+            vizdict = self.viz.visualize(pltname='evalviz', plttitle=f'{self.plttitle}\n{eetitle},{ietitle}')
+            self.write_eval(evaldf, vizdict)
 
 
-    def write_eval(self, evaldf):
-        df = pd.concat([self.info.as_df(), self.inteval, evaldf], axis=1)
+    def get_existing_fileinfos(self):
+        # Return list of all parameter combinations that have already been evaluated
+        infos = []
+        for path in list(self.file_paths.values()):
+            if os.path.exists(path):
+                df = pd.read_csv(path, header=0)
+                file_info_column = df['file_info'].tolist()
+                infos.extend(file_info_column)
+        return infos
+    
+
+    def write_eval(self, evaldf, vizdict):
+        file_info = pd.DataFrame({'file_info': self.info.as_string()}, index=[0])
+
+        all_dfs = [self.info.as_df(), self.clst_info, self.inteval, evaldf]
+        if vizdict is not None: 
+            vizdf = pd.DataFrame([vizdict])
+            all_dfs.append(vizdf)
+        all_dfs.append(file_info) # file_info as last column
+
+        df = pd.concat(all_dfs, axis=1)
 
         # Write header only if file does not exist
-        file_path = self.get_file_path(file_name=self.file_name, subdir=True)
+        file_path = self.file_paths[self.scale]
+        print(file_path)
         if os.path.exists(file_path):
             mode = 'a'
             header = False

@@ -239,9 +239,9 @@ class DataHandler():
     
 
     def save_data(self, data, file_name=None, file_path=None, **kwargs):
-        assert (file_name is not None and file_path is None) or (file_name is None and file_path is not None), \
-            "Either 'file_name' or 'file_path' must be provided, and the other should be None."
-        if file_name is not None:
+        # assert (file_name is not None and file_path is None) or (file_name is None and file_path is not None), \
+        #     "Either 'file_name' or 'file_path' must be provided, and the other should be None."
+        if file_path is None:
             file_path  = self.get_file_path(file_name, **kwargs)
         dir_path = Path(file_path).parent
         if not os.path.exists(dir_path):

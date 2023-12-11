@@ -13,11 +13,13 @@ from networkx.algorithms.community.centrality import girvan_newman
 from networkx.algorithms.community import asyn_lpa_communities, louvain_communities
 from collections import Counter
 import time
+import os
+import pickle
 import random
 random.seed(9)
 import sys
 sys.path.append("..")
-from utils import TextsByAuthor
+from utils import TextsByAuthor, DataHandler
 
 import logging
 logging.basicConfig(level=logging.DEBUG)
@@ -85,25 +87,23 @@ class Clusters():
         return clusters
     
     
-class ClusterBase():
+class ClusterBase(DataHandler):
     ALGS = None
 
     def __init__(self, language=None, mx=None, cluster_alg=None):
-        self.language = language
+        super().__init__(language=language, output_dir='similarity', data_type='pkl')
         self.mx = mx
         self.cluster_alg = cluster_alg
-        self.attr_params = {'gender': 2, 'author': self.get_nr_authors()}
+        self.attr_params = {'gender': 2, 'author': self.get_nr_authors()} #############################3
         self.n_jobs = -1
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.DEBUG)
+        self.add_subdir('clusters')
 
 
     def get_param_combinations(self):
         # Get params for current cluster alg
         params = self.ALGS[self.cluster_alg]
-
-        # Update params with attribute-specific params
-        # params['nclust'].extend(self.attr_params.values()) #########################3
 
         # Create a list of dicts with format param_name: param_value.
         param_combs = []
@@ -119,14 +119,27 @@ class ClusterBase():
         return len(TextsByAuthor(self.language).nr_texts_per_author)
 
 
-    def cluster(self, **kwargs):
-        # Get method name, which is the same as the name of the clustering algorithm
-        method = getattr(self, self.cluster_alg)
-        start = time.time()
-        clusters = method(**kwargs)
-        print(f'{time.time()-start}s to calculate alg:{self.cluster_alg} clusters.')
+    def cluster(self, info, **kwargs):
+        pkl_path = self.get_file_path(file_name=f'clusters-{info.as_string()}.pkl', subdir=True) 
+        if os.path.exists(pkl_path):
+            with open(pkl_path, 'rb') as f:
+                clusters = pickle.load(f)
+        else:
+            self.logger.debug(f'Running clustering alg {self.cluster_alg} {", ".join([f"{key}: {value}" for key, value in kwargs.items()])}.')
 
-        clusters = Clusters(self.cluster_alg, self.mx, clusters)
+            # Get method name, which is the same as the name of the clustering algorithm
+            method = getattr(self, self.cluster_alg)
+            start = time.time()
+            clusters = method(**kwargs)
+            clsttime = time.time()-start
+            print(f'{clsttime}s to calculate alg:{self.cluster_alg} clusters.')
+
+            with open('clusttime.csv', 'a') as f: #################################3
+                f.write(f'{info.as_string()},{clsttime}\n')
+
+            clusters = Clusters(self.cluster_alg, self.mx, clusters)
+            with open(pkl_path, 'wb') as f:
+                pickle.dump(clusters, f)
 
         if clusters.df['cluster'].nunique() == 1:
             clusters = None

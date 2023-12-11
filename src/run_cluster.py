@@ -45,6 +45,7 @@ class SimilarityClustering(DataHandler):
         mh = MetadataHandler(self.language)
         self.metadf = mh.get_metadata()
         self.colnames = [col for col in self.metadf.columns if not col.endswith('_color')]
+        self.colnames = ['gender', 'author', 'canon', 'year']
 
         # Set params for testing
         if self.test:
@@ -67,15 +68,16 @@ class SimilarityClustering(DataHandler):
                 },
             }
             NetworkCluster.ALGS = {
-                'alpa': {},
-                'louvain': {
-                    'resolution': [1],
+                'alpa': {
+                    'noparam': [None],
                 },
             }
             Sparsifier.MODES = {
+                'authormax': [None], ################3
                 'threshold': [0.9],
+            # 'simmel': [(5, 10)],
             }
-            # NkViz.PROGS = ['fdp']
+            NkViz.PROGS = ['sfdp']
 
 
     def load_mxs(self):
@@ -108,7 +110,7 @@ class SimilarityClustering(DataHandler):
     def simmx_attrviz(self):
         # Visualize attributes
         for mx in self.mxs:
-            for attr in self.colnames:
+            for attr in self.colnames + ['noattr']:
                 counter = 0
                 for order in MxReorder.ORDERS:
                     info = CombinationInfo(metadf = deepcopy(self.metadf), mxname=mx.name, attr=attr, order=order)
@@ -117,6 +119,8 @@ class SimilarityClustering(DataHandler):
                     if attr not in ['gender', 'author']:
                         if counter >=1: 
                             break
+                        elif attr == 'noattr':
+                            info.order = 'noattr'
                         else:
                             info.order = 'continuous'
                     viz = MxViz(self.language, mx, info)
@@ -132,7 +136,8 @@ class SimilarityClustering(DataHandler):
             param_combs = sc.get_param_combinations()
 
             for param_comb in param_combs:
-                clusters = sc.cluster(**param_comb)
+                info = CombinationInfo(mxname=mx.name, cluster_alg=cluster_alg, param_comb=param_comb)
+                clusters = sc.cluster(info, **param_comb)
                 inteval = MxIntEval(mx, clusters).evaluate()
                 
                 # Cluster visualization
@@ -151,43 +156,53 @@ class SimilarityClustering(DataHandler):
 
     
     def network_attrviz(self):
-        for mx, spars in itertools.product(self.mxs, Sparsifier.MODES.keys()):
-            spars_params = Sparsifier.MODES[spars]
-            for spars_param in spars_params:
-                sparsifier = Sparsifier(self.language, mx, spars, spars_param)
-                mx = sparsifier.sparsify()
+        for mx, sparsmode in itertools.product(self.mxs, Sparsifier.MODES.keys()):
+            print('\n##################################\nInfo: ', mx.name, sparsmode)
+            sparsifier = Sparsifier(self.language, mx, sparsmode)
+            spars_param = Sparsifier.MODES[sparsmode]
+            for spars_param in spars_param:
+                mx = sparsifier.sparsify(spars_param)
                 network = NXNetwork(self.language, mx=mx)
      
-                for attr in self.colnames:
-                    for prog in NkViz.PROGS:
-                        info = CombinationInfo(metadf = deepcopy(self.metadf), mxname=mx.name, spars=spars, spars_param=spars_param, attr=attr, prog=prog)
+                for prog in NkViz.PROGS:
+                    for attr in self.colnames:
+                        info = CombinationInfo(metadf = deepcopy(self.metadf), mxname=mx.name, sparsmode=sparsmode, spars_param=spars_param, prog=prog, attr=attr)
                         print(info.as_string())
                         viz = NkViz(self.language, network, info)
                         viz.visualize(pltname='attrviz', plttitle='Attributes')
 
 
     def network_clustering(self):
-        for mx, spars, cluster_alg in itertools.product(self.mxs, Sparsifier.MODES.keys(), NetworkCluster.ALGS):
-            spars_params = Sparsifier.MODES[spars]
+        for mx, sparsmode in itertools.product(self.mxs, Sparsifier.MODES.keys()):
+            print('\n##################################\nInfo: ', mx.name, sparsmode)
+
+            sparsifier = Sparsifier(self.language, mx, sparsmode)
+            spars_params = Sparsifier.MODES[sparsmode]
             for spars_param in spars_params:
-                sparsifier = Sparsifier(self.language, mx, spars, spars_param)
-                mx = sparsifier.sparsify()
+                mx = sparsifier.sparsify(spars_param)
+                mx.mx.to_csv('authormax.csv', index=True)
 
-                network = NXNetwork(self.language, mx=mx)
-                nc = NetworkCluster(self.language, cluster_alg, network)
-                param_combs = nc.get_param_combinations()
-                for param_comb in param_combs:
-                    clusters = nc.cluster(**param_comb)
-                    inteval = NkIntEval(network, clusters, cluster_alg, param_comb).evaluate()
 
-                    for prog in NkViz.PROGS:
-                        info = CombinationInfo(metadf = deepcopy(self.metadf), mxname=mx.name, spars=spars, spars_param=spars_param, cluster_alg=cluster_alg, attr='cluster', prog=prog, param_comb=param_comb)
-                        print(info.as_string())
-                        viz = NkViz(self.language, network, info)
-                        ee = ExtEval(self.language, 'nk', viz, clusters, info, inteval)
+                for cluster_alg in  NetworkCluster.ALGS.keys():
+                    print(cluster_alg)
+                    network = NXNetwork(self.language, mx=mx)
+                    nc = NetworkCluster(self.language, cluster_alg, network)
+                    param_combs = nc.get_param_combinations()
+                    for param_comb in param_combs:
+                        info = CombinationInfo(mxname=mx.name, sparsmode=sparsmode, spars_param=spars_param, cluster_alg=cluster_alg, param_comb=param_comb)
+                        clusters = nc.cluster(info, **param_comb)
+                        inteval = NkIntEval(network, clusters, cluster_alg, param_comb).evaluate()
 
-                        for attr in self.colnames:
-                            ee.evaluate(attr=attr)
+                        for prog in NkViz.PROGS:
+                            info = CombinationInfo(metadf = deepcopy(self.metadf), mxname=mx.name, sparsmode=sparsmode, spars_param=spars_param, cluster_alg=cluster_alg, prog=prog, attr='cluster', param_comb=param_comb)
+                            print(info.as_string())
+                            viz = NkViz(self.language, network, info)
+                            ee = ExtEval(self.language, 'nk', viz, clusters, info, inteval, network)
+                            file_infos = ee.get_existing_fileinfos() ###################
+                            print(file_infos)
+
+                            for attr in self.colnames:
+                                ee.evaluate(attr=attr)
 
 
 
@@ -200,29 +215,34 @@ def remove_directories(directory_paths):
         except OSError as e:
             print(f"Error removing directory '{path}': {e}")
 
-def delete_png_files(directory):
-    # Get a list of all files in the directory
-    file_list = os.listdir(directory)
+def delete_png_files(directory_paths):
+    for path in directory_paths:
+        # Get a list of all files in the directory
+        if os.path.exists(path):
+            file_list = os.listdir(path)
 
-    # Iterate through the files and delete those with a '.png' extension
-    for filename in file_list:
-        if filename.endswith('.png'):
-            file_path = os.path.join(directory, filename)
-            os.remove(file_path)
-            print(f"Deleted: {file_path}")
+            # Iterate through the files and delete those with a '.png' extension
+            for filename in file_list:
+                if filename.endswith('.png'):
+                    file_path = os.path.join(path, filename)
+                    os.remove(file_path)
+                    print(f"Deleted: {file_path}")
 
-delete_png_files('/home/annina/scripts/great_unread_nlp/data/similarity/eng/nkviz')          
-# directories_to_remove = ['/home/annina/scripts/great_unread_nlp/data/similarity/eng/mxviz', '/home/annina/scripts/great_unread_nlp/data/similarity/eng/mxeval']
-# remove_directories(directories_to_remove)
-
+# delete_png_files(['/home/annina/scripts/great_unread_nlp/data/similarity/eng/nkviz', '/home/annina/scripts/great_unread_nlp/data/similarity/eng/mxviz']) 
+# remove_directories(['/home/annina/scripts/great_unread_nlp/data/similarity/eng/nkeval', '/home/annina/scripts/great_unread_nlp/data/similarity/eng/mxeval'])
 
 
+####LOUVAIN
 sn = SimilarityClustering(language='eng')
 # sn.simmx_attrviz()
 # sn.simmx_clustering()
-# sn.network_attrviz()
+sn.network_attrviz()
 sn.network_clustering()
 
+
+
+# get colors discrete creates black?
+# Network layout for nodes without edges
 
 # Attr in networkviz
 # Elbow for internal cluster evaluation
@@ -238,4 +258,5 @@ sn.network_clustering()
 
 
 
-# %%
+
+  # %%
