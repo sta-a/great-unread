@@ -981,7 +981,7 @@ class DataLoader(DataHandler):
 # # Provide the directory path and the string to search for
 # directory_path = '/home/annina/scripts/great_unread_nlp/data/text_tokenized'
 # directory_path = '/home/annina/scripts/great_unread_nlp/src/'
-# search_string = "medoid"
+# search_string = "noparam"
 # extension = ['.txt', '.py']
 # search_string_in_files(directory_path, search_string, extension, full_word=False)
 

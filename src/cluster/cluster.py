@@ -105,14 +105,19 @@ class ClusterBase(DataHandler):
         # Get params for current cluster alg
         params = self.ALGS[self.cluster_alg]
 
-        # Create a list of dicts with format param_name: param_value.
-        param_combs = []
-        combinations_product = product(*params.values())
-        # Iterate through all combinations and pass them to the function
-        for combination in combinations_product:
-            param_combs.append(dict(zip(params.keys(), combination)))
+        # Check if params is empty dict
+        if not bool(params):
+            return [{}]
+        
+        else:
+            # Create a list of dicts with format param_name: param_value.
+            param_combs = []
+            combinations_product = product(*params.values())
+            # Iterate through all combinations and pass them to the function
+            for combination in combinations_product:
+                param_combs.append(dict(zip(params.keys(), combination)))
 
-        return param_combs
+            return param_combs
 
 
     def get_nr_authors(self):
@@ -212,9 +217,7 @@ class NetworkCluster(ClusterBase):
         # 'girvan': { # Too slow
         #     'noparam': [None], # Girvan, Newman (2002): Community structure in social and biological networks
         #     },            
-        'alpa': {
-            'noparam': [None],
-            },
+        'alpa': {},
         'louvain': {
             'resolution': [100, 10, 1, 0.1, 0.01],
             },

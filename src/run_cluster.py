@@ -12,40 +12,38 @@ import numpy as np
 import itertools
 import sys
 sys.path.append("..")
-from utils import DataHandler
 from copy import deepcopy
 import itertools
-from tqdm import tqdm
 import time
 
+from utils import DataHandler
+from helpers import remove_directories, delete_png_files
 from cluster.create import D2vDist, Delta
 from cluster.network import NXNetwork
 from cluster.cluster import SimmxCluster, NetworkCluster
 from cluster.evaluate import ExtEval, MxIntEval, NkIntEval
-from cluster.visualize import MxReorder, NkViz, MxViz
+from cluster.mxviz import MxReorder, MxViz
+from cluster.nkviz import NkViz
 from cluster.sparsifier import Sparsifier
 from cluster.cluster_utils import CombinationInfo, MetadataHandler
 
 import logging
 logging.basicConfig(level=logging.DEBUG)
-# Suppress logger messages by 'matplotlib.ticker
-# Set the logging level to suppress debug output
-# ticker_logger = logging.getLogger('matplotlib.ticker')
-# ticker_logger.setLevel(logging.WARNING)
-# # Disable propagation to root logger
-# logging.getLogger().setLevel(logging.WARNING)
-
 
 
 class SimilarityClustering(DataHandler):
     def __init__(self, language):
         super().__init__(language=language, output_dir='similarity', data_type='csv')
-        self.test = True
+        self.loggerfile = 'cluster-logging.txt'
+        self.processed = self.load_processed_infos()
+
+        self.test = False
         self.mxs = self.load_mxs()
         mh = MetadataHandler(self.language)
-        self.metadf = mh.get_metadata()
+        self.metadf = mh.get_metadata() ############################ save to file
         self.colnames = [col for col in self.metadf.columns if not col.endswith('_color')]
         self.colnames = ['gender', 'author', 'canon', 'year']
+
 
         # Set params for testing
         if self.test:
@@ -68,16 +66,31 @@ class SimilarityClustering(DataHandler):
                 },
             }
             NetworkCluster.ALGS = {
-                'alpa': {
-                    'noparam': [None],
-                },
+                'louvain': {
+                    'resolution': [1],
+                    },
             }
             Sparsifier.MODES = {
                 'authormax': [None], ################3
-                'threshold': [0.9],
+                # 'threshold': [0.9],
             # 'simmel': [(5, 10)],
             }
             NkViz.PROGS = ['sfdp']
+
+
+    def load_processed_infos(self):
+        # Load all combination infos that have already been run from file
+        if os.path.exists('cluster-logging.txt'):
+            f = open(self.loggerfile, 'r')
+            infos = [line.strip() for line in f.readlines()]
+        else:
+            infos = []
+        return infos
+    
+    def write_logger(self, info):
+        # Write combination info that was just run to file
+        with open(self.loggerfile, 'a') as f:
+            f.write(f'{info.as_string()}\n')
 
 
     def load_mxs(self):
@@ -104,6 +117,7 @@ class SimilarityClustering(DataHandler):
         for name, mx in mxs.items():
             mx.name = name
             mxs_list.append(mx)
+
         return mxs_list
 
 
@@ -149,7 +163,7 @@ class SimilarityClustering(DataHandler):
 
                 # Evaluate how well clustering captures attributes
                 for attr in self.colnames:
-                    ee.evaluate(attr=attr)
+                    attrinfo = ee.evaluate(attr=attr)
 
         print(f'{time.time()-start}s to run 1 mx.')
 
@@ -174,77 +188,64 @@ class SimilarityClustering(DataHandler):
 
     def network_clustering(self):
         for mx, sparsmode in itertools.product(self.mxs, Sparsifier.MODES.keys()):
-            print('\n##################################\nInfo: ', mx.name, sparsmode)
 
-            sparsifier = Sparsifier(self.language, mx, sparsmode)
-            spars_params = Sparsifier.MODES[sparsmode]
-            for spars_param in spars_params:
-                mx = sparsifier.sparsify(spars_param)
-                mx.mx.to_csv('authormax.csv', index=True)
+            if mx.name != 'burrows-500':
 
 
-                for cluster_alg in  NetworkCluster.ALGS.keys():
-                    print(cluster_alg)
-                    network = NXNetwork(self.language, mx=mx)
-                    nc = NetworkCluster(self.language, cluster_alg, network)
-                    param_combs = nc.get_param_combinations()
-                    for param_comb in param_combs:
-                        info = CombinationInfo(mxname=mx.name, sparsmode=sparsmode, spars_param=spars_param, cluster_alg=cluster_alg, param_comb=param_comb)
-                        clusters = nc.cluster(info, **param_comb)
-                        inteval = NkIntEval(network, clusters, cluster_alg, param_comb).evaluate()
+                print('\n##################################\nInfo: ', mx.name, sparsmode)
+                sparsifier = Sparsifier(self.language, mx, sparsmode)
+                spars_params = Sparsifier.MODES[sparsmode]
+                
+                for spars_param in spars_params:
+                    mx = sparsifier.sparsify(spars_param)
 
-                        for prog in NkViz.PROGS:
-                            info = CombinationInfo(metadf = deepcopy(self.metadf), mxname=mx.name, sparsmode=sparsmode, spars_param=spars_param, cluster_alg=cluster_alg, prog=prog, attr='cluster', param_comb=param_comb)
-                            print(info.as_string())
-                            viz = NkViz(self.language, network, info)
-                            ee = ExtEval(self.language, 'nk', viz, clusters, info, inteval, network)
-                            file_infos = ee.get_existing_fileinfos() ###################
-                            print(file_infos)
+                    for cluster_alg in  NetworkCluster.ALGS.keys():
+                        network = NXNetwork(self.language, mx=mx)
+                        nc = NetworkCluster(self.language, cluster_alg, network)
+                        param_combs = nc.get_param_combinations()
+                        
+                        for param_comb in param_combs:
+                            info = CombinationInfo(mxname=mx.name, sparsmode=sparsmode, spars_param=spars_param, cluster_alg=cluster_alg, param_comb=param_comb)
+                            if not info in self.processed:
+                                clusters = nc.cluster(info, **param_comb)
+                                self.write_logger(info)
+                                inteval = NkIntEval(network, clusters, cluster_alg, param_comb).evaluate()
 
-                            for attr in self.colnames:
-                                ee.evaluate(attr=attr)
+                                for prog in NkViz.PROGS:
+                                    if not info in self.processed:
+                                        info = CombinationInfo(metadf = deepcopy(self.metadf), mxname=mx.name, sparsmode=sparsmode, spars_param=spars_param, cluster_alg=cluster_alg, prog=prog, attr='cluster', param_comb=param_comb)
+                                        print(info.as_string())
+                                        viz = NkViz(self.language, network, info)
+                                        ee = ExtEval(self.language, 'nk', viz, clusters, info, inteval, network)
+
+                                        for attr in self.colnames:
+                                            attrinfo = ee.evaluate(attr=attr) # Return updated info after finishing evaluation #################
+                                        self.write_logger(info)
+
+                                        print('\n-----------------------------------\n')
 
 
 
-
-def remove_directories(directory_paths):
-    for path in directory_paths:
-        try:
-            shutil.rmtree(path)
-            print(f"Directory '{path}' removed successfully.")
-        except OSError as e:
-            print(f"Error removing directory '{path}': {e}")
-
-def delete_png_files(directory_paths):
-    for path in directory_paths:
-        # Get a list of all files in the directory
-        if os.path.exists(path):
-            file_list = os.listdir(path)
-
-            # Iterate through the files and delete those with a '.png' extension
-            for filename in file_list:
-                if filename.endswith('.png'):
-                    file_path = os.path.join(path, filename)
-                    os.remove(file_path)
-                    print(f"Deleted: {file_path}")
 
 # delete_png_files(['/home/annina/scripts/great_unread_nlp/data/similarity/eng/nkviz', '/home/annina/scripts/great_unread_nlp/data/similarity/eng/mxviz']) 
 # remove_directories(['/home/annina/scripts/great_unread_nlp/data/similarity/eng/nkeval', '/home/annina/scripts/great_unread_nlp/data/similarity/eng/mxeval'])
+# remove_directories(['/home/annina/scripts/great_unread_nlp/data/similarity/eng/nkviz'])
+# if os.path.exists('cluster-logging.txt'):
+#     os.remove('cluster-logging.txt')
+
 
 
 ####LOUVAIN
 sn = SimilarityClustering(language='eng')
 # sn.simmx_attrviz()
 # sn.simmx_clustering()
-sn.network_attrviz()
+# sn.network_attrviz()
 sn.network_clustering()
 
 
 
 # get colors discrete creates black?
-# Network layout for nodes without edges
 
-# Attr in networkviz
 # Elbow for internal cluster evaluation
 
 # Hierarchical clustering:
@@ -257,6 +258,4 @@ sn.network_clustering()
 # set all values below eta to 0
 
 
-
-
-  # %%
+# %%

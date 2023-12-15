@@ -1,19 +1,19 @@
 # %%
-import networkit as nk
+import os
 import matplotlib.pyplot as plt
-from cluster.network import NXNetwork
-from cluster.create import SimMx
 
-import networkx as nx
 import time
 import numpy as np
 
 from copy import deepcopy
 import pandas as pd
 import numpy as np
-import networkx as nx
+
+import sys
+sys.path.append("..")
 from helpers import get_simmx_mini, create_simmx
-import os
+from .network import NXNetwork
+from .create import SimMx
 
 
 class Simmelian():
@@ -42,19 +42,20 @@ class Simmelian():
         return df
     
     
-    def compare_cols(self, col, col_left, tolerance=0.001):
-        # Compare two columns and replace tuples with np.nan if the difference is outside the tolerance.
+    def compare_cols(self, col, col_left):
+        # Compare two columns and replace tuples with np.nan
+        # Values have to be equal to the last column of the topk neighbourhood to be included (equal with no tolerance)
         col_vals = col.apply(lambda x: x[1]).to_numpy()
         col_left_vals = col_left.apply(lambda x: x[1]).to_numpy()
-        mask = np.abs(col_left_vals - col_vals) < tolerance
+        mask = col_left_vals == col_vals
         col[mask == False] = np.nan
         return col
-    
+
     
     def get_topk(self, df, k):
         topk = df.iloc[:,:k]
 
-        # Include more neighbours if they have the same distance (within tolerance) as the values in the last column of the selected df
+        # Include more neighbours if they have the same distance as the values in the last column of the selected df
         other = df.iloc[:,k:]
 
         new_df = pd.DataFrame() 
@@ -141,7 +142,6 @@ class Simmelian():
             print(df.iloc[:5, :], '\n\n')
 
         topk = self.get_topk(df, k)
-        topk.to_csv('/home/annina/scripts/great_unread_nlp/data/similarity/eng/visone-backbones/topk.csv', index=True)
         if prints:
             print(topk.iloc[:5, :].to_markdown(), '\n\n')
 
@@ -163,7 +163,8 @@ class Simmelian():
 
 def check_visone():
     dirpath = '/home/annina/scripts/great_unread_nlp/data/similarity/eng/visone-backbones/'
-    minimx = True
+    minimx = False
+    conditioned = True
     if minimx:
         params = {'minimx': {'min_overlap': 5, 'k': 10}}
     else:
@@ -173,41 +174,32 @@ def check_visone():
     for mxname, vals in params.items():
         min_overlap = vals['min_overlap']
         k = vals['k']
-        printn = 5
 
         if minimx:
             simmx = create_simmx(30)
             # Save matrix as input for Visone
-            simmx.to_csv(os.path.join(dirpath, 'minimx.csv'), index=True)
         else:
-            simmx = pd.read_csv('/home/annina/scripts/great_unread_nlp/data/similarity/eng/simmxs/burrows-500.csv', index_col='file_name')
+            simmx = pd.read_csv(os.path.join(dirpath, 'burrows-500.csv'), index_col='file_name')
             for i in range(len(simmx.index)):
                 simmx.iloc[i, i] = 0
-            # print(simmx.iloc[:printn, :printn].to_markdown())
-            # simmx.to_csv(os.path.join(dirpath, f'{mxname}.csv'), index=True)
 
 
         # Visone: conditioned=True, identified=True
-        vname = f'vi-{mxname}-{min_overlap}-{k}_unconditioned.csv' ########################
+        if conditioned:
+            vname = f'vi-{mxname}-{min_overlap}-{k}_conditioned.csv'
+        else:
+            vname = f'vi-{mxname}-{min_overlap}-{k}_unconditioned.csv'
+
         vmx = pd.read_csv(os.path.join(dirpath, vname), index_col=0)
-        vmx = vmx.sort_index(axis=0).sort_index(axis=1)
-        vmx.to_csv(os.path.join(dirpath, vname), index=True)
-        vmx = vmx.replace({0: 0.0, 0.000: 0.0})
-        print('vmx symmetric: ', vmx.equals(vmx.T))
-        print(vmx.iloc[:printn, :printn])
 
 
         # Calculate backbones with this class
-        s = Simmelian(simmx, conditioned=False) #############################
+        s = Simmelian(simmx, conditioned=conditioned)
         pmx = s.run_parametric(min_overlap=min_overlap, k=k)
-        pmx = pmx.replace({0: 0.0, 0.000: 0.0})
         pmx = pmx.reindex(index=vmx.index, columns=vmx.columns)
-        print('\n---------------\npmx symmetric: ', pmx.equals(pmx.T))
-        print(pmx.iloc[:printn, :printn], '\n\n---------------------\n\n')
-        pmx.to_csv(os.path.join(dirpath, 'pmx.csv'), index=True)
         
-
-        print('All values in the python and visone matrix are close within tolerance: ', np.allclose(pmx, vmx, atol=1e-2))
+        tol = 1e-5
+        print(f'All values in the python and visone matrix are close within tolerance {tol}: ', np.allclose(pmx, vmx, atol=tol))
 
         equal_positions = (pmx == vmx).stack()
         i = 0
@@ -219,8 +211,4 @@ def check_visone():
                     print(f"At position ({row}, {col}), values are not equal: {pmx.at[row, col]} != {vmx.at[row, col]}")
                     i += 1
 
-    # With burrows-500, python implementation kepps more edges than visone implelmentation 
-    # Different values probably stem from handling neighbours with equal distances
-
 # check_visone()
-

@@ -17,8 +17,7 @@ from sklearn.metrics import silhouette_score
 from sklearn.metrics import adjusted_rand_score, accuracy_score
 from sklearn.linear_model import LogisticRegression
 
-from .visualize import MxViz, NkViz
-from .cluster_utils import MetadataHandler, ColorMap
+from .cluster_utils import MetadataHandler
 import sys
 sys.path.append("..")
 from utils import DataHandler
@@ -183,6 +182,9 @@ class ExtEval(DataHandler):
 
             vizdict = self.viz.visualize(pltname='evalviz', plttitle=f'{self.plttitle}\n{eetitle},{ietitle}')
             self.write_eval(evaldf, vizdict)
+        
+        # Return updated info after finishing evaluation
+        return self.info
 
 
     def get_existing_fileinfos(self):
@@ -209,7 +211,6 @@ class ExtEval(DataHandler):
 
         # Write header only if file does not exist
         file_path = self.file_paths[self.scale]
-        print(file_path)
         if os.path.exists(file_path):
             mode = 'a'
             header = False
