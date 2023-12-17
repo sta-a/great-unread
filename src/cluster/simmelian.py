@@ -115,6 +115,26 @@ class Simmelian():
         # Set values in similarity matrix to 0 where filtered overlap matrix is below min_overlap
         filtered_simmx = self.mx * df
 
+        df.to_csv('simmel-df.csv', index=True) ##########################
+        filtered_simmx.to_csv('simmel-filtered_simmx.csv', index=True)
+
+        # If the assertion fails, find the positions and values
+        if not (df == 0).equals(filtered_simmx == 0):
+            # Create a boolean DataFrame indicating where the assertion fails
+            positions_and_values = (df != filtered_simmx) & (df == 0)
+
+            # Extract positions and values where the assertion fails
+            failed_positions = [(row, col) for row, col in zip(*positions_and_values.values.nonzero())]
+            failed_values = df.values[positions_and_values].tolist()
+
+            print("Positions where the assertion fails:")
+            print(failed_positions)
+
+            print("Values where the assertion fails:")
+            print(failed_values)
+
+
+            
         assert (df == 0).equals(filtered_simmx == 0), 'Dfs have different positions with 0 values.'
         return filtered_simmx
     

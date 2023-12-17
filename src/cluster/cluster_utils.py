@@ -127,7 +127,7 @@ class Colors():
         Get discrete colors that are maximally (greedy) different from previous ones 
         The 'glasbey_hv' colormap contains 256 unique colors.
         '''
-        colors = iter(cc.glasbey_hv) #hsv
+        colors = iter(cc.glasbey_bw_minc_20) # color palette with no greys
         return colors
 
     def get_colors_sequential(self, val):
@@ -222,7 +222,7 @@ class ColorMap(Colors):
 class CombinationInfo:
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
-        self.omit_default = ['metadf', 'param_comb', 'spars_param', 'omit_default']
+        self.omit_default = ['metadf', 'param_comb', 'spars_param', 'omit_default', 'cluster_alg']
         self.paramcomb_to_string()       
         self.spars_to_string()
         # self.extra = '' # Store additional information
@@ -241,9 +241,10 @@ class CombinationInfo:
 
     def paramcomb_to_string(self):
         if hasattr(self, 'param_comb'):
-            self.params = None
+            self.clst_alg_params = None
             if bool(self.param_comb):
-                self.params = '-'.join([f'{key}-{self.replace_dot(value)}' for key, value in self.param_comb.items()])
+                paramstr = '-'.join([f'{key}-{self.replace_dot(value)}' for key, value in self.param_comb.items()])
+                self.clst_alg_params = f'{self.cluster_alg}-{paramstr}'
 
 
     def replace_dot(self, value):
@@ -253,7 +254,7 @@ class CombinationInfo:
         return value
 
 
-    def as_string(self, omit: List[str] = []):
+    def as_string(self, sep='_', omit: List[str] = []):
         omit_lst = self.omit_default + omit # + ['extra']
 
         filtered_values = []
@@ -262,7 +263,7 @@ class CombinationInfo:
                 if value is not None and (not isinstance(value, dict)):
                     filtered_values.append(str(self.replace_dot(value)))
 
-        return '_'.join(filtered_values)
+        return sep.join(filtered_values)
     
 
     def as_df(self, omit: List[str] = []):

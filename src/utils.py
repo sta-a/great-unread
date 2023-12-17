@@ -14,7 +14,7 @@ import Levenshtein
 import networkx as nx
 from itertools import combinations
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 
 def get_bookname(doc_path):
@@ -195,14 +195,18 @@ class DataHandler():
         else:
             self.nr_texts = 547
 
-        # Set the logger's name to the class name
+
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.logger.setLevel(logging.WARNING)  # Set the logger's threshold level
-        console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.WARNING)  # Set the handler's threshold level
-        formatter = logging.Formatter('%(levelname)s - %(name)s - %(message)s')
-        console_handler.setFormatter(formatter)
-        self.logger.addHandler(console_handler)
+        self.logger.setLevel(logging.INFO)  # Set the logger's threshold level
+        # Check if the logger already has handlers to avoid adding duplicates
+        if not self.logger.handlers:
+            # Set the logger's name to the class name
+            console_handler = logging.StreamHandler()
+            console_handler.setLevel(logging.INFO)  # Set the handler's threshold level
+            formatter = logging.Formatter('%(levelname)s - %(name)s - %(message)s')
+            console_handler.setFormatter(formatter)
+            self.logger.addHandler(console_handler)
+            self.logger.propagate = False
 
         if self.test:
             self.doc_paths = get_doc_paths_sorted(self.text_raw_dir)[:3]
@@ -210,15 +214,15 @@ class DataHandler():
     def create_dir(self, dir_path):
         try:
             os.makedirs(dir_path, exist_ok=True) # Create dir and parent dirs if necessary
-            self.logger.info(f"Created dir '{dir_path}'.")
+            self.logger.debug(f"Created dir '{dir_path}'.")
         except OSError as e:
-            self.logger.info(f"Error creating directory '{dir_path}\n': {e}")
+            self.logger.debug(f"Error creating directory '{dir_path}\n': {e}")
 
     
     def add_subdir(self, subdir=None):
         if subdir is None:
             subdir = self.__class__.__name__.lower()
-            self.logger.info(f'Adding subdir as class name.')
+            self.logger.debug(f'Adding subdir as class name.')
         self.subdir = os.path.join(self.output_dir, subdir)
         if not os.path.exists(self.subdir):
             self.create_dir(self.subdir)
@@ -288,7 +292,7 @@ class DataHandler():
                     for l in data:
                         sep = kwargs.get('txt_sep', self.separator)
                         f.write(f'{sep.join(l)}\n')
-                self.logger.info(f'Writing list of lists to file using {self.separator} as the separator.')
+                self.logger.debug(f'Writing list of lists to file using {self.separator} as the separator.')
 
         elif data_type == 'graphml':
             nx.write_graphml(data, file_path)
@@ -371,7 +375,7 @@ class DataHandler():
                 data_type = os.path.splitext(file_name_or_path)[1]
                 data_type = data_type[1:] # Remove dot
                 if data_type != self.data_type:
-                    self.logger.info(f'File extension ({data_type}) and class data type ({self.data_type}) are different. Using file name extension.')
+                    self.logger.debug(f'File extension ({data_type}) and class data type ({self.data_type}) are different. Using file name extension.')
             else:
                 data_type = self.data_type
         return data_type
@@ -888,7 +892,7 @@ class DataLoader(DataHandler):
         
         elif type == 'meta' or type == 'gender':
             self.output_dir = self.create_output_dir('metadata')
-            self.logger.info(f'Created output dir from inside function.')
+            self.logger.debug(f'Created output dir from inside function.')
 
             file_name = f'{self.language.upper()}_texts_meta.csv'
             df = pd.read_csv(os.path.join(self.output_dir, file_name), sep=';')
@@ -950,11 +954,11 @@ class DataLoader(DataHandler):
                 # print(df['gender'].value_counts())
                 assert df['gender'].isin(['m', 'f', 'a', 'b']).all()
                 assert not df.isna().any().any()
-                self.logger.info(f"Returning gender as strings ('m', 'f', 'a', 'b').")
+                self.logger.debug(f"Returning gender as strings ('m', 'f', 'a', 'b').")
                 
         df = df.set_index('file_name', inplace=False)
         assert len(df) == self.nr_texts
-        self.logger.info(f'Returning df with file_name as index.')
+        self.logger.debug(f'Returning df with file_name as index.')
         return df
 
 
@@ -963,7 +967,7 @@ class DataLoader(DataHandler):
         Return features table for full-book features
         '''
         self.output_dir = self.create_output_dir('features')
-        self.logger.info(f'Created output dir from inside function.')
+        self.logger.debug(f'Created output dir from inside function.')
 
         path = os.path.join(self.output_dir, 'book.csv')
         df = pd.read_csv(path, index_col='file_name')
@@ -971,7 +975,7 @@ class DataLoader(DataHandler):
         strings_to_drop = ['average_sbert_embedding_', 'd2v_embedding_', 'pos_bigram_', 'pos_trigram_']
         columns_to_drop = [col for col in df.columns if any(substring in col for substring in strings_to_drop)]
         df = df.drop(columns=columns_to_drop, inplace=False)
-        self.logger.info(f'Returning df with file_name as index.')
+        self.logger.debug(f'Returning df with file_name as index.')
         return df
     
 

@@ -27,10 +27,10 @@ class NXNetwork(DataHandler):
     def network_from_mx(self):
         if self.mx.mx.equals(self.mx.mx.T):
             graph = nx.from_pandas_adjacency(self.mx.mx)
-            self.logger.info(f'Created undirected graph from symmetric matrix.')
+            self.logger.debug(f'Created undirected graph from symmetric matrix.')
         else:
             graph = nx.from_pandas_adjacency(self.mx.mx, create_using=nx.DiGraph) 
-            self.logger.info(f'Created directed graph from non-symmetric matrix.')
+            self.logger.debug(f'Created directed graph from non-symmetric matrix.')
         # Remove selfloops
         graph.remove_edges_from(nx.selfloop_edges(graph))
         return graph

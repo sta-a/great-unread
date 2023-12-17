@@ -17,40 +17,47 @@ random.seed(9)
 import sys
 sys.path.append("..")
 from utils import DataHandler
+from .cluster_utils import CombinationInfo
 import logging
 logging.basicConfig(level=logging.DEBUG)
 
 
 class NkViz(DataHandler):
-    PROGS = ['sfdp', 'neato', 'kk'] # dot (for directed graphs), circo,  'twopi', 'osage', fdp
+    PROGS = ['sfdp']#, 'neato', 'kk'] # dot (for directed graphs), circo,  'twopi', 'osage', fdp
 
     def __init__(self, language, network, info):
         super().__init__(language, output_dir='similarity', data_type='png')
+        self.noviz_path = self.get_file_path(file_name='log-noviz.txt', subdir=False)
         self.network = network
         self.graph = self.network.graph
         self.info = info
         self.prog = self.info.prog
         self.cat_attrs = ['gender', 'author']
-
         self.add_subdir('nkviz')
-        self.logger.info(f'Drawing graph for {self.info.as_string()}')
 
-        self.too_many_edges, self.vizdict = self.check_nr_edges()
-        if not self.too_many_edges:
+        self.too_many_edges, edges_info = self.check_nr_edges()
+        if self.too_many_edges:
+            self.write_noviz(edges_info)
+        else:
             self.prepare_graphs_and_plot()
 
 
+    def write_noviz(self, vizidct):
+        # Write combination info that was just run to file
+        with open(self.noviz_path, 'a') as f:
+            f.write(f'{self.info.as_string()},{vizidct.as_string()}\n')
+
 
     def make_figure(self):
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(5, 7), gridspec_kw={'height_ratios': [7, 1]})
-        ax2.axis('off')
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(5, 5.5), gridspec_kw={'height_ratios': [7, 0.5]})
+        ax1.axis('off')
         ax2.axis('off')
         return fig, ax1, ax2
     
 
     def visualize(self, pltname, plttitle):
         if self.too_many_edges:
-            return self.vizdict
+            self.write_noviz()
         else:
             start = time.time()
             df = self.prepare_metadata(pltname)
@@ -63,32 +70,24 @@ class NkViz(DataHandler):
                 df['shape'] = 'o'
                 self.add_nodes(df, plttitle, pltname, use_different_shapes=False, fn_str='combined')
                 
-            print(f'{time.time()-start}s to visualize.')
-            return self.vizdict
-        
-
-    def show_figure(self, fig): #############################
-
-        # create a dummy figure and use its
-        # manager to display "fig"  
-        dummy = plt.figure()
-        new_manager = dummy.canvas.manager
-        new_manager.canvas.figure = fig
-        fig.set_canvas(new_manager.canvas)
-
+            calctime = time.time()-start
+            if calctime > 10:
+                print(f'{calctime}s to visualize.')
 
 
     def prepare_graphs_and_plot(self):
-        pkl_path = self.get_file_path(file_name=f'pg-{self.info.as_string(omit=["attr"])}.pkl', subdir=True)
+        pkl_path = self.get_file_path(file_name=f'pg-{self.info.as_string(omit=["clst_alg_params", "attr"])}.pkl', subdir=True)
 
         if os.path.exists(pkl_path):
             with open(pkl_path, 'rb') as f:
-                self.vizdict, self.graph_con, self.graphs_two, self.nodes_removed, self.nodes_iso, self.pos, self.fig = pickle.load(f)
+                self.graph_con, self.graphs_two, self.nodes_removed, self.nodes_iso, self.pos, self.fig = pickle.load(f)
                 self.ax1, self.ax2 = self.fig.get_axes()
-                self.logger.info(f'Loaded graphs and plot from file.') #########
+                self.ax1.axis('off')
+                self.ax2.axis('off')
+                self.logger.debug(f'Loaded graphs and plot from file.')
 
         else:
-            self.logger.info(f'Nr edges below cutoff for {self.info.as_string()}. Making visualization.') ##################3
+            self.logger.debug(f'Nr edges below cutoff for {self.info.as_string()}. Making visualization.') ##################3
             prepare_start = time.time()
 
             self.graph_con, self.graphs_two, self.nodes_removed, self.nodes_iso = self.get_graphs()
@@ -97,14 +96,18 @@ class NkViz(DataHandler):
             self.draw_edges(self.graph_con, self.pos, self.ax1)
 
             viztime = time.time()-prepare_start
-            self.vizdict = {'viz_time': viztime}
 
-            with open(pkl_path, 'wb') as f:
-                pkl_lst = [self.vizdict, self.graph_con, self.graphs_two, self.nodes_removed, self.nodes_iso, self.pos, self.fig]
-                pickle.dump(pkl_lst, f)
+            pkl_lst = [self.graph_con, self.graphs_two, self.nodes_removed, self.nodes_iso, self.pos, self.fig]
+            try:
+                with open(pkl_path, 'wb') as f:
+                    pickle.dump(pkl_lst, f)
+            except Exception as e:
+                if os.path.exists(pkl_path):
+                    os.remove(pkl_path)
+                print(f"Pickling failed, regenerating edges plot for every visualization.: {e}")
 
-            print(f'{viztime}s to prepare plots..')
-            self.logger.info(f'Finished visualization {self.info.as_string()}')
+            print(f'{viztime}s to prepare plots.')
+            self.logger.debug(f'Finished preparing viz {self.info.as_string()}')
 
 
 
@@ -168,25 +171,8 @@ class NkViz(DataHandler):
         weights_list = list(edge_weights.values())
         nx.draw_networkx_edges(graph, pos, ax=ax, edge_color=weights_list, edge_cmap=plt.cm.get_cmap('gist_yarg'), arrowsize=2, width=0.5, arrows=False) ################## arrows
         ax.grid(False)
-        print(f'{time.time()-start}s to draw edges.')
+        # print(f'{time.time()-start}s to draw edges.')
 
-
-    def count_visible_edges(self):
-        edges = list(self.network.graph.edges())
-        edges_dict = {'nr_edges': len(edges)}
-
-        # Count visible edges. If there is an edge from A to B and from B to A, is it counted only once
-        if nx.is_directed(self.network.graph):
-            unique_edges = set()
-            for edge in edges:
-                sorted_edge = tuple(sorted(edge))
-                unique_edges.add(sorted_edge)
-            edges_dict['nr_vis_edges'] = len(unique_edges)
-
-        else:
-            edges_dict['nr_vis_edges'] = len(edges)
-        return edges_dict
-    
 
     def prepare_metadata(self, pltname):
         ## Prepare metadata
@@ -246,7 +232,7 @@ class NkViz(DataHandler):
         start = time.time()
 
         # Custom grid layout for two-node components and isolated nodes
-        row_height = 0.1
+        row_height = 0.01
         pos_removed = {node: (i % nodes_per_line, -(i // nodes_per_line) * row_height) for i, node in enumerate(self.nodes_removed)}
 
         if self.prog == 'kk':
@@ -257,23 +243,42 @@ class NkViz(DataHandler):
 
         pos = {**pos_removed, **pos_con}
 
-        print(f'{time.time()-start}s to get node layout.')
+        # print(f'{time.time()-start}s to get node layout.')
         return pos
 
 
+    def count_visible_edges(self):
+        edges = list(self.network.graph.edges())
+
+        # Count visible edges. If there is an edge from A to B and from B to A, is it counted only once
+        if nx.is_directed(self.network.graph):
+            unique_edges = set()
+            for edge in edges:
+                sorted_edge = tuple(sorted(edge))
+                unique_edges.add(sorted_edge)
+            nrvis = len(unique_edges)
+
+        else:
+            nrvis = len(edges)
+
+        nr_possible_edges = self.network.mx.mx.shape[0]**2
+        ratio_vis = nrvis/nr_possible_edges
+
+        edges_info = CombinationInfo(nr_edges=len(edges), nr_vis_edges=nrvis, ratio_vis_edges=ratio_vis)
+
+        return edges_info
+    
+
     def check_nr_edges(self):
         # Check if the number of edges is too high to make a good plot
-        vizdict = self.count_visible_edges()
-        nr_possible_edges = self.network.mx.mx.shape[0]**2
-        share_visible = vizdict['nr_vis_edges']/nr_possible_edges
+        edges_info = self.count_visible_edges()
         threshold = 0.2 # Set by inspecting plots
 
-        if share_visible > threshold:
-            self.logger.info(f'Nr edges above cutoff for {self.info.as_string()}')
-            vizdict['viz_time'] = 'noviz'
-            return True, vizdict
+        if edges_info.ratio_vis_edges > threshold:
+            self.logger.debug(f'Nr edges above cutoff for {self.info.as_string()}')
+            return True, edges_info
         else:
-            return False, None
+            return False, edges_info
         
 
     def set_info(self, info):

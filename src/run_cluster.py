@@ -2,7 +2,7 @@
 %load_ext autoreload
 %autoreload 2
 # Don't display plots
-%matplotlib agg
+# %matplotlib agg
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -11,6 +11,7 @@ import os
 import numpy as np
 import itertools
 import sys
+from copy import deepcopy
 sys.path.append("..")
 from copy import deepcopy
 import itertools
@@ -32,15 +33,29 @@ logging.basicConfig(level=logging.DEBUG)
 
 
 class SimilarityClustering(DataHandler):
-    def __init__(self, language):
+    def __init__(self, language, draw=True):
         super().__init__(language=language, output_dir='similarity', data_type='csv')
-        self.loggerfile = 'cluster-logging.txt'
-        self.processed = self.load_processed_infos()
+        self.draw = draw
+        self.test = True
 
-        self.test = False
+        self.proc_path= self.get_file_path(file_name='log-processed.txt')
+        self.processed = self.load_processed()
+
+        s = time.time()
         self.mxs = self.load_mxs()
+        print(f'{time.time()-s}s to load mxs.')
+        
+        # self.metadata_path = 'metadata.csv'
+        # if os.path.exists(self.metadata_path):
+        #     self.metadf = pd.read_csv(self.metadata_path, index_col=0)
+        # else:
+        #     mh = MetadataHandler(self.language)
+        #     self.metadf = mh.get_metadata()
+        #     self.metadf.to_csv(self.metadata_path, index=True)
         mh = MetadataHandler(self.language)
-        self.metadf = mh.get_metadata() ############################ save to file
+        self.metadf = mh.get_metadata()
+
+
         self.colnames = [col for col in self.metadf.columns if not col.endswith('_color')]
         self.colnames = ['gender', 'author', 'canon', 'year']
 
@@ -48,73 +63,66 @@ class SimilarityClustering(DataHandler):
         # Set params for testing
         if self.test:
             self.colnames = ['gender', 'canon']
-            MxReorder.ORDERS = ['olo']
-            SimmxCluster.ALGS = {
-                'hierarchical': {
-                    'nclust': [2],
-                    'method': ['single'],
-                },
-                'spectral': {
-                    'nclust': [2],
-                },
-                'kmedoids': {
-                    'nclust': [2],
-                },
-                'dbscan': {
-                    'eps': [0.01],
-                    'min_samples': [5],
-                },
-            }
-            NetworkCluster.ALGS = {
-                'louvain': {
-                    'resolution': [1],
-                    },
-            }
+            # MxReorder.ORDERS = ['olo']
+            # SimmxCluster.ALGS = {
+            #     'hierarchical': {
+            #         'nclust': [2],
+            #         'method': ['single'],
+            #     },
+            #     'spectral': {
+            #         'nclust': [2],
+            #     },
+            #     'kmedoids': {
+            #         'nclust': [2],
+            #     },
+            #     'dbscan': {
+            #         'eps': [0.01],
+            #         'min_samples': [5],
+            #     },
+            # }
+            # NetworkCluster.ALGS = {
+            #     'louvain': {
+            #         'resolution': [1],
+            #         },
+            # }
             Sparsifier.MODES = {
-                'authormax': [None], ################3
+                #'authormax': [None],
                 # 'threshold': [0.9],
-            # 'simmel': [(5, 10)],
+                'simmel': [(50, 100)],
             }
             NkViz.PROGS = ['sfdp']
 
 
-    def load_processed_infos(self):
+    def load_processed(self):
         # Load all combination infos that have already been run from file
-        if os.path.exists('cluster-logging.txt'):
-            f = open(self.loggerfile, 'r')
+        if os.path.exists(self.proc_path):
+            f = open(self.proc_path, 'r')
             infos = [line.strip() for line in f.readlines()]
         else:
             infos = []
         return infos
+
     
-    def write_logger(self, info):
+    def write_processed(self, info):
         # Write combination info that was just run to file
-        with open(self.loggerfile, 'a') as f:
+        with open(self.proc_path, 'a') as f:
             f.write(f'{info.as_string()}\n')
 
 
     def load_mxs(self):
-        if self.test is False:
-            # Delta distance mxs
-            delta = Delta(self.language)
-            # delta.create_all_data(use_kwargs_for_fn='mode')
-            all_delta = delta.load_all_data(use_kwargs_for_fn='mode', subdir=True)
+        # Delta distance mxs
+        delta = Delta(self.language)
+        # delta.create_all_data(use_kwargs_for_fn='mode')
+        all_delta = delta.load_all_data(use_kwargs_for_fn='mode', subdir=True)
 
-
-            # D2v distance mxs
-            d2v = D2vDist(language=self.language)
-            all_d2v = d2v.load_all_data(use_kwargs_for_fn='mode', file_string=d2v.file_string, subdir=True)
-            mxs = {**all_delta, **all_d2v}
-
-        else:
-            # D2v distance mxs
-            d2v = D2vDist(language=self.language)
-            d2v.modes = ['both']
-            all_d2v = d2v.load_all_data(use_kwargs_for_fn='mode', file_string=d2v.file_string, subdir=True)
-            mxs = {**all_d2v}
+        # D2v distance mxs
+        d2v = D2vDist(language=self.language)
+        all_d2v = d2v.load_all_data(use_kwargs_for_fn='mode', file_string=d2v.file_string, subdir=True)
+        mxs = {**all_delta, **all_d2v}
 
         mxs_list = []
         for name, mx in mxs.items():
+            print(name)
             mx.name = name
             mxs_list.append(mx)
 
@@ -144,7 +152,6 @@ class SimilarityClustering(DataHandler):
 
     def simmx_clustering(self):
         start = time.time()
-        # Visualize and evaluate clusters
         for mx, cluster_alg in itertools.product(self.mxs, SimmxCluster.ALGS.keys()):
             sc = SimmxCluster(self.language, cluster_alg, mx)
             param_combs = sc.get_param_combinations()
@@ -154,14 +161,12 @@ class SimilarityClustering(DataHandler):
                 clusters = sc.cluster(info, **param_comb)
                 inteval = MxIntEval(mx, clusters).evaluate()
                 
-                # Cluster visualization
                 for order in MxReorder.ORDERS:
                     info = CombinationInfo(metadf = deepcopy(self.metadf), mxname=mx.name, cluster_alg=cluster_alg, attr='cluster', order=order, param_comb=param_comb)
                     print(info.as_string())
                     viz = MxViz(self.language, mx, info)
-                    ee = ExtEval(self.language, 'mx', viz, clusters, info, inteval)
+                    ee = ExtEval(self.language, 'mx', clusters, info, inteval)
 
-                # Evaluate how well clustering captures attributes
                 for attr in self.colnames:
                     attrinfo = ee.evaluate(attr=attr)
 
@@ -187,9 +192,10 @@ class SimilarityClustering(DataHandler):
 
 
     def network_clustering(self):
+        start = time.time()
         for mx, sparsmode in itertools.product(self.mxs, Sparsifier.MODES.keys()):
 
-            if mx.name != 'burrows-500':
+            if mx.name == 'argamon_quadratic-500': ##########################
 
 
                 print('\n##################################\nInfo: ', mx.name, sparsmode)
@@ -205,43 +211,65 @@ class SimilarityClustering(DataHandler):
                         param_combs = nc.get_param_combinations()
                         
                         for param_comb in param_combs:
-                            info = CombinationInfo(mxname=mx.name, sparsmode=sparsmode, spars_param=spars_param, cluster_alg=cluster_alg, param_comb=param_comb)
-                            if not info in self.processed:
-                                clusters = nc.cluster(info, **param_comb)
-                                self.write_logger(info)
-                                inteval = NkIntEval(network, clusters, cluster_alg, param_comb).evaluate()
+                            outinfo = CombinationInfo(mxname=mx.name, sparsmode=sparsmode, spars_param=spars_param, cluster_alg=cluster_alg, param_comb=param_comb, metadf=deepcopy(self.metadf))
+                            print(outinfo.as_string())
+                            if not outinfo in self.processed:
+                                clusters = nc.cluster(outinfo, param_comb)
+                                
+                                if clusters is not None:
+                                    inteval = NkIntEval(network, clusters, cluster_alg, param_comb).evaluate()
 
-                                for prog in NkViz.PROGS:
-                                    if not info in self.processed:
-                                        info = CombinationInfo(metadf = deepcopy(self.metadf), mxname=mx.name, sparsmode=sparsmode, spars_param=spars_param, cluster_alg=cluster_alg, prog=prog, attr='cluster', param_comb=param_comb)
-                                        print(info.as_string())
-                                        viz = NkViz(self.language, network, info)
-                                        ee = ExtEval(self.language, 'nk', viz, clusters, info, inteval, network)
+                                    info = deepcopy(outinfo)
+                                    ee = ExtEval(self.language, 'nk', clusters, info, inteval, network)
+                                    
+                                    eval_info = {}
+                                    evallst = ee.evaluate(attr='cluster')
+                                    eval_info['cluster'] = deepcopy(evallst) # evallst contains mutable elements
+                                    
 
-                                        for attr in self.colnames:
-                                            attrinfo = ee.evaluate(attr=attr) # Return updated info after finishing evaluation #################
-                                        self.write_logger(info)
-
-                                        print('\n-----------------------------------\n')
-
+                                    for attr in self.colnames:
+                                        evallst = ee.evaluate(attr=attr)
+                                        eval_info[attr] = deepcopy(evallst) 
 
 
+                                    if self.draw:
+                                        for attr, evallst in eval_info.items():
+                                            info, plttitle = evallst
+                                            for prog in NkViz.PROGS:
+                                                setattr(info, 'prog', prog)
+                                                viz = NkViz(self.language, network, info)
+                                                if attr == 'cluster':
+                                                    pltname='clstviz'
+                                                else:
+                                                    pltname='evalviz'
+                                                viz.visualize(pltname=pltname, plttitle=plttitle.as_string(sep='\n'))
 
-# delete_png_files(['/home/annina/scripts/great_unread_nlp/data/similarity/eng/nkviz', '/home/annina/scripts/great_unread_nlp/data/similarity/eng/mxviz']) 
+                                self.write_processed(outinfo)
+
+        print(f'{time.time()-start}s to run 1 mx.')
+
+
+
 # remove_directories(['/home/annina/scripts/great_unread_nlp/data/similarity/eng/nkeval', '/home/annina/scripts/great_unread_nlp/data/similarity/eng/mxeval'])
+# delete_png_files(['/home/annina/scripts/great_unread_nlp/data/similarity/eng/nkviz', '/home/annina/scripts/great_unread_nlp/data/similarity/eng/mxviz']) 
 # remove_directories(['/home/annina/scripts/great_unread_nlp/data/similarity/eng/nkviz'])
-# if os.path.exists('cluster-logging.txt'):
-#     os.remove('cluster-logging.txt')
+# remove_directories(['/home/annina/scripts/great_unread_nlp/data/similarity/eng/clusters'])
+# logfiles = ['/home/annina/scripts/great_unread_nlp/data/similarity/eng/log_clst.txt', '/home/annina/scripts/great_unread_nlp/data/similarity/eng/log-processed.txt']
+# for i in logfiles:
+#     if os.path.exists(i):
+#         os.remove(i)
 
 
 
 ####LOUVAIN
-sn = SimilarityClustering(language='eng')
+sn = SimilarityClustering(language='eng', draw=False)
 # sn.simmx_attrviz()
 # sn.simmx_clustering()
 # sn.network_attrviz()
 sn.network_clustering()
 
+
+# hy only simmelian???
 
 
 # get colors discrete creates black?

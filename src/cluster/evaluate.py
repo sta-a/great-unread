@@ -17,12 +17,12 @@ from sklearn.metrics import silhouette_score
 from sklearn.metrics import adjusted_rand_score, accuracy_score
 from sklearn.linear_model import LogisticRegression
 
-from .cluster_utils import MetadataHandler
+from .cluster_utils import MetadataHandler, CombinationInfo
 import sys
 sys.path.append("..")
 from utils import DataHandler
 import logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.WARNING)
 
 
 class MxIntEval():
@@ -32,12 +32,10 @@ class MxIntEval():
     def __init__(self, mx, clusters):
         self.mx = mx
         self.clusters = clusters # df with file_name and cluster cols
+        assert self.clusters is not None
 
     def evaluate(self):
-        if self.clusters is None:
-            sc = np.nan
-        else:
-            sc = self.silhouette_score()
+        sc = self.silhouette_score()
         evals = {'silhouette_score': sc}
         return pd.DataFrame([evals])
 
@@ -55,13 +53,13 @@ class NkIntEval():
     def __init__(self, network, clusters, cluster_alg, param_comb):
         self.network = network
         self.clusters = clusters # df with file_name and cluster cols
+        assert self.clusters is not None
         self.cluster_alg = cluster_alg
         self.param_comb = param_comb
 
     def evaluate(self):
         mod = np.nan
-        if self.clusters is not None:
-            mod = self.modularity()
+        mod = self.modularity()
         evals = {'modularity': mod}
         return pd.DataFrame([evals])
 
@@ -79,11 +77,11 @@ class ExtEval(DataHandler):
     '''
     Evaluate cluster quality with an external criterion (the ground truths)
     '''
-    def __init__(self, language, mode, viz, clusters, info, inteval, network):
+    def __init__(self, language, mode, clusters, info, inteval, network):
         super().__init__(language, output_dir='similarity')
         self.mode = mode
-        self.viz = viz
         self.clusters = clusters
+        assert self.clusters is not None
         self.info = info
         self.inteval = inteval
         self.network = network
@@ -91,9 +89,6 @@ class ExtEval(DataHandler):
 
         self.add_subdir(f'{self.mode}eval')
         self.file_paths = self.get_file_paths()
-
-        self.merge_clust_meta_dfs()
-        self.eval_clust()
 
 
     def get_file_paths(self):
@@ -104,46 +99,23 @@ class ExtEval(DataHandler):
         
 
     def merge_clust_meta_dfs(self):
-        if self.clusters is not None:
-            # Combine file names, attributes, and cluster assignments
-            metadf = pd.merge(self.info.metadf, self.clusters.df, left_index=True, right_index=True, validate='1:1')
-            mh = MetadataHandler(self.language)
-            # Add color for clusters
-            metadf = mh.add_color_to_df(metadf, 'cluster')
-            metadf = mh.add_shape_to_df(metadf)
+        # Combine file names, attributes, and cluster assignments
+        metadf = pd.merge(self.info.metadf, self.clusters.df, left_index=True, right_index=True, validate='1:1')
+        mh = MetadataHandler(self.language)
+        # Add color for clusters
+        metadf = mh.add_color_to_df(metadf, 'cluster')
+        metadf = mh.add_shape_to_df(metadf)
 
-            # Create a new col for categorical attributes that matches a number to every cluster-attribute combination
-            # Map the new cols to colors
-            for ca in self.cat_attrs:
-                colname = f'{ca}_cluster'
-                metadf[colname] = metadf.groupby(['gender', 'cluster']).ngroup()
-                metadf = mh.add_color_to_df(metadf, colname)
+        # Create a new col for categorical attributes that matches a number to every cluster-attribute combination
+        # Map the new cols to colors
+        for ca in self.cat_attrs:
+            colname = f'{ca}_cluster'
+            metadf[colname] = metadf.groupby(['gender', 'cluster']).ngroup()
+            metadf = mh.add_color_to_df(metadf, colname)
 
-            self.info.metadf = metadf
-            self.viz.set_info(self.info)
+        self.info.metadf = metadf
 
 
-    def eval_clust(self): 
-        if self.clusters is not None:
-            # Visualize clusters with heatmap
-            # Get nr elements per cluster
-            cluster_column = self.info.metadf['cluster']
-            value_counts = cluster_column.value_counts()
-            nclust = cluster_column.nunique()
-
-            # Count clusters with only one data point
-            iso_cluster_count = sum(count == 1 for count in value_counts)
-                
-            clst_str = ', '.join(f'label{val}-{count}' for val, count in value_counts.items() if count>1)
-            if iso_cluster_count > 0:
-                clst_str += f', isolated-{iso_cluster_count}'
-
-            self.clst_info = pd.DataFrame({'nclust': nclust,'clst_str': clst_str}, index=[0])
-            self.plttitle = f'nclust: {nclust}, {clst_str}'
-
-            _ = self.viz.visualize(pltname='clstviz', plttitle=self.plttitle)
-
-    
     def set_params(self):
         if self.info.attr in self.cat_attrs:
             self.scale = 'cat'
@@ -157,34 +129,50 @@ class ExtEval(DataHandler):
             self.scale = 'cont'
             self.eval_method = self.eval_continuous
 
-        self.viz.set_info(self.info)
+
+    def evaluate(self, attr):
+        setattr(self.info, 'attr', attr)
+        if attr == 'cluster':
+            evallst = self.eval_clst()
+        else:
+            evallst = self.eval_attr()
+        return evallst
 
 
-    def evaluate(self, **kwargs):
-        for key, value in kwargs.items():
-            setattr(self.info, key, value)
+    def eval_clst(self):         
+        self.merge_clust_meta_dfs()
+        # Visualize clusters with heatmap
+        # Get nr elements per cluster
+        cluster_column = self.info.metadf['cluster']
+        value_counts = cluster_column.value_counts()
+        nclust = cluster_column.nunique()
+
+        # Count clusters with only one data point
+        iso_cluster_count = sum(count == 1 for count in value_counts)
+            
+        clst_str = ', '.join(f'label{val}-{count}' for val, count in value_counts.items() if count>1)
+        if iso_cluster_count > 0:
+            clst_str += f', isolated-{iso_cluster_count}'
+
+        self.clst_info = pd.DataFrame({'nclust': nclust,'clst_str': clst_str}, index=[0])
+
+        # Store information to display as plot titles
+        self.plttitle = CombinationInfo(clstinfo=f'nclust: {nclust}, {clst_str}')
+
+        return [self.info, self.plttitle]
+
+
+    def eval_attr(self):
         self.set_params()
 
-        if self.clusters is None:
-            # self.info.extra = 'one_cluster'
-            if self.scale == 'cat':
-                empty_df = pd.DataFrame([{'ARI': np.nan}])
-                self.write_eval(empty_df)
-            else:
-                empty_df = pd.DataFrame([[np.nan, np.nan]], columns=['anova-pval', 'logreg-accuracy'])
-                self.write_eval(empty_df)
+        evaldf = self.eval_method()
+        self.write_eval(evaldf)
 
-        else:
-            evaldf = self.eval_method()
-
-            eetitle = ','.join([f'{col}: {evaldf.iloc[0][col]}' for col in evaldf.columns])
-            ietitle = ','.join([f'{col}: {self.inteval.iloc[0][col]}' for col in self.inteval.columns])
-
-            vizdict = self.viz.visualize(pltname='evalviz', plttitle=f'{self.plttitle}\n{eetitle},{ietitle}')
-            self.write_eval(evaldf, vizdict)
-        
+        setattr(self.plttitle, 'exteval', ','.join([f'{col}: {evaldf.iloc[0][col]}' for col in evaldf.columns]))
+        setattr(self.plttitle, 'inteval', ','.join([f'{col}: {self.inteval.iloc[0][col]}' for col in self.inteval.columns]))
+    
         # Return updated info after finishing evaluation
-        return self.info
+        return [self.info, self.plttitle]
 
 
     def get_existing_fileinfos(self):
@@ -198,16 +186,9 @@ class ExtEval(DataHandler):
         return infos
     
 
-    def write_eval(self, evaldf, vizdict):
+    def write_eval(self, evaldf):
         file_info = pd.DataFrame({'file_info': self.info.as_string()}, index=[0])
-
-        all_dfs = [self.info.as_df(), self.clst_info, self.inteval, evaldf]
-        if vizdict is not None: 
-            vizdf = pd.DataFrame([vizdict])
-            all_dfs.append(vizdf)
-        all_dfs.append(file_info) # file_info as last column
-
-        df = pd.concat(all_dfs, axis=1)
+        df = pd.concat([self.info.as_df(), self.clst_info, self.inteval, evaldf, file_info], axis=1)
 
         # Write header only if file does not exist
         file_path = self.file_paths[self.scale]
@@ -221,7 +202,7 @@ class ExtEval(DataHandler):
                        file_path=file_path, 
                        data_type='csv', 
                        pandas_kwargs={'mode': mode, 'header': header, 'index': False, 'na_rep': 'NA'})
-
+    
 
     def eval_gender(self):
         df = self.info.metadf.copy(deep=True)
@@ -231,7 +212,7 @@ class ExtEval(DataHandler):
 
         # Map gender to number
         gender_col = df['gender'].replace({'m': 0, 'f': 1, 'a': 0, 'b': 0})
-        self.logger.info(f'Count "b" and "a" gender labels as "m" when evaluating gender.')
+        self.logger.debug(f'Count "b" and "a" gender labels as "m" when evaluating gender.')
         assert len(df['cluster'] == self.nr_texts)
 
         # Calculate Adjusted Rand Index

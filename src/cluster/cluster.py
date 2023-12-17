@@ -5,9 +5,11 @@ from sklearn.manifold import MDS
 import pandas as pd
 import itertools
 import numpy as np
+import multiprocessing
 import networkx as nx
 from copy import deepcopy
 from itertools import product
+import concurrent.futures
 from networkx import edge_betweenness_centrality as betweenness
 from networkx.algorithms.community.centrality import girvan_newman
 from networkx.algorithms.community import asyn_lpa_communities, louvain_communities
@@ -22,11 +24,7 @@ sys.path.append("..")
 from utils import TextsByAuthor, DataHandler
 
 import logging
-logging.basicConfig(level=logging.DEBUG)
-# # Suppress logger messages by 'matplotlib.ticker
-# # Set the logging level to suppress debug output
-# ticker_logger = logging.getLogger('matplotlib.ticker')
-# ticker_logger.setLevel(logging.WARNING)
+logging.basicConfig(level=logging.INFO)
 
 
 class Clusters():
@@ -39,7 +37,7 @@ class Clusters():
         self.mx = mx
         self.initial_clusts = clusters
         self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(logging.DEBUG)
+        self.logger.setLevel(logging.INFO)
         self.preprocess()
         self.df = self.as_df()
     
@@ -48,9 +46,6 @@ class Clusters():
         # Preprocess initial clusters
         if isinstance(self.initial_clusts, np.ndarray):
             self.initial_clusts = self.initial_clusts.tolist()
-
-        if self.cluster_alg == 'dbscan' and all(element == -1 for element in self.initial_clusts):
-            self.logger.info(f'DBSCAN only returns noisy samples with value -1.')
 
 
     def as_df(self):
@@ -94,11 +89,21 @@ class ClusterBase(DataHandler):
         super().__init__(language=language, output_dir='similarity', data_type='pkl')
         self.mx = mx
         self.cluster_alg = cluster_alg
-        self.attr_params = {'gender': 2, 'author': self.get_nr_authors()} #############################3
         self.n_jobs = -1
-        self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(logging.DEBUG)
-        self.add_subdir('clusters')
+        self.timeout = 5
+
+
+    def log_clst(self, info, outcome):
+        path = self.get_file_path(file_name=f'log_clst.txt')
+        outcomes = ['timeout', 'single', 'iso', 'success', 'noisy']
+        assert outcome in outcomes
+
+        if not os.path.exists(path):
+            with open(path, 'w') as f:
+                f.write('info,outcome\n')
+
+        with open(path, 'a') as f:
+            f.write(f'{info.as_string()},{outcome}\n')
 
 
     def get_param_combinations(self):
@@ -122,33 +127,79 @@ class ClusterBase(DataHandler):
 
     def get_nr_authors(self):
         return len(TextsByAuthor(self.language).nr_texts_per_author)
+    
 
+    # def run_cluster_alg(self, method, param_comb):
+    #     with concurrent.futures.ThreadPoolExecutor() as executor:
+    #         # Submit the function for execution with keyword arguments
+    #         future = executor.submit(method, **param_comb)
 
-    def cluster(self, info, **kwargs):
-        pkl_path = self.get_file_path(file_name=f'clusters-{info.as_string()}.pkl', subdir=True) 
-        if os.path.exists(pkl_path):
-            with open(pkl_path, 'rb') as f:
-                clusters = pickle.load(f)
-        else:
-            self.logger.debug(f'Running clustering alg {self.cluster_alg} {", ".join([f"{key}: {value}" for key, value in kwargs.items()])}.')
+    #         try:
+    #             # Set a timeout of 3 seconds
+    #             clusters = future.result(timeout=3)
+    #             print("Function completed successfully:")
+    #         except concurrent.futures.TimeoutError:
+    #             print("Function took too long to execute and timed out.")
+    #             future.cancel()
+    #             print("Task was canceled before completion.")
+    #             print('executors')
+    #             clusters = None
+    #             print(clusters)
 
-            # Get method name, which is the same as the name of the clustering algorithm
-            method = getattr(self, self.cluster_alg)
-            start = time.time()
-            clusters = method(**kwargs)
-            clsttime = time.time()-start
-            print(f'{clsttime}s to calculate alg:{self.cluster_alg} clusters.')
+    #     print('returning clusters')
+    #     return clusters
+    
 
-            with open('clusttime.csv', 'a') as f: #################################3
-                f.write(f'{info.as_string()},{clsttime}\n')
+    def run_cluster_alg(self, method, param_comb):
+        pool = multiprocessing.Pool(processes=1)
 
-            clusters = Clusters(self.cluster_alg, self.mx, clusters)
-            with open(pkl_path, 'wb') as f:
-                pickle.dump(clusters, f)
-
-        if clusters.df['cluster'].nunique() == 1:
+        try:
+            # Apply the function with a timeout
+            result = pool.apply_async(method, kwds=param_comb)
+            clusters = result.get(timeout=self.timeout)
+        except multiprocessing.TimeoutError:
+            # Cancel the process if it exceeds the timeout
+            pool.terminate()
+            self.logger.info(f'Method has not returned within {self.timeout} seconds and has been canceled.')
             clusters = None
-            self.logger.info(f'All data points put into the same cluster.')
+        finally:
+            # Close the pool
+            pool.close()
+            pool.join()
+            return clusters
+
+
+
+    def cluster(self, info, param_comb):
+        self.logger.debug(f'Running clustering alg {self.cluster_alg} {", ".join([f"{key}: {value}" for key, value in param_comb.items()])}.')
+
+        # Get method name, which is the same as the name of the clustering algorithm
+        method = getattr(self, self.cluster_alg)
+        clusters = self.run_cluster_alg(method, param_comb)
+
+        if clusters is None:
+            self.log_clst(info, 'timeout')
+        # clusters = method(**param_comb)
+        else:
+            clusters = Clusters(self.cluster_alg, self.mx, clusters)
+
+            if self.cluster_alg == 'dbscan' and (clusters.df['cluster'] == -1).all():
+                clusters = None
+                self.log_clst(info, 'noisy')
+                self.logger.info(f'DBSCAN only returns noisy samples with value -1.')
+
+            if clusters.df['cluster'].nunique() == 1:
+                clusters = None
+                self.log_clst(info, 'single')
+                self.logger.info(f'All data points put into the same cluster.')
+
+            elif clusters.df['cluster'].nunique() == self.nr_texts:
+                clusters = None
+                self.log_clst(info, 'iso')
+                self.logger.info(f'All data points put into isolated clusters.')
+
+            else:
+                self.log_clst(info, 'success')
 
         return clusters
         
