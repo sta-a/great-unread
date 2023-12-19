@@ -13,7 +13,7 @@ import random
 random.seed(9)
 
 from scipy.stats import f_oneway
-from sklearn.metrics import silhouette_score
+from sklearn.metrics import silhouette_score, normalized_mutual_info_score, fowlkes_mallows_score
 from sklearn.metrics import adjusted_rand_score, accuracy_score
 from sklearn.linear_model import LogisticRegression
 
@@ -77,18 +77,18 @@ class ExtEval(DataHandler):
     '''
     Evaluate cluster quality with an external criterion (the ground truths)
     '''
-    def __init__(self, language, mode, clusters, info, inteval, network):
+    def __init__(self, language, mode, clusters, info, inteval):
         super().__init__(language, output_dir='similarity')
         self.mode = mode
         self.clusters = clusters
         assert self.clusters is not None
         self.info = info
         self.inteval = inteval
-        self.network = network
         self.cat_attrs = ['gender', 'author']
 
         self.add_subdir(f'{self.mode}eval')
         self.file_paths = self.get_file_paths()
+        self.merge_clust_meta_dfs()
 
 
     def get_file_paths(self):
@@ -130,8 +130,8 @@ class ExtEval(DataHandler):
             self.eval_method = self.eval_continuous
 
 
-    def evaluate(self, attr):
-        setattr(self.info, 'attr', attr)
+    def evaluate(self, attr, info):
+        self.info = info
         if attr == 'cluster':
             evallst = self.eval_clst()
         else:
@@ -140,7 +140,6 @@ class ExtEval(DataHandler):
 
 
     def eval_clst(self):         
-        self.merge_clust_meta_dfs()
         # Visualize clusters with heatmap
         # Get nr elements per cluster
         cluster_column = self.info.metadf['cluster']
@@ -159,7 +158,7 @@ class ExtEval(DataHandler):
         # Store information to display as plot titles
         self.plttitle = CombinationInfo(clstinfo=f'nclust: {nclust}, {clst_str}')
 
-        return [self.info, self.plttitle]
+        return self.plttitle
 
 
     def eval_attr(self):
@@ -168,11 +167,10 @@ class ExtEval(DataHandler):
         evaldf = self.eval_method()
         self.write_eval(evaldf)
 
-        setattr(self.plttitle, 'exteval', ','.join([f'{col}: {evaldf.iloc[0][col]}' for col in evaldf.columns]))
-        setattr(self.plttitle, 'inteval', ','.join([f'{col}: {self.inteval.iloc[0][col]}' for col in self.inteval.columns]))
+        self.plttitle.add('exteval', ','.join([f'{col}: {evaldf.iloc[0][col]}' for col in evaldf.columns]))
+        self.plttitle.add('inteval', ','.join([f'{col}: {self.inteval.iloc[0][col]}' for col in self.inteval.columns]))
     
-        # Return updated info after finishing evaluation
-        return [self.info, self.plttitle]
+        return self.plttitle
 
 
     def get_existing_fileinfos(self):
@@ -204,72 +202,68 @@ class ExtEval(DataHandler):
                        pandas_kwargs={'mode': mode, 'header': header, 'index': False, 'na_rep': 'NA'})
     
 
-    def eval_gender(self):
-        df = self.info.metadf.copy(deep=True)
+    def get_purity(self):
+        purities = []
+        mdf = self.info.metadf.copy(deep=True)
 
-        confusion_table = pd.crosstab(df['gender'], df['cluster'], margins=True, margins_name='Total')
-        # print('\n\n-----------------------------\n', confusion_table, '\n-----------------------------------------\n\n')
-
-        # Map gender to number
-        gender_col = df['gender'].replace({'m': 0, 'f': 1, 'a': 0, 'b': 0})
-        self.logger.debug(f'Count "b" and "a" gender labels as "m" when evaluating gender.')
-        assert len(df['cluster'] == self.nr_texts)
-
-        # Calculate Adjusted Rand Index
-        ari_score = adjusted_rand_score(gender_col, df['cluster'])
-        return pd.DataFrame([{'ARI': round(ari_score, 3)}])
-
-    
-    def eval_author(self):
-        true_labels = []
-        pred_labels = []
-
-        # Set dominant label as the true label of the cluster
-        for cluster in self.info.metadf['cluster'].unique():
-            df = self.info.metadf[self.info.metadf['cluster'] == cluster]
+        # Find the most common label in the cluster
+        for cluster in mdf['cluster'].unique():
+            df = mdf[mdf['cluster'] == cluster]
+            nelements = len(df)
 
             # Ignore clusters of length 1 for ARI calculation
-            if len(df) == 1:
+            if nelements == 1:
                 continue
 
-            # Find most common author in cluster
-            # If a cluster has length 1 but the author has more than one work: ignored
-            # Count occurrences of each author
-            counter = Counter(df['author'].tolist())
-            # Find the most common author
-            most_common_count = counter.most_common(1)[0][1]
-            # Find all strings with the most common count
-            most_common_authors = [item[0] for item in counter.items() if item[1] == most_common_count]
+            # Count occurrences of each true label in the cluster
+            label_counts = Counter(df[self.info.attr])
+            
+            # Find the most frequent label in the cluster
+            most_frequent_label = max(label_counts, key=label_counts.get)
+            
+            # Calculate purity for the current cluster
+            cluster_purity = label_counts[most_frequent_label] / nelements
+            purities.append(cluster_purity)
+
+        return np.mean(purities)
+    
+    
+    def get_categorical_scores(self, attrcol):
+        df = self.info.metadf.copy(deep=True)
+        assert len(attrcol) == self.nr_texts
+        assert len(df['cluster'] == self.nr_texts)
+
+        # confusion_table = pd.crosstab(df[self.info.attr], df['cluster'], margins=True, margins_name='Total')
+        # print('\n\n-----------------------------\n', confusion_table, '\n-----------------------------------------\n\n')
+
+        purity = self.get_purity()
+
+        ari_score = adjusted_rand_score(attrcol, df['cluster'] )
+        nmi_score = normalized_mutual_info_score(attrcol, df['cluster'] )
+        fmi_score = fowlkes_mallows_score(attrcol, df['cluster'] )
+        df = pd.DataFrame([{'ARI': round(ari_score, 3), 'nmi': nmi_score, 'fmi': fmi_score, 'mean_purity': purity}])
+        df = df.round(3)
+        return df
 
 
-            # If several authors have the same count, assing cluster to the author with the smalles number of works (the author with the smallest class probability)
-            if len(most_common_authors) != 1:
-                min_nr_works = float('inf')
-                min_author = []
-                for author in most_common_authors:
-                    nr_works = len(self.info.metadf[self.info.metadf['author'] == author])
-                    if nr_works < min_nr_works:
-                        min_nr_works = nr_works
-                        min_author = [author]
-                    elif nr_works == min_nr_works:
-                        min_author.append(author)
-                # If several have same class probabilty, chose randomly
-                if len(min_author) > 1:
-                    most_common_author = random.choice(min_author)
-                else:
-                    most_common_author = min_author[0]
+    def eval_author(self):
+        df = self.info.metadf.copy(deep=True)
+        # Create a mapping dictionary
+        unique_authors = df['author'].unique()
+        author_mapping = {author: i for i, author in enumerate(unique_authors)}
 
-            else:
-                most_common_author = most_common_authors[0]
+        # Replace strings with numbers using the mapping
+        author_col = df['author'].replace(author_mapping)
+        scores = self.get_categorical_scores(author_col)
+        return scores
+    
 
-            for _ in range(0, len(df)):
-                true_labels.append(most_common_author)
-            pred_labels.extend(df['author'].tolist())
-
-        assert len(true_labels) == len(pred_labels)
-
-        ari_score = adjusted_rand_score(true_labels, pred_labels)
-        return pd.DataFrame([{'ARI': round(ari_score, 3)}])
+    def eval_gender(self):
+        df = self.info.metadf.copy(deep=True)
+        gender_col = df['gender'].replace({'m': 0, 'f': 1, 'a': 0, 'b': 0})
+        self.logger.debug(f'Count "b" and "a" gender labels as "m" when evaluating gender.')
+        scores = self.get_categorical_scores(gender_col)
+        return scores
 
     
     def eval_continuous(self):
@@ -300,7 +294,7 @@ class ExtEval(DataHandler):
     
     def logreg(self, X, y_true):
         # Multinomial logistic regression to evaluate relationship between clustering and continuous variable
-        model = LogisticRegression(max_iter=1000)
+        model = LogisticRegression(max_iter=1000, class_weight='balanced')
         model.fit(X, y_true)
         
         y_pred = model.predict(X)
@@ -318,7 +312,7 @@ class ExtEval(DataHandler):
         plt.plot(X_range, y_range, color='red', linewidth=3, label='Decision Boundary')
 
         # Scatter plot for the data points
-        plt.scatter(X, y_true, c=y_pred, cmap='Set1', edgecolors='k', marker='o', s=100, label='Clusters from LogReg)')
+        plt.scatter(X, y_true, c=y_pred, cmap='Set1', edgecolors='k', marker='o', s=100, label='Clusters from LogReg')
 
         # Set labels and title
         plt.xlabel(f'{self.info.attr.capitalize()}')

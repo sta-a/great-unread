@@ -250,6 +250,7 @@ class CombinationInfo:
     def replace_dot(self, value):
         # Use '%' to mark dot in float
         if isinstance(value, float):
+            value = round(value, 3)
             return str(value).replace('.', '%')
         return value
 
@@ -276,5 +277,15 @@ class CombinationInfo:
         return self.__dict__
     
 
+    def add(self, key, value):
+        # Add a new element to self.__dict__.
+        self.__dict__[key] = value
 
-# %%
+
+    def drop(self, key):
+        if key in self.__dict__:
+            del self.__dict__[key]
+            logging.info(f"Key '{key}' removed successfully.")
+        else:
+            # Print a log message if the key is not in the dictionary
+            logging.info(f"Key '{key}' not found.")

@@ -21,25 +21,13 @@ logging.basicConfig(level=logging.DEBUG)
 # ticker_logger.setLevel(logging.WARNING)
 
 class Sparsifier(DataHandler):
-      # MODES = {
-      #       'threshold': {
-      #             'cutoff': [0.9],
-      #             },
-      #       'author': [None],
-      #       'simmel': {
-      #             'overlap_k': [(5, 10), (50, 100)],
-      #       },
-      # }
-      #'passthrough': [None]
-
       MODES = {
-            'threshold': [0.9],
+            'threshold': [0.9, 0.95],
+            'simmel': [(5, 10), (3, 10), (4,6)], #(7, 10)
             'authormax': [None],
-            'simmel': [(5, 10), (50, 100)],
+            #'authormin': [None],
             }
-      '''
-      threshold values: the threshold for filtering will be set at a value below which 90% of the values in the matrix fall.
-      '''
+      
       def __init__(self, language=None, mx=None, mode=None):
             super().__init__(language, output_dir='similarity')
             self.mx = mx
@@ -64,13 +52,11 @@ class Sparsifier(DataHandler):
 
       def sparsify(self, spars_param):
             info = CombinationInfo(mxname=self.mx.name, sparsmode=self.mode, spars_param=spars_param)
-            print(info.as_df())
             pkl_path = self.get_file_path(file_name=f'sparsmx-{info.as_string()}.pkl', subdir=True)
             if os.path.exists(pkl_path):
                   with open(pkl_path, 'rb') as f:
                         simmx = pickle.load(f)
             else:
-                  start = time.time()
                   mx = copy.deepcopy(self.mx.mx)
                   if self.mode == 'threshold':
                         mx = self.filter_threshold(mx, spars_param)
@@ -94,13 +80,15 @@ class Sparsifier(DataHandler):
 
                   with open(pkl_path, 'wb') as f:
                         pickle.dump(simmx, f)
-                  print(f'{time.time()-start}s to sparsify with {self.mode} {spars_param}.')
 
             self.plot_degree_dist(simmx, info)
 
-            print(f'Nr vals before filtering: {simmx.mx.shape[0]**2-len(simmx.mx)}.')
-            print(f'Nr vals after filtering: {np.count_nonzero(simmx.mx.values)}.')
-            return simmx
+
+            original_nr_edges = simmx.mx.shape[0]**2-len(simmx.mx)
+            filtered_nr_edges = np.count_nonzero(simmx.mx.values)
+            print(f'Nr vals before filtering: {original_nr_edges}.')
+            print(f'Nr vals after filtering: {filtered_nr_edges}.')
+            return simmx, original_nr_edges, filtered_nr_edges
       
       
       def plot_degree_dist(self, simmx, info):
@@ -117,6 +105,7 @@ class Sparsifier(DataHandler):
 
 
       def filter_threshold(self, mx, cutoff):
+            # With threshold x, x % of edges will be removed.
             vals = self.mx.get_triangular()
             threshold = np.quantile(a=vals, q=cutoff)
             mx[mx<threshold] = 0
@@ -124,7 +113,6 @@ class Sparsifier(DataHandler):
 
 
       def filter_author_similarity(self, mx, by):
-            print(by)
             '''
             mx: similarity marix
             Edge only if texts are equally or more similar than the least (if by='min') (most if by='max) similar text by the same author
@@ -159,8 +147,19 @@ class Sparsifier(DataHandler):
 
 
       def filter_simmelian(self, mx, overlap_k):
+            # Pickle because calculations take a long time (30s)
             min_overlap = overlap_k[0]
             k = overlap_k[1]
             s = Simmelian(mx, conditioned=True)
+            # info = CombinationInfo(name=mx.name, mode=self.mode, param_comb={'min_overlap': min_overlap, 'k': k})
+            # pkl_path = self.get_file_path(subdir=True, file_name=f'simmelian_{info.as_string()}.csv', pandas_kwargs={'index': True})
+
+            # if os.path.exists(pkl_path):
+            #       with open(pkl_path, 'rb') as f:
+            #             mx = pickle.load(f)
+            # else:
+            #       mx = s.run_parametric(min_overlap=min_overlap, k=k)
+            #       with open(pkl_path, 'wb') as f:
+            #             pickle.dump(mx, f) #######################
             mx = s.run_parametric(min_overlap=min_overlap, k=k)
             return mx

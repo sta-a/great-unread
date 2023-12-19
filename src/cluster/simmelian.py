@@ -26,6 +26,12 @@ class Simmelian():
     def __init__(self, mx, conditioned=True):
         self.mx = mx # Similarity matrix
         self.conditioned = conditioned # If conditioned, the overlap calculation is only performed for those links which have been top-ranked themselves.
+        self.set_diagonal(0) # no self-loops
+
+
+    def set_diagonal(self, value):
+        for i in range(0, self.mx.shape[0]):
+            self.mx.iloc[i, i] = value
 
 
     def sort_all_neighbours(self, row):
@@ -58,7 +64,7 @@ class Simmelian():
         # Include more neighbours if they have the same distance as the values in the last column of the selected df
         other = df.iloc[:,k:]
 
-        new_df = pd.DataFrame() 
+        new_df = {}
         for col_name in other.columns:
             # Access the column using df[col_name]
             current_col = other[col_name]
@@ -68,7 +74,18 @@ class Simmelian():
             else:
                 new_df[col_name] = current_col
 
-        topk = pd.concat([topk, new_df], axis=1)
+        # Evaluate neighbours that were added from other because they have the same similarity as the kth neighbour
+        # If k is high, the number of added cols can be high
+        # for col_name, col_values in new_df.items():
+        #     non_nan_values = [val for val in col_values if not pd.isna(val)]
+        #     print(f"Nr. Non-NaN values in '{col_name}': {len(non_nan_values)}")
+
+        if bool(new_df):
+            new_df = pd.DataFrame(new_df)
+            assert not new_df.isna().all().all()
+            # print('new_df\n', new_df.shape, new_df)
+
+            topk = pd.concat([topk, new_df], axis=1)
 
         # Return only names of neighbours and not values
         topk = topk.applymap(lambda x: x[0] if isinstance(x, tuple) else x)
@@ -102,40 +119,82 @@ class Simmelian():
         df = df.apply(self.get_dist_to_row, axis=1, df=df)
         return df
     
+    def set_diagonal_return(self, value, df):
+        for i in range(0, self.mx.shape[0]):
+            df.iloc[i, i] = value
+
+        return df
     
     def filter_simmx(self, df, min_overlap):
-        # Set values in similarity matrix to 0 where filtered overlap matrix is 0
-        if df.shape != self.mx.shape:
-            raise ValueError("Input DataFrame shape does not match the shape of self.mx")
+        assert df.shape == self.mx.shape
+        assert df.index.is_monotonic_increasing, "DataFrame index is not alphabetically sorted."
+        assert self.mx.columns.equals(self.mx.index), "Column names do not match the index in the DataFrame 'mx'"
+        assert df.index.equals(self.mx.index), "Index mismatch between df and self.mx"
+        assert df.columns.equals(self.mx.columns), "Column names mismatch between df and self.mx"
+        assert not df.isna().any().any()
+        assert not self.mx.isna().any().any()
+
+        mx = deepcopy(self.mx).astype(float)
+        #df = df.astype(float)
         
         # Set values below min_overlap to 0 and others to 1
-        df[df < min_overlap] = 0
-        df[df >= min_overlap] = 1
+        df[df < min_overlap] = 0.0
+        df[df >= min_overlap] = 1.0
+
+        # df = self.set_diagonal_return(0.0, df)
+
 
         # Set values in similarity matrix to 0 where filtered overlap matrix is below min_overlap
-        filtered_simmx = self.mx * df
 
-        df.to_csv('simmel-df.csv', index=True) ##########################
-        filtered_simmx.to_csv('simmel-filtered_simmx.csv', index=True)
+        # Set values in self_mx to zero where df is 0
+        filtered_simmx = np.where(df == 0, 0, mx)
 
-        # If the assertion fails, find the positions and values
-        if not (df == 0).equals(filtered_simmx == 0):
-            # Create a boolean DataFrame indicating where the assertion fails
-            positions_and_values = (df != filtered_simmx) & (df == 0)
+        # Convert the result back to DataFrame
+        filtered_simmx = pd.DataFrame(filtered_simmx, columns=df.columns, index=df.index)
+        # filtered_simmx = self.set_diagonal_return(0.0, filtered_simmx)
+        #filtered_simmx = filtered_simmx.astype(float)
+        
 
-            # Extract positions and values where the assertion fails
-            failed_positions = [(row, col) for row, col in zip(*positions_and_values.values.nonzero())]
-            failed_values = df.values[positions_and_values].tolist()
+        check = False
+        if check:
+            # filtered_simmx can be 0 where df is not 0, because 0 is at the corresponding position in mx
+            # 0 in argamon_quadratic-500 at positions Kipling_Rudyard_How-the-Camel-Got-His-Hump_1902, Kipling_Rudyard_The-Sing-Song-of-the-Old-Man-Kangaroo_1902
+            print('mx', self.mx.loc['Kipling_Rudyard_How-the-Camel-Got-His-Hump_1902', 'Kipling_Rudyard_The-Sing-Song-of-the-Old-Man-Kangaroo_1902'])
+            print('df', df.loc['Kipling_Rudyard_How-the-Camel-Got-His-Hump_1902', 'Kipling_Rudyard_The-Sing-Song-of-the-Old-Man-Kangaroo_1902'])
+            print('filtered_simmx', filtered_simmx.loc['Kipling_Rudyard_How-the-Camel-Got-His-Hump_1902', 'Kipling_Rudyard_The-Sing-Song-of-the-Old-Man-Kangaroo_1902'])
 
-            print("Positions where the assertion fails:")
-            print(failed_positions)
+            atol = 0.001
+            comparison_result = np.isclose(df, 0, atol=atol) == np.isclose(filtered_simmx, 0, atol=atol)
 
-            print("Values where the assertion fails:")
-            print(failed_values)
+            # Find positions where the comparison is false
+            false_positions = np.where(~comparison_result)
 
 
+            print("\nPositions where the comparison is false:")
+            print(false_positions)
+
+            fdf = pd.DataFrame(comparison_result, index=df.index, columns=df.columns)
+            print(fdf.iloc[335, 366])
+            print(df.iloc[335, 366])
+            print(filtered_simmx.iloc[335, 366])
             
-        assert (df == 0).equals(filtered_simmx == 0), 'Dfs have different positions with 0 values.'
+            print(df.loc[df.index[335], df.columns[366]])
+            print(df.loc[df.index[366], df.columns[335]])
+
+            print(df.index[335], df.columns[366])
+            print(df.index[366], df.columns[335])
+
+            print(filtered_simmx.loc[filtered_simmx.index[335], filtered_simmx.columns[366]])
+            print(filtered_simmx.loc[filtered_simmx.index[366], filtered_simmx.columns[335]])
+
+            print(filtered_simmx.index[335], filtered_simmx.columns[366])
+            print(filtered_simmx.index[366], filtered_simmx.columns[335])
+            print('Nr 0 in df: ', np.sum(df.values == 0))
+            print('Nr 0 in filtered_simmx: ', np.sum(filtered_simmx.values == 0))
+
+
+
+        print('0 at the same positions:', np.all(filtered_simmx[df == 0] == 0))
         return filtered_simmx
     
     

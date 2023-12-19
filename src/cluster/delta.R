@@ -1,7 +1,7 @@
 # Install and load required packages
 # install.packages("stylo")
 library(stylo)
-languages <- c("eng", "ger")
+languages <- c("ger") # "eng", 
 
   for (language in languages) {
   # Set the directory where the CSV files are located

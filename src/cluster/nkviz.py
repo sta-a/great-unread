@@ -21,9 +21,11 @@ from .cluster_utils import CombinationInfo
 import logging
 logging.basicConfig(level=logging.DEBUG)
 
+import warnings
+warnings.filterwarnings("ignore", category=RuntimeWarning, module="pygraphviz") # Suppress warning: Error: remove_overlap: Graphviz not built with triangulation library
 
 class NkViz(DataHandler):
-    PROGS = ['sfdp']#, 'neato', 'kk'] # dot (for directed graphs), circo,  'twopi', 'osage', fdp
+    PROGS = ['sfdp', 'neato', 'kk'] # dot (for directed graphs), circo,  'twopi', 'osage', fdp
 
     def __init__(self, language, network, info):
         super().__init__(language, output_dir='similarity', data_type='png')
@@ -42,10 +44,10 @@ class NkViz(DataHandler):
             self.prepare_graphs_and_plot()
 
 
-    def write_noviz(self, vizidct):
+    def write_noviz(self, edges_info):
         # Write combination info that was just run to file
         with open(self.noviz_path, 'a') as f:
-            f.write(f'{self.info.as_string()},{vizidct.as_string()}\n')
+            f.write(f'{self.info.as_string()},{edges_info.as_string()}\n')
 
 
     def make_figure(self):
@@ -56,9 +58,7 @@ class NkViz(DataHandler):
     
 
     def visualize(self, pltname, plttitle):
-        if self.too_many_edges:
-            self.write_noviz()
-        else:
+        if not self.too_many_edges:
             start = time.time()
             df = self.prepare_metadata(pltname)
             self.add_nodes(df, plttitle, pltname)
@@ -81,6 +81,7 @@ class NkViz(DataHandler):
         if os.path.exists(pkl_path):
             with open(pkl_path, 'rb') as f:
                 self.graph_con, self.graphs_two, self.nodes_removed, self.nodes_iso, self.pos, self.fig = pickle.load(f)
+                # print(next(iter(self.pos.items())))
                 self.ax1, self.ax2 = self.fig.get_axes()
                 self.ax1.axis('off')
                 self.ax2.axis('off')
@@ -92,6 +93,7 @@ class NkViz(DataHandler):
 
             self.graph_con, self.graphs_two, self.nodes_removed, self.nodes_iso = self.get_graphs()
             self.pos = self.get_positions()
+            # print(next(iter(self.pos.items())))
             self.fig, self.ax1, self.ax2 = self.make_figure()
             self.draw_edges(self.graph_con, self.pos, self.ax1)
 
@@ -104,9 +106,9 @@ class NkViz(DataHandler):
             except Exception as e:
                 if os.path.exists(pkl_path):
                     os.remove(pkl_path)
-                print(f"Pickling failed, regenerating edges plot for every visualization.: {e}")
+                # print(f"Pickling failed, regenerating edges plot for every visualization.: {e}")
 
-            print(f'{viztime}s to prepare plots.')
+            # print(f'{viztime}s to prepare plots.')
             self.logger.debug(f'Finished preparing viz {self.info.as_string()}')
 
 
@@ -128,18 +130,17 @@ class NkViz(DataHandler):
                 self.ax2.scatter(sdf['x'], sdf['y'], c=sdf['color'], marker=shape, s=2)
 
 
-            plt.tight_layout()
-        
-            if plttitle is not None:
-                plt.suptitle(textwrap.fill(plttitle, width=100), fontsize=5)
+        plt.tight_layout()
+    
+        if plttitle is not None:
+            plt.suptitle(textwrap.fill(plttitle, width=100), fontsize=5)
 
-            if fn_str is None:
-                file_name = f'{pltname}_{self.info.as_string()}.{self.data_type}'
-            else:
-                file_name = f'{pltname}_{self.info.as_string()}_{fn_str}.{self.data_type}'
+        if fn_str is None:
+            file_name = f'{pltname}_{self.info.as_string()}.{self.data_type}'
+        else:
+            file_name = f'{pltname}_{self.info.as_string()}_{fn_str}.{self.data_type}'
 
-
-            self.save_data(data=plt, data_type=self.data_type, subdir=True, file_name=file_name)
+        self.save_data(data=plt, data_type=self.data_type, subdir=True, file_name=file_name)
    
 
 
@@ -185,7 +186,7 @@ class NkViz(DataHandler):
         
         df_dict = {'color': node_colors, 'shape': node_shapes, f'{self.info.attr}': attr, 'pos': self.pos}
 
-        # Consider combined attribute-cluster column for categorical attributes
+        # Also visualize combined attribute-cluster color column for categorical attributes
         if (pltname=='evalviz') and (self.info.attr in self.cat_attrs):
             attr_cluster_col = self.info.metadf[f'{self.info.attr}_cluster_color'].to_dict()
             df_dict[f'{self.info.attr}_cluster_color'] = attr_cluster_col
@@ -298,3 +299,4 @@ class NkViz(DataHandler):
     #     # for node in graph.nodes():
     #     #     attributes = graph.nodes[node]
     #     #     print(f"Node {node} attributes: {attributes}")
+        

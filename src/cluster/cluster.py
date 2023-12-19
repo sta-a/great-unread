@@ -85,11 +85,10 @@ class Clusters():
 class ClusterBase(DataHandler):
     ALGS = None
 
-    def __init__(self, language=None, mx=None, cluster_alg=None):
+    def __init__(self, language=None, cluster_alg=None):
         super().__init__(language=language, output_dir='similarity', data_type='pkl')
-        self.mx = mx
         self.cluster_alg = cluster_alg
-        self.n_jobs = -1
+        self.n_jobs = 1
         self.timeout = 5
 
 
@@ -160,7 +159,7 @@ class ClusterBase(DataHandler):
         except multiprocessing.TimeoutError:
             # Cancel the process if it exceeds the timeout
             pool.terminate()
-            self.logger.info(f'Method has not returned within {self.timeout} seconds and has been canceled.')
+            self.logger.debug(f'Method has not returned within {self.timeout} seconds and has been canceled.')
             clusters = None
         finally:
             # Close the pool
@@ -211,23 +210,24 @@ class SimmxCluster(ClusterBase):
     ALGS = {
         'hierarchical': {
             'nclust': [5, 10],
-            'method': ['single', 'complete', 'average', 'weighted', 'centroid', 'median', 'ward'],
+            'method': ['single', 'weighted', 'centroid','ward'], #median, average, complete ###############3
             },
         'spectral': {
-            'nclust': [5],
+            'nclust': [5, 10],
             },
         'kmedoids': {
-            'nclust': [5],
+            'nclust': [5, 10],
             },
         'dbscan': {
-            'eps': [0.1, 0.3, 0.5, 0.7, 0.9],
-            'min_samples': [5, 10, 30],
+            'eps': [0.1, 0.4, 0.8], #0.3, 0.5, 0.7, 0.9
+            'minsamples': [5, 10, 30],
             },
     }
 
 
     def __init__(self, language=None, cluster_alg=None, mx=None):
-        super().__init__(language=language, mx=mx, cluster_alg=cluster_alg)
+        super().__init__(language=language, cluster_alg=cluster_alg)
+        self.mx = mx
     
 
     def spectral(self, **kwargs):
@@ -258,7 +258,7 @@ class SimmxCluster(ClusterBase):
         return clusters 
     
     def dbscan(self, **kwargs):
-        d = DBSCAN(eps=kwargs['eps'], min_samples=kwargs['min_samples'], metric='precomputed', n_jobs=self.n_jobs)
+        d = DBSCAN(eps=kwargs['eps'], min_samples=kwargs['minsamples'], metric='precomputed', n_jobs=self.n_jobs)
         clusters = d.fit_predict(self.mx.dmx)
         return clusters
 
@@ -275,10 +275,13 @@ class NetworkCluster(ClusterBase):
     }
 
 
-    def __init__(self, language, cluster_alg, network):
+    def __init__(self, language, cluster_alg, network=None):
+        # Network can be one if class is only created to get parameter combination
         self.network = network
-        self.graph = network.graph
-        super().__init__(language=language, mx=network.mx, cluster_alg=cluster_alg)
+        if self.network is not None:
+            self.mx = network.mx
+            self.graph = network.graph
+        super().__init__(language=language, cluster_alg=cluster_alg)
         # for edge in self.graph.edges(data=True):
         #     source, target, weight = edge
         #     print(f"Edge: {source} - {target}, Weight: {weight['weight']}")

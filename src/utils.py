@@ -511,6 +511,13 @@ class MetadataChecks(DataHandler):
     '''
     Compare the metadata files with each other to check consistency.
     Compare file names of raw docs with metadata.
+
+
+    - Hoffmansthal_Hugo-von_Ein-Brief_1902 # canon scores
+    Hoffmansthal_Hugo_Ein-Brief_1902 # raw docs
+
+    Hegelers_Wilhelm_Mutter-Bertha_1893 # canon scores
+    Hegeler_Wilhelm_Mutter-Bertha_1893 # raw docs
     '''
 
     def __init__(self, language):
@@ -985,7 +992,7 @@ class DataLoader(DataHandler):
 # # Provide the directory path and the string to search for
 # directory_path = '/home/annina/scripts/great_unread_nlp/data/text_tokenized'
 # directory_path = '/home/annina/scripts/great_unread_nlp/src/'
-# search_string = "noparam"
+# search_string = "_cluster_color"
 # extension = ['.txt', '.py']
 # search_string_in_files(directory_path, search_string, extension, full_word=False)
 

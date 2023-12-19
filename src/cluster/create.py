@@ -416,7 +416,7 @@ class Delta(SimMxCreatorBase):
         self.nmfws = list(reversed(self.input_dfs.keys())) # Reverse so that small numbers come first for faster calculation during testing
         self.metrics = DistanceMetrics()
         self.modes = [f'{metric}-{nmfw}' for metric in self.metrics.registry.keys() for nmfw in self.nmfws]
-        self.n_jobs = -1
+        self.n_jobs = 1
 
 
     def load_mfw_dfs(self):

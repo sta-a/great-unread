@@ -132,7 +132,6 @@ class MxReorder():
         nr_texts = DataHandler(self.language).nr_texts
         assert (ordmx.mx.shape[0] == nr_texts) and (ordmx.mx.shape[1] == nr_texts) 
 
-        # Reorder the final matrix based on the optimal order of clusters ############################
         return ordmx
 
 
@@ -141,19 +140,18 @@ class MxViz(DataHandler):
         super().__init__(language, output_dir='similarity', data_type='png')
         self.mx = mx
         self.info = info
-        self.n_jobs = -1
+        self.n_jobs = 1
 
-        self.colname = f'{self.info.attr}_color'
         self.add_subdir('mxviz')
 
 
-    def set_info(self, info):
-        # Set metadf from outside class
-        self.info = info
-        self.colname = f'{self.info.attr}_color'
+    # def set_info(self, info):
+    #     # Set metadf from outside class
+    #     self.info = info
+    #     self.colorcol = f'{self.info.attr}_color'
 
 
-    def visualize(self, pltname, plttitle=None):
+    def draw_all(self, pltname, plttitle=None, colorcol=None, fn_str=None):
         kwargs = {'aspect': 'auto'}
         if pltname == 'evalviz':
             fig = plt.figure(constrained_layout=False, figsize=(10, 10))
@@ -172,14 +170,29 @@ class MxViz(DataHandler):
             ax5 = fig.add_subplot(gs[:, 2:], **kwargs)
             self.draw_heatmap(ax5)
             
-        self.draw_mds(pltname, ax1, ax2, ax3, ax4)
-        fig.suptitle(textwrap.fill(plttitle, width=100), fontsize=5)
-        self.save_data(data=fig, subdir=True, file_name=f'{pltname}-{self.info.as_string()}.{self.data_type}', plt_kwargs={'dpi': 300})
+        self.draw_mds(pltname, ax1, ax2, ax3, ax4, colorcol)
+        fig.suptitle(textwrap.fill(plttitle, width=100), fontsize=10)
+
+        if fn_str is None:
+            file_name = f'{pltname}_{self.info.as_string()}.{self.data_type}'
+        else:
+            file_name = f'{pltname}_{self.info.as_string()}_{fn_str}.{self.data_type}'
+
+        self.save_data(data=fig, subdir=True, file_name=file_name, plt_kwargs={'dpi': 300})
         plt.close()
-        return None
 
 
-    def draw_mds(self, pltname, ax1, ax2, ax3, ax4):
+    def visualize(self, pltname, plttitle=None):
+        self.draw_all(pltname, plttitle)
+
+        # Also visualize combined attribute-cluster color column for categorical attributes
+        cat_attrs = ['gender', 'author']
+        if (pltname == 'evalviz') and (self.info.attr in cat_attrs):
+            colorcol = f'{self.info.attr}_cluster_color'
+            self.draw_all(pltname, plttitle, colorcol, 'combined')
+
+
+    def draw_mds(self, pltname, ax1, ax2, ax3, ax4, colorcol=None):
             # Store layouts because it takes a lot of time to calculate them
             pkl_path = self.get_file_path(file_name=f'mds-{self.mx.name}.pkl', subdir=True) 
             if os.path.exists(pkl_path):
@@ -220,13 +233,20 @@ class MxViz(DataHandler):
                 with open(pkl_path, 'wb') as f:
                     pickle.dump(df, f)
 
+
+            # Shapes
+            df = df.assign(shape=['o']*len(self.mx.dmx))
+            if (pltname == 'evalviz') and (colorcol is None): # Use default shapes for combined cluster-attr color visualization
+                df = df.assign(shape=self.info.metadf.loc[self.mx.dmx.index, 'clst_shape'].values)
+
+            # Colors
+            if colorcol is None:
+                colorcol = f'{self.info.attr}_color'
             if self.info.attr == 'noattr':
                 df = df.assign(color=['blue']*len(self.mx.dmx))
             else:
-                df = df.assign(color=self.info.metadf.loc[self.mx.dmx.index, self.colname].values)
-            df = df.assign(shape=['o']*len(self.mx.dmx))
-            if pltname == 'evalviz':
-                df = df.assign(shape=self.info.metadf.loc[self.mx.dmx.index, 'clst_shape'].values)
+                df = df.assign(color=self.info.metadf.loc[self.mx.dmx.index, colorcol].values)
+
 
             for shape in df['shape'].unique():
                 sdf = df[df['shape'] == shape]
