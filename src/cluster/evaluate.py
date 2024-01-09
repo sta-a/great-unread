@@ -17,7 +17,7 @@ from sklearn.metrics import silhouette_score, normalized_mutual_info_score, fowl
 from sklearn.metrics import adjusted_rand_score, accuracy_score
 from sklearn.linear_model import LogisticRegression
 
-from .cluster_utils import MetadataHandler, CombinationInfo
+from .cluster_utils import CombinationInfo
 import sys
 sys.path.append("..")
 from utils import DataHandler
@@ -77,18 +77,15 @@ class ExtEval(DataHandler):
     '''
     Evaluate cluster quality with an external criterion (the ground truths)
     '''
-    def __init__(self, language, mode, clusters, info, inteval):
+    def __init__(self, language, mode, info, inteval):
         super().__init__(language, output_dir='similarity')
         self.mode = mode
-        self.clusters = clusters
-        assert self.clusters is not None
         self.info = info
         self.inteval = inteval
         self.cat_attrs = ['gender', 'author']
 
         self.add_subdir(f'{self.mode}eval')
         self.file_paths = self.get_file_paths()
-        self.merge_clust_meta_dfs()
 
 
     def get_file_paths(self):
@@ -96,24 +93,6 @@ class ExtEval(DataHandler):
         for fn in ['cont', 'cat']:
             paths[fn] = self.get_file_path(file_name=f'{fn}_results.csv', subdir=True)
         return paths
-        
-
-    def merge_clust_meta_dfs(self):
-        # Combine file names, attributes, and cluster assignments
-        metadf = pd.merge(self.info.metadf, self.clusters.df, left_index=True, right_index=True, validate='1:1')
-        mh = MetadataHandler(self.language)
-        # Add color for clusters
-        metadf = mh.add_color_to_df(metadf, 'cluster')
-        metadf = mh.add_shape_to_df(metadf)
-
-        # Create a new col for categorical attributes that matches a number to every cluster-attribute combination
-        # Map the new cols to colors
-        for ca in self.cat_attrs:
-            colname = f'{ca}_cluster'
-            metadf[colname] = metadf.groupby(['gender', 'cluster']).ngroup()
-            metadf = mh.add_color_to_df(metadf, colname)
-
-        self.info.metadf = metadf
 
 
     def set_params(self):
@@ -133,10 +112,9 @@ class ExtEval(DataHandler):
     def evaluate(self, attr, info):
         self.info = info
         if attr == 'cluster':
-            evallst = self.eval_clst()
+            self.eval_clst()
         else:
-            evallst = self.eval_attr()
-        return evallst
+            self.eval_attr()
 
 
     def eval_clst(self):         
@@ -158,35 +136,21 @@ class ExtEval(DataHandler):
         # Store information to display as plot titles
         self.plttitle = CombinationInfo(clstinfo=f'nclust: {nclust}, {clst_str}')
 
-        return self.plttitle
-
 
     def eval_attr(self):
         self.set_params()
-
         evaldf = self.eval_method()
-        self.write_eval(evaldf)
 
         self.plttitle.add('exteval', ','.join([f'{col}: {evaldf.iloc[0][col]}' for col in evaldf.columns]))
         self.plttitle.add('inteval', ','.join([f'{col}: {self.inteval.iloc[0][col]}' for col in self.inteval.columns]))
     
-        return self.plttitle
-
-
-    def get_existing_fileinfos(self):
-        # Return list of all parameter combinations that have already been evaluated
-        infos = []
-        for path in list(self.file_paths.values()):
-            if os.path.exists(path):
-                df = pd.read_csv(path, header=0)
-                file_info_column = df['file_info'].tolist()
-                infos.extend(file_info_column)
-        return infos
+        self.write_eval(evaldf)
     
 
     def write_eval(self, evaldf):
         file_info = pd.DataFrame({'file_info': self.info.as_string()}, index=[0])
-        df = pd.concat([self.info.as_df(), self.clst_info, self.inteval, evaldf, file_info], axis=1)
+        plttitle = pd.DataFrame({'plttitle': self.plttitle.as_string(sep='\n')}, index=[0])
+        df = pd.concat([self.info.as_df(), self.clst_info, self.inteval, evaldf, file_info, plttitle], axis=1)
 
         # Write header only if file does not exist
         file_path = self.file_paths[self.scale]

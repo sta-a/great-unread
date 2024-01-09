@@ -25,7 +25,6 @@ import warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning, module="pygraphviz") # Suppress warning: Error: remove_overlap: Graphviz not built with triangulation library
 
 class NkViz(DataHandler):
-    PROGS = ['sfdp', 'neato', 'kk'] # dot (for directed graphs), circo,  'twopi', 'osage', fdp
 
     def __init__(self, language, network, info):
         super().__init__(language, output_dir='similarity', data_type='png')
@@ -33,7 +32,7 @@ class NkViz(DataHandler):
         self.network = network
         self.graph = self.network.graph
         self.info = info
-        self.prog = self.info.prog
+        self.prog = 'neato'
         self.cat_attrs = ['gender', 'author']
         self.add_subdir('nkviz')
 
@@ -176,7 +175,6 @@ class NkViz(DataHandler):
 
 
     def prepare_metadata(self, pltname):
-        ## Prepare metadata
         node_colors = self.info.metadf[f'{self.info.attr}_color'].to_dict()
         attr = self.info.metadf[self.info.attr].to_dict()
         if pltname == 'evalviz':
@@ -224,7 +222,7 @@ class NkViz(DataHandler):
         Calculate node positions.
         Use pygraphviz for layout and NetworkX for visualization.
         If layout programs are used on whole graph, isolated nodes are randomly distributed.
-        To adress this, connected and isolated nodes are visualized separately.
+        To adress this, connected (2 nodes that are only connected to each other) and isolated nodes are visualized separately.
         '''
         
         # Calculate node positions for main graph and removed nodes
@@ -236,11 +234,7 @@ class NkViz(DataHandler):
         row_height = 0.01
         pos_removed = {node: (i % nodes_per_line, -(i // nodes_per_line) * row_height) for i, node in enumerate(self.nodes_removed)}
 
-        if self.prog == 'kk':
-            pos_con = nx.kamada_kawai_layout(self.graph_con)
-            pos_con = {k: tuple(v) for k,v in pos_con.items()}
-        else:
-            pos_con = nx.nx_agraph.graphviz_layout(self.graph_con, self.prog) # dict ##########################
+        pos_con = nx.nx_agraph.graphviz_layout(self.graph_con, self.prog) # dict ##########################
 
         pos = {**pos_removed, **pos_con}
 

@@ -22,6 +22,7 @@ random.seed(9)
 import sys
 sys.path.append("..")
 from utils import TextsByAuthor, DataHandler
+from .cluster_utils import MetadataHandler
 
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -32,15 +33,17 @@ class Clusters():
     sklearn: Result of clustering algorithm is a list with cluster assingments as ints.
     networkx: Result is a list of sets, each set representing a cluster
     '''
-    def __init__(self, cluster_alg, mx, clusters):
+    def __init__(self, language, cluster_alg, mx, clusters):
+        self.language = language
         self.cluster_alg = cluster_alg
         self.mx = mx
         self.initial_clusts = clusters
+        self.cat_attrs = ['gender', 'author']
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.INFO)
         self.preprocess()
         self.df = self.as_df()
-    
+
 
     def preprocess(self):
         # Preprocess initial clusters
@@ -49,8 +52,7 @@ class Clusters():
 
 
     def as_df(self):
-        # sklearn
-        # List of ints
+        # sklearn returns list of ints
         if all(isinstance(cluster, int) for cluster in self.initial_clusts):
             # Zip file names and cluster assingments
             assert (self.mx.mx.columns == self.mx.mx.index).all()
@@ -61,8 +63,7 @@ class Clusters():
             label_mapping = {label: rank for rank, (label, count) in enumerate(cluster_counts.sort_values(ascending=False).items())}
             clusters['cluster'] = clusters['cluster'].map(label_mapping)
             
-        # nx
-        # List of sets
+        # nx returns list of sets
         elif all(isinstance(cluster, set) for cluster in self.initial_clusts):
             # Sort the sets by length in descending order
             sorted_sets = sorted(self.initial_clusts, key=len, reverse=True)
@@ -81,7 +82,26 @@ class Clusters():
         clusters = clusters.sort_index()
         return clusters
     
+
+    def merge_clust_meta_dfs(self, metadf):
+        # Combine file names, attributes, and cluster assignments
+        metadf = pd.merge(metadf, self.df, left_index=True, right_index=True, validate='1:1')
+        mh = MetadataHandler(self.language)
+        # Add color for clusters
+        metadf = mh.add_color_to_df(metadf, 'cluster')
+        metadf = mh.add_shape_to_df(metadf)
+
+        # Create a new col for categorical attributes that matches a number to every cluster-attribute combination
+        # Then map the new cols to colors
+        for ca in self.cat_attrs:
+            colname = f'{ca}_cluster'
+            metadf[colname] = metadf.groupby(['gender', 'cluster']).ngroup()
+            metadf = mh.add_color_to_df(metadf, colname)
+
+        return metadf
     
+
+
 class ClusterBase(DataHandler):
     ALGS = None
 
@@ -178,9 +198,8 @@ class ClusterBase(DataHandler):
 
         if clusters is None:
             self.log_clst(info, 'timeout')
-        # clusters = method(**param_comb)
         else:
-            clusters = Clusters(self.cluster_alg, self.mx, clusters)
+            clusters = Clusters(self.language, self.cluster_alg, self.mx, clusters)
 
             if self.cluster_alg == 'dbscan' and (clusters.df['cluster'] == -1).all():
                 clusters = None
@@ -202,8 +221,9 @@ class ClusterBase(DataHandler):
 
         return clusters
         
+        
 
-class SimmxCluster(ClusterBase):
+class MxCluster(ClusterBase):
     '''
     Clustering on a similarity matrix
     '''
@@ -263,7 +283,8 @@ class SimmxCluster(ClusterBase):
         return clusters
 
 
-class NetworkCluster(ClusterBase):
+
+class NkCluster(ClusterBase):
     ALGS = {
         # 'girvan': { # Too slow
         #     'noparam': [None], # Girvan, Newman (2002): Community structure in social and biological networks

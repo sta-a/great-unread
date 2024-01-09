@@ -88,7 +88,7 @@ class Sparsifier(DataHandler):
             filtered_nr_edges = np.count_nonzero(simmx.mx.values)
             print(f'Nr vals before filtering: {original_nr_edges}.')
             print(f'Nr vals after filtering: {filtered_nr_edges}.')
-            return simmx, original_nr_edges, filtered_nr_edges
+            return simmx, filtered_nr_edges
       
       
       def plot_degree_dist(self, simmx, info):
