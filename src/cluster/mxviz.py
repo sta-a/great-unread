@@ -142,7 +142,7 @@ class MxViz(DataHandler):
         self.info = info
         self.n_jobs = 1
 
-        self.add_subdir('mxviz')
+        self.add_subdir('mxtop')
 
 
     # def set_info(self, info):

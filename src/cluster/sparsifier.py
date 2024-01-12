@@ -35,27 +35,19 @@ class Sparsifier(DataHandler):
             self.logger = logging.getLogger(__name__)
             self.add_subdir('sparsification')
 
-
-      # def get_param_combinations(self):
-      #       # Get params for current cluster alg
-      #       params = self.MODES[self.mode]
-
-      #       # Create a list of dicts with format param_name: param_value.
-      #       param_combs = []
-      #       combinations_product = product(*params.values())
-      #       # Iterate through all combinations and pass them to the function
-      #       for combination in combinations_product:
-      #             param_combs.append(dict(zip(params.keys(), combination)))
-
-      #       return param_combs
+      @classmethod
+      def load_pkl(cls, spmx_path):
+            with open(spmx_path, 'rb') as f:
+                  simmx = pickle.load(f)
+                  return simmx
 
 
       def sparsify(self, spars_param):
             info = CombinationInfo(mxname=self.mx.name, sparsmode=self.mode, spars_param=spars_param)
-            pkl_path = self.get_file_path(file_name=f'sparsmx-{info.as_string()}.pkl', subdir=True)
-            if os.path.exists(pkl_path):
-                  with open(pkl_path, 'rb') as f:
-                        simmx = pickle.load(f)
+            spmx_path = self.get_file_path(file_name=f'sparsmx-{info.as_string()}.pkl', subdir=True)
+            if os.path.exists(spmx_path):
+                  simmx = self.load_pkl(spmx_path)
+
             else:
                   mx = copy.deepcopy(self.mx.mx)
                   if self.mode == 'threshold':
@@ -78,17 +70,16 @@ class Sparsifier(DataHandler):
                         simmx = SimMx(self.language, name=self.mx.name, mx=mx, normalized=True, is_sim=True, is_directed=True)
                         self.logger.info(f'{self.mode} sparsification: matrix is directed') # Directed with conditioned=True
 
-                  with open(pkl_path, 'wb') as f:
+                  with open(spmx_path, 'wb') as f:
                         pickle.dump(simmx, f)
 
             self.plot_degree_dist(simmx, info)
-
 
             original_nr_edges = simmx.mx.shape[0]**2-len(simmx.mx)
             filtered_nr_edges = np.count_nonzero(simmx.mx.values)
             print(f'Nr vals before filtering: {original_nr_edges}.')
             print(f'Nr vals after filtering: {filtered_nr_edges}.')
-            return simmx, filtered_nr_edges
+            return simmx, filtered_nr_edges, spmx_path
       
       
       def plot_degree_dist(self, simmx, info):
@@ -151,15 +142,5 @@ class Sparsifier(DataHandler):
             min_overlap = overlap_k[0]
             k = overlap_k[1]
             s = Simmelian(mx, conditioned=True)
-            # info = CombinationInfo(name=mx.name, mode=self.mode, param_comb={'min_overlap': min_overlap, 'k': k})
-            # pkl_path = self.get_file_path(subdir=True, file_name=f'simmelian_{info.as_string()}.csv', pandas_kwargs={'index': True})
-
-            # if os.path.exists(pkl_path):
-            #       with open(pkl_path, 'rb') as f:
-            #             mx = pickle.load(f)
-            # else:
-            #       mx = s.run_parametric(min_overlap=min_overlap, k=k)
-            #       with open(pkl_path, 'wb') as f:
-            #             pickle.dump(mx, f) #######################
             mx = s.run_parametric(min_overlap=min_overlap, k=k)
             return mx

@@ -38,7 +38,6 @@ class Clusters():
         self.cluster_alg = cluster_alg
         self.mx = mx
         self.initial_clusts = clusters
-        self.cat_attrs = ['gender', 'author']
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.INFO)
         self.preprocess()
@@ -81,24 +80,6 @@ class Clusters():
         clusters = clusters.set_index('file_name')
         clusters = clusters.sort_index()
         return clusters
-    
-
-    def merge_clust_meta_dfs(self, metadf):
-        # Combine file names, attributes, and cluster assignments
-        metadf = pd.merge(metadf, self.df, left_index=True, right_index=True, validate='1:1')
-        mh = MetadataHandler(self.language)
-        # Add color for clusters
-        metadf = mh.add_color_to_df(metadf, 'cluster')
-        metadf = mh.add_shape_to_df(metadf)
-
-        # Create a new col for categorical attributes that matches a number to every cluster-attribute combination
-        # Then map the new cols to colors
-        for ca in self.cat_attrs:
-            colname = f'{ca}_cluster'
-            metadf[colname] = metadf.groupby(['gender', 'cluster']).ngroup()
-            metadf = mh.add_color_to_df(metadf, colname)
-
-        return metadf
     
 
 

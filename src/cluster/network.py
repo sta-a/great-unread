@@ -9,14 +9,21 @@ import pygraphviz as pgv
 import sys
 sys.path.append("..")
 from utils import DataHandler
+from .sparsifier import Sparsifier
 
 
 class NXNetwork(DataHandler):
-    def __init__(self, language, mx, graph=None):
+    def __init__(self, language, mx=None, path=None, graph=None):
         super().__init__(language, output_dir='similarity', data_type='svg')
-
         self.mx = mx
+        self.path = path
         self.graph = graph
+
+
+        if (self.mx is not None and self.path is not None):
+            raise ValueError('Pass either matrix or path.')
+        if self.mx is None and self.path is not None:
+            self.mx = Sparsifier.load_pkl(self.path)
 
         if (self.mx is not None and self.graph is not None) or (self.mx is None and self.graph is None):
             raise ValueError('Pass either matrix or graph.')

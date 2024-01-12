@@ -51,14 +51,17 @@ def get_simmx_mini(n=5):
     return df
 
 
-
 def remove_directories(directory_paths):
     for path in directory_paths:
-        try:
-            shutil.rmtree(path)
-            print(f"Directory '{path}' removed successfully.")
-        except OSError as e:
-            print(f"Error removing directory '{path}': {e}")
+        if os.path.exists(path):  # Check if the directory exists
+            try:
+                shutil.rmtree(path)
+                print(f"Directory '{path}' removed successfully.")
+            except OSError as e:
+                print(f"Error removing directory '{path}': {e}")
+        else:
+            print(f"Directory '{path}' does not exist. Skipping removal.")
+
 
 def delete_png_files(directory_paths):
     for path in directory_paths:

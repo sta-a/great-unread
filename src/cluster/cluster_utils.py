@@ -24,9 +24,10 @@ logging.basicConfig(level=logging.DEBUG)
 class MetadataHandler(DataHandler):
     def __init__(self, language):
         super().__init__(language, output_dir='similarity', data_type='png')
+        self.cat_attrs = ['gender', 'author']
 
 
-    def get_metadata(self, add_color=True):
+    def get_metadata(self, add_color=False):
         gender = DataLoader(self.language).prepare_metadata(type='gender')
         gender = gender[['gender']]
         gender['gender'] = gender['gender'].map({'m': 0, 'f': 1, 'a': 2, 'b': 3})
@@ -58,32 +59,49 @@ class MetadataHandler(DataHandler):
         assert len(metadf) == self.nr_texts
 
         if add_color:
-            cm = ColorMap(metadf)
-            for col in metadf.columns:
-                cm.add_color_column(col)
-            metadf = cm.metadf
+            metadf = self.add_attr_colors(metadf)
+            
+        return metadf
+    
+    
+    def add_attr_colors(self, metadf):
+        cm = ColorMap(metadf)
+        for col in metadf.columns:
+            cm.add_color_column(col)
+        return cm.metadf
+    
+
+    def add_cluster_colors_and_shapes(self, metadf):
+        metadf = self.add_shape_column(metadf)
+        metadf = self.add_color_column(metadf, 'cluster')
+
+        # Create a new col for categorical attributes that matches a number to every cluster-attribute combination
+        # Then map the new cols to colors
+        for cattr in self.cat_attrs:
+            colname = f'{cattr}_cluster'
+            metadf[colname] = metadf.groupby([cattr, 'cluster']).ngroup()
+            metadf = self.add_color_column(metadf, colname)
+
         return metadf
 
-    
-    
-    def add_color_to_df(self, metadf, colname):
+
+    def add_color_column(self, metadf, colname):
         # Add a color column to a df
-        self.cm = ColorMap(metadf)
-        metadf = self.cm.add_color_column(colname)
-        metadf = self.cm.metadf
+        cm = ColorMap(metadf)
+        metadf = cm.add_color_column(colname)
+        metadf = cm.metadf
 
         assert len(metadf) == self.nr_texts
         return metadf
     
     
-    def add_shape_to_df(self, metadf):
+    def add_shape_column(self, metadf):
         # Add a shape column for the cluster column
-        self.cm = ShapeMap(metadf)
-        metadf = self.cm.add_shape_column()
-        metadf = self.cm.metadf
+        sm = ShapeMap(metadf)
+        metadf = sm.add_shape_column()
 
-        assert len(metadf) == self.nr_texts
-        return metadf
+        assert len(sm.metadf) == self.nr_texts
+        return sm.metadf
 
 
 class ShapeMap():
@@ -100,9 +118,6 @@ class ShapeMap():
         self.logger.setLevel(logging.DEBUG)
 
     def add_shape_column(self):
-        self.map_list()
-
-    def map_list(self):
         # Map each cluster to a shape. 
         # Cluster with label 0 is mapped to the first list element, label 1 to the second element, and so on.
         # If end of the list is reached, start from the beginning of the list.
@@ -222,10 +237,9 @@ class ColorMap(Colors):
 class CombinationInfo:
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
-        self.omit_default = ['metadf', 'param_comb', 'spars_param', 'omit_default', 'cluster_alg']
+        self.omit_default = ['metadf', 'param_comb', 'spars_param', 'omit_default', 'cluster_alg', 'spmx_path', 'clusterdf']
         self.paramcomb_to_string()       
         self.spars_to_string()
-        # self.extra = '' # Store additional information
 
 
     def spars_to_string(self):
@@ -256,14 +270,14 @@ class CombinationInfo:
 
 
     def as_string(self, sep='_', omit: List[str] = []):
-        omit_lst = self.omit_default + omit # + ['extra']
+        omit_lst = self.omit_default + omit
 
         filtered_values = []
         for key, value in self.__dict__.items():
             if key not in omit_lst:
                 if value is not None and (not isinstance(value, dict)):
                     filtered_values.append(str(self.replace_dot(value)))
-
+        
         return sep.join(filtered_values)
     
 

@@ -34,7 +34,7 @@ class NkViz(DataHandler):
         self.info = info
         self.prog = 'neato'
         self.cat_attrs = ['gender', 'author']
-        self.add_subdir('nkviz')
+        self.add_subdir('nktop')
 
         self.too_many_edges, edges_info = self.check_nr_edges()
         if self.too_many_edges:
@@ -75,12 +75,13 @@ class NkViz(DataHandler):
 
 
     def prepare_graphs_and_plot(self):
+        print(self.info.as_string())
+        print(self.info.as_string(omit=["clst_alg_params", "attr"]))
         pkl_path = self.get_file_path(file_name=f'pg-{self.info.as_string(omit=["clst_alg_params", "attr"])}.pkl', subdir=True)
 
         if os.path.exists(pkl_path):
             with open(pkl_path, 'rb') as f:
                 self.graph_con, self.graphs_two, self.nodes_removed, self.nodes_iso, self.pos, self.fig = pickle.load(f)
-                # print(next(iter(self.pos.items())))
                 self.ax1, self.ax2 = self.fig.get_axes()
                 self.ax1.axis('off')
                 self.ax2.axis('off')
@@ -88,15 +89,11 @@ class NkViz(DataHandler):
 
         else:
             self.logger.debug(f'Nr edges below cutoff for {self.info.as_string()}. Making visualization.') ##################3
-            prepare_start = time.time()
-
             self.graph_con, self.graphs_two, self.nodes_removed, self.nodes_iso = self.get_graphs()
             self.pos = self.get_positions()
-            # print(next(iter(self.pos.items())))
             self.fig, self.ax1, self.ax2 = self.make_figure()
             self.draw_edges(self.graph_con, self.pos, self.ax1)
 
-            viztime = time.time()-prepare_start
 
             pkl_lst = [self.graph_con, self.graphs_two, self.nodes_removed, self.nodes_iso, self.pos, self.fig]
             try:
@@ -105,24 +102,28 @@ class NkViz(DataHandler):
             except Exception as e:
                 if os.path.exists(pkl_path):
                     os.remove(pkl_path)
-                # print(f"Pickling failed, regenerating edges plot for every visualization.: {e}")
+                print(f"Pickling failed, regenerating edges plot for every visualization.: {e}")
 
-            # print(f'{viztime}s to prepare plots.')
             self.logger.debug(f'Finished preparing viz {self.info.as_string()}')
 
 
 
     def add_nodes(self, df, plttitle, pltname, use_different_shapes=True, fn_str=None):
+        # Draw connected components with more than 2 nodes
         df_con = df[~df.index.isin(self.nodes_removed)]
         self.draw_nodes(self.graph_con, self.ax1, df_con, use_different_shapes=use_different_shapes)
 
         ## Plot removed nodes, if there are any
         if self.nodes_removed:
+            # Two nodes
+            print('nr graphs two', len(self.graphs_two))
             for curr_g in self.graphs_two:
                 curr_nodes = list(curr_g.nodes)
                 curr_df_two = df[df.index.isin(curr_nodes)]
                 self.draw_nodes(curr_g, self.ax2, curr_df_two, use_different_shapes=use_different_shapes)
+                self.draw_edges(curr_g, self.pos, self.ax2) #€#####################
 
+            # Isolated nodes
             df_iso = df[df.index.isin(self.nodes_iso)]
             for shape in df_iso['shape'].unique():
                 sdf = df_iso[df_iso['shape'] == shape]
@@ -169,7 +170,16 @@ class NkViz(DataHandler):
         start = time.time()
         edge_weights = nx.get_edge_attributes(graph, 'weight')
         weights_list = list(edge_weights.values())
-        nx.draw_networkx_edges(graph, pos, ax=ax, edge_color=weights_list, edge_cmap=plt.cm.get_cmap('gist_yarg'), arrowsize=2, width=0.5, arrows=False) ################## arrows
+        # alpha for opacity
+        nx.draw_networkx_edges(graph, 
+                               pos, 
+                               ax=ax, 
+                               edge_color=weights_list, 
+                               edge_cmap=plt.cm.get_cmap('gist_yarg'), 
+                               arrowsize=2, 
+                               width=0.5, 
+                               arrows=False, 
+                               alpha=0.1) ################## arrows
         ax.grid(False)
         # print(f'{time.time()-start}s to draw edges.')
 

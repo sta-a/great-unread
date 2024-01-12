@@ -28,15 +28,15 @@ logging.basicConfig(level=logging.DEBUG)
 
 
 class CombinationsBase(DataHandler):
-    def __init__(self, language):
+    def __init__(self, language, add_color=False):
         super().__init__(language=language, output_dir='similarity', data_type='csv')
-        self.test = False ####################
-        self.top_n_rows = 5 # How many combinations are considered top results ###############
+        self.test = False
+        self.top_n_rows = 30 # How many combinations are considered top results ###############
 
         self.mxs = self.load_mxs()
         
-        mh = MetadataHandler(self.language)
-        self.metadf = mh.get_metadata()
+        self.mh = MetadataHandler(self.language)
+        self.metadf = self.mh.get_metadata(add_color=add_color)
 
         self.colnames = [col for col in self.metadf.columns if not col.endswith('_color')]
         self.colnames = ['gender', 'author', 'canon', 'year']
@@ -137,19 +137,29 @@ class CombinationsBase(DataHandler):
 
         cat = cat.nlargest(n=self.top_n_rows, columns='ARI')
         cont = cont.nlargest(n=self.top_n_rows, columns='logreg-accuracy')
-        return cat, cont
+
+        cat = dict(zip(cat['file_info'], cat['plttitle'])) 
+        cont = dict(zip(cont['file_info'], cont['plttitle']))
+        topdict = {**cat, **cont}
+        return topdict
     
 
-    def load_combinations(self, comb_info):
+    def load_infos(self, comb_info):
         file_path = os.path.join(self.subdir, f'combination-{comb_info}.pkl')               
         with open(file_path, 'rb') as pickle_file:
-            data = pickle.load(pickle_file) # [network, clusters, info]
+            data = pickle.load(pickle_file)
             return data
+        
+
+    def merge_dfs(self, metadf, clusterdf):
+        # Combine file names, attributes, and cluster assignments
+        metadf = pd.merge(metadf, clusterdf, left_index=True, right_index=True, validate='1:1')
+        return metadf
 
 
 class MxCombinations(CombinationsBase):
-    def __init__(self, language):
-        super().__init__(language)
+    def __init__(self, language, add_color):
+        super().__init__(language, add_color)
         self.add_subdir('mxcomb') # Directory for storing intermediate results
         self.cmode = 'mx'
 
@@ -164,7 +174,7 @@ class MxCombinations(CombinationsBase):
                     print(info.as_string(), self.language)
                     # Avoid repetitions from multiple values for order for continuous attributes
                     if attr not in ['gender', 'author']:
-                        if counter >=1: 
+                        if counter >= 1: 
                             break
                         elif attr == 'noattr':
                             info.order = 'noattr'
@@ -188,13 +198,16 @@ class MxCombinations(CombinationsBase):
                 combination = [mx, clusters, info] 
 
                 if clusters is not None:
-                    metadf = clusters.merge_clust_meta_dfs(self.metadf)
+                    metadf = self.merge_dfs(metadf, clusters.df)
                     info.add('metadf', metadf)
                     self.evaluate(combination)
+                    print(info.as_string())
                 
                 # If clusters is None, then metadf is not added to info
-                with open(os.path.join(self.subdir, f"combination-{info.as_string(omit=['attr'])}.pkl"), 'wb') as pickle_file:
-                    pickle.dump(combination, pickle_file)
+                # with open(os.path.join(self.subdir, f"combination-{info.as_string(omit=['attr'])}.pkl"), 'wb') as pickle_file:
+                #     info.drop('attr')
+                #     pickle.dump(combination, pickle_file)
+                #     print(info.as_string())
 
 
     def evaluate(self, combination):
@@ -208,16 +221,11 @@ class MxCombinations(CombinationsBase):
 
 
     def viz_topk(self):
+        topdict = self.get_topk(self.cmode)
 
-        cat, cont = self.get_topk(self.cmode)
-        cat = dict(zip(cat['file_info'], cat['plttitle'])) 
-        cont = dict(zip(cont['file_info'], cont['plttitle']))
-
-        d = {**cat, **cont}
-
-        for tinfo, plttitle in d.items():
+        for tinfo, plttitle in topdict.items():
             comb_info, attr = tinfo.rsplit('_', 1)
-            mx, clusters, info = self.load_combinations(comb_info)
+            mx, clusters, info = self.load_infos(comb_info)
 
             for order in MxReorder.ORDERS:
                 info.add('order', order)
@@ -235,8 +243,8 @@ class MxCombinations(CombinationsBase):
 
 
 class NkCombinations(CombinationsBase):
-    def __init__(self, language):
-        super().__init__(language)
+    def __init__(self, language, add_color):
+        super().__init__(language, add_color)
         self.add_subdir('nkcomb') # Directory for storing intermediate results
         self.cmode = 'nk'
 
@@ -255,14 +263,40 @@ class NkCombinations(CombinationsBase):
                     viz.visualize(pltname='attrviz', plttitle='Attributes')
 
 
+    def evaluate_all_combinations(self):
+        # Evaluate all combinations with all attributes
+        for combination in self.create_combinations():
+            self.evaluate(combination)
+            
+
+    def evaluate(self, combination):
+        # Evaluate a single combination with all attributes
+        network, clusters, info = combination
+        print(info.as_string())
+        inteval = NkIntEval(network, clusters, info.cluster_alg, info.param_comb).evaluate()
+        exteval = ExtEval(self.language, self.cmode, info, inteval)
+        
+        for attr in ['cluster'] + self.colnames: # evaluate 'cluster' first
+            info.add('attr', attr)
+            exteval.evaluate(attr=attr, info=info)
+
+
+    def pickle_info(self, info):
+        pickle_path = self.get_pickle_path(info.as_string())
+        with open(pickle_path, 'wb') as pickle_file:
+            pickle.dump(info.__dict__, pickle_file) # Pickle as normal dict in case there are any changes to the CombinationInfo class
+            print(info.as_string())
+
+
     def create_combinations(self):
         for mx, sparsmode in itertools.product(self.mxs, Sparsifier.MODES.keys()):
+            print(mx.name)
 
             sparsifier = Sparsifier(self.language, mx, sparsmode)
             spars_params = Sparsifier.MODES[sparsmode]
             
             for spars_param in spars_params:
-                mx, filtered_nr_edges = sparsifier.sparsify(spars_param)
+                mx, filtered_nr_edges, spmx_path = sparsifier.sparsify(spars_param)
                 if filtered_nr_edges != 0: ######################### write log
 
                     for cluster_alg in  NkCluster.ALGS.keys():
@@ -271,46 +305,70 @@ class NkCombinations(CombinationsBase):
                         param_combs = nc.get_param_combinations()
                         
                         for param_comb in param_combs:
-                            info = CombinationInfo(mxname=mx.name, sparsmode=sparsmode, spars_param=spars_param, cluster_alg=cluster_alg, param_comb=param_comb)
+                            info = CombinationInfo(mxname=mx.name, sparsmode=sparsmode, spars_param=spars_param, cluster_alg=cluster_alg, param_comb=param_comb, spmx_path=spmx_path)
                             clusters = nc.cluster(info, param_comb)
-                            combination = [network, clusters, info] 
 
                             if clusters is not None:
-                                metadf = clusters.merge_clust_meta_dfs(self.metadf)
+                                metadf = self.merge_dfs(self.metadf, clusters.df)
                                 info.add('metadf', metadf)
-                                self.evaluate(combination)
-                            
-                            # If clusters is None, then metadf is not added to info
-                            with open(os.path.join(self.subdir, f"combination-{info.as_string(omit=['attr'])}.pkl"), 'wb') as pickle_file:
-                                pickle.dump(combination, pickle_file)
+                                combination = [network, clusters, info]
+
+                                pinfo = deepcopy(info)
+                                pinfo.drop('metadf') # Only save cluster assignments and not full metadata to save space on disk
+                                pinfo.add('clusterdf', clusters.df)
+                                self.pickle_info(pinfo)
+
+                                yield combination
 
 
-    def evaluate(self, combination):
-        network, clusters, info = combination
-        inteval = NkIntEval(network, clusters, info.cluster_alg, info.param_comb).evaluate()
-        exteval = ExtEval(self.language, self.cmode, info, inteval)
-        
-        for attr in ['cluster'] + self.colnames: # evaluate 'cluster' first
-            info.add('attr', attr)
-            exteval.evaluate(attr=attr, info=info)
+    def get_pickle_path(self, info: str):
+        return os.path.join(self.subdir, f'info-{info}.pkl')
 
-                                
+
+    def load_info(self, comb_info):
+        pickle_path = self.get_pickle_path(comb_info)              
+        with open(pickle_path, 'rb') as pickle_file:
+            info_dict = pickle.load(pickle_file)
+            info = CombinationInfo(**info_dict)
+            return info
+   
+
     def viz_topk(self):
-        cat, cont = self.get_topk(self.cmode)
-        cat = dict(zip(cat['file_info'], cat['plttitle'])) 
-        cont = dict(zip(cont['file_info'], cont['plttitle']))
+        topdict = self.get_topk(self.cmode)
 
-        d = {**cat, **cont}
-
-        for tinfo, plttitle in d.items():
+        for tinfo, plttitle in topdict.items():
             comb_info, attr = tinfo.rsplit('_', 1)
-            network, clusters, info = self.load_combinations(comb_info)
+            info = self.load_info(comb_info)
+            metadf = self.merge_dfs(self.metadf, info.clusterdf)
+            metadf = self.mh.add_cluster_colors_and_shapes(metadf)
+            info.add('metadf', metadf)
+            network = NXNetwork(self.language, path=info.spmx_path)
 
             viz = NkViz(self.language, network, info)
+            self.viz_four_plots(viz, info, attr, plttitle)
+            
 
-            info.add('attr', 'cluster')
-            viz.visualize(pltname='clstviz', plttitle=plttitle)
-
+    def viz_four_plots(self, viz, info, attr, plttitle):
             info.add('attr', attr)
             viz.visualize(pltname='evalviz', plttitle=plttitle)
 
+
+    def viz_single_plots(self, viz, info, attr, plttitle):
+            info.add('attr', 'cluster')
+            viz.visualize(pltname='clstviz', plttitle=plttitle)
+            
+            info.add('attr', attr)
+            viz.visualize(pltname='evalviz', plttitle=plttitle)
+
+
+    # def save_topk_combinations(self):
+    #     topdict = self.get_topk(self.cmode)
+    #     topinfos = [info.rsplit('_', 1)[0] for info in topdict.keys()] # remove attr from info string
+
+    #     for combination in self.create_combinations():
+    #         network, clusters, info = combination
+    #         if info.as_string() in topinfos:  
+    #             info.drop('attr')
+    #             with open(os.path.join(self.subdir, f"combination-{info.as_string()}.pkl"), 'wb') as pickle_file:
+    #                 pickle.dump(combination, pickle_file)
+    #                 print(info.as_string())

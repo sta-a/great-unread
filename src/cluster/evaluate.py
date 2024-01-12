@@ -263,32 +263,34 @@ class ExtEval(DataHandler):
         
         y_pred = model.predict(X)
 
-        # Visualize the decision boundary
-        plt.figure(figsize=(10, 6))
-        plt.grid(True)
+        plot = False
+        if plot: ################################################
+            # Visualize the decision boundary
+            plt.figure(figsize=(10, 6))
+            plt.grid(True)
 
-        # Generate a range of values for X for plotting the decision boundary
-        X_range = np.linspace(min(X), max(X), 300).reshape(-1, 1)
-        # Predict the corresponding y values for the X_range
-        y_range = model.predict(X_range)
+            # Generate a range of values for X for plotting the decision boundary
+            X_range = np.linspace(min(X), max(X), 300).reshape(-1, 1)
+            # Predict the corresponding y values for the X_range
+            y_range = model.predict(X_range)
 
-        # Plot the decision boundary
-        plt.plot(X_range, y_range, color='red', linewidth=3, label='Decision Boundary')
+            # Plot the decision boundary
+            plt.plot(X_range, y_range, color='red', linewidth=3, label='Decision Boundary')
 
-        # Scatter plot for the data points
-        plt.scatter(X, y_true, c=y_pred, cmap='Set1', edgecolors='k', marker='o', s=100, label='Clusters from LogReg')
+            # Scatter plot for the data points
+            plt.scatter(X, y_true, c=y_pred, cmap='Set1', edgecolors='k', marker='o', s=100, label='Clusters from LogReg')
 
-        # Set labels and title
-        plt.xlabel(f'{self.info.attr.capitalize()}')
-        plt.ylabel('Clusters from Clustering Alg)')
-        plt.title('Logistic Regression')
+            # Set labels and title
+            plt.xlabel(f'{self.info.attr.capitalize()}')
+            plt.ylabel('Clusters from Clustering Alg)')
+            plt.title('Logistic Regression')
 
-        plt.yticks(np.unique(y_true))
+            plt.yticks(np.unique(y_true))
 
-        # Display the legend
-        plt.legend()
-        self.save_data(data=plt, data_type='png', subdir=True, file_name=f'logreg-{self.info.as_string()}-{self.info.attr}.png')
-        plt.close()
+            # Display the legend
+            plt.legend()
+            self.save_data(data=plt, data_type='png', subdir=True, file_name=f'logreg-{self.info.as_string()}-{self.info.attr}.png')
+            plt.close()
 
         return accuracy_score(y_true=y_true, y_pred=y_pred)
     

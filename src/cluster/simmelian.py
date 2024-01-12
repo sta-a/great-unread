@@ -11,10 +11,7 @@ import numpy as np
 
 import sys
 sys.path.append("..")
-from helpers import get_simmx_mini, create_simmx
-from .network import NXNetwork
-from .create import SimMx
-
+from helpers import create_simmx
 
 class Simmelian():
     '''
