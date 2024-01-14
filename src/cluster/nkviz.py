@@ -11,6 +11,7 @@ import matplotlib.gridspec as gridspec
 import textwrap
 import time
 import random
+from typing import List
 random.seed(9)
 
 
@@ -49,69 +50,117 @@ class NkViz(DataHandler):
             f.write(f'{self.info.as_string()},{edges_info.as_string()}\n')
 
 
-    def make_figure(self):
+    def make_big_figure(self):
+        self.fig, self.axs = plt.subplots(4, 2, figsize=(10, 11), gridspec_kw={'height_ratios': [7, 0.5, 7, 0.5]})
+        # Turn off box around axis
+        # for row in self.axs: 
+        #     for ax in row:
+        #         ax.axis('off')
+
+        self.main_plots = [self.axs[0, 0], self.axs[0, 1], self.axs[2, 0]]
+        self.small_plots = [self.axs[1, 0], self.axs[1, 1], self.axs[3, 0]]
+        if self.info.attr in self.cat_attrs:
+            self.main_plots.append(self.axs[2, 1])
+            self.small_plots.append(self.axs[3, 1])
+
+
+    def make_small_figure(self):
         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(5, 5.5), gridspec_kw={'height_ratios': [7, 0.5]})
         ax1.axis('off')
         ax2.axis('off')
         return fig, ax1, ax2
-    
+        
 
     def visualize(self, pltname, plttitle):
         if not self.too_many_edges:
             start = time.time()
-            df = self.prepare_metadata(pltname)
-            self.add_nodes(df, plttitle, pltname)
-
-            # Make second visualization for categorical attributes where cluster and attribute are combined into a color
-            if (pltname == 'evalviz') and (self.info.attr in self.cat_attrs):
-                df = df.drop('color', axis=1)
-                df = df.rename(columns={f'{self.info.attr}_cluster_color': 'color'})
-                df['shape'] = 'o'
-                self.add_nodes(df, plttitle, pltname, use_different_shapes=False, fn_str='combined')
+            self.df = self.prepare_metadata()
+            self.make_four_plots(plttitle)
                 
             calctime = time.time()-start
             if calctime > 10:
                 print(f'{calctime}s to visualize.')
 
 
+
+    def add_edges(self):
+        # Main plot
+        for ax in self.main_plots:
+            self.draw_edges(self.graph_con, self.pos, ax)
+
+        # Two nodes
+        if self.nodes_removed:
+            print('nr graphs two', len(self.graphs_two))
+            for ax in self.small_plots:
+                for curr_g in self.graphs_two:
+                    self.draw_edges(curr_g, self.pos, ax)
+                
+
     def prepare_graphs_and_plot(self):
-        print(self.info.as_string())
-        print(self.info.as_string(omit=["clst_alg_params", "attr"]))
-        pkl_path = self.get_file_path(file_name=f'pg-{self.info.as_string(omit=["clst_alg_params", "attr"])}.pkl', subdir=True)
-
-        if os.path.exists(pkl_path):
-            with open(pkl_path, 'rb') as f:
-                self.graph_con, self.graphs_two, self.nodes_removed, self.nodes_iso, self.pos, self.fig = pickle.load(f)
-                self.ax1, self.ax2 = self.fig.get_axes()
-                self.ax1.axis('off')
-                self.ax2.axis('off')
-                self.logger.debug(f'Loaded graphs and plot from file.')
-
-        else:
-            self.logger.debug(f'Nr edges below cutoff for {self.info.as_string()}. Making visualization.') ##################3
-            self.graph_con, self.graphs_two, self.nodes_removed, self.nodes_iso = self.get_graphs()
-            self.pos = self.get_positions()
-            self.fig, self.ax1, self.ax2 = self.make_figure()
-            self.draw_edges(self.graph_con, self.pos, self.ax1)
+        # without pickling
+        self.logger.debug(f'Nr edges below cutoff for {self.info.as_string()}. Making visualization.') ##################3
+        self.graph_con, self.graphs_two, self.nodes_removed, self.nodes_iso = self.get_graphs()
+        self.pos = self.get_positions()
+        self.make_big_figure()
+        self.add_edges()
+        self.logger.debug(f'Finished preparing viz {self.info.as_string()}')
 
 
-            pkl_lst = [self.graph_con, self.graphs_two, self.nodes_removed, self.nodes_iso, self.pos, self.fig]
-            try:
-                with open(pkl_path, 'wb') as f:
-                    pickle.dump(pkl_lst, f)
-            except Exception as e:
-                if os.path.exists(pkl_path):
-                    os.remove(pkl_path)
-                print(f"Pickling failed, regenerating edges plot for every visualization.: {e}")
-
-            self.logger.debug(f'Finished preparing viz {self.info.as_string()}')
+    def manage_big_figure(self, plttitle):
+        plt.tight_layout()
+    
+        if plttitle is not None:
+            plt.suptitle(textwrap.fill(plttitle, width=100))
 
 
+    def save_plot(self, plt, file_name=None, file_path=None):
+        self.save_data(data=plt, data_type=self.data_type, subdir=True, file_name=file_name, file_path=file_path)
+   
 
-    def add_nodes(self, df, plttitle, pltname, use_different_shapes=True, fn_str=None):
+    def get_path(self, name, omit: List[str] = [], data_type='pkl'):
+        file_name = f'{name}-{self.info.as_string(omit=omit)}.{data_type}'
+        return self.get_file_path(file_name, subdir=True)
+    
+
+    # def fig_to_pkl(self, fig, pkl_path):
+    #     # Save a fig
+    #     try:
+    #         with open(pkl_path, 'wb') as f:
+    #             pickle.dump(fig, f)
+    #     except Exception as e:
+    #         if os.path.exists(pkl_path):
+    #             os.remove(pkl_path)
+
+
+    # def fig_from_pkl(self, pkl_path):
+    #     # Load a figure with two axes
+    #     if os.path.exists(pkl_path):
+    #         with open(pkl_path, 'rb') as f:
+    #             fig = pickle.load(f)
+    #             ax1, ax2 = fig.get_axes()
+    #             ax1.axis('off')
+    #             ax2.axis('off')
+
+
+    # def make_small_plots(self):
+    #     for name in ['cluster', 'attr']:
+    #         self.make_small_plot(name)
+
+    # def make_small_plot(self, name):
+    #     pkl_path = self.get_path(name, omit=[], data_type='pkl')
+    #     if not os.path.exists(pkl_path):
+    #         fig, ax1, ax2 = self.make_small_figure()
+    #         self.add_nodes(ax1, ax2, self.df, color_col=f'{name}_color', use_different_shapes=False)
+    #         self.fig_to_pkl(fig, pkl_path)
+    #         fig_path = self.get_path(name, omit=[], data_type=self.data_type)
+    #         self.save_plot(data=fig, file_path=fig_path)
+
+
+    def add_nodes(self, ax1, ax2, df, color_col, use_different_shapes=True):
+        color_col = f'{color_col}_color'
         # Draw connected components with more than 2 nodes
         df_con = df[~df.index.isin(self.nodes_removed)]
-        self.draw_nodes(self.graph_con, self.ax1, df_con, use_different_shapes=use_different_shapes)
+        self.draw_nodes(self.graph_con, ax1, df_con, color_col, use_different_shapes=use_different_shapes)
 
         ## Plot removed nodes, if there are any
         if self.nodes_removed:
@@ -120,48 +169,74 @@ class NkViz(DataHandler):
             for curr_g in self.graphs_two:
                 curr_nodes = list(curr_g.nodes)
                 curr_df_two = df[df.index.isin(curr_nodes)]
-                self.draw_nodes(curr_g, self.ax2, curr_df_two, use_different_shapes=use_different_shapes)
-                self.draw_edges(curr_g, self.pos, self.ax2) #€#####################
+                self.draw_nodes(curr_g, ax2, curr_df_two, color_col, use_different_shapes=use_different_shapes)
+                # self.draw_edges(curr_g, self.pos, ax2) #€#####################
 
             # Isolated nodes
             df_iso = df[df.index.isin(self.nodes_iso)]
-            for shape in df_iso['shape'].unique():
-                sdf = df_iso[df_iso['shape'] == shape]
-                self.ax2.scatter(sdf['x'], sdf['y'], c=sdf['color'], marker=shape, s=2)
+            for shape in df_iso['clst_shape'].unique():
+                sdf = df_iso[df_iso['clst_shape'] == shape]
+                ax2.scatter(sdf['x'], sdf['y'], c=sdf[color_col], marker=shape, s=2)
 
 
-        plt.tight_layout()
-    
-        if plttitle is not None:
-            plt.suptitle(textwrap.fill(plttitle, width=100), fontsize=5)
+    def make_four_plots(self, plttitle):
+        # attr
+        self.add_nodes(self.axs[0, 0], self.axs[1, 0], self.df, color_col=self.info.attr, use_different_shapes=False)
+        self.axs[1, 0].set_title('Attribute')
+        # cluster
+        self.add_nodes(self.axs[0, 1], self.axs[1, 1], self.df, color_col='cluster', use_different_shapes=False)
+        self.axs[1, 1].set_title('Cluster')
+        # attr as color, cluster as shapes
+        self.add_nodes(self.axs[2, 0], self.axs[3, 0], self.df, color_col=self.info.attr, use_different_shapes=True)
+        self.axs[3, 0].set_title('Attributes and clusters (shapes)')
+        # cluster and attr combined as colors
+        if self.info.attr in self.cat_attrs:
+            self.add_nodes(self.axs[2, 1], self.axs[3, 1], self.df, color_col=f'{self.info.attr}_cluster', use_different_shapes=True)
+            self.axs[3, 1].set_title('Attributes and clusters (combined)')
+        # plt.show()
 
-        if fn_str is None:
-            file_name = f'{pltname}_{self.info.as_string()}.{self.data_type}'
-        else:
-            file_name = f'{pltname}_{self.info.as_string()}_{fn_str}.{self.data_type}'
-
-        self.save_data(data=plt, data_type=self.data_type, subdir=True, file_name=file_name)
-   
+        self.manage_big_figure(plttitle)
+        fig_path = self.get_path('big', omit=[], data_type=self.data_type)
+        self.save_plot(plt, file_name=None, file_path=fig_path)
+        plt.close()
+        
 
 
-    def draw_nodes(self, graph, ax, df, use_different_shapes=True):
+    def prepare_metadata(self):
+        # posdf = pd.DataFrame(list(self.pos.items()), columns=['index', 'position'])
+
+        # # Set 'index' column as the index and drop the 'index' column
+        # posdf = posdf.set_index('index').drop(columns=['index'])
+
+        # # Merge the two DataFrames on the index
+        # df = pd.merge(self.info.metadf, posdf, left_index=True, right_index=True, how='inner', validate='1:1')
+
+        df = deepcopy(self.info.metadf)
+        df['pos'] = df.index.map(self.pos)
+        df[['x', 'y']] = pd.DataFrame(df['pos'].tolist(), index=df.index)
+
+        return df
+
+
+
+    def draw_nodes(self, graph, ax, df, color_col, use_different_shapes=True):
         # Iterate through shapes because only one shape can be passed at a time, no lists
         if use_different_shapes:
-            shapes = df['shape'].unique()
+            shapes = df['clst_shape'].unique()
         else:
             shapes = ['o']
             df = df.copy() # Avoid chained assingment warning
-            df['shape'] = 'o'
+            df['clst_shape'] = 'o'
 
         for shape in shapes:
-            sdf = df[df['shape'] == shape]
-            nx.draw_networkx_nodes(graph, 
+            sdf = df[df['clst_shape'] == shape]
+            nx.draw_networkx_nodes(graph,
                                 self.pos, 
                                 ax=ax,
                                 nodelist=sdf.index.tolist(), 
                                 node_shape=shape,
-                                node_color=sdf['color'],
-                                node_size=5,
+                                node_color=sdf[color_col],
+                                node_size=6,
                                 edgecolors='black',
                                 linewidths=0.2)
             
@@ -181,30 +256,8 @@ class NkViz(DataHandler):
                                arrows=False, 
                                alpha=0.1) ################## arrows
         ax.grid(False)
-        # print(f'{time.time()-start}s to draw edges.')
-
-
-    def prepare_metadata(self, pltname):
-        node_colors = self.info.metadf[f'{self.info.attr}_color'].to_dict()
-        attr = self.info.metadf[self.info.attr].to_dict()
-        if pltname == 'evalviz':
-            node_shapes = self.info.metadf['clst_shape'].to_dict()
-        else:
-            node_shapes = {key: 'o' for key in node_colors}
-        
-        df_dict = {'color': node_colors, 'shape': node_shapes, f'{self.info.attr}': attr, 'pos': self.pos}
-
-        # Also visualize combined attribute-cluster color column for categorical attributes
-        if (pltname=='evalviz') and (self.info.attr in self.cat_attrs):
-            attr_cluster_col = self.info.metadf[f'{self.info.attr}_cluster_color'].to_dict()
-            df_dict[f'{self.info.attr}_cluster_color'] = attr_cluster_col
-
-        df = pd.DataFrame(df_dict)
-
-        #df['pos'] = df.index.map(pos)
-        df[['x', 'y']] = pd.DataFrame(df['pos'].tolist(), index=df.index)
-
-        return df
+        if time.time()-start > 10:
+            print(f'{time.time()-start}s to draw edges.')
 
 
     def get_graphs(self):

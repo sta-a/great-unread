@@ -54,13 +54,12 @@ if __name__ == "__main__":
         mx.viz_attrs()
         
     elif mode == 'nkc':
-        remove_directories(['/home/annina/scripts/great_unread_nlp/data/similarity/eng/nkeval'])
-        remove_directories(['/home/annina/scripts/great_unread_nlp/data/similarity/eng/nkcomb'])
+        # remove_directories(['/home/annina/scripts/great_unread_nlp/data/similarity/eng/nkeval'])
+        # remove_directories(['/home/annina/scripts/great_unread_nlp/data/similarity/eng/nkcomb'])
         nkc = NkCombinations(language=language, add_color=False)
         nkc.evaluate_all_combinations()
     elif mode == 'nktop':
         nkc = NkCombinations(language=language, add_color=True)
-        # nkc.save_topk_combinations()
         nkc.viz_topk()
     elif mode == 'nkattr':
         nkc = NkCombinations(language=language, add_color=True)

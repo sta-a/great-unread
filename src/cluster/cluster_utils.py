@@ -57,6 +57,9 @@ class MetadataHandler(DataHandler):
                 metadf = pd.merge(metadf, df, left_index=True, right_index=True, how='inner', validate='1:1')
 
         assert len(metadf) == self.nr_texts
+        
+        # Replace '_' in feature names with '-'
+        metadf = metadf.rename(columns=lambda x: x.replace('_', '-'))
 
         if add_color:
             metadf = self.add_attr_colors(metadf)
@@ -71,7 +74,7 @@ class MetadataHandler(DataHandler):
         return cm.metadf
     
 
-    def add_cluster_colors_and_shapes(self, metadf):
+    def add_cluster_color_and_shape(self, metadf):
         metadf = self.add_shape_column(metadf)
         metadf = self.add_color_column(metadf, 'cluster')
 

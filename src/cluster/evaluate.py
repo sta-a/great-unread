@@ -258,7 +258,7 @@ class ExtEval(DataHandler):
     
     def logreg(self, X, y_true):
         # Multinomial logistic regression to evaluate relationship between clustering and continuous variable
-        model = LogisticRegression(max_iter=1000, class_weight='balanced')
+        model = LogisticRegression(max_iter=1000, class_weight='balanced', n_jobs=-1)
         model.fit(X, y_true)
         
         y_pred = model.predict(X)

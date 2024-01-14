@@ -37,9 +37,10 @@ class CombinationsBase(DataHandler):
         
         self.mh = MetadataHandler(self.language)
         self.metadf = self.mh.get_metadata(add_color=add_color)
+        self.metadf.to_csv('testmetadf')
 
         self.colnames = [col for col in self.metadf.columns if not col.endswith('_color')]
-        self.colnames = ['gender', 'author', 'canon', 'year']
+        # self.colnames = ['gender', 'author', 'canon', 'year']
 
 
         # Set params for testing
@@ -122,7 +123,11 @@ class CombinationsBase(DataHandler):
             threshold = 500
         df['biggest_clust'] = df['clst_str'].apply(lambda x: x.split(',')[0] if 'label' in x else None)
         df['biggest_clust'] = df['biggest_clust'].apply(lambda x: int(x.split('-')[1]))
-        df = df[df['biggest_clust'] >= threshold]
+        df['biggest_clust'] = df['biggest_clust'].astype('int')
+        print(df.shape)
+        df = df[df['biggest_clust'] <= threshold]
+        print(df.shape)
+        print(df['biggest_clust'])
         return df
     
                                 
@@ -264,14 +269,17 @@ class NkCombinations(CombinationsBase):
 
 
     def evaluate_all_combinations(self):
-        # Evaluate all combinations with all attributes
+        # Evaluate all combinations for all attributes
         for combination in self.create_combinations():
+            start = time.time()
             self.evaluate(combination)
+            print(f'{time.time()-start}s to run all evaluations.')
             
 
     def evaluate(self, combination):
-        # Evaluate a single combination with all attributes
+        # Evaluate a single combination for all attributes
         network, clusters, info = combination
+        pinfo = deepcopy(info)
         print(info.as_string())
         inteval = NkIntEval(network, clusters, info.cluster_alg, info.param_comb).evaluate()
         exteval = ExtEval(self.language, self.cmode, info, inteval)
@@ -279,9 +287,13 @@ class NkCombinations(CombinationsBase):
         for attr in ['cluster'] + self.colnames: # evaluate 'cluster' first
             info.add('attr', attr)
             exteval.evaluate(attr=attr, info=info)
+        
+        # Pickle only after evaluations are done
+        self.pickle_info(pinfo)
 
 
     def pickle_info(self, info):
+        info.drop('metadf') # Only save cluster assignments and not full metadata to save space on disk
         pickle_path = self.get_pickle_path(info.as_string())
         with open(pickle_path, 'wb') as pickle_file:
             pickle.dump(info.__dict__, pickle_file) # Pickle as normal dict in case there are any changes to the CombinationInfo class
@@ -306,17 +318,15 @@ class NkCombinations(CombinationsBase):
                         
                         for param_comb in param_combs:
                             info = CombinationInfo(mxname=mx.name, sparsmode=sparsmode, spars_param=spars_param, cluster_alg=cluster_alg, param_comb=param_comb, spmx_path=spmx_path)
+                            if os.path.exists(self.get_pickle_path(info.as_string())):
+                                continue
                             clusters = nc.cluster(info, param_comb)
 
                             if clusters is not None:
                                 metadf = self.merge_dfs(self.metadf, clusters.df)
                                 info.add('metadf', metadf)
+                                info.add('clusterdf', clusters.df)
                                 combination = [network, clusters, info]
-
-                                pinfo = deepcopy(info)
-                                pinfo.drop('metadf') # Only save cluster assignments and not full metadata to save space on disk
-                                pinfo.add('clusterdf', clusters.df)
-                                self.pickle_info(pinfo)
 
                                 yield combination
 
@@ -339,8 +349,10 @@ class NkCombinations(CombinationsBase):
         for tinfo, plttitle in topdict.items():
             comb_info, attr = tinfo.rsplit('_', 1)
             info = self.load_info(comb_info)
+            info.add('attr', attr)
+            print(info.as_string())
             metadf = self.merge_dfs(self.metadf, info.clusterdf)
-            metadf = self.mh.add_cluster_colors_and_shapes(metadf)
+            metadf = self.mh.add_cluster_color_and_shape(metadf)
             info.add('metadf', metadf)
             network = NXNetwork(self.language, path=info.spmx_path)
 
@@ -359,16 +371,3 @@ class NkCombinations(CombinationsBase):
             
             info.add('attr', attr)
             viz.visualize(pltname='evalviz', plttitle=plttitle)
-
-
-    # def save_topk_combinations(self):
-    #     topdict = self.get_topk(self.cmode)
-    #     topinfos = [info.rsplit('_', 1)[0] for info in topdict.keys()] # remove attr from info string
-
-    #     for combination in self.create_combinations():
-    #         network, clusters, info = combination
-    #         if info.as_string() in topinfos:  
-    #             info.drop('attr')
-    #             with open(os.path.join(self.subdir, f"combination-{info.as_string()}.pkl"), 'wb') as pickle_file:
-    #                 pickle.dump(combination, pickle_file)
-    #                 print(info.as_string())
