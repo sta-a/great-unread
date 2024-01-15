@@ -18,6 +18,7 @@ from sklearn.metrics import adjusted_rand_score, accuracy_score
 from sklearn.linear_model import LogisticRegression
 
 from .cluster_utils import CombinationInfo
+from .cluster import ClusterBase
 import sys
 sys.path.append("..")
 from utils import DataHandler
@@ -37,7 +38,7 @@ class MxIntEval():
     def evaluate(self):
         sc = self.silhouette_score()
         evals = {'silhouette_score': sc}
-        return pd.DataFrame([evals])
+        return evals
 
     def silhouette_score(self):
         clusters = self.clusters.df
@@ -61,7 +62,7 @@ class NkIntEval():
         mod = np.nan
         mod = self.modularity()
         evals = {'modularity': mod}
-        return pd.DataFrame([evals])
+        return evals
 
     def modularity(self):
         if 'resolution' in self.param_comb:
@@ -111,46 +112,53 @@ class ExtEval(DataHandler):
 
     def evaluate(self, attr, info):
         self.info = info
+        assert not hasattr(self, 'special_clst_info')
         if attr == 'cluster':
             self.eval_clst()
         else:
             self.eval_attr()
 
 
-    def eval_clst(self):         
-        # Visualize clusters with heatmap
-        # Get nr elements per cluster
-        cluster_column = self.info.metadf['cluster']
-        value_counts = cluster_column.value_counts()
-        nclust = cluster_column.nunique()
+    def eval_clst(self, df=None):
 
-        # Count clusters with only one data point
-        iso_cluster_count = sum(count == 1 for count in value_counts)
-            
-        clst_str = ', '.join(f'label{val}-{count}' for val, count in value_counts.items() if count>1)
-        if iso_cluster_count > 0:
-            clst_str += f', isolated-{iso_cluster_count}'
+        def get_clst_counts(df):
+            # Get cluster counts     
+            clst_sizes = df['cluster'].value_counts().tolist()
+            nclust = df['cluster'].nunique()
 
-        self.clst_info = pd.DataFrame({'nclust': nclust,'clst_str': clst_str}, index=[0])
+            # Count clusters with only one data point
+            iso_cluster_count = sum(count == 1 for count in clst_sizes)
+            clst_sizes = [str(x) for x in clst_sizes if x != 1]
+            clst_sizes = ','.join(clst_sizes)
 
-        # Store information to display as plot titles
-        self.plttitle = CombinationInfo(clstinfo=f'nclust: {nclust}, {clst_str}')
+            return {'nclust': nclust, 'niso': iso_cluster_count, 'clst_sizes': clst_sizes}
+        
+        if df is None:
+            # Initial cluster evaluation for whole metadf
+            self.default_clst_info = get_clst_counts(self.info.metadf)
+        else:
+            # Special evaluation if rows have been dropped from metadf due to missing values in the attr column
+            self.special_clst_info = get_clst_counts(df)
 
 
     def eval_attr(self):
         self.set_params()
-        evaldf = self.eval_method()
-
-        self.plttitle.add('exteval', ','.join([f'{col}: {evaldf.iloc[0][col]}' for col in evaldf.columns]))
-        self.plttitle.add('inteval', ','.join([f'{col}: {self.inteval.iloc[0][col]}' for col in self.inteval.columns]))
-    
-        self.write_eval(evaldf)
+        evalscores = self.eval_method()
+        self.write_eval(evalscores)
     
 
-    def write_eval(self, evaldf):
-        file_info = pd.DataFrame({'file_info': self.info.as_string()}, index=[0])
-        plttitle = pd.DataFrame({'plttitle': self.plttitle.as_string(sep='\n')}, index=[0])
-        df = pd.concat([self.info.as_df(), self.clst_info, self.inteval, evaldf, file_info, plttitle], axis=1)
+    def write_eval(self, evalscores):
+        df = self.info.as_dict()
+        df.update(evalscores)
+        df.update(self.inteval)
+        if hasattr(self, 'special_clst_info'):
+            df.update(self.special_clst_info)
+            del self.special_clst_info
+        else:
+            df.update(self.default_clst_info)
+        df['file_info'] = self.info.as_string()
+
+        df = pd.DataFrame(df, index=[0])
 
         # Write header only if file does not exist
         file_path = self.file_paths[self.scale]
@@ -205,8 +213,7 @@ class ExtEval(DataHandler):
         ari_score = adjusted_rand_score(attrcol, df['cluster'] )
         nmi_score = normalized_mutual_info_score(attrcol, df['cluster'] )
         fmi_score = fowlkes_mallows_score(attrcol, df['cluster'] )
-        df = pd.DataFrame([{'ARI': round(ari_score, 3), 'nmi': nmi_score, 'fmi': fmi_score, 'mean_purity': purity}])
-        df = df.round(3)
+        df = {'ARI': round(ari_score, 3), 'nmi': nmi_score, 'fmi': fmi_score, 'mean_purity': purity}
         return df
 
 
@@ -228,26 +235,46 @@ class ExtEval(DataHandler):
         self.logger.debug(f'Count "b" and "a" gender labels as "m" when evaluating gender.')
         scores = self.get_categorical_scores(gender_col)
         return scores
-
     
-    def eval_continuous(self):
+
+    def filter_attr(self):
         # Filter NaN values in attr column with boolean mask
+        assert len(self.info.metadf) == self.nr_texts
         df = self.info.metadf[self.info.metadf[self.info.attr].notna()]
+
+        # Check that there is more than one cluster after filtering
+        cb = ClusterBase(language=self.language, mode=self.mode, cluster_alg=None)
+        valid = cb.evaluate_clusters(df, self.info, source='eval')
+
+        # Re-evaluate clustering if rows were dropped because of nan in attr column
+        if valid:
+            if len(self.info.metadf) != self.nr_texts:
+                self.eval_clst(df)
+
+        return df, valid
+    
+
+    def eval_continuous(self):
+        df, valid = self.filter_attr()
 
         # Run logreg
         # Extract the attr values and reshape
         X = df[self.info.attr].values.reshape(-1, 1)
         y_true = df['cluster'].values.ravel()
-        logreg = self.logreg(X, y_true)
 
-        # Run ANOVA
-        # Create a list of arrays for each unique integer in 'cluster'
-        X_cluster = [df[df['cluster'] == cluster][self.info.attr].values.reshape(-1, 1) for cluster in df['cluster'].unique()]
+        if valid:
+            logreg = self.logreg(X, y_true)
 
-        anova = self.anova(X_cluster)
-        result = [round(anova, 3), round(logreg, 3)]
-        result = pd.DataFrame([result], columns=['anova-pval', 'logreg-accuracy'])
-        return result
+            # Run ANOVA
+            # Create a list of arrays for each unique integer in 'cluster'
+            X_cluster = [df[df['cluster'] == cluster][self.info.attr].values.reshape(-1, 1) for cluster in df['cluster'].unique()]
+
+            anova = self.anova(X_cluster)
+            cont_scores = {'anova-pval': anova, 'logreg-accuracy': logreg, 'nr_attr_nan': df[self.info.attr].isna().sum()}
+        else:
+            self.logger.info(f'Invalid clustering after filtering attr col for nan: {self.info.as_string()}')
+            cont_scores = {'anova-pval': 'invalid', 'logreg-accuracy': 'invalid', 'nr_attr_nan': df[self.info.attr].isna().sum()}
+        return cont_scores
 
 
     def anova(self, X_cluster):

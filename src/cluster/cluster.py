@@ -86,24 +86,29 @@ class Clusters():
 class ClusterBase(DataHandler):
     ALGS = None
 
-    def __init__(self, language=None, cluster_alg=None):
+    def __init__(self, language=None, mode=None, cluster_alg=None):
         super().__init__(language=language, output_dir='similarity', data_type='pkl')
+        self.mode = mode
         self.cluster_alg = cluster_alg
         self.n_jobs = 1
         self.timeout = 5
+        self.get_logfile_path()
 
 
-    def log_clst(self, info, outcome):
-        path = self.get_file_path(file_name=f'log_clst.txt')
+    def get_logfile_path(self):
+        self.logfile_path = self.get_file_path(file_name=f'{self.mode}_log_clst.txt')
+
+
+    def log_clst(self, info, source, outcome):
         outcomes = ['timeout', 'single', 'iso', 'success', 'noisy']
         assert outcome in outcomes
 
-        if not os.path.exists(path):
-            with open(path, 'w') as f:
-                f.write('info,outcome\n')
+        if not os.path.exists(self.logfile_path):
+            with open(self.logfile_path, 'w') as f:
+                f.write('info,source,outcome\n')
 
-        with open(path, 'a') as f:
-            f.write(f'{info.as_string()},{outcome}\n')
+        with open(self.logfile_path, 'a') as f:
+            f.write(f'{info.as_string()},{source},{outcome}\n')
 
 
     def get_param_combinations(self):
@@ -169,6 +174,30 @@ class ClusterBase(DataHandler):
             return clusters
 
 
+    def evaluate_clusters(self, df, info, source):
+        # True if clustering has been successful
+        valid = True
+
+        if self.cluster_alg == 'dbscan' and (df['cluster'] == -1).all():
+            valid = False
+            self.log_clst(info, source, 'noisy')
+            self.logger.info(f'DBSCAN only returns noisy samples with value -1.')
+
+        if df['cluster'].nunique() == 1:
+            valid = False
+            self.log_clst(info, source, 'single')
+            self.logger.info(f'All data points put into the same cluster.')
+
+        elif df['cluster'].nunique() == self.nr_texts:
+            valid = False
+            self.log_clst(info, source, 'iso')
+            self.logger.info(f'All data points put into isolated clusters.')
+
+        else:
+            # self.log_clst(info, source, 'success')
+            pass
+        return valid
+
 
     def cluster(self, info, param_comb):
         self.logger.debug(f'Running clustering alg {self.cluster_alg} {", ".join([f"{key}: {value}" for key, value in param_comb.items()])}.')
@@ -178,29 +207,17 @@ class ClusterBase(DataHandler):
         clusters = self.run_cluster_alg(method, param_comb)
 
         if clusters is None:
-            self.log_clst(info, 'timeout')
+            self.log_clst(info, 'clst', 'timeout')
+            valid = False
         else:
             clusters = Clusters(self.language, self.cluster_alg, self.mx, clusters)
+            valid = self.evaluate_clusters(clusters.df, info, 'clst')
 
-            if self.cluster_alg == 'dbscan' and (clusters.df['cluster'] == -1).all():
-                clusters = None
-                self.log_clst(info, 'noisy')
-                self.logger.info(f'DBSCAN only returns noisy samples with value -1.')
+        if valid:
+            return clusters
+        else:
+            return None
 
-            if clusters.df['cluster'].nunique() == 1:
-                clusters = None
-                self.log_clst(info, 'single')
-                self.logger.info(f'All data points put into the same cluster.')
-
-            elif clusters.df['cluster'].nunique() == self.nr_texts:
-                clusters = None
-                self.log_clst(info, 'iso')
-                self.logger.info(f'All data points put into isolated clusters.')
-
-            else:
-                self.log_clst(info, 'success')
-
-        return clusters
         
         
 
@@ -227,8 +244,9 @@ class MxCluster(ClusterBase):
 
 
     def __init__(self, language=None, cluster_alg=None, mx=None):
-        super().__init__(language=language, cluster_alg=cluster_alg)
+        super().__init__(language=language, mode='mx', cluster_alg=cluster_alg)
         self.mx = mx
+
     
 
     def spectral(self, **kwargs):
@@ -277,16 +295,14 @@ class NkCluster(ClusterBase):
     }
 
 
-    def __init__(self, language, cluster_alg, network=None):
-        # Network can be one if class is only created to get parameter combination
+    def __init__(self, language, cluster_alg=None, network=None):
+        super().__init__(language=language, mode='nk', cluster_alg=cluster_alg)
         self.network = network
+        # Network can be None if class is only created to get parameter combination
         if self.network is not None:
             self.mx = network.mx
             self.graph = network.graph
-        super().__init__(language=language, cluster_alg=cluster_alg)
-        # for edge in self.graph.edges(data=True):
-        #     source, target, weight = edge
-        #     print(f"Edge: {source} - {target}, Weight: {weight['weight']}")
+
 
     def alpa(self, **kwargs):
         return list(asyn_lpa_communities(self.graph))

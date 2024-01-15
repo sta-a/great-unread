@@ -58,6 +58,8 @@ class MetadataHandler(DataHandler):
 
         assert len(metadf) == self.nr_texts
         
+        # Remove '_full' from column names
+        metadf = metadf.rename(columns=lambda x: x.rstrip('_full'))
         # Replace '_' in feature names with '-'
         metadf = metadf.rename(columns=lambda x: x.replace('_', '-'))
 
@@ -285,14 +287,13 @@ class CombinationInfo:
     
 
     def as_df(self, omit: List[str] = []):
-        omit_lst = self.omit_default + omit
-        data = {key: value for key, value in self.__dict__.items() if key not in omit_lst}
+        data = self.as_dict(omit)
         return pd.DataFrame([data], index=[0])
 
 
-    def as_dict(self):
-        return self.__dict__
-    
+    def as_dict(self, omit: List[str] = []):
+        omit_lst = self.omit_default + omit
+        return {key: value for key, value in self.__dict__.items() if key not in omit_lst}    
 
     def add(self, key, value):
         # Add a new element to self.__dict__.

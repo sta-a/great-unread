@@ -11,6 +11,7 @@ from copy import deepcopy
 sys.path.append("..")
 import itertools
 import shutil
+from itertools import groupby
 import time
 
 from utils import DataHandler
@@ -31,14 +32,12 @@ class CombinationsBase(DataHandler):
     def __init__(self, language, add_color=False):
         super().__init__(language=language, output_dir='similarity', data_type='csv')
         self.test = False
-        self.top_n_rows = 30 # How many combinations are considered top results ###############
+        self.top_n_rows = 5 # How many combinations are considered top results ###############
 
         self.mxs = self.load_mxs()
         
         self.mh = MetadataHandler(self.language)
         self.metadf = self.mh.get_metadata(add_color=add_color)
-        self.metadf.to_csv('testmetadf')
-
         self.colnames = [col for col in self.metadf.columns if not col.endswith('_color')]
         # self.colnames = ['gender', 'author', 'canon', 'year']
 
@@ -121,16 +120,33 @@ class CombinationsBase(DataHandler):
             threshold = 550
         else:
             threshold = 500
-        df['biggest_clust'] = df['clst_str'].apply(lambda x: x.split(',')[0] if 'label' in x else None)
-        df['biggest_clust'] = df['biggest_clust'].apply(lambda x: int(x.split('-')[1]))
-        df['biggest_clust'] = df['biggest_clust'].astype('int')
-        print(df.shape)
+        df['biggest_clust'] = df['clst_sizes'].str.extract(r'^(\d+)').astype('int')
         df = df[df['biggest_clust'] <= threshold]
-        print(df.shape)
-        print(df['biggest_clust'])
         return df
     
                                 
+    def make_plttitle(self, df, scale):
+        if scale == 'cat':
+            cols = ['ARI', 'nmi', 'fmi', 'mean_purity', 'modularity', 'nclust', 'niso', 'clst_sizes']
+        else:
+            cols = ['anova-pval', 'logreg-accuracy', 'nr_attr_nan', 'modularity', 'nclust', 'niso', 'clst_sizes']
+
+
+        # Convert 7,6,6,5,5,5 to 7, 2x6, 3x5
+        def replace_repeated_numbers(s):
+            numbers = list(map(int, s.split(',')))
+            grouped_numbers = [(key, len(list(group))) for key, group in groupby(numbers)]
+            result = [f"{count}x{key}" if count > 1 else str(key) for key, count in grouped_numbers]
+            return ', '.join(result)
+
+        df['clst_sizes'] = df['clst_sizes'].apply(replace_repeated_numbers)
+
+        # Create the plttitle column
+        df['plttitle'] = df[cols].apply(lambda row: ', '.join(f"{col}-{row[col]}" for col in cols), axis=1)
+
+        return df
+    
+
     def get_topk(self, cmode):
         evaldir = os.path.join(self.output_dir, f'{cmode}eval')
 
@@ -143,11 +159,14 @@ class CombinationsBase(DataHandler):
         cat = cat.nlargest(n=self.top_n_rows, columns='ARI')
         cont = cont.nlargest(n=self.top_n_rows, columns='logreg-accuracy')
 
+        cat = self.make_plttitle(cat, 'cat')
+        cont = self.make_plttitle(cont, 'cont')
+
         cat = dict(zip(cat['file_info'], cat['plttitle'])) 
         cont = dict(zip(cont['file_info'], cont['plttitle']))
         topdict = {**cat, **cont}
         return topdict
-    
+
 
     def load_infos(self, comb_info):
         file_path = os.path.join(self.subdir, f'combination-{comb_info}.pkl')               
@@ -280,12 +299,12 @@ class NkCombinations(CombinationsBase):
         # Evaluate a single combination for all attributes
         network, clusters, info = combination
         pinfo = deepcopy(info)
-        print(info.as_string())
         inteval = NkIntEval(network, clusters, info.cluster_alg, info.param_comb).evaluate()
         exteval = ExtEval(self.language, self.cmode, info, inteval)
         
         for attr in ['cluster'] + self.colnames: # evaluate 'cluster' first
             info.add('attr', attr)
+            print(info.as_string())
             exteval.evaluate(attr=attr, info=info)
         
         # Pickle only after evaluations are done
@@ -303,32 +322,35 @@ class NkCombinations(CombinationsBase):
     def create_combinations(self):
         for mx, sparsmode in itertools.product(self.mxs, Sparsifier.MODES.keys()):
             print(mx.name)
+            substring_list = ['manhattan-5000', 'full', 'both']
+            if any(substring in mx.name for substring in substring_list): #########################
 
-            sparsifier = Sparsifier(self.language, mx, sparsmode)
-            spars_params = Sparsifier.MODES[sparsmode]
-            
-            for spars_param in spars_params:
-                mx, filtered_nr_edges, spmx_path = sparsifier.sparsify(spars_param)
-                if filtered_nr_edges != 0: ######################### write log
+                sparsifier = Sparsifier(self.language, mx, sparsmode)
+                spars_params = Sparsifier.MODES[sparsmode]
+                
+                for spars_param in spars_params:
+                    mx, filtered_nr_edges, spmx_path = sparsifier.sparsify(spars_param)
+                    if filtered_nr_edges != 0: ######################### write log
 
-                    for cluster_alg in  NkCluster.ALGS.keys():
-                        network = NXNetwork(self.language, mx=mx)
-                        nc = NkCluster(self.language, cluster_alg, network)
-                        param_combs = nc.get_param_combinations()
-                        
-                        for param_comb in param_combs:
-                            info = CombinationInfo(mxname=mx.name, sparsmode=sparsmode, spars_param=spars_param, cluster_alg=cluster_alg, param_comb=param_comb, spmx_path=spmx_path)
-                            if os.path.exists(self.get_pickle_path(info.as_string())):
-                                continue
-                            clusters = nc.cluster(info, param_comb)
+                        for cluster_alg in  NkCluster.ALGS.keys():
+                            network = NXNetwork(self.language, mx=mx)
+                            nc = NkCluster(self.language, cluster_alg, network)
+                            param_combs = nc.get_param_combinations()
+                            
+                            for param_comb in param_combs:
+                                info = CombinationInfo(mxname=mx.name, sparsmode=sparsmode, spars_param=spars_param, cluster_alg=cluster_alg, param_comb=param_comb, spmx_path=spmx_path)
+                                if os.path.exists(self.get_pickle_path(info.as_string())):
+                                    continue
+                                clusters = nc.cluster(info, param_comb)
 
-                            if clusters is not None:
-                                metadf = self.merge_dfs(self.metadf, clusters.df)
-                                info.add('metadf', metadf)
-                                info.add('clusterdf', clusters.df)
-                                combination = [network, clusters, info]
+                                if clusters is not None:
+                                    print(info.as_string())
+                                    metadf = self.merge_dfs(self.metadf, clusters.df)
+                                    info.add('metadf', metadf)
+                                    info.add('clusterdf', clusters.df)
+                                    combination = [network, clusters, info]
 
-                                yield combination
+                                    yield combination
 
 
     def get_pickle_path(self, info: str):
@@ -356,18 +378,15 @@ class NkCombinations(CombinationsBase):
             info.add('metadf', metadf)
             network = NXNetwork(self.language, path=info.spmx_path)
 
-            viz = NkViz(self.language, network, info)
-            self.viz_four_plots(viz, info, attr, plttitle)
-            
-
-    def viz_four_plots(self, viz, info, attr, plttitle):
+            viz = NkViz(self.language, network, info)          
             info.add('attr', attr)
             viz.visualize(pltname='evalviz', plttitle=plttitle)
 
 
-    def viz_single_plots(self, viz, info, attr, plttitle):
-            info.add('attr', 'cluster')
-            viz.visualize(pltname='clstviz', plttitle=plttitle)
+    # def viz_single_plots(self, viz, info, attr, plttitle):
+    #         info.add('attr', 'cluster')
+    #         viz.visualize(pltname='clstviz', plttitle=plttitle)
             
-            info.add('attr', attr)
-            viz.visualize(pltname='evalviz', plttitle=plttitle)
+    #         info.add('attr', attr)
+    #         viz.visualize(pltname='evalviz', plttitle=plttitle)
+

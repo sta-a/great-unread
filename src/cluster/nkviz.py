@@ -53,9 +53,9 @@ class NkViz(DataHandler):
     def make_big_figure(self):
         self.fig, self.axs = plt.subplots(4, 2, figsize=(10, 11), gridspec_kw={'height_ratios': [7, 0.5, 7, 0.5]})
         # Turn off box around axis
-        # for row in self.axs: 
-        #     for ax in row:
-        #         ax.axis('off')
+        for row in self.axs: 
+            for ax in row:
+                ax.axis('off')
 
         self.main_plots = [self.axs[0, 0], self.axs[0, 1], self.axs[2, 0]]
         self.small_plots = [self.axs[1, 0], self.axs[1, 1], self.axs[3, 0]]
