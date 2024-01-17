@@ -45,7 +45,7 @@ if __name__ == "__main__":
         remove_directories(['/home/annina/scripts/great_unread_nlp/data/similarity/eng/mxeval'])
         remove_directories(['/home/annina/scripts/great_unread_nlp/data/similarity/eng/mxcomb'])
         mx = MxCombinations(language=language, add_color=False)
-        mx.create_combinations()
+        mx.evaluate_all_combinations()
     elif mode == 'mxtop':
         mx = MxCombinations(language=language, add_color=True)
         mx.viz_topk()

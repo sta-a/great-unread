@@ -8,7 +8,7 @@ import pickle
 from copy import deepcopy
 import os
 import matplotlib.gridspec as gridspec
-import textwrap
+import matplotlib.patches as mpatches
 import time
 import random
 from typing import List
@@ -18,30 +18,26 @@ random.seed(9)
 import sys
 sys.path.append("..")
 from utils import DataHandler
-from .cluster_utils import CombinationInfo
+from .cluster_utils import CombinationInfo, Colors, VizBase
 import logging
 logging.basicConfig(level=logging.DEBUG)
 
 import warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning, module="pygraphviz") # Suppress warning: Error: remove_overlap: Graphviz not built with triangulation library
 
-class NkViz(DataHandler):
+class NkViz(VizBase):
 
-    def __init__(self, language, network, info):
-        super().__init__(language, output_dir='similarity', data_type='png')
-        self.noviz_path = self.get_file_path(file_name='log-noviz.txt', subdir=False)
+    def __init__(self, language, network, info, plttitle):
+        self.cmode = 'nk'
+        super().__init__(language, self.cmode, info, plttitle)
         self.network = network
         self.graph = self.network.graph
-        self.info = info
         self.prog = 'neato'
-        self.cat_attrs = ['gender', 'author']
-        self.add_subdir('nktop')
+        self.noviz_path = self.get_file_path(file_name=f'{self.cmode}_log-noviz.txt', subdir=True)
 
         self.too_many_edges, edges_info = self.check_nr_edges()
         if self.too_many_edges:
             self.write_noviz(edges_info)
-        else:
-            self.prepare_graphs_and_plot()
 
 
     def write_noviz(self, edges_info):
@@ -50,7 +46,7 @@ class NkViz(DataHandler):
             f.write(f'{self.info.as_string()},{edges_info.as_string()}\n')
 
 
-    def make_big_figure(self):
+    def get_figure(self):
         self.fig, self.axs = plt.subplots(4, 2, figsize=(10, 11), gridspec_kw={'height_ratios': [7, 0.5, 7, 0.5]})
         # Turn off box around axis
         for row in self.axs: 
@@ -64,62 +60,30 @@ class NkViz(DataHandler):
             self.small_plots.append(self.axs[3, 1])
 
 
-    def make_small_figure(self):
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(5, 5.5), gridspec_kw={'height_ratios': [7, 0.5]})
-        ax1.axis('off')
-        ax2.axis('off')
-        return fig, ax1, ax2
+    # def make_small_figure(self):
+    #     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(5, 5.5), gridspec_kw={'height_ratios': [7, 0.5]})
+    #     ax1.axis('off')
+    #     ax2.axis('off')
+    #     return fig, ax1, ax2
         
 
-    def visualize(self, pltname, plttitle):
+    def visualize(self):
         if not self.too_many_edges:
             start = time.time()
+            self.logger.debug(f'Nr edges below cutoff for {self.info.as_string()}. Making visualization.')
+            self.graph_con, self.nodes_removed, self.nodes_iso = self.get_graphs()
+            self.pos = self.get_positions()
+
+            self.get_figure()
+            for ax in self.main_plots:
+                self.draw_edges(self.graph_con, self.pos, ax)
+
             self.df = self.prepare_metadata()
-            self.make_four_plots(plttitle)
+            self.fill_subplots()
                 
             calctime = time.time()-start
             if calctime > 10:
                 print(f'{calctime}s to visualize.')
-
-
-
-    def add_edges(self):
-        # Main plot
-        for ax in self.main_plots:
-            self.draw_edges(self.graph_con, self.pos, ax)
-
-        # Two nodes
-        if self.nodes_removed:
-            print('nr graphs two', len(self.graphs_two))
-            for ax in self.small_plots:
-                for curr_g in self.graphs_two:
-                    self.draw_edges(curr_g, self.pos, ax)
-                
-
-    def prepare_graphs_and_plot(self):
-        # without pickling
-        self.logger.debug(f'Nr edges below cutoff for {self.info.as_string()}. Making visualization.') ##################3
-        self.graph_con, self.graphs_two, self.nodes_removed, self.nodes_iso = self.get_graphs()
-        self.pos = self.get_positions()
-        self.make_big_figure()
-        self.add_edges()
-        self.logger.debug(f'Finished preparing viz {self.info.as_string()}')
-
-
-    def manage_big_figure(self, plttitle):
-        plt.tight_layout()
-    
-        if plttitle is not None:
-            plt.suptitle(textwrap.fill(plttitle, width=100))
-
-
-    def save_plot(self, plt, file_name=None, file_path=None):
-        self.save_data(data=plt, data_type=self.data_type, subdir=True, file_name=file_name, file_path=file_path)
-   
-
-    def get_path(self, name, omit: List[str] = [], data_type='pkl'):
-        file_name = f'{name}-{self.info.as_string(omit=omit)}.{data_type}'
-        return self.get_file_path(file_name, subdir=True)
     
 
     # def fig_to_pkl(self, fig, pkl_path):
@@ -150,73 +114,74 @@ class NkViz(DataHandler):
     #     pkl_path = self.get_path(name, omit=[], data_type='pkl')
     #     if not os.path.exists(pkl_path):
     #         fig, ax1, ax2 = self.make_small_figure()
-    #         self.add_nodes(ax1, ax2, self.df, color_col=f'{name}_color', use_different_shapes=False)
+    #         self.add_nodes_to_ax(ax1, ax2, self.df, color_col=f'{name}_color', use_different_shapes=False)
     #         self.fig_to_pkl(fig, pkl_path)
     #         fig_path = self.get_path(name, omit=[], data_type=self.data_type)
     #         self.save_plot(data=fig, file_path=fig_path)
 
 
-    def add_nodes(self, ax1, ax2, df, color_col, use_different_shapes=True):
+    def add_nodes_to_ax(self, ax1, ax2, df, color_col, use_different_shapes=True):
         color_col = f'{color_col}_color'
         # Draw connected components with more than 2 nodes
         df_con = df[~df.index.isin(self.nodes_removed)]
         self.draw_nodes(self.graph_con, ax1, df_con, color_col, use_different_shapes=use_different_shapes)
 
-        ## Plot removed nodes, if there are any
+        # Isolated nodes
         if self.nodes_removed:
-            # Two nodes
-            print('nr graphs two', len(self.graphs_two))
-            for curr_g in self.graphs_two:
-                curr_nodes = list(curr_g.nodes)
-                curr_df_two = df[df.index.isin(curr_nodes)]
-                self.draw_nodes(curr_g, ax2, curr_df_two, color_col, use_different_shapes=use_different_shapes)
-                # self.draw_edges(curr_g, self.pos, ax2) #€#####################
-
-            # Isolated nodes
             df_iso = df[df.index.isin(self.nodes_iso)]
             for shape in df_iso['clst_shape'].unique():
                 sdf = df_iso[df_iso['clst_shape'] == shape]
                 ax2.scatter(sdf['x'], sdf['y'], c=sdf[color_col], marker=shape, s=2)
 
 
-    def make_four_plots(self, plttitle):
+    def fill_subplots(self):
         # attr
-        self.add_nodes(self.axs[0, 0], self.axs[1, 0], self.df, color_col=self.info.attr, use_different_shapes=False)
-        self.axs[1, 0].set_title('Attribute')
+        self.add_nodes_to_ax(self.axs[0, 0], self.axs[1, 0], self.df, color_col=self.info.attr, use_different_shapes=False)
+        if self.info.attr in self.cat_attrs:
+            self.cat_legend(self.axs[0, 0], self.info.attr, label='attr', loc='upper left')
+        else:
+            self.add_cbar(self.axs[0, 0])
+
         # cluster
-        self.add_nodes(self.axs[0, 1], self.axs[1, 1], self.df, color_col='cluster', use_different_shapes=False)
-        self.axs[1, 1].set_title('Cluster')
+        self.add_nodes_to_ax(self.axs[0, 1], self.axs[1, 1], self.df, color_col='cluster', use_different_shapes=False)
+        self.cat_legend(self.axs[0, 1], 'cluster', label='size')
+
+        # Switch first two plots
+        # cluster
+        # self.add_nodes_to_ax(self.axs[0, 0], self.axs[1, 0], self.df, color_col='cluster', use_different_shapes=False)
+        # self.axs[0, 0].set_title('Cluster', fontsize=self.fontsize)
+        # self.cat_legend(self.axs[0, 0], 'cluster', label='size')
+
+        # # attr
+        # self.add_nodes_to_ax(self.axs[0, 1], self.axs[1, 1], self.df, color_col=self.info.attr, use_different_shapes=False)
+        # self.axs[0, 1].set_title('Attribute', fontsize=self.fontsize)
+        # if self.info.attr in self.cat_attrs:
+        #     self.cat_legend(self.axs[0, 1], self.info.attr, label='attr', loc='upper left')
+        # else:
+        #     self.add_cbar(self.axs[0, 1])
+
         # attr as color, cluster as shapes
-        self.add_nodes(self.axs[2, 0], self.axs[3, 0], self.df, color_col=self.info.attr, use_different_shapes=True)
-        self.axs[3, 0].set_title('Attributes and clusters (shapes)')
+        self.add_nodes_to_ax(self.axs[2, 0], self.axs[3, 0], self.df, color_col=self.info.attr, use_different_shapes=True)
+
         # cluster and attr combined as colors
         if self.info.attr in self.cat_attrs:
-            self.add_nodes(self.axs[2, 1], self.axs[3, 1], self.df, color_col=f'{self.info.attr}_cluster', use_different_shapes=True)
-            self.axs[3, 1].set_title('Attributes and clusters (combined)')
-        # plt.show()
+            self.add_nodes_to_ax(self.axs[2, 1], self.axs[3, 1], self.df, color_col=f'{self.info.attr}_cluster', use_different_shapes=False)
 
-        self.manage_big_figure(plttitle)
+        self.add_subplot_titles(attrax=self.axs[0, 0], clstax=self.axs[0, 1], shapeax=self.axs[2, 0], combax=self.axs[2, 1])
+        self.manage_big_figure()
         fig_path = self.get_path('big', omit=[], data_type=self.data_type)
-        self.save_plot(plt, file_name=None, file_path=fig_path)
-        plt.close()
+        # self.save_plot(plt, file_name=None, file_path=fig_path)
+        # plt.close()
+        plt.show()
         
 
 
     def prepare_metadata(self):
-        # posdf = pd.DataFrame(list(self.pos.items()), columns=['index', 'position'])
-
-        # # Set 'index' column as the index and drop the 'index' column
-        # posdf = posdf.set_index('index').drop(columns=['index'])
-
-        # # Merge the two DataFrames on the index
-        # df = pd.merge(self.info.metadf, posdf, left_index=True, right_index=True, how='inner', validate='1:1')
-
         df = deepcopy(self.info.metadf)
         df['pos'] = df.index.map(self.pos)
         df[['x', 'y']] = pd.DataFrame(df['pos'].tolist(), index=df.index)
 
         return df
-
 
 
     def draw_nodes(self, graph, ax, df, color_col, use_different_shapes=True):
@@ -254,7 +219,7 @@ class NkViz(DataHandler):
                                arrowsize=2, 
                                width=0.5, 
                                arrows=False, 
-                               alpha=0.1) ################## arrows
+                               alpha=0.3) ################## arrows
         ax.grid(False)
         if time.time()-start > 10:
             print(f'{time.time()-start}s to draw edges.')
@@ -267,17 +232,14 @@ class NkViz(DataHandler):
             graph = self.graph.to_undirected()
         else:
             graph = deepcopy(self.graph)
-        graphs_two = [graph.subgraph(comp).copy() for comp in nx.connected_components(graph) if len(comp) == 2]
-        # Extract nodes from the connected components with 2 nodes
-        nodes_two = [node for subgraph in graphs_two for node in subgraph.nodes()]
 
         # Isolated nodes
         nodes_iso = list(nx.isolates(self.graph))
-        nodes_removed = nodes_two + nodes_iso
+        nodes_removed = nodes_iso
     
         # Main graphs
         graph_con = self.graph.subgraph([node for node in self.graph.nodes if node not in nodes_removed])
-        return graph_con, graphs_two, nodes_removed, nodes_iso
+        return graph_con, nodes_removed, nodes_iso
     
 
     def get_positions(self):

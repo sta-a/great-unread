@@ -969,7 +969,7 @@ class DataLoader(DataHandler):
         return df
 
 
-    def prepare_features(self):
+    def prepare_features(self, scale=False):
         '''
         Return features table for full-book features
         '''
@@ -983,6 +983,11 @@ class DataLoader(DataHandler):
         columns_to_drop = [col for col in df.columns if any(substring in col for substring in strings_to_drop)]
         df = df.drop(columns=columns_to_drop, inplace=False)
         self.logger.debug(f'Returning df with file_name as index.')
+
+        if scale:
+            # Min-Max Scaling
+            df = (df - df.min()) / (df.max() - df.min())
+            self.logger.info('Returning df scaled to values between 0 and 1.')
         return df
     
 

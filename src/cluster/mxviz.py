@@ -21,6 +21,7 @@ import sys
 sys.path.append("..")
 from utils import DataHandler
 from .create import SimMx
+from .cluster_utils import VizBase
 import logging
 logging.basicConfig(level=logging.DEBUG)
 
@@ -42,7 +43,6 @@ class MxReorder():
         order_methods = {
             'fn': self.order_fn,
             'olo': self.order_olo,
-            'noattr': self.order_noattr,
             'continuous': self.order_cont,
         }
 
@@ -57,15 +57,6 @@ class MxReorder():
         assert self.mx.mx.equals(self.mx.mx.T)
         assert ordmx.index.equals(ordmx.columns), 'Index and columns of ordmx must be equal.'
 
-        return ordmx
-    
-
-    def order_noattr(self):
-        # Order mx according to olo without first sorting by an attribute
-        # Add attribute column with constant value
-        # Olo is applied to every value of the attribute separately, and only once here because there is only one value
-        self.info.metadf[self.info.attr] = 1
-        ordmx = self.order_olo()
         return ordmx
 
     
@@ -135,64 +126,79 @@ class MxReorder():
         return ordmx
 
 
-class MxViz(DataHandler):
-    def __init__(self, language, mx, info):
-        super().__init__(language, output_dir='similarity', data_type='png')
+
+
+
+class MxViz(VizBase):
+    def __init__(self, language, mx, info, plttitle):
+        self.cmode = 'mx'
+        super().__init__(language, self.cmode, info, plttitle)
         self.mx = mx
-        self.info = info
         self.n_jobs = 1
 
-        self.add_subdir('mxtop')
 
+    def visualize(self):
+        self.fill_subplots()
 
-    # def set_info(self, info):
-    #     # Set metadf from outside class
-    #     self.info = info
-    #     self.colorcol = f'{self.info.attr}_color'
-
-
-    def draw_all(self, pltname, plttitle=None, colorcol=None, fn_str=None):
-        kwargs = {'aspect': 'auto'}
-        if pltname == 'evalviz':
-            fig = plt.figure(constrained_layout=False, figsize=(10, 10))
-            ax1 = fig.add_subplot(2, 2, 1, **kwargs)
-            ax2 = fig.add_subplot(2, 2, 2, **kwargs)
-            ax3 = fig.add_subplot(2, 2, 3, projection='3d', **kwargs)
-            ax4 = fig.add_subplot(2, 2, 4, projection='3d', **kwargs)
-
+  
+    def get_figure(self):
+        if self.info.attr in self.cat_attrs:
+            fig_width = 20
+            fig_height = 0.4 * fig_width
+            self.fig = plt.figure(figsize=(fig_width, fig_height))
+            gs = self.fig.add_gridspec(2, 5)
         else:
-            fig = plt.figure(constrained_layout=False, figsize=(20, 10))
-            gs = fig.add_gridspec(2,4)
-            ax1 = fig.add_subplot(gs[0, 0], **kwargs)
-            ax2 = fig.add_subplot(gs[0, 1], **kwargs)
-            ax3 = fig.add_subplot(gs[1, 0], projection='3d', **kwargs)
-            ax4 = fig.add_subplot(gs[1, 1], projection='3d', **kwargs)
-            ax5 = fig.add_subplot(gs[:, 2:], **kwargs)
-            self.draw_heatmap(ax5)
-            
-        self.draw_mds(pltname, ax1, ax2, ax3, ax4, colorcol)
-        fig.suptitle(textwrap.fill(plttitle, width=100), fontsize=10)
+            fig_width = 20
+            fig_height = 0.5 * fig_width
+            self.fig = plt.figure(figsize=(fig_width, fig_height))
+            gs = self.fig.add_gridspec(2, 4)
 
-        if fn_str is None:
-            file_name = f'{pltname}_{self.info.as_string()}.{self.data_type}'
-        else:
-            file_name = f'{pltname}_{self.info.as_string()}_{fn_str}.{self.data_type}'
+        self.ax0 = self.fig.add_subplot(gs[0,0])
 
-        self.save_data(data=fig, subdir=True, file_name=file_name, plt_kwargs={'dpi': 300})
-        plt.close()
+        self.ax1 = self.fig.add_subplot(gs[0,1])
+        self.ax2 = self.fig.add_subplot(gs[1,1], projection='3d')
 
+        self.ax3 = self.fig.add_subplot(gs[0,2])
+        self.ax4 = self.fig.add_subplot(gs[1,2], projection='3d')
 
-    def visualize(self, pltname, plttitle=None):
-        self.draw_all(pltname, plttitle)
+        self.ax5 = self.fig.add_subplot(gs[0,3])
+        self.ax6 = self.fig.add_subplot(gs[1,3], projection='3d')
 
-        # Also visualize combined attribute-cluster color column for categorical attributes
-        cat_attrs = ['gender', 'author']
-        if (pltname == 'evalviz') and (self.info.attr in cat_attrs):
-            colorcol = f'{self.info.attr}_cluster_color'
-            self.draw_all(pltname, plttitle, colorcol, 'combined')
+        if self.info.attr in self.cat_attrs:
+            self.ax7 = self.fig.add_subplot(gs[0,4])
+            self.ax8 = self.fig.add_subplot(gs[1,4], projection='3d')
 
 
-    def draw_mds(self, pltname, ax1, ax2, ax3, ax4, colorcol=None):
+    def fill_subplots(self):
+        self.get_figure()
+        # kwargs = {'aspect': 'auto'} ###################
+        # constrained_layout, tight_layout
+
+        # attr
+        self.draw_mds(self.ax1, self.ax2, color_col=self.info.attr, use_different_shapes=False)
+        self.draw_heatmap(self.ax0)
+
+        # cluster
+        self.draw_mds(self.ax3, self.ax4, color_col='cluster', use_different_shapes=False)
+
+        # attr as color, cluster as shapes
+        self.draw_mds(self.ax5, self.ax6, color_col=self.info.attr, use_different_shapes=True)
+
+        # cluster and attr combined as colors
+        if self.info.attr in self.cat_attrs:
+            self.draw_mds(self.ax7, self.ax8, color_col=f'{self.info.attr}_cluster', use_different_shapes=False)
+
+        self.add_subplot_titles(attrax=self.ax1, clstax=self.ax3, shapeax=self.ax5, combax=self.ax7)
+        self.manage_big_figure()
+        fig_path = self.get_path('big', omit=[], data_type=self.data_type)
+        # self.save_plot(plt, file_name=None, file_path=fig_path)
+        # plt.close()
+        plt.show()
+
+
+    def draw_mds(self, ax1, ax2, color_col=None, use_different_shapes=False):
+            color_col = f'{color_col}_color'
+
             # Store layouts because it takes a lot of time to calculate them
             pkl_path = self.get_file_path(file_name=f'mds-{self.mx.name}.pkl', subdir=True) 
             if os.path.exists(pkl_path):
@@ -204,30 +210,16 @@ class MxViz(DataHandler):
                 mds_2d = MDS(n_components=2, dissimilarity='precomputed', normalized_stress='auto', n_jobs=self.n_jobs, random_state=8)
                 X_mds_2d = mds_2d.fit_transform(self.mx.dmx)
 
-                # Apply non-metric MDS
-                nonmetric_mds_2d = MDS(n_components=2, metric=False, dissimilarity='precomputed', normalized_stress='auto', n_jobs=self.n_jobs, random_state=8)
-                X_nonmetric_mds_2d = nonmetric_mds_2d.fit_transform(self.mx.dmx)
-
                 # Apply classical MDS in 3D
                 mds_3d = MDS(n_components=3, dissimilarity='precomputed', normalized_stress='auto', n_jobs=self.n_jobs, random_state=8)
                 X_mds_3d = mds_3d.fit_transform(self.mx.dmx)
 
-                # Apply non-metric MDS in 3D
-                nonmetric_mds_3d = MDS(n_components=3, metric=False, dissimilarity='precomputed', normalized_stress='auto', n_jobs=self.n_jobs, random_state=8)
-                X_nonmetric_mds_3d = nonmetric_mds_3d.fit_transform(self.mx.dmx)
-
-
                 df = pd.DataFrame({
                     'X_mds_2d_0': X_mds_2d[:, 0],
                     'X_mds_2d_1': X_mds_2d[:, 1],
-                    'X_nonmetric_mds_2d_0': X_nonmetric_mds_2d[:, 0],
-                    'X_nonmetric_mds_2d_1': X_nonmetric_mds_2d[:, 1],
                     'X_mds_3d_0': X_mds_3d[:, 0],
                     'X_mds_3d_1': X_mds_3d[:, 1],
                     'X_mds_3d_2': X_mds_3d[:, 2],
-                    'X_nonmetric_mds_3d_0': X_nonmetric_mds_3d[:, 0],
-                    'X_nonmetric_mds_3d_1': X_nonmetric_mds_3d[:, 1],
-                    'X_nonmetric_mds_3d_2': X_nonmetric_mds_3d[:, 2],
                     })
 
                 with open(pkl_path, 'wb') as f:
@@ -236,30 +228,19 @@ class MxViz(DataHandler):
 
             # Shapes
             df = df.assign(shape=['o']*len(self.mx.dmx))
-            if (pltname == 'evalviz') and (colorcol is None): # Use default shapes for combined cluster-attr color visualization
+            if use_different_shapes:
                 df = df.assign(shape=self.info.metadf.loc[self.mx.dmx.index, 'clst_shape'].values)
 
             # Colors
-            if colorcol is None:
-                colorcol = f'{self.info.attr}_color'
-            if self.info.attr == 'noattr':
-                df = df.assign(color=['blue']*len(self.mx.dmx))
-            else:
-                df = df.assign(color=self.info.metadf.loc[self.mx.dmx.index, colorcol].values)
+            df = df.assign(color=self.info.metadf.loc[self.mx.dmx.index, color_col].values)
 
 
             for shape in df['shape'].unique():
                 sdf = df[df['shape'] == shape]
                 kwargs = {'c': sdf['color'], 'marker': shape, 's': 10}
                 ax1.scatter(sdf['X_mds_2d_0'], sdf['X_mds_2d_1'], **kwargs)
-                ax2.scatter(sdf['X_nonmetric_mds_2d_0'], sdf['X_nonmetric_mds_2d_1'], **kwargs)
-                ax3.scatter(sdf['X_mds_3d_0'], sdf['X_mds_3d_1'], sdf['X_mds_3d_2'], **kwargs)
-                ax4.scatter(sdf['X_nonmetric_mds_3d_0'], sdf['X_nonmetric_mds_3d_1'], sdf['X_nonmetric_mds_3d_2'], **kwargs)
+                ax2.scatter(sdf['X_mds_3d_0'], sdf['X_mds_3d_1'], sdf['X_mds_3d_2'], **kwargs)
 
-            ax1.set_title('Classical MDS (2D)')
-            ax2.set_title('Non-metric MDS (2D)')
-            ax3.set_title('Classical MDS (3D)')
-            ax4.set_title('Non-metric MDS (3D)')
 
 
     def draw_heatmap(self, ax5):

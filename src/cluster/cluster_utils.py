@@ -11,7 +11,9 @@ import sys
 sys.path.append("..")
 from sklearn.preprocessing import minmax_scale
 from copy import deepcopy
+from matplotlib.colors import to_rgba
 from matplotlib import markers
+import textwrap
 from utils import DataHandler, DataLoader, TextsByAuthor
 
 import logging
@@ -34,7 +36,20 @@ class MetadataHandler(DataHandler):
 
         canon = DataLoader(self.language).prepare_metadata(type='canon')
 
-        features = DataLoader(self.language).prepare_features()
+        # Load features scaled to range between 0 and 1
+        features = DataLoader(self.language).prepare_features(scale=True)
+        # Check if all feature values are between 0 and 1, ignore nan
+        features_test = features.fillna(0)
+        assert ((features_test >= 0) & (features_test <= 1) | (features_test.isin([0, 1]))).all().all()
+
+
+        out_of_range_indices = features[(features < 0)].stack().index
+
+        # Print the elements with row and column indices
+        for row_idx, col_idx in out_of_range_indices:
+            print(f"Element at ({row_idx}, {col_idx}): {features.loc[row_idx, col_idx]}")
+
+
 
         author_filename_mapping = TextsByAuthor(self.language).author_filename_mapping
         author = pd.DataFrame([(author, work) for author, works in author_filename_mapping.items() for work in works],
@@ -136,10 +151,10 @@ class ShapeMap():
 
 
 class Colors():
+    CMAP = plt.cm.get_cmap('seismic', lut=10000)
+
     def __init__(self):
-        # Lut: the number of colors that are generated from the color map
-        # Set to a high value to get a different color for values that are close together
-        self.cmap = plt.cm.get_cmap('seismic', lut=10000) # gist_yarg
+        pass
 
     @staticmethod
     def get_colors_discrete():
@@ -156,7 +171,7 @@ class Colors():
         '''
         if pd.isna(val):
             return 'green'
-        color = self.cmap(val)
+        color = self.CMAP(val)
         return color
     
     def color_for_pygraphviz(self, color):
@@ -222,8 +237,10 @@ class ColorMap(Colors):
 
 
         # Create a mapping with cycling through colors for all unique elements
+        # If an element occurs only once, set it to dark grey
+        darkgrey_rgb = to_rgba('darkgrey')
         color_mapping = {
-            element: next(colors) if count > 1 else 'darkgrey'
+            element: next(colors) if count > 1 else darkgrey_rgb
             for element, count in zip(unique_elements, value_counts)
         }
 
@@ -243,7 +260,7 @@ class CombinationInfo:
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
         self.omit_default = ['metadf', 'param_comb', 'spars_param', 'omit_default', 'cluster_alg', 'spmx_path', 'clusterdf']
-        self.paramcomb_to_string()       
+        self.clusterparams_to_string()       
         self.spars_to_string()
 
 
@@ -257,13 +274,16 @@ class CombinationInfo:
                 self.sparsmode = f'{self.sparsmode}-{str(self.replace_dot(self.spars_param))}'
 
 
-
-    def paramcomb_to_string(self):
-        if hasattr(self, 'param_comb'):
-            self.clst_alg_params = None
-            if bool(self.param_comb):
-                paramstr = '-'.join([f'{key}-{self.replace_dot(value)}' for key, value in self.param_comb.items()])
-                self.clst_alg_params = f'{self.cluster_alg}-{paramstr}'
+    def clusterparams_to_string(self):
+        if hasattr(self, 'cluster_alg'):
+            if hasattr(self, 'param_comb'):
+                self.clst_alg_params = None
+                if bool(self.param_comb):
+                    paramstr = '-'.join([f'{key}-{self.replace_dot(value)}' for key, value in self.param_comb.items()])
+                    self.clst_alg_params = f'{self.cluster_alg}-{paramstr}'
+                else:
+                    self.clst_alg_params = f'{self.cluster_alg}'
+                
 
 
     def replace_dot(self, value):
@@ -307,3 +327,84 @@ class CombinationInfo:
         else:
             # Print a log message if the key is not in the dictionary
             logging.info(f"Key '{key}' not found.")
+
+
+        
+class VizBase(DataHandler):
+    def __init__(self, language, cmode, info, plttitle):
+        super().__init__(language, output_dir='similarity', data_type='png')
+        self.cmode = cmode
+        self.info = info
+        self.plttitle = plttitle
+        self.fontsize = 6
+        self.cat_attrs = ['gender', 'author']
+        self.add_subdir(f'{self.cmode}top')
+
+
+    def manage_big_figure(self):
+        plt.tight_layout()
+    
+        if self.plttitle is not None:
+            plt.suptitle(textwrap.fill(self.plttitle, width=100), fontsize=self.fontsize)
+
+
+    def save_plot(self, plt, file_name=None, file_path=None):
+        self.save_data(data=plt, data_type=self.data_type, subdir=True, file_name=file_name, file_path=file_path)
+   
+
+    def get_path(self, name, omit: List[str] = [], data_type='pkl'):
+        file_name = f'{name}-{self.info.as_string(omit=omit)}.{data_type}'
+        return self.get_file_path(file_name, subdir=True)
+    
+    
+    def add_cbar(self, ax):
+        # Create a ScalarMappable with the color map
+        cmap = Colors.CMAP
+        norm = plt.Normalize(vmin=0, vmax=1)
+        sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+        sm.set_array([])
+
+        # Create a color bar using the ScalarMappable
+        cbar = plt.colorbar(sm, ax=ax, shrink=0.8)
+
+        # Set a label for the color bar
+        # cbar.set_label('Color Bar Label', rotation=270, labelpad=15)
+
+        # Remove ticks from the color bar
+        # cbar.set_ticks([])
+
+        # Adjust the layout to make room for the color bar
+        # fig_cbar.tight_layout()        
+
+
+    def cat_legend(self, ax, attr, label='size', loc='upper right'):
+        # attr can be a categorical attribute or 'cluster'
+
+        mapping = {}
+        for unique_attr in self.df[attr].unique().tolist():
+            cdf = self.df[self.df[attr] == unique_attr]
+            color = cdf.iloc[0][f'{attr}_color']
+            if len(cdf) > 1:
+                mapping[unique_attr] = (color, len(cdf))
+
+        # Keep the 10 most frequent elements
+        mapping = dict(sorted(mapping.items(), key=lambda item: item[1][1], reverse=True))
+        mapping = {k: v for k, v in list(mapping.items())[:10]}
+
+        # Create legend patches
+        legend_patches = []
+        if label == 'size':
+            for unique_attr, (color, count) in mapping.items():
+                legend_patches.append(mpatches.Patch(color=color, label=f'Size {count}'))
+        elif label == 'attr':
+            for unique_attr, (color, count) in mapping.items():
+                legend_patches.append(mpatches.Patch(color=color, label=f'{unique_attr} ({count})'))
+
+        ax.legend(handles=legend_patches, loc=loc, fontsize=self.fontsize)
+
+
+    def add_subplot_titles(self, attrax, clstax, shapeax, combax):
+        attrax.set_title('Attribute', fontsize=self.fontsize)
+        clstax.set_title('Cluster', fontsize=self.fontsize)
+        shapeax.set_title('Attributes and clusters (shapes)', fontsize=self.fontsize)
+        combax.set_title('Attributes and clusters (combined)', fontsize=self.fontsize)

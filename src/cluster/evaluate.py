@@ -9,6 +9,7 @@ import networkx as nx
 from networkx.algorithms.community import modularity
 from copy import deepcopy
 from itertools import product
+from itertools import groupby
 import random
 random.seed(9)
 
@@ -30,9 +31,8 @@ class MxIntEval():
     '''
     Evaluate cluster quality based on internal criteria
     '''
-    def __init__(self, mx, clusters):
-        self.mx = mx
-        self.clusters = clusters # df with file_name and cluster cols
+    def __init__(self, combination):
+        self.mx, self.clusters, _ = combination
         assert self.clusters is not None
 
     def evaluate(self):
@@ -44,19 +44,18 @@ class MxIntEval():
         clusters = self.clusters.df
         assert all(self.mx.dmx.index == clusters['cluster'].index)
         sc = silhouette_score(X=self.mx.dmx, labels=list(clusters['cluster']), metric='precomputed')
-        return round(sc, 3)
+        return sc
     
 
 class NkIntEval():
     '''
     Evaluate cluster quality based on internal criteria
     '''
-    def __init__(self, network, clusters, cluster_alg, param_comb):
-        self.network = network
-        self.clusters = clusters # df with file_name and cluster cols
+    def __init__(self, combination):
+        self.network, self.clusters, self.info = combination
         assert self.clusters is not None
-        self.cluster_alg = cluster_alg
-        self.param_comb = param_comb
+        self.cluster_alg = self.info.cluster_alg
+        self.param_comb = self.info.param_comb
 
     def evaluate(self):
         mod = np.nan
@@ -70,7 +69,7 @@ class NkIntEval():
         else:
             res = 1 ######################3
         mod = modularity(self.network.graph, self.clusters.initial_clusts, resolution=res)
-        return round(mod, 3)
+        return mod
 
 
 
@@ -122,16 +121,19 @@ class ExtEval(DataHandler):
     def eval_clst(self, df=None):
 
         def get_clst_counts(df):
+
+            # Convert 7,6,6,5,5,5 to 7, 2x6, 3x5
+            def replace_repeated_numbers(numbers):
+                grouped_numbers = [(key, len(list(group))) for key, group in groupby(numbers)]
+                result = [f"{count}x{key}" if count > 1 else str(key) for key, count in grouped_numbers]
+                return ', '.join(result)
+            
             # Get cluster counts     
-            clst_sizes = df['cluster'].value_counts().tolist()
             nclust = df['cluster'].nunique()
+            clst_sizes = df['cluster'].value_counts().tolist()
+            clst_sizes = replace_repeated_numbers(clst_sizes)
 
-            # Count clusters with only one data point
-            iso_cluster_count = sum(count == 1 for count in clst_sizes)
-            clst_sizes = [str(x) for x in clst_sizes if x != 1]
-            clst_sizes = ','.join(clst_sizes)
-
-            return {'nclust': nclust, 'niso': iso_cluster_count, 'clst_sizes': clst_sizes}
+            return {'nclust': nclust, 'clst_sizes': clst_sizes}
         
         if df is None:
             # Initial cluster evaluation for whole metadf
@@ -159,6 +161,7 @@ class ExtEval(DataHandler):
         df['file_info'] = self.info.as_string()
 
         df = pd.DataFrame(df, index=[0])
+        df = df.round(3)
 
         # Write header only if file does not exist
         file_path = self.file_paths[self.scale]
@@ -213,7 +216,7 @@ class ExtEval(DataHandler):
         ari_score = adjusted_rand_score(attrcol, df['cluster'] )
         nmi_score = normalized_mutual_info_score(attrcol, df['cluster'] )
         fmi_score = fowlkes_mallows_score(attrcol, df['cluster'] )
-        df = {'ARI': round(ari_score, 3), 'nmi': nmi_score, 'fmi': fmi_score, 'mean_purity': purity}
+        df = {'ARI': ari_score, 'nmi': nmi_score, 'fmi': fmi_score, 'mean_purity': purity}
         return df
 
 

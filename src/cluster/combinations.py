@@ -11,7 +11,6 @@ from copy import deepcopy
 sys.path.append("..")
 import itertools
 import shutil
-from itertools import groupby
 import time
 
 from utils import DataHandler
@@ -32,8 +31,6 @@ class CombinationsBase(DataHandler):
     def __init__(self, language, add_color=False):
         super().__init__(language=language, output_dir='similarity', data_type='csv')
         self.test = False
-        self.top_n_rows = 5 # How many combinations are considered top results ###############
-
         self.mxs = self.load_mxs()
         
         self.mh = MetadataHandler(self.language)
@@ -44,7 +41,7 @@ class CombinationsBase(DataHandler):
 
         # Set params for testing
         if self.test:
-            self.mxs = self.mxs[3:6] ################
+            self.mxs = self.mxs[3:6]
             self.colnames = ['gender', 'canon']
             MxReorder.ORDERS = ['olo']
             MxCluster.ALGS = {
@@ -75,26 +72,6 @@ class CombinationsBase(DataHandler):
             }
 
 
-    # def load_processed(self, cmode):
-    #     self.proc_path = self.get_file_path(file_name=f'log-processed-{cmode}.txt')
-    #     # Load all combination infos that have already been run from file
-    #     if os.path.exists(self.proc_path):
-    #         f = open(self.proc_path, 'r')
-    #         infos = [line.strip() for line in f.readlines()]
-    #     else:
-    #         infos = []
-    #     return infos
-
-
-    # def write_processed(self, info):
-    #     # Write combination info that was just run to file
-    #     with open(self.proc_path, 'a') as f:
-    #         if isinstance(info, str):
-    #             f.write(f'{info}\n')
-    #         else:
-    #             f.write(f'{info.as_string()}\n')
-
-
     def load_mxs(self):
         # Delta distance mxs
         delta = Delta(self.language)
@@ -111,61 +88,63 @@ class CombinationsBase(DataHandler):
             mx.name = name
             mxs_list.append(mx)
         return mxs_list
+            
 
-
-    def filter_biggest_clust(self, df):
-        # Filter rows where the biggest cluster is below a threshold
-        # threshold = round(0.8 * self.nr_texts) # round to int ##################
-        if self.language == 'eng':
-            threshold = 550
-        else:
-            threshold = 500
-        df['biggest_clust'] = df['clst_sizes'].str.extract(r'^(\d+)').astype('int')
-        df = df[df['biggest_clust'] <= threshold]
-        return df
+    def merge_dfs(self, metadf, clusterdf):
+        # Combine file names, attributes, and cluster assignments
+        metadf = pd.merge(metadf, clusterdf, left_index=True, right_index=True, validate='1:1')
+        return metadf
     
-                                
-    def make_plttitle(self, df, scale):
-        if scale == 'cat':
-            cols = ['ARI', 'nmi', 'fmi', 'mean_purity', 'modularity', 'nclust', 'niso', 'clst_sizes']
-        else:
-            cols = ['anova-pval', 'logreg-accuracy', 'nr_attr_nan', 'modularity', 'nclust', 'niso', 'clst_sizes']
-
-
-        # Convert 7,6,6,5,5,5 to 7, 2x6, 3x5
-        def replace_repeated_numbers(s):
-            numbers = list(map(int, s.split(',')))
-            grouped_numbers = [(key, len(list(group))) for key, group in groupby(numbers)]
-            result = [f"{count}x{key}" if count > 1 else str(key) for key, count in grouped_numbers]
-            return ', '.join(result)
-
-        df['clst_sizes'] = df['clst_sizes'].apply(replace_repeated_numbers)
-
-        # Create the plttitle column
-        df['plttitle'] = df[cols].apply(lambda row: ', '.join(f"{col}-{row[col]}" for col in cols), axis=1)
-
-        return df
     
+    def evaluate_all_combinations(self):
+        '''
+        Create all combinations and evaluate them for all attributes.
+        '''
+        for combination in self.create_combinations():
+            start = time.time()
+            self.evaluate(combination)
+            print(f'{time.time()-start}s to run all evaluations.')
 
-    def get_topk(self, cmode):
-        evaldir = os.path.join(self.output_dir, f'{cmode}eval')
 
-        cat = pd.read_csv(os.path.join(evaldir, 'cat_results.csv'), header=0)
-        cont = pd.read_csv(os.path.join(evaldir, 'cont_results.csv'), header=0)
+    def evaluate(self, combination):
+        '''
+        Evaluate a single combination for all attributes.
+        '''
+        _, _, info = combination # network/mx, clusters, info
+        pinfo = deepcopy(info)
 
-        cat = self.filter_biggest_clust(cat)
-        cont = self.filter_biggest_clust(cont)
+        if self.cmode == 'mx':
+            inteval = MxIntEval(combination).evaluate()
+        elif self.cmode == 'nk':
+            inteval = NkIntEval(combination).evaluate()
 
-        cat = cat.nlargest(n=self.top_n_rows, columns='ARI')
-        cont = cont.nlargest(n=self.top_n_rows, columns='logreg-accuracy')
+        exteval = ExtEval(self.language, self.cmode, info, inteval)
+        
+        for attr in ['cluster'] + self.colnames: # evaluate 'cluster' first
+            info.add('attr', attr)
+            print(info.as_string())
+            exteval.evaluate(attr=attr, info=info)
+        
+        # Pickle only after evaluations are done
+        self.save_info(pinfo)
 
-        cat = self.make_plttitle(cat, 'cat')
-        cont = self.make_plttitle(cont, 'cont')
 
-        cat = dict(zip(cat['file_info'], cat['plttitle'])) 
-        cont = dict(zip(cont['file_info'], cont['plttitle']))
-        topdict = {**cat, **cont}
-        return topdict
+    def get_pickle_path(self, info: str):
+        return os.path.join(self.subdir, f'info-{info}.pkl')
+
+
+    def load_info(self, comb_info):
+        pickle_path = self.get_pickle_path(comb_info)              
+        with open(pickle_path, 'rb') as pickle_file:
+            info = pickle.load(pickle_file)
+            return info
+        
+    def save_info(self, info):
+        info.drop('metadf') # Only save cluster assignments and not full metadata to save space on disk
+        pickle_path = self.get_pickle_path(info.as_string())
+        with open(pickle_path, 'wb') as f:
+            pickle.dump(info, f)
+            print(info.as_string())
 
 
     def load_infos(self, comb_info):
@@ -175,10 +154,139 @@ class CombinationsBase(DataHandler):
             return data
         
 
-    def merge_dfs(self, metadf, clusterdf):
-        # Combine file names, attributes, and cluster assignments
-        metadf = pd.merge(metadf, clusterdf, left_index=True, right_index=True, validate='1:1')
-        return metadf
+    def get_top_combinations(self):
+        '''
+        Get combinations with the best evaluation scores, load their info from file.
+        '''
+        topdict = TopEval(self.language, self.cmode).get_topk()
+
+        for tinfo, plttitle in topdict.items():
+            comb_info, attr = tinfo.rsplit('_', 1)
+            info = self.load_info(comb_info)
+            
+            info.add('attr', attr)
+            metadf = self.merge_dfs(self.metadf, info.clusterdf)
+            metadf = self.mh.add_cluster_color_and_shape(metadf)
+            info.add('metadf', metadf)
+            yield info, plttitle
+
+
+
+class TopEval(DataHandler):
+    def __init__(self, language, cmode):
+        super().__init__(language=language, output_dir='similarity', data_type='csv')
+        self.cmode = cmode
+        self.top_n_rows = 3
+
+
+    def filter_clst_sizes(self, df):
+        '''
+        Find the size of the biggest cluster.
+        Filter for rows where size of biggest cluster is below threshold.
+        This avoids combinations where most data points where put into the same cluster.
+        '''
+
+        def extract_first_nr(x):
+            x = x.split(',')[0]
+            if 'x' in x:
+                n = x.split('x')[1]
+            else:
+                n = x
+            return int(n)
+        
+
+        if self.language == 'eng':
+            threshold = 550
+        else:
+            threshold = 500
+
+        df['biggest_clst'] = df['clst_sizes'].apply(extract_first_nr)
+        print(df[['biggest_clst', 'clst_sizes']])
+        df = df[df['biggest_clst'] <= threshold]
+
+        # mask = ~df['attr'].str.contains('author|gender', case=False, na=False) ############################3
+
+        # Apply the mask to select the rows
+        # df = df[mask]
+        return df
+    
+                                
+    def make_plttitle(self, df):
+        '''
+        Combine relevant evaluation measures into a string to display on the plots.
+        '''
+        if self.cmode == 'mx':
+            if self.scale == 'cat':
+                cols = ['ARI', 'nmi', 'fmi', 'mean_purity', 'silhouette_score', 'nclust', 'clst_sizes']
+            else:
+                cols = ['anova-pval', 'logreg-accuracy', 'silhouette_score', 'nclust', 'clst_sizes'] ##################################3
+
+        elif self.cmode == 'nk':
+            if self.scale == 'cat':
+                cols = ['ARI', 'nmi', 'fmi', 'mean_purity', 'modularity', 'nclust', 'clst_sizes']
+            else:
+                cols = ['anova-pval', 'logreg-accuracy', 'modularity', 'nclust', 'clst_sizes']
+
+        # Create the plttitle column
+        df['plttitle'] = df[cols].apply(lambda row: ', '.join(f"{col}: {row[col]}" for col in cols), axis=1)
+        return df
+    
+
+    def drop_duplicated_rows(self, df):
+        '''
+        Identify duplicated rows based on the "file_info" column.
+        Duplicated rows can occur when evaluation is cancelled and restarted.
+        Combinations that were evaluated but not saved to picked in the first call are reevaluated.
+        '''
+        duplicated_rows = df[df.duplicated(subset=['file_info'], keep=False)]
+        print("Duplicated Rows:")
+        print(duplicated_rows)
+
+        # Keep only the first occurrence of each duplicated content in "file_info"
+        df = df.drop_duplicates(subset=['file_info'], keep='first')
+        return df
+    
+
+    def get_topk_rows(self, df):
+        '''
+        Find rows with the best evaluation scores.
+        '''
+        if self.scale == 'cat':
+            evalcol = 'ARI'
+        else:
+            evalcol='logreg-accuracy'
+
+        # Filter out rows that contain string values ('invalid')
+        mask = pd.to_numeric(df[evalcol], errors='coerce').notnull()
+        print(df.shape)
+        df = df.loc[mask]
+        print(df.shape)
+
+        df[evalcol] = pd.to_numeric(df[evalcol], errors='raise')
+        df = df.nlargest(n=self.top_n_rows, columns=evalcol, keep='all')
+        return df 
+        
+
+    def get_topk(self):
+        '''
+        Find combinations with the best evaluation scores for both categorical and continuous attributes.
+        '''
+        topdict = {}
+        for scale in ['cat', 'cont']:
+            self.scale = scale
+
+            evaldir = os.path.join(self.output_dir, f'{self.cmode}eval')
+            df = pd.read_csv(os.path.join(evaldir, f'{self.scale}_results.csv'), header=0)
+
+            df = self.drop_duplicated_rows(df)
+            df = self.filter_clst_sizes(df)
+            df = self.get_topk_rows(df)
+            df = self.make_plttitle(df)
+
+            d = dict(zip(df['file_info'], df['plttitle'])) 
+            topdict.update(d)
+        return topdict
+
 
 
 class MxCombinations(CombinationsBase):
@@ -188,81 +296,67 @@ class MxCombinations(CombinationsBase):
         self.cmode = 'mx'
 
 
-    def viz_attrs(self):
-        # Visualize attributes
-        for mx in self.mxs:
-            for attr in self.colnames + ['noattr']:
-                counter = 0
-                for order in MxReorder.ORDERS:
-                    info = CombinationInfo(metadf=deepcopy(self.metadf), mxname=mx.name, attr=attr, order=order)
-                    print(info.as_string(), self.language)
-                    # Avoid repetitions from multiple values for order for continuous attributes
-                    if attr not in ['gender', 'author']:
-                        if counter >= 1: 
-                            break
-                        elif attr == 'noattr':
-                            info.order = 'noattr'
-                        else:
-                            info.order = 'continuous'
-                    viz = MxViz(self.language, mx, info)
-                    viz.visualize(pltname='attrviz', plttitle='Attributes')
-                    counter += 1
+    # def viz_attrs(self):
+    #     # Visualize attributes
+    #     for mx in self.mxs:
+    #         for attr in self.colnames:
+    #             counter = 0
+    #             for order in MxReorder.ORDERS:
+    #                 info = CombinationInfo(metadf=deepcopy(self.metadf), mxname=mx.name, attr=attr, order=order)
+    #                 print(info.as_string(), self.language)
+    #                 # Avoid repetitions from multiple values for order for continuous attributes
+    #                 if attr not in ['gender', 'author']:
+    #                     if counter >= 1: 
+    #                         break
+    #                     else:
+    #                         info.order = 'continuous'
+    #                 viz = MxViz(self.language, mx, info)
+    #                 viz.visualize(pltname='attrviz', plttitle='Attributes')
+    #                 counter += 1
 
 
     def create_combinations(self):
         for mx, cluster_alg in itertools.product(self.mxs, MxCluster.ALGS.keys()):
+            print(mx.name)
 
             sc = MxCluster(self.language, cluster_alg, mx)
             param_combs = sc.get_param_combinations()
 
             for param_comb in param_combs:
                 info = CombinationInfo(mxname=mx.name, cluster_alg=cluster_alg, param_comb=param_comb)
+                if os.path.exists(self.get_pickle_path(info.as_string())):
+                    continue
                 clusters = sc.cluster(info, param_comb)
 
-                combination = [mx, clusters, info] 
-
                 if clusters is not None:
-                    metadf = self.merge_dfs(metadf, clusters.df)
-                    info.add('metadf', metadf)
-                    self.evaluate(combination)
                     print(info.as_string())
-                
-                # If clusters is None, then metadf is not added to info
-                # with open(os.path.join(self.subdir, f"combination-{info.as_string(omit=['attr'])}.pkl"), 'wb') as pickle_file:
-                #     info.drop('attr')
-                #     pickle.dump(combination, pickle_file)
-                #     print(info.as_string())
+                    metadf = self.merge_dfs(self.metadf, clusters.df)
+                    info.add('metadf', metadf)
+                    info.add('clusterdf', clusters.df)
+                    combination = [mx, clusters, info] 
 
-
-    def evaluate(self, combination):
-        mx, clusters, info = combination
-        inteval = MxIntEval(mx, clusters).evaluate()
-        exteval = ExtEval(self.language, 'mx', info, inteval)
-        
-        for attr in ['cluster'] + self.colnames: # evaluate 'cluster' first
-            info.add('attr', attr)
-            exteval.evaluate(attr=attr, info=info)
+                    yield combination
 
 
     def viz_topk(self):
-        topdict = self.get_topk(self.cmode)
-
-        for tinfo, plttitle in topdict.items():
-            comb_info, attr = tinfo.rsplit('_', 1)
-            mx, clusters, info = self.load_infos(comb_info)
-
-            for order in MxReorder.ORDERS:
-                info.add('order', order)
-                info.add('attr', attr)
-                viz = MxViz(self.language, mx, info)
-                viz.visualize(pltname='clstviz', plttitle=plttitle)
+        for topk in self.get_top_combinations():
+            info, plttitle = topk
+            # for order in MxReorder.ORDERS:
+            #     info.add('order', order)
+            #     info.add('attr', attr)
+            #     viz = MxViz(self.language, mx, info)
+            #     viz.visualize(pltname='clstviz', plttitle=plttitle)
 
 
             # Order parameter is not necessary for evalviz
-            info.drop('order')
-            info.add('attr', attr)
-            viz = MxViz(self.language, mx, info)
-            viz.visualize(pltname='evalviz', plttitle=plttitle)
+            #info.drop('order')
+
+            mx = [mx for mx in self.mxs if mx.name == info.mxname]
+            assert len(mx) == 1
+            mx = mx[0]
+            info.add('order', 'olo') ########################
+            viz = MxViz(self.language, mx, info, plttitle=plttitle)
+            viz.visualize()
 
 
 
@@ -273,120 +367,57 @@ class NkCombinations(CombinationsBase):
         self.cmode = 'nk'
 
 
-    def viz_attrs(self):
-        for mx, sparsmode in itertools.product(self.mxs, Sparsifier.MODES.keys()):
-            sparsifier = Sparsifier(self.language, mx, sparsmode)
-            spars_param = Sparsifier.MODES[sparsmode]
-            for spars_param in spars_param:
-                mx = sparsifier.sparsify(spars_param)
-                network = NXNetwork(self.language, mx=mx)
+    # def viz_attrs(self):
+    #     for mx, sparsmode in itertools.product(self.mxs, Sparsifier.MODES.keys()):
+    #         sparsifier = Sparsifier(self.language, mx, sparsmode)
+    #         spars_param = Sparsifier.MODES[sparsmode]
+    #         for spars_param in spars_param:
+    #             mx = sparsifier.sparsify(spars_param)
+    #             network = NXNetwork(self.language, mx=mx)
      
-                for attr in self.colnames:
-                    info = CombinationInfo(metadf = deepcopy(self.metadf), mxname=mx.name, sparsmode=sparsmode, spars_param=spars_param, attr=attr)
-                    viz = NkViz(self.language, network, info)
-                    viz.visualize(pltname='attrviz', plttitle='Attributes')
-
-
-    def evaluate_all_combinations(self):
-        # Evaluate all combinations for all attributes
-        for combination in self.create_combinations():
-            start = time.time()
-            self.evaluate(combination)
-            print(f'{time.time()-start}s to run all evaluations.')
-            
-
-    def evaluate(self, combination):
-        # Evaluate a single combination for all attributes
-        network, clusters, info = combination
-        pinfo = deepcopy(info)
-        inteval = NkIntEval(network, clusters, info.cluster_alg, info.param_comb).evaluate()
-        exteval = ExtEval(self.language, self.cmode, info, inteval)
-        
-        for attr in ['cluster'] + self.colnames: # evaluate 'cluster' first
-            info.add('attr', attr)
-            print(info.as_string())
-            exteval.evaluate(attr=attr, info=info)
-        
-        # Pickle only after evaluations are done
-        self.pickle_info(pinfo)
-
-
-    def pickle_info(self, info):
-        info.drop('metadf') # Only save cluster assignments and not full metadata to save space on disk
-        pickle_path = self.get_pickle_path(info.as_string())
-        with open(pickle_path, 'wb') as pickle_file:
-            pickle.dump(info.__dict__, pickle_file) # Pickle as normal dict in case there are any changes to the CombinationInfo class
-            print(info.as_string())
+    #             for attr in self.colnames:
+    #                 info = CombinationInfo(metadf = deepcopy(self.metadf), mxname=mx.name, sparsmode=sparsmode, spars_param=spars_param, attr=attr)
+    #                 viz = NkViz(self.language, network, info)
+    #                 viz.visualize(pltname='attrviz', plttitle='Attributes')
 
 
     def create_combinations(self):
         for mx, sparsmode in itertools.product(self.mxs, Sparsifier.MODES.keys()):
             print(mx.name)
-            substring_list = ['manhattan-5000', 'full', 'both']
-            if any(substring in mx.name for substring in substring_list): #########################
+            # substring_list = ['manhattan', 'full', 'both']
+            # if any(substring in mx.name for substring in substring_list): #########################
 
-                sparsifier = Sparsifier(self.language, mx, sparsmode)
-                spars_params = Sparsifier.MODES[sparsmode]
-                
-                for spars_param in spars_params:
-                    mx, filtered_nr_edges, spmx_path = sparsifier.sparsify(spars_param)
-                    if filtered_nr_edges != 0: ######################### write log
-
-                        for cluster_alg in  NkCluster.ALGS.keys():
-                            network = NXNetwork(self.language, mx=mx)
-                            nc = NkCluster(self.language, cluster_alg, network)
-                            param_combs = nc.get_param_combinations()
-                            
-                            for param_comb in param_combs:
-                                info = CombinationInfo(mxname=mx.name, sparsmode=sparsmode, spars_param=spars_param, cluster_alg=cluster_alg, param_comb=param_comb, spmx_path=spmx_path)
-                                if os.path.exists(self.get_pickle_path(info.as_string())):
-                                    continue
-                                clusters = nc.cluster(info, param_comb)
-
-                                if clusters is not None:
-                                    print(info.as_string())
-                                    metadf = self.merge_dfs(self.metadf, clusters.df)
-                                    info.add('metadf', metadf)
-                                    info.add('clusterdf', clusters.df)
-                                    combination = [network, clusters, info]
-
-                                    yield combination
-
-
-    def get_pickle_path(self, info: str):
-        return os.path.join(self.subdir, f'info-{info}.pkl')
-
-
-    def load_info(self, comb_info):
-        pickle_path = self.get_pickle_path(comb_info)              
-        with open(pickle_path, 'rb') as pickle_file:
-            info_dict = pickle.load(pickle_file)
-            info = CombinationInfo(**info_dict)
-            return info
-   
-
-    def viz_topk(self):
-        topdict = self.get_topk(self.cmode)
-
-        for tinfo, plttitle in topdict.items():
-            comb_info, attr = tinfo.rsplit('_', 1)
-            info = self.load_info(comb_info)
-            info.add('attr', attr)
-            print(info.as_string())
-            metadf = self.merge_dfs(self.metadf, info.clusterdf)
-            metadf = self.mh.add_cluster_color_and_shape(metadf)
-            info.add('metadf', metadf)
-            network = NXNetwork(self.language, path=info.spmx_path)
-
-            viz = NkViz(self.language, network, info)          
-            info.add('attr', attr)
-            viz.visualize(pltname='evalviz', plttitle=plttitle)
-
-
-    # def viz_single_plots(self, viz, info, attr, plttitle):
-    #         info.add('attr', 'cluster')
-    #         viz.visualize(pltname='clstviz', plttitle=plttitle)
+            sparsifier = Sparsifier(self.language, mx, sparsmode)
+            spars_params = Sparsifier.MODES[sparsmode]
             
-    #         info.add('attr', attr)
-    #         viz.visualize(pltname='evalviz', plttitle=plttitle)
+            for spars_param in spars_params:
+                mx, filtered_nr_edges, spmx_path = sparsifier.sparsify(spars_param)
+                if filtered_nr_edges != 0: ######################### write log
 
+                    for cluster_alg in  NkCluster.ALGS.keys():
+                        network = NXNetwork(self.language, mx=mx)
+                        nc = NkCluster(self.language, cluster_alg, network)
+                        param_combs = nc.get_param_combinations()
+                        
+                        for param_comb in param_combs:
+                            info = CombinationInfo(mxname=mx.name, sparsmode=sparsmode, spars_param=spars_param, cluster_alg=cluster_alg, param_comb=param_comb, spmx_path=spmx_path)
+                            if os.path.exists(self.get_pickle_path(info.as_string())):
+                                continue
+                            clusters = nc.cluster(info, param_comb)
+
+                            if clusters is not None:
+                                print(info.as_string())
+                                metadf = self.merge_dfs(self.metadf, clusters.df)
+                                info.add('metadf', metadf)
+                                info.add('clusterdf', clusters.df)
+                                combination = [network, clusters, info]
+
+                                yield combination
+
+
+    def viz_topk_nk(self):
+        for topk in self.get_top_combinations():
+            info, plttitle = topk
+            network = NXNetwork(self.language, path=info.spmx_path)
+            viz = NkViz(self.language, network, info, plttitle=plttitle)          
+            viz.visualize(plttitle=plttitle)
