@@ -22,10 +22,10 @@ logging.basicConfig(level=logging.DEBUG)
 
 class Sparsifier(DataHandler):
       MODES = {
-            'threshold': [0.9, 0.95],
-            'simmel': [(5, 10), (3, 10), (4,6)], #(7, 10)
+            'threshold': [0.9, 0.95, 0.8],
+            'simmel': [(5, 10), (3, 10), (4,6), (7, 10)],
             'authormax': [None],
-            #'authormin': [None],
+            'authormin': [None],
             }
       
       def __init__(self, language=None, mx=None, mode=None):

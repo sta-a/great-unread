@@ -42,16 +42,14 @@ if __name__ == "__main__":
 
 
     if mode == 'mxc':
-        remove_directories(['/home/annina/scripts/great_unread_nlp/data/similarity/eng/mxeval'])
-        remove_directories(['/home/annina/scripts/great_unread_nlp/data/similarity/eng/mxcomb'])
+        # remove_directories(['/home/annina/scripts/great_unread_nlp/data/similarity/eng/mxeval'])
+        # remove_directories(['/home/annina/scripts/great_unread_nlp/data/similarity/eng/mxcomb'])
         mx = MxCombinations(language=language, add_color=False)
         mx.evaluate_all_combinations()
     elif mode == 'mxtop':
         mx = MxCombinations(language=language, add_color=True)
         mx.viz_topk()
-    elif mode == 'mxattr':
-        mx = MxCombinations(language=language, add_color=True)
-        mx.viz_attrs()
+
         
     elif mode == 'nkc':
         # remove_directories(['/home/annina/scripts/great_unread_nlp/data/similarity/eng/nkeval'])
@@ -61,9 +59,6 @@ if __name__ == "__main__":
     elif mode == 'nktop':
         nkc = NkCombinations(language=language, add_color=True)
         nkc.viz_topk()
-    elif mode == 'nkattr':
-        nkc = NkCombinations(language=language, add_color=True)
-        nkc.viz_attrs()
 
 
 

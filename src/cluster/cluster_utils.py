@@ -12,6 +12,9 @@ sys.path.append("..")
 from sklearn.preprocessing import minmax_scale
 from copy import deepcopy
 from matplotlib.colors import to_rgba
+import matplotlib.lines as mlines
+
+import matplotlib.patches as mpatches
 from matplotlib import markers
 import textwrap
 from utils import DataHandler, DataLoader, TextsByAuthor
@@ -129,8 +132,8 @@ class ShapeMap():
     Match clusters to shapes.
     Only implemented for 'cluster' column, use colors for other attributes.
     '''
-    # Available shapes in nx
-    SHAPES = ['o', 'X', '*', 'd', 'P', 'p', '<', 'H', '>', 's', 'v', 'h', '8', 'D', '^']
+    # Available shapes in plt, which work for nx
+    SHAPES = ['o', 's', 'P', '*', 'd', 'p', '<', 'H', '>', 'v', 'h', '8', 'D', '^'] # 'X', 'x'
     
     def __init__(self, metadf):
         self.metadf = metadf
@@ -138,11 +141,12 @@ class ShapeMap():
         self.logger.setLevel(logging.DEBUG)
 
     def add_shape_column(self):
-        # Map each cluster to a shape. 
-        # Cluster with label 0 is mapped to the first list element, label 1 to the second element, and so on.
-        # If end of the list is reached, start from the beginning of the list.
-
-        # Map clusters to indices in the SHAPES list
+        '''
+        Map each cluster to a shape. 
+        Cluster with label 0 is mapped to the first list element, label 1 to the second element, and so on.
+        If end of the list is reached, start from the beginning of the list.
+        '''
+        # Map clusters to indices of the SHAPES list
         self.metadf[f'clst_shape'] = self.metadf['cluster'] % len(self.SHAPES)
         # Map indices to shapes
         self.metadf[f'clst_shape'] = self.metadf[f'clst_shape'].apply(lambda x: self.SHAPES[x])
@@ -188,12 +192,14 @@ class ColorMap(Colors):
         super().__init__()
         self.metadf = metadf
         self.pgv = pgv
+        self.cat_attrs = ['gender', 'author']
+        self.cat_attrs_combined = [f'{cattr}_cluster' for cattr in self.cat_attrs]
 
 
     def add_color_column(self, colname):
         if colname == 'gender':
             self.map_gender(colname)
-        elif (colname == 'cluster') or (colname == 'author'):
+        elif colname in self.cat_attrs + self.cat_attrs_combined + ['cluster']:
             self.map_categorical(colname)
         else:
             self.map_continuous(colname)
@@ -207,6 +213,7 @@ class ColorMap(Colors):
         gender_color_map = {0: 'blue', 1: 'red', 2: 'lightgreen', 3: 'yellow'}
         self.metadf[f'{colname}_color'] = self.metadf['gender'].map(gender_color_map)
     
+
     # def map_categorical(self, colname):
     #     self.metadf[f'{colname}_color'] = self.metadf[colname].map(dict(zip(sorted(self.metadf[colname].unique()), self.get_colors_discrete())))
 
@@ -259,7 +266,7 @@ class ColorMap(Colors):
 class CombinationInfo:
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
-        self.omit_default = ['metadf', 'param_comb', 'spars_param', 'omit_default', 'cluster_alg', 'spmx_path', 'clusterdf']
+        self.omit_default = ['metadf', 'param_comb', 'spars_param', 'omit_default', 'cluster_alg', 'spmx_path', 'clusterdf', 'order']
         self.clusterparams_to_string()       
         self.spars_to_string()
 
@@ -336,28 +343,31 @@ class VizBase(DataHandler):
         self.cmode = cmode
         self.info = info
         self.plttitle = plttitle
-        self.fontsize = 6
-        self.cat_attrs = ['gender', 'author']
+        self.fontsize = 12
         self.add_subdir(f'{self.cmode}top')
+        self.cat_attrs = ['gender', 'author']
+        self.is_cat = False
+        if self.info.attr in self.cat_attrs:
+            self.is_cat = True
 
 
-    def manage_big_figure(self):
-        plt.tight_layout()
-    
+    def add_suptitle(self, width=100, **kwargs):  
         if self.plttitle is not None:
-            plt.suptitle(textwrap.fill(self.plttitle, width=100), fontsize=self.fontsize)
+            plt.suptitle(textwrap.fill(self.plttitle, width=width), fontsize=self.fontsize, **kwargs)
 
 
     def save_plot(self, plt, file_name=None, file_path=None):
         self.save_data(data=plt, data_type=self.data_type, subdir=True, file_name=file_name, file_path=file_path)
    
 
-    def get_path(self, name, omit: List[str] = [], data_type='pkl'):
+    def get_path(self, name='viz', omit: List[str] = [], data_type='pkl'):
         file_name = f'{name}-{self.info.as_string(omit=omit)}.{data_type}'
         return self.get_file_path(file_name, subdir=True)
     
-    
+
     def add_cbar(self, ax):
+        # Create a color bar from a color map
+        # The color map is not used in any matplotlib functions (like for a heatmap), therefore the bar has to be created manually.
         # Create a ScalarMappable with the color map
         cmap = Colors.CMAP
         norm = plt.Normalize(vmin=0, vmax=1)
@@ -366,6 +376,7 @@ class VizBase(DataHandler):
 
         # Create a color bar using the ScalarMappable
         cbar = plt.colorbar(sm, ax=ax, shrink=0.8)
+        cbar.ax.tick_params(axis='both', which='major', labelsize=self.fontsize)
 
         # Set a label for the color bar
         # cbar.set_label('Color Bar Label', rotation=270, labelpad=15)
@@ -377,34 +388,53 @@ class VizBase(DataHandler):
         # fig_cbar.tight_layout()        
 
 
-    def cat_legend(self, ax, attr, label='size', loc='upper right'):
-        # attr can be a categorical attribute or 'cluster'
+    def add_legend(self, fig_or_ax, attr, label='size', use_shapes=False, loc='upper right', boxx=1.05, boxy=1, boxwidth=0.2, boxheight=0.4, fontsize=None, markersize=8):
+        bbox_to_anchor = (boxx, boxy, boxwidth, boxheight)
+        if fontsize is None:
+            fontsize = self.fontsize
 
         mapping = {}
         for unique_attr in self.df[attr].unique().tolist():
             cdf = self.df[self.df[attr] == unique_attr]
-            color = cdf.iloc[0][f'{attr}_color']
+            attribute = cdf.iloc[0][f'{attr}_color']
+            if use_shapes:
+                shape = cdf.iloc[0]['clst_shape']
+            else:
+                shape = 'o'
+
             if len(cdf) > 1:
-                mapping[unique_attr] = (color, len(cdf))
+                mapping[unique_attr] = (attribute, shape, len(cdf))
 
         # Keep the 10 most frequent elements
-        mapping = dict(sorted(mapping.items(), key=lambda item: item[1][1], reverse=True))
+        mapping = dict(sorted(mapping.items(), key=lambda item: item[1][2], reverse=True))
         mapping = {k: v for k, v in list(mapping.items())[:10]}
+
 
         # Create legend patches
         legend_patches = []
-        if label == 'size':
-            for unique_attr, (color, count) in mapping.items():
-                legend_patches.append(mpatches.Patch(color=color, label=f'Size {count}'))
-        elif label == 'attr':
-            for unique_attr, (color, count) in mapping.items():
-                legend_patches.append(mpatches.Patch(color=color, label=f'{unique_attr} ({count})'))
+        for unique_attr, (attribute, shape, count) in mapping.items():
+            if label == 'size':
+                clabel = f'{count}'
+            elif label == 'attr':
+                # Underscores cannot be used in labels because they increase the space between the labels in the legend
+                # This causes the two legends to not be aligned
+                
+                # If attr is author name, get only the first letter of the first name to keep legend short
+                if '_' in unique_attr:
+                    name_parts = unique_attr.split("_")
+                    clabel = f'{name_parts[0]}{name_parts[1][0]} ({attribute})' ####################
+                else:
+                    clabel = f'{unique_attr} ({attribute})'
+                
+            legend_patches.append(mlines.Line2D([], [], color=attribute, marker=shape, label=clabel, linestyle='None', markersize=markersize))
 
-        ax.legend(handles=legend_patches, loc=loc, fontsize=self.fontsize)
+        fig_or_ax.legend(handles=legend_patches, labelspacing=0.5, loc=loc, bbox_to_anchor=bbox_to_anchor, fontsize=fontsize)
+
 
 
     def add_subplot_titles(self, attrax, clstax, shapeax, combax):
         attrax.set_title('Attribute', fontsize=self.fontsize)
         clstax.set_title('Cluster', fontsize=self.fontsize)
         shapeax.set_title('Attributes and clusters (shapes)', fontsize=self.fontsize)
-        combax.set_title('Attributes and clusters (combined)', fontsize=self.fontsize)
+        if combax is not None:
+            combax.set_title('Attributes and clusters (combined)', fontsize=self.fontsize)

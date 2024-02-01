@@ -96,7 +96,7 @@ class ExtEval(DataHandler):
 
 
     def set_params(self):
-        if self.info.attr in self.cat_attrs:
+        if self.is_cat:
             self.scale = 'cat'
 
             if self.info.attr == 'gender':
@@ -246,7 +246,7 @@ class ExtEval(DataHandler):
         df = self.info.metadf[self.info.metadf[self.info.attr].notna()]
 
         # Check that there is more than one cluster after filtering
-        cb = ClusterBase(language=self.language, mode=self.mode, cluster_alg=None)
+        cb = ClusterBase(language=self.language, cmode=self.mode, cluster_alg=None)
         valid = cb.evaluate_clusters(df, self.info, source='eval')
 
         # Re-evaluate clustering if rows were dropped because of nan in attr column

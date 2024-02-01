@@ -21,7 +21,7 @@ import sys
 sys.path.append("..")
 from utils import DataHandler
 from .create import SimMx
-from .cluster_utils import VizBase
+from .cluster_utils import VizBase, Colors
 import logging
 logging.basicConfig(level=logging.DEBUG)
 
@@ -126,9 +126,6 @@ class MxReorder():
         return ordmx
 
 
-
-
-
 class MxViz(VizBase):
     def __init__(self, language, mx, info, plttitle):
         self.cmode = 'mx'
@@ -136,122 +133,151 @@ class MxViz(VizBase):
         self.mx = mx
         self.n_jobs = 1
 
+        # Whitespace
+        self.ws_left = 0.03
+        self.ws_right = 0.97
+        self.ws_bottom = 0.05
+        self.ws_top = 0.95
+        self.ws_wspace = 0.2
+        self.ws_hspace = 0.2
+
 
     def visualize(self):
+        self.pos = self.get_mds_positions()
+        self.df = self.prepare_metadata()
+        self.get_figure()
         self.fill_subplots()
-
-  
-    def get_figure(self):
-        if self.info.attr in self.cat_attrs:
-            fig_width = 20
-            fig_height = 0.4 * fig_width
-            self.fig = plt.figure(figsize=(fig_width, fig_height))
-            gs = self.fig.add_gridspec(2, 5)
+        if self.is_cat:
+            combax = self.axs[0, 4]
         else:
-            fig_width = 20
-            fig_height = 0.5 * fig_width
-            self.fig = plt.figure(figsize=(fig_width, fig_height))
-            gs = self.fig.add_gridspec(2, 4)
+            combax = None
+        self.add_subplot_titles(attrax=self.axs[0, 1], clstax=self.axs[0, 2], shapeax=self.axs[0, 3], combax=combax)
+        # Place the title at the bottom left below the heatmap
+        self.add_suptitle(width=40, x=self.ws_left, y=0.05, ha='left', va='bottom')
+        path = self.get_path(data_type=self.data_type)
+        self.save_data(data=plt, data_type=self.data_type, file_name=None, file_path=path, plt_kwargs={'dpi': 600})
+        plt.show()
+  
+        
+    def get_figure(self):
+        if self.is_cat:
+            ncol = 5
+        else:
+            ncol = 4
+        fig_width = 20
+        fig_height = (fig_width/(ncol*10)) * fig_width
+        self.fig, self.axs = plt.subplots(2, ncol, figsize=(fig_width, fig_height))
 
-        self.ax0 = self.fig.add_subplot(gs[0,0])
+        gridpos = ncol + 2
+        for i in range(1, ncol):
+            # In add_subplot, speciy nrows, ncols, position of subplot in the grid
+            # The first index is in the second row and the second col
+            self.axs[1, i].axis('off')
+            self.axs[1, i] = self.fig.add_subplot(2, ncol, gridpos, projection='3d')
+            gridpos += 1
 
-        self.ax1 = self.fig.add_subplot(gs[0,1])
-        self.ax2 = self.fig.add_subplot(gs[1,1], projection='3d')
+        # # Set aspect ratio to 'equal' for 3D subplots
+        # axs3d = [self.axs[1, 1], self.axs[1, 2], self.axs[1, 3]]
+        # for ax in axs3d:
+        #     ax.set_box_aspect([1, 1, 1])
 
-        self.ax3 = self.fig.add_subplot(gs[0,2])
-        self.ax4 = self.fig.add_subplot(gs[1,2], projection='3d')
-
-        self.ax5 = self.fig.add_subplot(gs[0,3])
-        self.ax6 = self.fig.add_subplot(gs[1,3], projection='3d')
-
-        if self.info.attr in self.cat_attrs:
-            self.ax7 = self.fig.add_subplot(gs[0,4])
-            self.ax8 = self.fig.add_subplot(gs[1,4], projection='3d')
+        self.axs[1, 0].axis('off')
+        self.fig.subplots_adjust(
+            left=self.ws_left,
+            right=self.ws_right,
+            bottom=self.ws_bottom,
+            top=self.ws_top,
+            wspace=self.ws_wspace,
+            hspace=self.ws_hspace
+        )
+            
+        axs2d = [self.axs[0, 1], self.axs[0, 2], self.axs[0, 3]]
+        if self.is_cat:
+            axs2d.append(self.axs[0, 4])
+        # Set aspect ratio to 'equal'
+        for ax in axs2d:
+            ax.set_aspect('equal', adjustable='datalim')
 
 
     def fill_subplots(self):
-        self.get_figure()
-        # kwargs = {'aspect': 'auto'} ###################
-        # constrained_layout, tight_layout
-
         # attr
-        self.draw_mds(self.ax1, self.ax2, color_col=self.info.attr, use_different_shapes=False)
-        self.draw_heatmap(self.ax0)
+        self.draw_mds(col=1, color_col=self.info.attr, use_different_shapes=False)
+        self.draw_heatmap(self.axs[0, 0])
+        if self.is_cat:
+            self.add_legend(self.fig, self.info.attr, label='attr', loc='upper left', boxx=self.ws_left + 0.05, boxy=0.4, boxwidth=0.1, boxheight=0.1, fontsize=self.fontsize)
 
         # cluster
-        self.draw_mds(self.ax3, self.ax4, color_col='cluster', use_different_shapes=False)
+        self.draw_mds(col=2, color_col='cluster', use_different_shapes=False)
+        self.add_legend(self.fig, 'cluster', label='size', loc='upper left', boxx=self.ws_left, boxy=0.4, boxwidth=0.05, boxheight=0.1, fontsize=self.fontsize, use_shapes=True)
 
         # attr as color, cluster as shapes
-        self.draw_mds(self.ax5, self.ax6, color_col=self.info.attr, use_different_shapes=True)
+        self.draw_mds(col=3, color_col=self.info.attr, use_different_shapes=True)
 
         # cluster and attr combined as colors
-        if self.info.attr in self.cat_attrs:
-            self.draw_mds(self.ax7, self.ax8, color_col=f'{self.info.attr}_cluster', use_different_shapes=False)
-
-        self.add_subplot_titles(attrax=self.ax1, clstax=self.ax3, shapeax=self.ax5, combax=self.ax7)
-        self.manage_big_figure()
-        fig_path = self.get_path('big', omit=[], data_type=self.data_type)
-        # self.save_plot(plt, file_name=None, file_path=fig_path)
-        # plt.close()
-        plt.show()
+        if self.is_cat:
+            self.draw_mds(col=4, color_col=f'{self.info.attr}_cluster', use_different_shapes=False)
 
 
-    def draw_mds(self, ax1, ax2, color_col=None, use_different_shapes=False):
-            color_col = f'{color_col}_color'
+    def get_mds_positions(self):
+        # Store layouts because it takes a lot of time to calculate them
+        pkl_path = self.get_file_path(file_name=f'mds-{self.mx.name}.pkl', subdir=True) 
+        if os.path.exists(pkl_path):
+            with open(pkl_path, 'rb') as f:
+                df = pickle.load(f)
 
-            # Store layouts because it takes a lot of time to calculate them
-            pkl_path = self.get_file_path(file_name=f'mds-{self.mx.name}.pkl', subdir=True) 
-            if os.path.exists(pkl_path):
-                with open(pkl_path, 'rb') as f:
-                    df = pickle.load(f)
- 
-            else:
-                # Apply classical MDS
-                mds_2d = MDS(n_components=2, dissimilarity='precomputed', normalized_stress='auto', n_jobs=self.n_jobs, random_state=8)
-                X_mds_2d = mds_2d.fit_transform(self.mx.dmx)
+        else:
+            # Apply classical MDS
+            mds_2d = MDS(n_components=2, dissimilarity='precomputed', normalized_stress='auto', n_jobs=self.n_jobs, random_state=8)
+            X_mds_2d = mds_2d.fit_transform(self.mx.dmx)
 
-                # Apply classical MDS in 3D
-                mds_3d = MDS(n_components=3, dissimilarity='precomputed', normalized_stress='auto', n_jobs=self.n_jobs, random_state=8)
-                X_mds_3d = mds_3d.fit_transform(self.mx.dmx)
+            # Apply classical MDS in 3D
+            mds_3d = MDS(n_components=3, dissimilarity='precomputed', normalized_stress='auto', n_jobs=self.n_jobs, random_state=8)
+            X_mds_3d = mds_3d.fit_transform(self.mx.dmx)
 
-                df = pd.DataFrame({
-                    'X_mds_2d_0': X_mds_2d[:, 0],
-                    'X_mds_2d_1': X_mds_2d[:, 1],
-                    'X_mds_3d_0': X_mds_3d[:, 0],
-                    'X_mds_3d_1': X_mds_3d[:, 1],
-                    'X_mds_3d_2': X_mds_3d[:, 2],
-                    })
+            df = pd.DataFrame({
+                'X_mds_2d_0': X_mds_2d[:, 0],
+                'X_mds_2d_1': X_mds_2d[:, 1],
+                'X_mds_3d_0': X_mds_3d[:, 0],
+                'X_mds_3d_1': X_mds_3d[:, 1],
+                'X_mds_3d_2': X_mds_3d[:, 2],
+                })
+            
+            df.index = self.mx.dmx.index
 
-                with open(pkl_path, 'wb') as f:
-                    pickle.dump(df, f)
-
-
-            # Shapes
-            df = df.assign(shape=['o']*len(self.mx.dmx))
-            if use_different_shapes:
-                df = df.assign(shape=self.info.metadf.loc[self.mx.dmx.index, 'clst_shape'].values)
-
-            # Colors
-            df = df.assign(color=self.info.metadf.loc[self.mx.dmx.index, color_col].values)
+            with open(pkl_path, 'wb') as f:
+                pickle.dump(df, f)
+        return df
 
 
-            for shape in df['shape'].unique():
-                sdf = df[df['shape'] == shape]
-                kwargs = {'c': sdf['color'], 'marker': shape, 's': 10}
-                ax1.scatter(sdf['X_mds_2d_0'], sdf['X_mds_2d_1'], **kwargs)
-                ax2.scatter(sdf['X_mds_3d_0'], sdf['X_mds_3d_1'], sdf['X_mds_3d_2'], **kwargs)
+    def prepare_metadata(self):
+        df = self.info.metadf.merge(self.pos, how='inner', left_index=True, right_index=True, validate='1:1')
+        return df
 
 
+    def draw_mds(self, col, color_col=None, use_different_shapes=False):
+        color_col = f'{color_col}_color'
+        
+        df = self.df.copy() # Avoid chained assingment warning
+        # Iterate through shapes because only one shape can be passed at a time, no lists
+        if not use_different_shapes:
+            df['clst_shape'] = 'o'
+        shapes = df['clst_shape'].unique()
 
-    def draw_heatmap(self, ax5):
+        for shape in shapes:
+            sdf = df[df['clst_shape'] == shape]
+            kwargs = {'c': sdf[color_col], 'marker': shape, 's': 10, 'edgecolor': 'black', 'linewidth': 0.2} ################10
+            self.axs[0, col].scatter(x=sdf['X_mds_2d_0'], y=sdf['X_mds_2d_1'], **kwargs)
+            self.axs[1, col].scatter(sdf['X_mds_3d_0'], sdf['X_mds_3d_1'], sdf['X_mds_3d_2'], **kwargs)
+
+
+    def draw_heatmap(self, ax):
         # Draw heatmap
         ordmx = MxReorder(self.language, self.mx, self.info).order()
 
-        # hot_r, viridis, plasma, inferno
-        # ordmx = np.triu(ordmx) ####################
-        im = ax5.imshow(ordmx, cmap='coolwarm', interpolation='nearest')
-        ax5.axis('off')  # Remove the axis/grid
+        im = ax.imshow(ordmx, cmap=Colors.CMAP, interpolation='nearest')
+        ax.axis('off')  # Remove the axis/grid
+        ax.set_title('Attribute', fontsize=self.fontsize)
 
         # Add a color bar to the heatmap for better understanding of the similarity values
-        cbar = plt.colorbar(im, ax=ax5, fraction=0.05, pad=0.1)
+        cbar = plt.colorbar(im, ax=ax, fraction=0.045, pad=0.1, location='left')
 

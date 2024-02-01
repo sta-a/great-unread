@@ -86,17 +86,17 @@ class Clusters():
 class ClusterBase(DataHandler):
     ALGS = None
 
-    def __init__(self, language=None, mode=None, cluster_alg=None):
+    def __init__(self, language=None, cmode=None, cluster_alg=None):
         super().__init__(language=language, output_dir='similarity', data_type='pkl')
-        self.mode = mode
+        self.cmode = cmode
         self.cluster_alg = cluster_alg
         self.n_jobs = 1
-        self.timeout = 5
+        self.timeout = 10 # seconds
         self.get_logfile_path()
 
 
     def get_logfile_path(self):
-        self.logfile_path = self.get_file_path(file_name=f'{self.mode}_log_clst.txt')
+        self.logfile_path = self.get_file_path(file_name=f'{self.cmode}_log_clst.txt')
 
 
     def log_clst(self, info, source, outcome):
@@ -228,23 +228,23 @@ class MxCluster(ClusterBase):
     ALGS = {
         'hierarchical': {
             'nclust': [5, 10],
-            'method': ['single', 'weighted', 'centroid','ward'], #median, average, complete ###############3
+            'method': ['single', 'weighted', 'centroid','ward', 'median', 'average', 'complete'],
             },
         'spectral': {
-            'nclust': [5, 10],
+            'nclust': [5, 10, 20],
             },
         'kmedoids': {
-            'nclust': [5, 10],
+            'nclust': [5, 10, 20],
             },
         'dbscan': {
-            'eps': [0.1, 0.4, 0.8], #0.3, 0.5, 0.7, 0.9
+            'eps': [0.1, 0.3, 0.5, 0.7, 0.9],
             'minsamples': [5, 10, 30],
             },
     }
 
 
     def __init__(self, language=None, cluster_alg=None, mx=None):
-        super().__init__(language=language, mode='mx', cluster_alg=cluster_alg)
+        super().__init__(language=language, cmode='mx', cluster_alg=cluster_alg)
         self.mx = mx
 
     
@@ -296,7 +296,7 @@ class NkCluster(ClusterBase):
 
 
     def __init__(self, language, cluster_alg=None, network=None):
-        super().__init__(language=language, mode='nk', cluster_alg=cluster_alg)
+        super().__init__(language=language, cmode='nk', cluster_alg=cluster_alg)
         self.network = network
         # Network can be None if class is only created to get parameter combination
         if self.network is not None:
