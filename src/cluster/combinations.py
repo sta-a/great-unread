@@ -16,7 +16,7 @@ import time
 from utils import DataHandler
 from .create import D2vDist, Delta
 from .network import NXNetwork
-from .cluster import MxCluster, NkCluster
+from .cluster import MxCluster, NkCluster, ClusterBase
 from .evaluate import ExtEval, MxIntEval, NkIntEval
 from .mxviz import MxReorder
 from .sparsifier import Sparsifier
@@ -139,6 +139,12 @@ class CombinationsBase(InfoHandler):
         self.save_info(pinfo)
 
 
+    def check_data(self):
+        if not os.path.exists(self.combinations_path):
+            self.log_combinations
+        dc = CombDataChecker(self.language, self.cmode, self.combinations_path)
+        dc.check()
+
 
 class MxCombinations(CombinationsBase):
     def __init__(self, language, add_color):
@@ -246,3 +252,74 @@ class NkCombinations(CombinationsBase):
                                 f.write(info.as_string() + '\n')
 
 
+class CombDataChecker(DataHandler):
+    '''
+    Check if all combinations are in evaluation files.
+    '''
+    def __init__(self, language, cmode, combinations_path):
+        super().__init__(language=language, output_dir='similarity', data_type='csv')
+        self.cmode = cmode
+        self.combinations_path = combinations_path
+
+
+    def check(self):
+        '''
+        Find combinations with the best evaluation scores for both categorical and continuous attributes.
+        '''
+        dfs = []
+        for scale in ['cat', 'cont']:
+            self.scale = scale
+
+            evaldir = os.path.join(self.output_dir, f'{self.cmode}eval')
+            df = pd.read_csv(os.path.join(evaldir, f'{self.scale}_results.csv'), header=0)
+            df = self.drop_duplicated_rows(df)
+            dfs.append(df)
+
+        self.check_completeness(*dfs)
+
+
+    def drop_duplicated_rows(self, df):
+        '''
+        Identify duplicated rows based on the "file_info" column.
+        Duplicated rows can occur when evaluation is cancelled and restarted.
+        Combinations that were evaluated but not saved to picked in the first call are reevaluated.
+        '''
+        duplicated_rows = df[df.duplicated(subset=['file_info'], keep=False)]
+        print("Duplicated Rows:")
+        print(duplicated_rows)
+
+        # Keep only the first occurrence of each duplicated content in "file_info"
+        df = df.drop_duplicates(subset=['file_info'], keep='first')
+        return df
+
+
+    def count_unique_lines(self):
+        unique_lines = set()
+
+        with open(self.combinations_path, 'r') as file:
+            for line in file:
+                cleaned_line = line.strip()
+                unique_lines.add(cleaned_line)
+
+        n_unique_lines = len(unique_lines)
+        return n_unique_lines
+
+
+    def check_completeness(self, cat, cont):
+        nlines = self.count_unique_lines()
+        mh = MetadataHandler(self.language)
+        metadf = mh.get_metadata(add_color=False)
+        metadf.to_csv('checktestmetadf.csv')
+        nfeatures = metadf.shape[1]
+        npossible = nfeatures * nlines
+
+        # Combinations where clustering alg failed
+        cluster_logfile = ClusterBase(self.language, self.cmode, cluster_alg=None).logfile_path
+        cdf = pd.read_csv(cluster_logfile, header=0)
+        cdf = cdf.loc[cdf['source'] == 'clst']
+        nclst = cdf.shape[0] * nfeatures
+
+        ncreated = cat.shape[0] + cont.shape[0]
+
+        print(f'npossible: {npossible}, nclst: {nclst}, ncreated: {ncreated}')
+        print(f'Evaluation files for language: {self.language} mode: {self.cmode} are complete and contain all combinations: {npossible == nclst + ncreated}')

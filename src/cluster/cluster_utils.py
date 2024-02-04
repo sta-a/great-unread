@@ -212,43 +212,21 @@ class ColorMap(Colors):
     def map_gender(self, colname):
         gender_color_map = {0: 'blue', 1: 'red', 2: 'lightgreen', 3: 'yellow'}
         self.metadf[f'{colname}_color'] = self.metadf['gender'].map(gender_color_map)
-    
-
-    # def map_categorical(self, colname):
-    #     self.metadf[f'{colname}_color'] = self.metadf[colname].map(dict(zip(sorted(self.metadf[colname].unique()), self.get_colors_discrete())))
-
-    
-    # def map_categorical(self, colname):
-    #     value_counts = self.metadf[colname].value_counts()
-
-    #     # Get colors for unique elements
-    #     unique_elements = sorted(self.metadf[colname].unique())
-    #     colors = self.get_colors_discrete()
-
-    #     # Create a mapping with black color for elements occurring only once
-    #     color_mapping = {element: color if count > 1 else 'black' for element, color, count in zip(unique_elements, colors, value_counts)}
-
-    #     self.metadf[f'{colname}_color'] = self.metadf[colname].map(color_mapping)
 
 
     def map_categorical(self, colname):
         # Count the occurrences of each unique value in the specified column
         value_counts = self.metadf[colname].value_counts()
-
-        # Get a sorted list of unique elements in the column
-        unique_elements = sorted(self.metadf[colname].unique())
-        
+    
         # Create an iterator that cycles through colors
         colors = self.get_colors_discrete()
-        # colors = itertools.cycle(colors)
-
 
         # Create a mapping with cycling through colors for all unique elements
         # If an element occurs only once, set it to dark grey
         darkgrey_rgb = to_rgba('darkgrey')
         color_mapping = {
             element: next(colors) if count > 1 else darkgrey_rgb
-            for element, count in zip(unique_elements, value_counts)
+            for element, count in value_counts.items()
         }
 
         # Create a new column with the original column name appended with '_color'
@@ -291,8 +269,7 @@ class CombinationInfo:
                 else:
                     self.clst_alg_params = f'{self.cluster_alg}'
                 
-
-
+                
     def replace_dot(self, value):
         # Use '%' to mark dot in float
         if isinstance(value, float):
@@ -338,29 +315,49 @@ class CombinationInfo:
 
         
 class VizBase(DataHandler):
-    def __init__(self, language, cmode, info, plttitle):
+    def __init__(self, language, cmode, info, plttitle, expname=None):
         super().__init__(language, output_dir='similarity', data_type='png')
         self.cmode = cmode
         self.info = info
         self.plttitle = plttitle
+        self.expname = expname
         self.fontsize = 12
         self.add_subdir(f'{self.cmode}top')
+
         self.cat_attrs = ['gender', 'author']
         self.is_cat = False
         if self.info.attr in self.cat_attrs:
             self.is_cat = True
+        self.has_special = False
+        if hasattr(self.info, 'special'):
+            self.has_special = True
+        self.needs_cbar = self.check_cbar()
 
 
-    def add_suptitle(self, width=100, **kwargs):  
-        if self.plttitle is not None:
-            plt.suptitle(textwrap.fill(self.plttitle, width=width), fontsize=self.fontsize, **kwargs)
+    def check_cbar(self):
+        # Check if any continuous attributes are shown.
+        # If yes, a cbar is necessary.
+        cbar = False
+        if not self.is_cat:
+            cbar = True
+        if self.has_special and (self.info.special not in self.cat_attrs):
+            cbar = True
+        return cbar
+
+
+    def add_text(self, ax, x=0, y=0, width=30):  
+        ax.text(x=x, y=y, s=textwrap.fill(self.plttitle, width), fontsize=self.fontsize)
 
 
     def save_plot(self, plt, file_name=None, file_path=None):
         self.save_data(data=plt, data_type=self.data_type, subdir=True, file_name=file_name, file_path=file_path)
    
 
-    def get_path(self, name='viz', omit: List[str] = [], data_type='pkl'):
+    def get_path(self, omit: List[str] = [], data_type='pkl'):
+        if self.expname is None:
+            name = 'viz'
+        else:
+            name = self.expname
         file_name = f'{name}-{self.info.as_string(omit=omit)}.{data_type}'
         return self.get_file_path(file_name, subdir=True)
     
@@ -375,7 +372,7 @@ class VizBase(DataHandler):
         sm.set_array([])
 
         # Create a color bar using the ScalarMappable
-        cbar = plt.colorbar(sm, ax=ax, shrink=0.8)
+        cbar = plt.colorbar(sm, ax=ax, shrink=0.8, location='left')
         cbar.ax.tick_params(axis='both', which='major', labelsize=self.fontsize)
 
         # Set a label for the color bar
@@ -422,19 +419,24 @@ class VizBase(DataHandler):
                 # If attr is author name, get only the first letter of the first name to keep legend short
                 if '_' in unique_attr:
                     name_parts = unique_attr.split("_")
-                    clabel = f'{name_parts[0]}{name_parts[1][0]} ({attribute})' ####################
+                    clabel = f'{name_parts[0]}{name_parts[1][0]} ({count})' ####################
                 else:
-                    clabel = f'{unique_attr} ({attribute})'
+                    clabel = f'{unique_attr} ({count})'
                 
             legend_patches.append(mlines.Line2D([], [], color=attribute, marker=shape, label=clabel, linestyle='None', markersize=markersize))
 
         fig_or_ax.legend(handles=legend_patches, labelspacing=0.5, loc=loc, bbox_to_anchor=bbox_to_anchor, fontsize=fontsize)
 
 
+    def get_ax(self, ix):
+        return self.axs[ix[0], ix[1]]
 
-    def add_subplot_titles(self, attrax, clstax, shapeax, combax):
-        attrax.set_title('Attribute', fontsize=self.fontsize)
-        clstax.set_title('Cluster', fontsize=self.fontsize)
-        shapeax.set_title('Attributes and clusters (shapes)', fontsize=self.fontsize)
-        if combax is not None:
-            combax.set_title('Attributes and clusters (combined)', fontsize=self.fontsize)
+
+    def add_subtitles(self, attrix, clstix, shapeix, combix=None, specix=None):
+        self.get_ax(attrix).set_title('Attribute', fontsize=self.fontsize)
+        self.get_ax(clstix).set_title('Cluster', fontsize=self.fontsize)
+        self.get_ax(shapeix).set_title('Attributes and clusters (shapes)', fontsize=self.fontsize)
+        if combix is not None:
+            self.get_ax(combix).set_title('Attributes and clusters (combined)', fontsize=self.fontsize)
+        if specix is not None:
+            self.get_ax(specix).set_title(f'{self.info.special.capitalize()}', fontsize=self.fontsize)

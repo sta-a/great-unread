@@ -127,9 +127,9 @@ class MxReorder():
 
 
 class MxViz(VizBase):
-    def __init__(self, language, mx, info, plttitle):
+    def __init__(self, language, mx, info, plttitle, expname):
         self.cmode = 'mx'
-        super().__init__(language, self.cmode, info, plttitle)
+        super().__init__(language, self.cmode, info, plttitle, expname)
         self.mx = mx
         self.n_jobs = 1
 
@@ -147,26 +147,22 @@ class MxViz(VizBase):
         self.df = self.prepare_metadata()
         self.get_figure()
         self.fill_subplots()
-        if self.is_cat:
-            combax = self.axs[0, 4]
-        else:
-            combax = None
-        self.add_subplot_titles(attrax=self.axs[0, 1], clstax=self.axs[0, 2], shapeax=self.axs[0, 3], combax=combax)
-        # Place the title at the bottom left below the heatmap
-        self.add_suptitle(width=40, x=self.ws_left, y=0.05, ha='left', va='bottom')
+        self.add_legends_and_titles()
         path = self.get_path(data_type=self.data_type)
         self.save_data(data=plt, data_type=self.data_type, file_name=None, file_path=path, plt_kwargs={'dpi': 600})
         plt.show()
   
         
     def get_figure(self):
+        ncol = 4
         if self.is_cat:
-            ncol = 5
-        else:
-            ncol = 4
-        fig_width = 20
-        fig_height = (fig_width/(ncol*10)) * fig_width
-        self.fig, self.axs = plt.subplots(2, ncol, figsize=(fig_width, fig_height))
+            ncol += 1
+
+        if self.has_special:
+            ncol += 1
+
+        width = 5
+        self.fig, self.axs = plt.subplots(2, ncol, figsize=(ncol*width, 2*width))
 
         gridpos = ncol + 2
         for i in range(1, ncol):
@@ -199,23 +195,54 @@ class MxViz(VizBase):
             ax.set_aspect('equal', adjustable='datalim')
 
 
-    def fill_subplots(self):
-        # attr
-        self.draw_mds(col=1, color_col=self.info.attr, use_different_shapes=False)
-        self.draw_heatmap(self.axs[0, 0])
+        self.attrix = [0, 1]
+        self.clstix = [0, 2]
+        self.shapeix = [0, 3]
+
+        if self.is_cat and self.has_special:
+            self.combix = [0,4]
+            self.specix = [0,5]
+        if self.is_cat and not self.has_special:
+            self.combix = [0,4]
+            self.specix = None
+        if not self.is_cat and self.has_special:
+            self.combix = None
+            self.specix = [0,4]
+        if not self.is_cat and not self.has_special:
+            self.combix = None
+            self.specix = None
+
+
+    def add_legends_and_titles(self):
+        # if self.needs_cbar:
+        #     self.add_cbar(self.axs[-2, -1])
+
+        self.add_legend(self.fig, 'cluster', label='size', loc='upper left', boxx=self.ws_left, boxy=0.4, boxwidth=0.05, boxheight=0.1, fontsize=self.fontsize, use_shapes=True)
         if self.is_cat:
             self.add_legend(self.fig, self.info.attr, label='attr', loc='upper left', boxx=self.ws_left + 0.05, boxy=0.4, boxwidth=0.1, boxheight=0.1, fontsize=self.fontsize)
 
+        self.add_subtitles(self.attrix, self.clstix, self.shapeix, self.combix, self.specix)
+        # Place the title at the bottom left below the heatmap
+        self.add_text(self.axs[1,0], x=self.ws_left, y=self.ws_bottom, width=50)
+
+
+    def fill_subplots(self):
+        # attr
+        self.draw_mds(self.attrix, color_col=self.info.attr, use_different_shapes=False)
+        self.draw_heatmap(self.axs[0, 0])
+
         # cluster
-        self.draw_mds(col=2, color_col='cluster', use_different_shapes=False)
-        self.add_legend(self.fig, 'cluster', label='size', loc='upper left', boxx=self.ws_left, boxy=0.4, boxwidth=0.05, boxheight=0.1, fontsize=self.fontsize, use_shapes=True)
+        self.draw_mds(self.clstix, color_col='cluster', use_different_shapes=False)
 
         # attr as color, cluster as shapes
-        self.draw_mds(col=3, color_col=self.info.attr, use_different_shapes=True)
+        self.draw_mds(self.shapeix, color_col=self.info.attr, use_different_shapes=True)
 
         # cluster and attr combined as colors
         if self.is_cat:
-            self.draw_mds(col=4, color_col=f'{self.info.attr}_cluster', use_different_shapes=False)
+            self.draw_mds(self.combix, color_col=f'{self.info.attr}_cluster', use_different_shapes=False)
+
+        if self.has_special:
+            self.draw_mds(self.specix, color_col=self.info.special, use_different_shapes=False)
 
 
     def get_mds_positions(self):
@@ -254,7 +281,7 @@ class MxViz(VizBase):
         return df
 
 
-    def draw_mds(self, col, color_col=None, use_different_shapes=False):
+    def draw_mds(self, ix, color_col=None, use_different_shapes=False):
         color_col = f'{color_col}_color'
         
         df = self.df.copy() # Avoid chained assingment warning
@@ -265,9 +292,9 @@ class MxViz(VizBase):
 
         for shape in shapes:
             sdf = df[df['clst_shape'] == shape]
-            kwargs = {'c': sdf[color_col], 'marker': shape, 's': 10, 'edgecolor': 'black', 'linewidth': 0.2} ################10
-            self.axs[0, col].scatter(x=sdf['X_mds_2d_0'], y=sdf['X_mds_2d_1'], **kwargs)
-            self.axs[1, col].scatter(sdf['X_mds_3d_0'], sdf['X_mds_3d_1'], sdf['X_mds_3d_2'], **kwargs)
+            kwargs = {'c': sdf[color_col], 'marker': shape, 's': 30, 'edgecolor': 'black', 'linewidth': 0.2} ################10
+            self.axs[0, ix[1]].scatter(x=sdf['X_mds_2d_0'], y=sdf['X_mds_2d_1'], **kwargs)
+            self.axs[1, ix[1]].scatter(sdf['X_mds_3d_0'], sdf['X_mds_3d_1'], sdf['X_mds_3d_2'], **kwargs)
 
 
     def draw_heatmap(self, ax):

@@ -13,9 +13,10 @@ from itertools import groupby
 import random
 random.seed(9)
 
-from scipy.stats import f_oneway
+from scipy.stats import f_oneway, kruskal
+
 from sklearn.metrics import silhouette_score, normalized_mutual_info_score, fowlkes_mallows_score
-from sklearn.metrics import adjusted_rand_score, accuracy_score
+from sklearn.metrics import adjusted_rand_score, accuracy_score, balanced_accuracy_score
 from sklearn.linear_model import LogisticRegression
 
 from .cluster_utils import CombinationInfo
@@ -96,7 +97,7 @@ class ExtEval(DataHandler):
 
 
     def set_params(self):
-        if self.is_cat:
+        if self.info.attr in self.cat_attrs:
             self.scale = 'cat'
 
             if self.info.attr == 'gender':
@@ -266,35 +267,44 @@ class ExtEval(DataHandler):
         y_true = df['cluster'].values.ravel()
 
         if valid:
-            logreg = self.logreg(X, y_true)
+            logreg_acc, logrec_acc_balanced = self.logreg(X, y_true)
 
-            # Run ANOVA
             # Create a list of arrays for each unique integer in 'cluster'
-            X_cluster = [df[df['cluster'] == cluster][self.info.attr].values.reshape(-1, 1) for cluster in df['cluster'].unique()]
-
-            anova = self.anova(X_cluster)
-            cont_scores = {'anova-pval': anova, 'logreg-accuracy': logreg, 'nr_attr_nan': df[self.info.attr].isna().sum()}
+            cluster_groups = self.get_cluster_groups(df)
+            anova = self.anova(cluster_groups)
+            kw_statistic, kw_pval = self.kruskal(cluster_groups)
+            cont_scores = {'anova_pval': anova, 'logreg_acc': logreg_acc, 'logreg_acc_balanced': logrec_acc_balanced, 'nr_attr_nan': df[self.info.attr].isna().sum(), 'kruskal_statistic': kw_statistic, 'kruskal_pval': kw_pval}
         else:
             self.logger.info(f'Invalid clustering after filtering attr col for nan: {self.info.as_string()}')
-            cont_scores = {'anova-pval': 'invalid', 'logreg-accuracy': 'invalid', 'nr_attr_nan': df[self.info.attr].isna().sum()}
+            cont_scores = {'anova_pval': 'invalid', 'logreg_acc': 'invalid', 'nr_attr_nan': df[self.info.attr].isna().sum()}
         return cont_scores
+    
+
+    def get_cluster_groups(self, df):
+        cluster_groups = [group[self.info.attr].values for _, group in df.groupby('cluster')]
+        return cluster_groups
+    
+
+    def kruskal(self, cluster_groups):
+        kw_statistic, kw_pval = kruskal(*cluster_groups)
+        return kw_statistic, kw_pval
 
 
-    def anova(self, X_cluster):
+    def anova(self, cluster_groups):
+        cluster_groups = [x.reshape(-1, 1) for x in cluster_groups]
         # Perform ANOVA to evaluate relationship between clustering and continuous variable
-        f_statistic, pval = f_oneway(*X_cluster)
+        f_statistic, pval = f_oneway(*cluster_groups)
         return pval[0]
     
     
-    def logreg(self, X, y_true):
+    def logreg(self, X, y_true, draw=False):
         # Multinomial logistic regression to evaluate relationship between clustering and continuous variable
-        model = LogisticRegression(max_iter=1000, class_weight='balanced', n_jobs=-1)
+        model = LogisticRegression(max_iter=1000, class_weight='balanced', n_jobs=1)
         model.fit(X, y_true)
         
         y_pred = model.predict(X)
 
-        plot = False
-        if plot: ################################################
+        if draw:
             # Visualize the decision boundary
             plt.figure(figsize=(10, 6))
             plt.grid(True)
@@ -322,6 +332,6 @@ class ExtEval(DataHandler):
             self.save_data(data=plt, data_type='png', subdir=True, file_name=f'logreg-{self.info.as_string()}-{self.info.attr}.png')
             plt.close()
 
-        return accuracy_score(y_true=y_true, y_pred=y_pred)
+        return accuracy_score(y_true=y_true, y_pred=y_pred), balanced_accuracy_score(y_true=y_true, y_pred=y_pred)
     
 

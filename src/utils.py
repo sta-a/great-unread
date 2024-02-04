@@ -405,6 +405,7 @@ class DataHandler():
         file_name = f"{file_string}{kwargs_str}.{data_type}"
         return file_name
     
+
     def validate_filename(self, file_name, **kwargs):
         ending_count = file_name.count('.')
         if ending_count == 0:
@@ -446,6 +447,7 @@ class DataHandler():
             pathdir = self.subdir
         file_path = os.path.join(pathdir, file_name)
         return file_path
+    
     
     def file_exists(self, file_path=None, file_name=None, **kwargs):
         if (file_path is None and file_name is None) or (file_path is not None and file_name is not None):

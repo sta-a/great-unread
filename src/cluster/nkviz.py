@@ -27,9 +27,9 @@ warnings.filterwarnings("ignore", category=RuntimeWarning, module="pygraphviz") 
 
 class NkViz(VizBase):
 
-    def __init__(self, language, network, info, plttitle):
+    def __init__(self, language, network, info, plttitle, expname):
         self.cmode = 'nk'
-        super().__init__(language, self.cmode, info, plttitle)
+        super().__init__(language, self.cmode, info, plttitle, expname)
         self.network = network
         self.graph = self.network.graph
 
@@ -96,51 +96,53 @@ class NkViz(VizBase):
 
     def add_edges(self):
         # Main plot
-        for ax in self.main_plots:
-            self.draw_edges(self.graph_con, self.pos, ax)
+        for ix in self.subplots:
+            self.draw_edges(self.graph_con, self.pos, ix)
 
         # Two nodes
         if self.nodes_removed:
-            for ax in self.small_plots:
-                for curr_g in self.graphs_two:
-                    self.draw_edges(curr_g, self.pos, ax)
+            for ix in self.subplots:
+                if ix is not None:
+                    ix = [ix[0]+1, ix[1]]
+                    for curr_g in self.graphs_two:
+                        self.draw_edges(curr_g, self.pos, ix)
 
 
-    def add_nodes_to_ax(self, ax1, ax2, df, color_col, use_different_shapes=False):
+    def add_nodes_to_ax(self, ix, df, color_col, use_different_shapes=False):
         color_col = f'{color_col}_color'
         # Draw connected components with more than 2 nodes
         df_con = df[~df.index.isin(self.nodes_removed)]
-        self.draw_nodes(self.graph_con, ax1, df_con, color_col, use_different_shapes=use_different_shapes)
+        self.draw_nodes(self.graph_con, self.axs[ix[0], ix[1]], df_con, color_col, use_different_shapes=use_different_shapes)
 
+        ax = self.axs[ix[0]+1, ix[1]]
         # Isolated nodes
         if self.nodes_removed:
             # Two nodes
             for curr_g in self.graphs_two:
                 curr_nodes = list(curr_g.nodes)
                 curr_df_two = df[df.index.isin(curr_nodes)]
-                self.draw_nodes(curr_g, ax2, curr_df_two, color_col, use_different_shapes=use_different_shapes)
+                self.draw_nodes(curr_g, ax, curr_df_two, color_col, use_different_shapes=use_different_shapes)
 
             # Isolated nodes
             df_iso = df[df.index.isin(self.nodes_iso)]
             if use_different_shapes:
                 for shape in df_iso['clst_shape'].unique():
                     sdf = df_iso[df_iso['clst_shape'] == shape]
-                    ax2.scatter(sdf['x'], sdf['y'], c=sdf[color_col], marker=shape, s=2)
+                    ax.scatter(sdf['x'], sdf['y'], c=sdf[color_col], marker=shape, s=2)
             else:
-                ax2.scatter(df_iso['x'], df_iso['y'], c=df_iso[color_col], marker='o', s=2)
+                ax.scatter(df_iso['x'], df_iso['y'], c=df_iso[color_col], marker='o', s=2)
 
 
     def get_figure(self):
-        # if not self.info.attr in self.cat_attrs:
-        #     self.fig, self.axs = plt.subplots(4, 2, figsize=(10, 11), gridspec_kw={'height_ratios': [7, 0.5, 7, 0.5]})
-        # else:
-        # Add third col for legends and titles
-        self.fig, self.axs = plt.subplots(4, 3, figsize=(15, 11), gridspec_kw={'height_ratios': [7, 0.5, 7, 0.5], 'width_ratios': [7, 7, 1]})
-    
-        self.main_plots = [self.axs[0, 0], self.axs[0, 1], self.axs[2, 0]]
-        self.small_plots = [self.axs[1, 0], self.axs[1, 1]]
-        if self.is_cat:
-            self.main_plots.append(self.axs[2, 1])
+        # Add column for legends and titles at the end
+
+        if self.is_cat and self.has_special:
+            ncol = 4
+            width_ratios = [7, 7, 7, 1]
+        else:
+            ncol = 3
+            width_ratios = [7, 7, 1]
+        self.fig, self.axs = plt.subplots(4, ncol, figsize=(sum(width_ratios), 11), gridspec_kw={'height_ratios': [7, 0.5, 7, 0.5], 'width_ratios': width_ratios})
 
         self.fig.subplots_adjust(
             left=self.ws_left,
@@ -148,12 +150,30 @@ class NkViz(VizBase):
             bottom=self.ws_bottom,
             top=self.ws_top,
             wspace=self.ws_wspace,
-            hspace=self.ws_hspace
-        )        
+            hspace=self.ws_hspace)        
 
         for row in self.axs: 
             for ax in row:
                 ax.axis('off')
+
+        self.attrix = [0,0]
+        self.clstix = [0,1]
+        self.shapeix = [2,0]
+
+        if self.is_cat and self.has_special:
+            self.combix = [2,1]
+            self.specix = [0,2]
+        if self.is_cat and not self.has_special:
+            self.combix = [2,1]
+            self.specix = None
+        if not self.is_cat and self.has_special:
+            self.combix = None
+            self.specix = [2,1]
+        if not self.is_cat and not self.has_special:
+            self.combix = None
+            self.specix = None
+
+        self.subplots = [self.attrix, self.clstix, self.shapeix, self.combix, self.specix]
 
 
     def add_legends_and_titles(self):
@@ -188,34 +208,35 @@ class NkViz(VizBase):
         
         
         # Add all extra elements to third column
-        make_clst_legend(self.fig, boxx=0.9, boxy=0.7)
+        make_clst_legend(self.fig, boxx=0.9, boxy=0.9)
         if self.is_cat:
-            make_attr_legend(self.fig, boxx=0.9, boxy=0.9)
-            combax = self.axs[2, 1]
-        else:
-            combax = None
-            self.add_cbar(self.axs[-2, -1])
+            make_attr_legend(self.fig, boxx=0.9, boxy=0.7)
+        if self.needs_cbar:
+            self.add_cbar(self.axs[2, -1])
 
 
         # Add subtitles to subplots
-        self.add_subplot_titles(attrax=self.axs[0, 0], clstax=self.axs[0, 1], shapeax=self.axs[2, 0], combax=combax)
-        # self.add_suptitle(width=50, x=supx, y=supy, va=supva)
-        self.axs[-1, -1].text(0, 0, self.plttitle, wrap=True, fontsize=self.fontsize)
+        self.add_subtitles(self.attrix, self.clstix, self.shapeix, self.combix, self.specix)
+        self.add_text(self.axs[3, -1], width=25)
         
 
     def fill_subplots(self):
         # attr
-        self.add_nodes_to_ax(self.axs[0, 0], self.axs[1, 0], self.df, color_col=self.info.attr, use_different_shapes=False)
+        self.add_nodes_to_ax(self.attrix, self.df, color_col=self.info.attr, use_different_shapes=False)
 
         # cluster
-        self.add_nodes_to_ax(self.axs[0, 1], self.axs[1, 1], self.df, color_col='cluster', use_different_shapes=False)
+        self.add_nodes_to_ax(self.clstix, self.df, color_col='cluster', use_different_shapes=False)
 
         # attr as color, cluster as shapes
-        self.add_nodes_to_ax(self.axs[2, 0], self.axs[3, 0], self.df, color_col=self.info.attr, use_different_shapes=True)
+        self.add_nodes_to_ax(self.shapeix, self.df, color_col=self.info.attr, use_different_shapes=True)
 
         # cluster and attr combined as colors
         if self.is_cat:
-            self.add_nodes_to_ax(self.axs[2, 1], self.axs[3, 1], self.df, color_col=f'{self.info.attr}_cluster', use_different_shapes=False)
+            self.add_nodes_to_ax(self.combix, self.df, color_col=f'{self.info.attr}_cluster', use_different_shapes=False)
+
+        # special attribute
+        if self.has_special:
+            self.add_nodes_to_ax(self.specix, self.df, color_col=self.info.special, use_different_shapes=False)
 
         self.add_legends_and_titles()
 
@@ -249,26 +270,28 @@ class NkViz(VizBase):
                                 linewidths=0.2)
                  
 
-    def draw_edges(self, graph, pos, ax):
-        start = time.time()
+    def draw_edges(self, graph, pos, ix):
+        if ix is not None:
+            ax = self.get_ax(ix)
+            start = time.time()
 
-        edge_weights = nx.get_edge_attributes(graph, 'weight')
-        edge_color = list(edge_weights.values())
-        nx.draw_networkx_edges(graph, 
-                               pos, 
-                               ax=ax, 
-                               edge_color=edge_color, 
-                               edge_cmap=plt.cm.get_cmap('gist_yarg'),
-                               edge_vmax=self.global_vmax,
-                               edge_vmin=self.global_vmin,
-                               arrowsize=2, 
-                               width=0.5, 
-                               arrows=False, 
-                               alpha=0.6) # alpha for opacity
+            edge_weights = nx.get_edge_attributes(graph, 'weight')
+            edge_color = list(edge_weights.values())
+            nx.draw_networkx_edges(graph, 
+                                pos, 
+                                ax=ax, 
+                                edge_color=edge_color, 
+                                edge_cmap=plt.cm.get_cmap('gist_yarg'),
+                                edge_vmax=self.global_vmax,
+                                edge_vmin=self.global_vmin,
+                                arrowsize=2, 
+                                width=0.5, 
+                                arrows=False, 
+                                alpha=0.6) # alpha for opacity
 
-        ax.grid(False)
-        if time.time()-start > 10:
-            print(f'{time.time()-start}s to draw edges.')
+            ax.grid(False)
+            if time.time()-start > 10:
+                print(f'{time.time()-start}s to draw edges.')
 
 
     def get_graphs(self):
