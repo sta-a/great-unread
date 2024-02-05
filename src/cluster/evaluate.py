@@ -59,7 +59,6 @@ class NkIntEval():
         self.param_comb = self.info.param_comb
 
     def evaluate(self):
-        mod = np.nan
         mod = self.modularity()
         evals = {'modularity': mod}
         return evals
@@ -261,23 +260,36 @@ class ExtEval(DataHandler):
     def eval_continuous(self):
         df, valid = self.filter_attr()
 
-        # Run logreg
-        # Extract the attr values and reshape
-        X = df[self.info.attr].values.reshape(-1, 1)
-        y_true = df['cluster'].values.ravel()
-
         if valid:
+            # Extract the attr values and reshape
+            X = df[self.info.attr].values.reshape(-1, 1)
+            y_true = df['cluster'].values.ravel()
             logreg_acc, logrec_acc_balanced = self.logreg(X, y_true)
 
             # Create a list of arrays for each unique integer in 'cluster'
             cluster_groups = self.get_cluster_groups(df)
             anova = self.anova(cluster_groups)
             kw_statistic, kw_pval = self.kruskal(cluster_groups)
-            cont_scores = {'anova_pval': anova, 'logreg_acc': logreg_acc, 'logreg_acc_balanced': logrec_acc_balanced, 'nr_attr_nan': df[self.info.attr].isna().sum(), 'kruskal_statistic': kw_statistic, 'kruskal_pval': kw_pval}
+            cont_scores = {
+                'anova_pval': anova, 
+                'logreg_acc': logreg_acc, 
+                'logreg_acc_balanced': logrec_acc_balanced, 
+                'nr_attr_nan': df[self.info.attr].isna().sum(), 
+                'kruskal_statistic': kw_statistic, 
+                'kruskal_pval': kw_pval,
+                'valid_clsts': True}
         else:
             self.logger.info(f'Invalid clustering after filtering attr col for nan: {self.info.as_string()}')
-            cont_scores = {'anova_pval': 'invalid', 'logreg_acc': 'invalid', 'nr_attr_nan': df[self.info.attr].isna().sum()}
-        return cont_scores
+            i = np.nan
+            cont_scores = {
+                'anova_pval': i, 
+                'logreg_acc': i, 
+                'logreg_acc_balanced': i, 
+                'nr_attr_nan': df[self.info.attr].isna().sum(), 
+                'kruskal_statistic': i, 
+                'kruskal_pval': i,
+                'valid_clsts': False}
+            return cont_scores
     
 
     def get_cluster_groups(self, df):

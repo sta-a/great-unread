@@ -18,7 +18,8 @@ random.seed(9)
 import sys
 sys.path.append("..")
 from utils import DataHandler
-from .cluster_utils import CombinationInfo, Colors, VizBase
+from .analysis_utils import VizBase
+from cluster.cluster_utils import CombinationInfo
 import logging
 logging.basicConfig(level=logging.DEBUG)
 

@@ -20,8 +20,9 @@ from scipy.spatial.distance import squareform
 import sys
 sys.path.append("..")
 from utils import DataHandler
-from .create import SimMx
-from .cluster_utils import VizBase, Colors
+from .analysis_utils import VizBase
+from cluster.create import SimMx
+from cluster.cluster_utils import Colors
 import logging
 logging.basicConfig(level=logging.DEBUG)
 

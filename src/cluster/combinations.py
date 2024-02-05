@@ -18,7 +18,6 @@ from .create import D2vDist, Delta
 from .network import NXNetwork
 from .cluster import MxCluster, NkCluster, ClusterBase
 from .evaluate import ExtEval, MxIntEval, NkIntEval
-from .mxviz import MxReorder
 from .sparsifier import Sparsifier
 from .cluster_utils import CombinationInfo, MetadataHandler
 
@@ -31,10 +30,22 @@ class InfoHandler(DataHandler):
         super().__init__(language=language, output_dir='similarity', data_type='csv')
         self.add_color = add_color
         self.cmode = cmode
+        self.add_subdir(f'{self.cmode}comb')
         self.mh = MetadataHandler(self.language)
         self.metadf = self.mh.get_metadata(add_color=True)
         self.combinations_path = os.path.join(self.output_dir, f'{self.cmode}_log_combinations.txt')
-            
+
+
+    def get_info_path(self, info: str):
+        return os.path.join(self.subdir, f'info-{info}.pkl')
+    
+
+    def load_info(self, comb_info):
+        pickle_path = self.get_info_path(comb_info)              
+        with open(pickle_path, 'rb') as pickle_file:
+            info = pickle.load(pickle_file)
+            return info
+        
 
     def merge_dfs(self, metadf, clusterdf):
         # Combine file names, attributes, and cluster assignments
@@ -63,8 +74,6 @@ class CombinationsBase(InfoHandler):
         super().__init__(language, add_color, cmode)
         self.test = False
         self.mxs = self.load_mxs()
-        
-        self.add_subdir(f'{self.cmode}comb')
 
         self.save_data(data=self.metadf, filename='metadf')
         self.colnames = [col for col in self.metadf.columns if not col.endswith('_color')]
@@ -73,7 +82,6 @@ class CombinationsBase(InfoHandler):
         if self.test:
             self.mxs = self.mxs[3:6]
             self.colnames = ['gender', 'author', 'canon', 'year']
-            MxReorder.ORDERS = ['olo']
             MxCluster.ALGS = {
                 'hierarchical': {
                     'nclust': [2],
@@ -141,7 +149,7 @@ class CombinationsBase(InfoHandler):
 
     def check_data(self):
         if not os.path.exists(self.combinations_path):
-            self.log_combinations
+            self.log_combinations()
         dc = CombDataChecker(self.language, self.cmode, self.combinations_path)
         dc.check()
 
@@ -271,7 +279,7 @@ class CombDataChecker(DataHandler):
             self.scale = scale
 
             evaldir = os.path.join(self.output_dir, f'{self.cmode}eval')
-            df = pd.read_csv(os.path.join(evaldir, f'{self.scale}_results.csv'), header=0)
+            df = pd.read_csv(os.path.join(evaldir, f'{self.scale}_results.csv'), header=0, na_values=['NA'])
             df = self.drop_duplicated_rows(df)
             dfs.append(df)
 
@@ -323,3 +331,5 @@ class CombDataChecker(DataHandler):
 
         print(f'npossible: {npossible}, nclst: {nclst}, ncreated: {ncreated}')
         print(f'Evaluation files for language: {self.language} mode: {self.cmode} are complete and contain all combinations: {npossible == nclst + ncreated}')
+
+        # Deal with nan in duplicated rows

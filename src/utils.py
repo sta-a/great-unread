@@ -254,6 +254,7 @@ class DataHandler():
     
 
     def save_data_type(self, data, file_path, **kwargs):
+        print(file_path)
         data_type = self.get_custom_datatype(file_name_or_path=file_path, **kwargs)
 
         if data_type == 'csv':
@@ -296,6 +297,9 @@ class DataHandler():
 
         elif data_type == 'graphml':
             nx.write_graphml(data, file_path)
+
+        else:
+            raise ValueError(f'File extension {data_type} cannot be saved.')
 
         self.logger.debug(f'Saved {data_type} data to {file_path}')
 
