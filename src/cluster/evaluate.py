@@ -289,7 +289,7 @@ class ExtEval(DataHandler):
                 'kruskal_statistic': i, 
                 'kruskal_pval': i,
                 'valid_clsts': False}
-            return cont_scores
+        return cont_scores
     
 
     def get_cluster_groups(self, df):
@@ -309,7 +309,7 @@ class ExtEval(DataHandler):
         return pval[0]
     
     
-    def logreg(self, X, y_true, draw=False):
+    def logreg(self, X, y_true, draw=False, path=None):
         # Multinomial logistic regression to evaluate relationship between clustering and continuous variable
         model = LogisticRegression(max_iter=1000, class_weight='balanced', n_jobs=1)
         model.fit(X, y_true)
@@ -339,9 +339,12 @@ class ExtEval(DataHandler):
 
             plt.yticks(np.unique(y_true))
 
+            acc = accuracy_score(y_true=y_true, y_pred=y_pred)
+            bal = balanced_accuracy_score(y_true=y_true, y_pred=y_pred)
+
             # Display the legend
             plt.legend()
-            self.save_data(data=plt, data_type='png', subdir=True, file_name=f'logreg-{self.info.as_string()}-{self.info.attr}.png')
+            self.save_data(data=plt, data_type='png', subdir=True, file_path=os.path.join(path, f'logreg-{self.info.as_string()}_acc{acc}_bal{bal}.png'))
             plt.close()
 
         return accuracy_score(y_true=y_true, y_pred=y_pred), balanced_accuracy_score(y_true=y_true, y_pred=y_pred)

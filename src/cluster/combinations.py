@@ -65,6 +65,7 @@ class InfoHandler(DataHandler):
             print(info.as_string())
 
 
+
 class CombinationsBase(InfoHandler):
     '''
     This class runs all combinations of distance measures, sparsification algorithms, clustering algorithms, parameters, and evaluates the result for all attributes.
@@ -152,6 +153,7 @@ class CombinationsBase(InfoHandler):
             self.log_combinations()
         dc = CombDataChecker(self.language, self.cmode, self.combinations_path)
         dc.check()
+
 
 
 class MxCombinations(CombinationsBase):
@@ -260,6 +262,7 @@ class NkCombinations(CombinationsBase):
                                 f.write(info.as_string() + '\n')
 
 
+
 class CombDataChecker(DataHandler):
     '''
     Check if all combinations are in evaluation files.
@@ -301,7 +304,7 @@ class CombDataChecker(DataHandler):
         return df
 
 
-    def count_unique_lines(self):
+    def prepare_comb_log(self):
         unique_lines = set()
 
         with open(self.combinations_path, 'r') as file:
@@ -311,25 +314,34 @@ class CombDataChecker(DataHandler):
 
         n_unique_lines = len(unique_lines)
         return n_unique_lines
+    
 
+    def prepare_clst_log(self):
+        '''
+        Drop rows with duplicated info.
+        Duplicated log entries can happen if the program is restarted multiple times.
+        '''
+        cluster_logfile = ClusterBase(self.language, self.cmode, cluster_alg=None).logfile_path
+        cdf = pd.read_csv(cluster_logfile, header=0)
+        cdf = cdf.drop_duplicates(subset=['info'], keep='first')
+        cdf = cdf.loc[cdf['source'] == 'clst']
+        return cdf
+    
 
     def check_completeness(self, cat, cont):
-        nlines = self.count_unique_lines()
+        # Get nr possible combinations
+        nlines = self.prepare_comb_log()
+
         mh = MetadataHandler(self.language)
         metadf = mh.get_metadata(add_color=False)
-        metadf.to_csv('checktestmetadf.csv')
         nfeatures = metadf.shape[1]
         npossible = nfeatures * nlines
 
         # Combinations where clustering alg failed
-        cluster_logfile = ClusterBase(self.language, self.cmode, cluster_alg=None).logfile_path
-        cdf = pd.read_csv(cluster_logfile, header=0)
-        cdf = cdf.loc[cdf['source'] == 'clst']
+        cdf = self.prepare_clst_log()
         nclst = cdf.shape[0] * nfeatures
 
         ncreated = cat.shape[0] + cont.shape[0]
 
         print(f'npossible: {npossible}, nclst: {nclst}, ncreated: {ncreated}')
         print(f'Evaluation files for language: {self.language} mode: {self.cmode} are complete and contain all combinations: {npossible == nclst + ncreated}')
-
-        # Deal with nan in duplicated rows

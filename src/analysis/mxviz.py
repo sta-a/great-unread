@@ -243,7 +243,7 @@ class MxViz(VizBase):
             self.draw_mds(self.combix, color_col=f'{self.info.attr}_cluster', use_different_shapes=False)
 
         if self.has_special:
-            self.draw_mds(self.specix, color_col=self.info.special, use_different_shapes=False)
+            self.draw_mds(self.specix, color_col=self.info.special, use_different_shapes=True)
 
 
     def get_mds_positions(self):

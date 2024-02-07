@@ -36,7 +36,7 @@ class NkViz(VizBase):
 
         # Visualization parameters
         self.prog = 'neato'
-        self.markersize = 6
+        self.markersize = 8
         self.fontsize = 8
         self.global_vmax, self.global_vmin = self.get_cmap_params()
 
@@ -237,7 +237,7 @@ class NkViz(VizBase):
 
         # special attribute
         if self.has_special:
-            self.add_nodes_to_ax(self.specix, self.df, color_col=self.info.special, use_different_shapes=False)
+            self.add_nodes_to_ax(self.specix, self.df, color_col=self.info.special, use_different_shapes=True)
 
         self.add_legends_and_titles()
 
@@ -288,7 +288,7 @@ class NkViz(VizBase):
                                 arrowsize=2, 
                                 width=0.5, 
                                 arrows=False, 
-                                alpha=0.6) # alpha for opacity
+                                alpha=0.3) # alpha for opacity
 
             ax.grid(False)
             if time.time()-start > 10:
@@ -376,8 +376,8 @@ class NkViz(VizBase):
 
         # Save graphml
         path = self.get_path(data_type='graphml')
-        graph = self.save_graphml()
-        self.save_data(data=graph, data_type='graphml', file_name=None, file_path=path)
+        # graph = self.save_graphml()
+        # self.save_data(data=graph, data_type='graphml', file_name=None, file_path=path)
 
 
     def save_graphml(self):

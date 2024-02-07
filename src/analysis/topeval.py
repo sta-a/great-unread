@@ -4,6 +4,7 @@ import sys
 sys.path.append("..")
 import itertools
 from cluster.combinations import InfoHandler
+from cluster.evaluate import ExtEval
 import logging
 logging.basicConfig(level=logging.DEBUG)
 
@@ -12,13 +13,12 @@ class TopEval(InfoHandler):
     '''
     Filter evaluation files.
     '''
-    def __init__(self, language, cmode, expname, expd):
+    def __init__(self, language, cmode, exp, expdir):
         super().__init__(language=language, add_color=True, cmode=cmode)
         self.cmode = cmode
-        self.expname = expname
-        self.expd = expd
-        self.ntop = 2
-        self.prepare_dfs()
+        self.exp = exp
+        self.expdir = expdir
+        self.ntop = self.exp['ntop']
 
 
     def extend_sizes_col(self, df):
@@ -49,10 +49,22 @@ class TopEval(InfoHandler):
         '''
         Find the size of the biggest cluster.
         Filter for rows where size of biggest cluster is below threshold.
+        Look only at clusters that are bigger than 1.
         This avoids combinations where most data points are put into one cluster.
         '''
+        niso = df['clst_sizes_ext'].apply(lambda x: x.count(1))
+        nsamples = df['clst_sizes_ext'].apply(sum)
+        nsamples_noniso = nsamples - niso
+
+
         df['biggest_clst'] = df['clst_sizes_ext'].apply(lambda x: x[0])
-        df = df[df['biggest_clst'] <= self.expd['maxsize']]
+        print(self.exp['maxsize'] * nsamples_noniso)
+        df = df[df['biggest_clst'] <= self.exp['maxsize'] * nsamples_noniso]
+        return df
+    
+
+    def add_rank(self, df):
+        df['rank'] = df[self.exp['evalcol']].rank(method='dense', ascending=False).astype(int)
         return df
     
                                 
@@ -60,22 +72,27 @@ class TopEval(InfoHandler):
         '''
         Combine relevant evaluation measures into a string to display on the plots.
         '''
-        if self.cmode == 'mx':
-            if self.scale == 'cat':
-                cols = ['ARI', 'nmi', 'fmi', 'mean_purity', 'silhouette_score', 'nclust', 'clst_sizes']
-            else:
-                cols = ['logreg_acc', 'logreg_acc_balanced', 'anova_pval', 'silhouette_score', 'nclust', 'clst_sizes']
+        general = ['nclust', 'clst_sizes']
+        
+        if 'evalcol' in self.exp:
+            df = self.add_rank(df)
+            general = ['rank'] + general
 
-        elif self.cmode == 'nk':
-            if self.scale == 'cat':
-                cols = ['ARI', 'nmi', 'fmi', 'mean_purity', 'modularity', 'nclust', 'clst_sizes']
-            else:
-                cols = ['logreg_acc', 'logreg_acc_balanced', 'anova_pval', 'modularity', 'nclust', 'clst_sizes']
+        if self.scale == 'cat':
+            cols = ['ARI', 'nmi', 'fmi', 'mean_purity', 'silhouette_score']
+        else:
+            cols = ['logreg_acc', 'logreg_acc_balanced', 'anova_pval', 'kruskal_pval', 'silhouette_score']
 
-        # Create the plttitle column
+        # Internal evaluation metric is different for mx and nk clustering
+        if self.cmode == 'nk':
+            cols = [s.replace('silhouette_score', 'modularity') for s in cols]
+
+        cols = general + cols
+
+        # String of interesting columns to be displayed on the plot
         df['plttitle'] = df[cols].apply(lambda row: ', '.join(f"{col}: {row[col]}" for col in cols), axis=1)
         return df
-    
+
 
     def drop_duplicated_rows(self, df):
         '''
@@ -114,14 +131,14 @@ class TopEval(InfoHandler):
             return next_divisible
         
 
-        if len(self.expd['dfs']) == 1:
+        if len(self.exp['dfs']) == 1:
             nrows = self.ntop
         else:
             # The same clustering has the same internal evaluation value, but multiple rows in the df to to the different attrs
             # Find the next multiple of the nr attrs being considered that is bigger than ntop
-            nrows = find_next_divisible(self.ntop, len(self.expd['attr']))
+            nrows = find_next_divisible(self.ntop, len(self.exp['attr']))
 
-        evalcol = self.expd['evalcol']
+        evalcol = self.exp['evalcol']
         # Filter out rows that contain string values ('invalid')
         mask = pd.to_numeric(df[evalcol], errors='coerce').notnull()
         df = df.loc[mask]
@@ -132,14 +149,22 @@ class TopEval(InfoHandler):
         return df 
         
 
-    def filter_attr(self, df):
-        df = df[df['attr'].isin(self.expd['attr'])]
+    def filter_column_exact(self, df, colname):
+        df = df[df[colname].isin(self.exp[colname])]
+        return df
+    
+
+    def filter_columns_substring(self, df, colname):     
+        # Filter rows where the mxname column contains any substring from self.exp['mxs']
+        df = df[df[colname].str.contains(self.exp[colname])]
+        
         return df
     
     
-    def prepare_dfs(self):
+    def create_data(self):
+        print('creating data###########################')
         self.dfs = {}
-        for scale in self.expd['dfs']:
+        for scale in self.exp['dfs']:
             self.scale = scale
             evaldir = os.path.join(self.output_dir, f'{self.cmode}eval')
             df = pd.read_csv(os.path.join(evaldir, f'{self.scale}_results.csv'), header=0, na_values=['NA'])
@@ -147,42 +172,45 @@ class TopEval(InfoHandler):
             df = self.drop_na_rows(df)
             df = self.drop_duplicated_rows(df)
             df = self.extend_sizes_col(df)
-            if 'maxsize' in self.expd:
+            if 'maxsize' in self.exp:
                 df = self.filter_clst_sizes(df)
-            if 'attr' in self.expd:
-                df = self.filter_attr(df)
-            df = self.filter_top_rows(df)
-            df = self.make_plttitle(df)
+            if 'attr' in self.exp:
+                df = self.filter_column_exact(df, 'attr')
+            if 'mxname' in self.exp:
+                df = self.filter_columns_substring(df, 'mxname')
+            if 'clst_alg_params' in self.exp:
+                df = self.filter_columns_substring(df, 'clst_alg_params')
             self.dfs[self.scale] = df
     
 
-    def get_topdict(self):
-        '''
-        Find combinations with the best evaluation scores for both categorical and continuous attributes.
-        '''
-        topdict = {}
-
-        if len(self.expd['dfs']) == 1:
-            # For external evaluation, ntop rows are kept for each cat and cont
-            # Different evaluation metrics are used and they are not compareable
-            for name, df in self.dfs.items():
-                d = dict(zip(df['file_info'], df['plttitle'])) 
-                topdict.update(d)
+        if len(self.exp['dfs']) == 2:
+            df = pd.concat(self.dfs, ignore_index=False)
         else:
-            dfs = [df[['file_info', 'plttitle', self.expd['evalcol']]] for df in self.dfs.values()]
-            df = pd.concat(dfs)
-            # For inteval, only ntop rows are kept, because cat and cont can be compared with the same inteval measure
+            df = self.dfs[self.scale]
+
+        if 'evalcol' in self.exp:
             df = self.filter_top_rows(df)
-            self.dfs = {'df': df}
-        return topdict
+        df = self.make_plttitle(df)
+
+        self.save_data(data=df)
     
+
+    def run_logreg(self, info, metadf):
+        if 'logreg_acc' or 'logreg_acc_balanced' in self.exp.values():
+            X = metadf[info.attr].values.reshape(-1, 1)
+            y_true = metadf['cluster'].values.ravel()
+
+            ee = ExtEval(self.language, self.cmode, info, inteval=None)
+            logreg_acc, logrec_acc_balanced = ee.logreg(X, y_true, draw=True, path=self.expdir)
+
 
     def get_top_combinations(self):
         '''
         Get combinations with the best evaluation scores, load their info from file.
         '''
-        topdict = self.get_topdict()
-
+        df = self.load_data()
+        topdict = dict(zip(df['file_info'], df['plttitle'])) 
+    
         for tinfo, plttitle in topdict.items():
             comb_info, attr = tinfo.rsplit('_', 1)
             info = self.load_info(comb_info)
@@ -191,9 +219,11 @@ class TopEval(InfoHandler):
             metadf = self.merge_dfs(self.metadf, info.clusterdf)
             metadf = self.mh.add_cluster_color_and_shape(metadf)
             info.add('metadf', metadf)
+            self.run_logreg(info, metadf)
             yield info, plttitle
 
 
-    def save_dfs(self, path):
-        for name, df in self.dfs.items():
-            self.save_data(data=df, file_path=os.path.join(path, f'{name}.{self.data_type}'))
+    def get_file_path(self, file_name):
+        # file_name for compatibility
+        return os.path.join(self.expdir, f'df.{self.data_type}')
+    

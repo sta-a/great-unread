@@ -181,6 +181,19 @@ class DataHandler():
         self.language = language
         self.data_dir = data_dir
 
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger.setLevel(logging.DEBUG)
+        # Check if the logger already has handlers to avoid adding duplicates
+        if not self.logger.handlers:
+            # Set the logger's name to the class name
+            console_handler = logging.StreamHandler()
+            console_handler.setLevel(logging.INFO)  # Set the handler's threshold level
+            formatter = logging.Formatter('%(levelname)s - %(name)s - %(message)s')
+            console_handler.setFormatter(formatter)
+            self.logger.addHandler(console_handler)
+            self.logger.propagate = False
+
+
         self.output_dir = self.create_output_dir(output_dir)
         self.text_raw_dir = os.path.join(self.data_dir, 'text_raw', language)
         self.doc_paths = get_doc_paths(self.text_raw_dir)
@@ -194,22 +207,9 @@ class DataHandler():
             self.nr_texts = 605
         else:
             self.nr_texts = 547
-
-
-        self.logger = logging.getLogger(self.__class__.__name__)
-        self.logger.setLevel(logging.INFO)  # Set the logger's threshold level
-        # Check if the logger already has handlers to avoid adding duplicates
-        if not self.logger.handlers:
-            # Set the logger's name to the class name
-            console_handler = logging.StreamHandler()
-            console_handler.setLevel(logging.INFO)  # Set the handler's threshold level
-            formatter = logging.Formatter('%(levelname)s - %(name)s - %(message)s')
-            console_handler.setFormatter(formatter)
-            self.logger.addHandler(console_handler)
-            self.logger.propagate = False
-
         if self.test:
             self.doc_paths = get_doc_paths_sorted(self.text_raw_dir)[:3]
+
 
     def create_dir(self, dir_path):
         try:
@@ -254,7 +254,6 @@ class DataHandler():
     
 
     def save_data_type(self, data, file_path, **kwargs):
-        print(file_path)
         data_type = self.get_custom_datatype(file_name_or_path=file_path, **kwargs)
 
         if data_type == 'csv':
@@ -316,6 +315,7 @@ class DataHandler():
         # else:
         #     self.logger.debug(f'already exists: {file_path}')
 
+
     def load_data(self, load=True, file_name=None, **kwargs):
         self.logger.debug(f'Loading data. If create_data loads data from file, doc_path must be passed with kwargs.')
         file_path = self.get_file_path(file_name=file_name, **kwargs)
@@ -327,6 +327,7 @@ class DataHandler():
             data = self.load_data_type(file_path, **kwargs)
         return data
     
+
     def load_data_type(self, file_path, **kwargs):
         if self.data_type == 'csv':
             data = pd.read_csv(file_path, header=0, index_col=0, sep=',')
@@ -344,18 +345,12 @@ class DataHandler():
                 data = [line.rstrip('\n') for line in data]
                           
         return data
+    
 
     def create_all_data(self, **kwargs):
         # Check if file exists and create it if necessary
         for mode in self.modes:
             _ = self.load_data(load=False, mode=mode, **kwargs)
-
-
-    # def create_all_data(self):
-    #     startc = time.time()
-    #     for i, doc_path in enumerate(self.doc_paths):
-    #         _ = self.load_data(load=False, file_name=get_filename_from_path(doc_path), doc_path=doc_path)
-    #     print(f'{time.time()-startc}s to tokenize all texts')
 
     
     def load_all_data(self, **kwargs):
@@ -366,6 +361,7 @@ class DataHandler():
             all_data[mode] = data
         return all_data
     
+
     def get_custom_datatype(self, file_name_or_path=None, **kwargs):
         if 'data_type' in kwargs:
             data_type = kwargs['data_type']
@@ -383,6 +379,7 @@ class DataHandler():
             else:
                 data_type = self.data_type
         return data_type
+    
 
     def create_filename(self, **kwargs):
         data_type = self.get_custom_datatype(**kwargs)

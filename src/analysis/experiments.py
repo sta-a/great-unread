@@ -1,5 +1,6 @@
 import sys
 sys.path.append("..")
+from copy import deepcopy
 
 from utils import DataHandler
 from .mxviz import MxViz
@@ -8,8 +9,8 @@ from .topeval import TopEval
 from cluster.network import NXNetwork
 from cluster.combinations import CombinationsBase
 
-import logging
-logging.basicConfig(level=logging.DEBUG)
+# import logging
+# logging.basicConfig(level=logging.DEBUG)
 
 
 
@@ -21,36 +22,77 @@ class ExpBase(DataHandler):
         # self.metadf = self.mh.get_metadata(add_color=True)
 
 
-    def run_experiments(self):
+    def get_experiments(self):
         # Default values
-        maxsize = round(0.9*self.nr_texts)
-
+        maxsize = 0.9
+        embmxs = ['both', 'full']
         cat_evalcol = 'ARI'
         cont_evalcol = 'logreg_acc'
-
         if self.cmode == 'mx':
             evalcol = 'silhouette_score'
         else:
             evalcol = 'modularity'
 
 
-        topkcat = {'maxsize': maxsize, 'evalcol': cat_evalcol, 'special': True, 'dfs': ['cat']}
-        topkcont = {'maxsize': maxsize, 'evalcol': cont_evalcol, 'special': True, 'dfs': ['cont']}
+        # Overall best performance
+        topdicts = [
+            {'name': 'topcat', 'maxsize': maxsize, 'evalcol': cat_evalcol, 'special': True, 'dfs': ['cat']},
+            {'name': 'topcont', 'maxsize': maxsize, 'evalcol': cont_evalcol, 'special': True, 'dfs': ['cont'], 'ntop': self.nr_texts}, #########################3ntop
+            {'name': 'topcont_bal', 'maxsize': maxsize, 'evalcol': 'logreg_acc_balanced', 'special': True, 'dfs': ['cont']}
+        ]
 
-        topcanon = {'maxsize': maxsize, 'evalcol': cont_evalcol, 'attr': ['canon'], 'special': False, 'dfs': ['cont']}
+        # Visualize canon
+        canondicts = [
+            {'name': 'topcanon', 'maxsize': maxsize, 'evalcol': cont_evalcol, 'attr': ['canon'], 'special': False, 'dfs': ['cont']},
+            {'name': 'topcanon_bal', 'maxsize': maxsize, 'evalcol': 'logreg_acc_balanced', 'attr': ['canon'], 'special': False, 'dfs': ['cont']}
+        ]
+
+        # Get best performance of embedding distances
+        topdicts_emb = []
+        for cdict in topdicts + canondicts:
+            d = deepcopy(cdict)
+            d['mxname'] = embmxs
+            d['name'] = d['name'] + '_emb'
+            topdicts_emb.append(d)
+
 
         # Internal evaluation criterion
         interesting_attrs = ['author', 'gender', 'canon', 'year']
-        intfull = {'maxsize': self.nr_texts, 'attr': interesting_attrs, 'evalcol': evalcol, 'special': True, 'dfs': ['cat', 'cont']}
-        intmax = {'maxsize': maxsize, 'attr': interesting_attrs, 'evalcol': evalcol, 'special': True, 'dfs': ['cat', 'cont']}
+        intdicts = [
+            {'name': 'intfull', 'maxsize': self.nr_texts, 'attr': interesting_attrs, 'evalcol': evalcol, 'special': True, 'dfs': ['cat', 'cont']},
+            {'name': 'intmax', 'maxsize': maxsize, 'attr': interesting_attrs, 'evalcol': evalcol, 'special': True, 'dfs': ['cat', 'cont']}
+        ]
 
-        exps = {'intfull': intfull, 'intmax': intmax, 'topkcat': topkcat, 'topkcont': topkcont, 'topcanon': topcanon}
-        exps = {'topcanon': topcanon}
+        # Check if clustering is constant over multiple parameter combinations
+        compclust = [{'name': 'compclust', 'maxsize': maxsize, 'dfs': ['cat'], 'attr': ['author'], 'clst_alg_params': 'alpa', 'ntop': self.nr_texts}]
+        if self.cmode == 'mx':
+            compclust[0]['clst_alg_params'] = 'hierarchical-nclust-5-method-average'
+
+        exps = topdicts + topdicts_emb + intdicts + canondicts + compclust
+        exps = [topdicts[1]] ##########################
+        return exps
 
 
-        for expname, expd in exps.items():
-            te = TopEval(self.language, self.cmode, expname, expd)
-            self.run_experiment(expname, expd, te)
+    def run_experiments(self, ntop=1):
+        exps = self.get_experiments()
+        for exp in exps:
+            expname = exp['name']
+            if 'ntop' not in exp:
+                exp['ntop'] = ntop
+
+            self.add_subdir(f'{self.cmode}{expname}')
+            te = TopEval(self.language, self.cmode, exp, expdir=self.subdir)
+
+            # if expname == 'compclust':
+            #     self.compare_clusters(exp, te)
+            # else:
+            #     self.run_experiment(exp, te)
+            self.run_experiment(exp, te)
+
+
+    def compare_clusters(self, exp, te):
+        df = te.load_data()
+
 
 
 class MxExp(ExpBase):
@@ -58,27 +100,14 @@ class MxExp(ExpBase):
         super().__init__(language, 'mx')
 
 
-    def run_experiment(self, expname, expd, te):
-        # topkpath = 'mxtopk.pkl'
-        # if os.path.exists(topkpath):
-        #     print(topkpath)
-        #     with open(topkpath, 'rb') as file:
-        #         topk_comb = pickle.load(file)
-        #         print('loaded topk')
-        # else:
-        #     topk_comb = list(self.get_top_combinations(expd))
-        #     with open(topkpath, 'wb') as file:
-        #         pickle.dump(topk_comb, file)
-        #         print('created topk')
-
+    def run_experiment(self, exp, te):
+        expname = exp['name']
 
         for topk in te.get_top_combinations():
-        # for topk in topk_comb:
             info, plttitle = topk
             print(info.as_string())
-            if expd['special'] == True:
+            if exp['special'] == True:
                 info.add('special', 'canon')
-                print('added canon')
 
             # Get matrix
             cb = CombinationsBase(self.language, add_color=False, cmode='mx')
@@ -89,10 +118,6 @@ class MxExp(ExpBase):
             viz = MxViz(self.language, mx, info, plttitle=plttitle, expname=expname)
             viz.visualize()
 
-        self.add_subdir(f'{self.cmode}{expname}')
-        print(self.subdir)
-        te.save_dfs(path=self.subdir)
-
 
 
 class NkExp(ExpBase):
@@ -100,25 +125,16 @@ class NkExp(ExpBase):
         super().__init__(language, 'nk')
 
 
-    def run_experiment(self, expname, expd, te):
-        # topkpath = 'nktopk.pkl' #############################
-        # if os.path.exists(topkpath):
-        #     with open(topkpath, 'rb') as file:
-        #         topk_comb = pickle.load(file)
-        # else:
-        #     topk_comb = list(self.get_top_combinations(expd))
-        #     with open(topkpath, 'wb') as file:
-        #         pickle.dump(topk_comb, file)
+    def run_experiment(self, exp, te):
+        expname = exp['name']
+        self.add_subdir(f'{self.cmode}{expname}')
+        te = TopEval(self.language, self.cmode, exp, expdir=self.subdir)
 
         for topk in te.get_top_combinations():
-        # for topk in topk_comb:
             info, plttitle = topk
             print(info.as_string())
-            if 'special' in expd:
+            if 'special' in exp:
                 info.add('special', 'canon')
             network = NXNetwork(self.language, path=info.spmx_path)
             viz = NkViz(self.language, network, info, plttitle=plttitle, expname=expname)          
             viz.visualize()
-
-        self.add_subdir(f'{self.cmode}{expname}')
-        te.save_dfs(path=self.subdir)

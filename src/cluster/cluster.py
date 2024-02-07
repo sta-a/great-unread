@@ -227,14 +227,14 @@ class MxCluster(ClusterBase):
     '''
     ALGS = {
         'hierarchical': {
-            'nclust': [5, 10],
+            'nclust': [5, 10, 20, 50],
             'method': ['single', 'weighted', 'centroid','ward', 'median', 'average', 'complete'],
             },
         'spectral': {
-            'nclust': [5, 10, 20],
+            'nclust': [5, 10, 20, 50],
             },
         'kmedoids': {
-            'nclust': [5, 10, 20],
+            'nclust': [5, 10, 20, 50],
             },
         'dbscan': {
             'eps': [0.1, 0.3, 0.5, 0.7, 0.9],

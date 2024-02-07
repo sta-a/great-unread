@@ -12,6 +12,7 @@ import textwrap
 import sys
 sys.path.append("..")
 from utils import DataHandler
+from cluster.cluster_utils import Colors
 import logging
 logging.basicConfig(level=logging.DEBUG)
 
@@ -89,6 +90,7 @@ class VizBase(DataHandler):
             fontsize = self.fontsize
 
         mapping = {}
+        self.df[attr] = self.df[attr].astype(str) # Enforce that gender column is treated as string
         for unique_attr in self.df[attr].unique().tolist():
             cdf = self.df[self.df[attr] == unique_attr]
             attribute = cdf.iloc[0][f'{attr}_color']
@@ -117,7 +119,7 @@ class VizBase(DataHandler):
                 # If attr is author name, get only the first letter of the first name to keep legend short
                 if '_' in unique_attr:
                     name_parts = unique_attr.split("_")
-                    clabel = f'{name_parts[0]}{name_parts[1][0]} ({count})' ####################
+                    clabel = f'{name_parts[0]}{name_parts[1][0]} ({count})'
                 else:
                     clabel = f'{unique_attr} ({count})'
                 

@@ -14,13 +14,18 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 
 
-
+# p = ['/home/annina/scripts/great_unread_nlp/data/analysis']
+# remove_directories(p)
 # delete_png_files([''])
 mxex = MxExp(language='eng')
 mxex.run_experiments()
 
+#### nlargest keep!!!
 
-##### nlargest keep!!!
+
+
+
+
 
 # %%
 
@@ -41,6 +46,11 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 
 
+p = ['/home/annina/scripts/great_unread_nlp/data/analysis']
+remove_directories(p)
+
 # delete_png_files([''])
 nkex = NkExp(language='eng')
 nkex.run_experiments()
+
+# %%
