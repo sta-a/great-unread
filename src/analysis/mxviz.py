@@ -8,7 +8,6 @@ from copy import deepcopy
 from sklearn.manifold import MDS
 from mpl_toolkits.mplot3d import Axes3D
 import os
-import matplotlib.gridspec as gridspec
 import textwrap
 import time
 import random
@@ -54,7 +53,7 @@ class MxReorder():
         else:
             raise ValueError(f"Invalid order value: {self.info.order}")
 
-        assert self.mx.mx.shape == ordmx.shape
+        # assert self.mx.mx.shape == ordmx.shape
         assert self.mx.mx.equals(self.mx.mx.T)
         assert ordmx.index.equals(ordmx.columns), 'Index and columns of ordmx must be equal.'
 
@@ -120,11 +119,8 @@ class MxReorder():
         assert len(set(ordered_fns)) == len(ordered_fns)
         ordmx = self.mx.mx.loc[ordered_fns, ordered_fns]
         ordmx = SimMx(self.language, name='olo', mx=ordmx, normalized=True, is_sim=True, is_directed = self.mx.is_directed, is_condensed=False)
-
-        nr_texts = DataHandler(self.language).nr_texts
-        assert (ordmx.mx.shape[0] == nr_texts) and (ordmx.mx.shape[1] == nr_texts) 
-
         return ordmx
+
 
 
 class MxViz(VizBase):
@@ -143,42 +139,51 @@ class MxViz(VizBase):
         self.ws_hspace = 0.2
 
 
-    def visualize(self):
-        self.pos = self.get_mds_positions()
-        self.df = self.prepare_metadata()
-        self.get_figure()
-        self.fill_subplots()
-        self.add_legends_and_titles()
-        path = self.get_path(data_type=self.data_type)
-        self.save_data(data=plt, data_type=self.data_type, file_name=None, file_path=path, plt_kwargs={'dpi': 600})
-        plt.show()
-  
-        
+    def visualize(self, vizname='viz', omit=[]):
+        self.vizpath = self.get_path(name=vizname, omit=omit)
+        if not os.path.exists(self.vizpath):
+            self.pos = self.get_mds_positions()
+            self.df = self.prepare_metadata()
+            self.get_figure()
+            self.fill_subplots()
+            self.add_legends_and_titles()
+            self.save_plot(plt)
+            # plt.show()
+
+
     def get_figure(self):
-        ncol = 4
+        self.ncol = 4
         if self.is_cat:
-            ncol += 1
+            self.ncol += 1
 
         if self.has_special:
-            ncol += 1
+            self.ncol += 1
 
         width = 5
-        self.fig, self.axs = plt.subplots(2, ncol, figsize=(ncol*width, 2*width))
+        self.nrow = 2
+        if self.is_topattr_viz:
+            self.nrow += 2
 
-        gridpos = ncol + 2
-        for i in range(1, ncol):
-            # In add_subplot, speciy nrows, ncols, position of subplot in the grid
-            # The first index is in the second row and the second col
-            self.axs[1, i].axis('off')
-            self.axs[1, i] = self.fig.add_subplot(2, ncol, gridpos, projection='3d')
-            gridpos += 1
+        self.fig, self.axs = plt.subplots(self.nrow, self.ncol, figsize=(self.ncol*width, self.nrow*width))
+
+        gridpos = self.ncol + 2
+        for j in range(1, self.nrow, 2):
+            for i in range(1, self.ncol):
+                # In add_subplot, speciy nrow, ncol, position of subplot in the grid
+                # The first index is in the second row and the second col
+                self.axs[j, i].axis('off')
+                self.axs[j, i] = self.fig.add_subplot(self.nrow, self.ncol, gridpos, projection='3d')
+                gridpos += 1
+            gridpos += (self.ncol + 1)
 
         # # Set aspect ratio to 'equal' for 3D subplots
         # axs3d = [self.axs[1, 1], self.axs[1, 2], self.axs[1, 3]]
         # for ax in axs3d:
         #     ax.set_box_aspect([1, 1, 1])
 
-        self.axs[1, 0].axis('off')
+        for j in range(1, self.nrow):
+            self.axs[j, 0].axis('off')
+
         self.fig.subplots_adjust(
             left=self.ws_left,
             right=self.ws_right,
@@ -245,10 +250,23 @@ class MxViz(VizBase):
         if self.has_special:
             self.draw_mds(self.specix, color_col=self.info.special, use_different_shapes=True)
 
+        if self.is_topattr_viz:
+            self.draw_mds([2, 1], color_col=self.exp_attrs[0], use_different_shapes=True)
+            self.draw_mds([2, 2], color_col=self.exp_attrs[1], use_different_shapes=True)
+            self.draw_mds([2, 3], color_col=self.exp_attrs[2], use_different_shapes=True)
+            self.get_ax([2, 1]).set_title(self.exp_attrs[0], fontsize=self.fontsize)
+            self.get_ax([2, 2]).set_title(self.exp_attrs[1], fontsize=self.fontsize)
+            self.get_ax([2, 3]).set_title(self.exp_attrs[2], fontsize=self.fontsize)
+
+        for j in range(1, self.nrow):
+            for i in range(1, self.ncol):
+                if not self.axs[j,i].has_data():
+                    self.axs[j,i].axis('off')
+
 
     def get_mds_positions(self):
         # Store layouts because it takes a lot of time to calculate them
-        pkl_path = self.get_file_path(file_name=f'mds-{self.mx.name}.pkl', subdir=True) 
+        pkl_path = self.get_file_path(file_name=f'mds-{self.mx.name}.pkl') 
         if os.path.exists(pkl_path):
             with open(pkl_path, 'rb') as f:
                 df = pickle.load(f)
@@ -294,8 +312,8 @@ class MxViz(VizBase):
         for shape in shapes:
             sdf = df[df['clst_shape'] == shape]
             kwargs = {'c': sdf[color_col], 'marker': shape, 's': 30, 'edgecolor': 'black', 'linewidth': 0.2} ################10
-            self.axs[0, ix[1]].scatter(x=sdf['X_mds_2d_0'], y=sdf['X_mds_2d_1'], **kwargs)
-            self.axs[1, ix[1]].scatter(sdf['X_mds_3d_0'], sdf['X_mds_3d_1'], sdf['X_mds_3d_2'], **kwargs)
+            self.axs[ix[0], ix[1]].scatter(x=sdf['X_mds_2d_0'], y=sdf['X_mds_2d_1'], **kwargs)
+            self.axs[ix[0]+1, ix[1]].scatter(sdf['X_mds_3d_0'], sdf['X_mds_3d_1'], sdf['X_mds_3d_2'], **kwargs)
 
 
     def draw_heatmap(self, ax):
@@ -309,3 +327,106 @@ class MxViz(VizBase):
         # Add a color bar to the heatmap for better understanding of the similarity values
         cbar = plt.colorbar(im, ax=ax, fraction=0.045, pad=0.1, location='left')
 
+
+
+class MxVizAttr(MxViz):
+    def __init__(self, language, mx, info, plttitle, expname):
+        super().__init__(language, mx, info, plttitle, expname)
+        self.data_type = 'svg'
+        self.fontsize = 5
+        self.nrow = 2
+        self.ncol = 4
+
+
+    def create_logfile(self, all_cols, nfields):
+        df = pd.DataFrame({'feature': all_cols})
+
+        df['cmode'] = self.cmode
+        df['mxname'] = self.info.mxname
+        df['distinctive'] = ''
+
+        # Nr of plot that contains feature
+        viznr_values = []
+        group_size = int(nfields/2)
+        for i in range(len(df)):
+            viznr_values.append(i // group_size)
+        df['viznr'] = viznr_values
+
+        df = df[['cmode', 'mxname', 'viznr', 'feature', 'distinctive']]
+        self.save_data(data=df, subdir=True, file_name='visual-assessment.csv', data_type='csv')
+
+
+    def visualize(self):
+        all_cols = self.get_feature_columns(self.info.metadf)
+        nfields = self.nrow * self.ncol # fields per plot
+        nplots = len(all_cols)*2 # 2 fields used for each feature
+        nfig = nplots // nfields 
+        if nplots % nfields != 0:
+            nfig += 1
+        self.create_logfile(all_cols, nfields)
+
+        ix = 0
+        for i in range(nfig):
+            self.cols = all_cols[ix: ix + int((nfields)/2)]
+            print(ix, ix + int((nfields)/2))
+            print(self.cols)
+            ix += int(nfields/2)
+            super().visualize(vizname=f'viz{i}', omit=['clst_alg_params', 'attr'])
+
+
+    def get_figure(self):
+        self.fig, self.axs = plt.subplots(self.nrow, self.ncol, figsize=(15, 7.5))
+
+        for i in range(self.nrow):
+            for j in range(self.ncol):
+                # Check if the subplot index is even
+                if j % 2 != 0:
+                    # Plot a 3D plot
+                    self.axs[i, j].axis('off')
+                    self.axs[i, j] = self.fig.add_subplot(self.nrow, self.ncol, i * self.ncol + j + 1, projection='3d')
+                    # ax.plot([0, 1], [0, 1], [0, 1])
+                    # self.axs[i, j].axis('off')
+
+        for i in range(self.nrow):
+            for j in range(self.ncol):
+                self.axs[i, j].set_xticks([])  # Remove x-axis ticks
+                self.axs[i, j].set_yticks([])  # Remove y-axis ticks
+                self.axs[i, j].set_xticklabels([])  # Remove x-axis tick labels
+                self.axs[i, j].set_yticklabels([])  # Remove y-axis tick labels
+                self.axs[i, j].set_aspect('equal')  # Set equal aspect ratio for squares
+        # plt.subplots_adjust(wspace=0, hspace=0)
+    
+
+    def fill_subplots(self):
+        for i in range(self.nrow):
+            for j in range(self.ncol):
+                if j % 2 == 0:
+                    index = int((i * self.ncol + j)/2)
+                    if index < len(self.cols):
+                        self.draw_mds([i, j], color_col=self.cols[index], use_different_shapes=False)
+
+
+
+    def draw_mds(self, ix, color_col=None, use_different_shapes=False):
+        color_col = f'{color_col}_color'
+        
+        df = self.df.copy() # Avoid chained assingment warning
+        # Iterate through shapes because only one shape can be passed at a time, no lists
+        if not use_different_shapes:
+            df['clst_shape'] = 'o'
+        shapes = df['clst_shape'].unique()
+
+        for shape in shapes:
+            sdf = df[df['clst_shape'] == shape]
+            kwargs = {'c': sdf[color_col], 'marker': shape, 's': 20, 'edgecolor': 'black', 'linewidth': 0.2}
+            self.axs[ix[0], ix[1]].scatter(x=sdf['X_mds_2d_0'], y=sdf['X_mds_2d_1'], **kwargs)
+            self.axs[ix[0], ix[1]+1].scatter(sdf['X_mds_3d_0'], sdf['X_mds_3d_1'], sdf['X_mds_3d_2'], **kwargs)
+
+
+    def add_legends_and_titles(self):
+        for i in range(self.nrow):
+            for j in range(self.ncol):
+                if j % 2 == 0:
+                    index = int((i * self.ncol + j)/2)
+                    if index < len(self.cols):
+                        self.axs[i, j].set_title(self.cols[index])

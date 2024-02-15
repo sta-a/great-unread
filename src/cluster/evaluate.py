@@ -334,16 +334,25 @@ class ExtEval(DataHandler):
 
             # Set labels and title
             plt.xlabel(f'{self.info.attr.capitalize()}')
-            plt.ylabel('Clusters from Clustering Alg)')
+            plt.ylabel('Clusters from Clustering Algorithm')
             plt.title('Logistic Regression')
 
             plt.yticks(np.unique(y_true))
 
-            acc = accuracy_score(y_true=y_true, y_pred=y_pred)
-            bal = balanced_accuracy_score(y_true=y_true, y_pred=y_pred)
+            acc = round(accuracy_score(y_true=y_true, y_pred=y_pred), 2)
+            bal = round(balanced_accuracy_score(y_true=y_true, y_pred=y_pred), 2)
 
             # Display the legend
-            plt.legend()
+            # plt.legend()
+            # Create legend entries with label counts
+            unique_labels, label_counts = np.unique(y_pred, return_counts=True)
+            legend_entries = [f'{label} (count: {count})' for label, count in zip(unique_labels, label_counts)]
+
+            # Display the legend with label counts
+            plt.legend(legend_entries) ########################3
+
+
+
             self.save_data(data=plt, data_type='png', subdir=True, file_path=os.path.join(path, f'logreg-{self.info.as_string()}_acc{acc}_bal{bal}.png'))
             plt.close()
 

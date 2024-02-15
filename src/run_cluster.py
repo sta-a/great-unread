@@ -46,12 +46,12 @@ if __name__ == "__main__":
         # remove_directories(['/home/annina/scripts/great_unread_nlp/data/similarity/eng/mxcomb'])
         mxc = MxCombinations(language=language, add_color=False)
         # mxc.evaluate_all_combinations()
-        mxc.check_data()
+        # mxc.check_data()
         
     elif mode == 'nkc':
         # remove_directories(['/home/annina/scripts/great_unread_nlp/data/similarity/eng/nkeval'])
         # remove_directories(['/home/annina/scripts/great_unread_nlp/data/similarity/eng/nkcomb'])
         nkc = NkCombinations(language=language, add_color=False)
         # nkc.evaluate_all_combinations()
-        nkc.check_data()
+        # nkc.check_data()
 

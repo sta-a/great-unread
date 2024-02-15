@@ -266,6 +266,8 @@ class NkCombinations(CombinationsBase):
 class CombDataChecker(DataHandler):
     '''
     Check if all combinations are in evaluation files.
+    eng: 95 features
+    ger: 92 features
     '''
     def __init__(self, language, cmode, combinations_path):
         super().__init__(language=language, output_dir='similarity', data_type='csv')

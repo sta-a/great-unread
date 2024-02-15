@@ -26,6 +26,7 @@ logging.basicConfig(level=logging.DEBUG)
 import warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning, module="pygraphviz") # Suppress warning: Error: remove_overlap: Graphviz not built with triangulation library
 
+
 class NkViz(VizBase):
 
     def __init__(self, language, network, info, plttitle, expname):
@@ -33,6 +34,7 @@ class NkViz(VizBase):
         super().__init__(language, self.cmode, info, plttitle, expname)
         self.network = network
         self.graph = self.network.graph
+        self.info.metadf.to_csv('nkvizmeta', index=True, header=True) #################3
 
         # Visualization parameters
         self.prog = 'neato'
@@ -72,33 +74,36 @@ class NkViz(VizBase):
             f.write(f'{self.info.as_string()},{edges_info.as_string()}\n')
 
 
-    def visualize(self):
+    def visualize(self, vizname='viz', omit=[]):
         if not self.too_many_edges:
-            start = time.time()
-            self.logger.debug(f'Nr edges below cutoff for {self.info.as_string()}. Making visualization.')
-            self.graph_con, self.graphs_two, self.nodes_removed, self.nodes_iso = self.get_graphs()
-            self.pos = self.get_positions()
+            self.vizpath = self.get_path(name=vizname, omit=omit)
+            if not os.path.exists(self.vizpath):
+                start = time.time()
+                self.logger.debug(f'Nr edges below cutoff for {self.info.as_string()}. Making visualization.')
+                self.graph_con, self.graphs_two, self.nodes_removed, self.nodes_iso = self.get_graphs()
+                self.pos = self.get_positions()
 
-            self.get_figure()
-            self.get_cmap_params()
-            self.add_edges()
+                self.get_figure()
+                self.add_edges()
 
-            self.df = self.prepare_metadata()
-            self.fill_subplots()
+                self.df = self.prepare_metadata()
+                self.fill_subplots()
 
-            # self.fig.set_constrained_layout(True)
-            self.save_plot(plt)
-            plt.show()
-                
-            calctime = time.time()-start
-            if calctime > 10:
-                print(f'{calctime}s to visualize.')
+                # self.fig.set_constrained_layout(True)
+                self.save_plot(plt)
+                # plt.show()
+                    
+                calctime = time.time()-start
+                if calctime > 10:
+                    print(f'{calctime}s to visualize.')
 
 
     def add_edges(self):
         # Main plot
         for ix in self.subplots:
+            s = time.time()
             self.draw_edges(self.graph_con, self.pos, ix)
+            # print(f'{time.time()-s}s to draw edges for one plot.')
 
         # Two nodes
         if self.nodes_removed:
@@ -113,7 +118,10 @@ class NkViz(VizBase):
         color_col = f'{color_col}_color'
         # Draw connected components with more than 2 nodes
         df_con = df[~df.index.isin(self.nodes_removed)]
-        self.draw_nodes(self.graph_con, self.axs[ix[0], ix[1]], df_con, color_col, use_different_shapes=use_different_shapes)
+        ax = self.get_ax(ix)
+        s = time.time()
+        self.draw_nodes(self.graph_con, ax, df_con, color_col, use_different_shapes=use_different_shapes)
+        # print(f'{time.time()-s}s to draw nodes for one plot.')
 
         ax = self.axs[ix[0]+1, ix[1]]
         # Isolated nodes
@@ -139,10 +147,16 @@ class NkViz(VizBase):
 
         if self.is_cat and self.has_special:
             ncol = 4
-            width_ratios = [7, 7, 7, 1]
         else:
             ncol = 3
-            width_ratios = [7, 7, 1]
+        
+        if self.is_topattr_viz:
+            ncol += 1
+            if self.is_cat:
+                ncol += 1
+
+        width_ratios = (ncol-1)*[7] + [1]
+
         self.fig, self.axs = plt.subplots(4, ncol, figsize=(sum(width_ratios), 11), gridspec_kw={'height_ratios': [7, 0.5, 7, 0.5], 'width_ratios': width_ratios})
 
         self.fig.subplots_adjust(
@@ -174,7 +188,20 @@ class NkViz(VizBase):
             self.combix = None
             self.specix = None
 
+        if self.is_topattr_viz:
+            if not self.is_cat:
+                self.first_ext_ix = [2,1]
+                self.second_ext_ix = [0, 2]
+                self.third_ext_ix = [2, 2]
+            else:
+                self.first_ext_ix = [0, 2]
+                self.second_ext_ix = [2, 2]  
+                self.third_ext_ix = [0, 3]           
+
+
         self.subplots = [self.attrix, self.clstix, self.shapeix, self.combix, self.specix]
+        if self.is_topattr_viz:
+            self.subplots.extend([self.first_ext_ix, self.second_ext_ix, self.third_ext_ix])
 
 
     def add_legends_and_titles(self):
@@ -238,6 +265,15 @@ class NkViz(VizBase):
         # special attribute
         if self.has_special:
             self.add_nodes_to_ax(self.specix, self.df, color_col=self.info.special, use_different_shapes=True)
+
+        
+        if self.is_topattr_viz:    
+            self.add_nodes_to_ax(self.first_ext_ix, self.df, color_col=self.exp_attrs[0], use_different_shapes=True)
+            self.add_nodes_to_ax(self.second_ext_ix, self.df, color_col=self.exp_attrs[1], use_different_shapes=True)
+            self.add_nodes_to_ax(self.third_ext_ix, self.df, color_col=self.exp_attrs[2], use_different_shapes=True)
+            self.get_ax(self.first_ext_ix).set_title(self.exp_attrs[0], fontsize=self.fontsize)
+            self.get_ax(self.second_ext_ix).set_title(self.exp_attrs[1], fontsize=self.fontsize)
+            self.get_ax(self.third_ext_ix).set_title(self.exp_attrs[2], fontsize=self.fontsize)
 
         self.add_legends_and_titles()
 
@@ -369,17 +405,6 @@ class NkViz(VizBase):
             return False, edges_info
 
 
-    def save_plot(self, plt):
-        # Save plot
-        path = self.get_path(data_type=self.data_type)
-        self.save_data(data=plt, data_type=self.data_type, file_name=None, file_path=path, plt_kwargs={'dpi': 600})
-
-        # Save graphml
-        path = self.get_path(data_type='graphml')
-        # graph = self.save_graphml()
-        # self.save_data(data=graph, data_type='graphml', file_name=None, file_path=path)
-
-
     def save_graphml(self):
         # Pos is a dict with format: file_name: (x_position, y_position)
         # Graphml can not handle tuples as attributes
@@ -404,3 +429,95 @@ class NkViz(VizBase):
         return graph
     
 
+
+class NkVizAttr(NkViz):
+    def __init__(self, language, network, info, plttitle, expname):
+        super().__init__(language, network, info, plttitle, expname)
+        self.info.metadf.to_csv('nkvizmeta', index=True, header=True) #################3
+        self.data_type = 'png'
+        if self.expname == 'attrviz':
+            self.nrows = 2
+            self.ncol = 4
+        else:
+            self.nrows = 2
+            self.ncol = 2
+        self.markersize = 12
+
+
+    def create_logfile(self, all_cols, nfields):
+        df = pd.DataFrame({'feature': all_cols})
+
+        df['cmode'] = self.cmode
+        df['mxname'] = self.info.mxname
+        df['sparsmode'] = self.info.sparsmode
+        df['distinctive'] = ''
+
+        # Nr of plot that contains feature
+        viznr_values = []
+        for i in range(len(df)):
+            viznr_values.append(i // nfields)
+        df['viznr'] = viznr_values
+
+        df = df[['cmode', 'mxname', 'sparsmode', 'viznr', 'feature', 'distinctive']]
+        self.save_data(data=df, subdir=True, file_name='visual-assessment.csv', data_type='csv')
+
+
+    def visualize(self):
+        all_cols = self.get_feature_columns(self.info.metadf)
+        nfields = self.nrows * self.ncol # fields per plot
+        nplots = len(all_cols)
+        nfig = nplots // nfields 
+        if nplots % nfields != 0:
+            nfig += 1
+        self.create_logfile(all_cols, nfields)
+
+        ix = 0
+        for i in range(nfig):
+            self.cols = all_cols[ix: ix + (nfields)]
+            ix += nfields
+            super().visualize(vizname=f'viz{i}', omit=['clst_alg_params', 'attr'])
+
+
+    def get_figure(self):
+        # Create a figure and axis objects
+        self.fig, self.axs = plt.subplots(self.nrows, self.ncol, figsize=(15, 7.5))
+
+        # # Loop through each subplot
+        for i in range(self.nrows):
+            for j in range(self.ncol):
+                self.axs[i, j].set_xticks([])  # Remove x-axis ticks
+                self.axs[i, j].set_yticks([])  # Remove y-axis ticks
+                self.axs[i, j].set_xticklabels([])  # Remove x-axis tick labels
+                self.axs[i, j].set_yticklabels([])  # Remove y-axis tick labels
+                self.axs[i, j].set_aspect('equal')  # Set equal aspect ratio for squares
+
+        plt.tight_layout()
+
+
+    def add_edges(self):
+        for i in range(self.nrows):
+            for j in range(self.ncol):
+                index = i * self.ncol + j
+                if index < len(self.cols):
+                    s = time.time()
+                    self.draw_edges(self.graph_con, self.pos, [i, j])
+                    # print(f'{time.time()-s}s to draw edges for one plot.')
+
+
+    def add_nodes_to_ax(self, ix, df, color_col, use_different_shapes=False):
+        color_col = f'{color_col}_color'
+        # Draw connected components with more than 2 nodes
+        df_con = df[~df.index.isin(self.nodes_removed)]
+        ax = self.get_ax(ix)
+        s = time.time()
+        self.draw_nodes(self.graph_con, ax, df_con, color_col, use_different_shapes=use_different_shapes)
+        # print(f'{time.time()-s}s to add nodes to one plot.')
+
+
+    def fill_subplots(self):
+        for i in range(self.nrows):
+            for j in range(self.ncol):
+                index = i * self.ncol + j
+                if index < len(self.cols):
+                    self.add_nodes_to_ax([i, j], self.df, color_col=f'{self.cols[index]}', use_different_shapes=False)
+                    self.axs[i, j].set_title(f'{self.cols[index]}', fontsize=self.fontsize)

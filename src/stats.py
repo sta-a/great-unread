@@ -15,6 +15,7 @@ import pandas as pd
 import numpy as np
 import pickle
 from collections import Counter
+from scipy.stats import skew
 import os
 from utils import DataHandler, get_filename_from_path, get_files_in_dir, DataLoader
 #from hpo_functions import get_data, ColumnTransformer
@@ -110,15 +111,20 @@ class PlotFeatureDist(DataHandler):
 
 
     def plot(self):
-        df = DataLoader(self.language).prepare_features()
-        fig, axes = plt.subplots(nrows=13, ncols=7, figsize=(30, 40))
+        df = DataLoader(self.language).prepare_features(scale=True)
+        nrows = 13
+        ncols = 7
+        fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(30, 40))
+
+        assert len(df.columns) <= (nrows * ncols)
 
         # Flatten the 2D array of axes for easier indexing
         axes = axes.flatten()
 
         for i, column in enumerate(df.columns):
-            self.df[column].hist(ax=axes[i], bins=20)
-            axes[i].set_title(column)
+            df[column].hist(ax=axes[i], bins=20)
+            skewness = skew(df[column])
+            axes[i].set_title(f'{column},{round(skewness, 2)}')
 
         # Adjust layout to prevent overlapping
         plt.tight_layout()
@@ -130,16 +136,15 @@ class PlotFeatureDist(DataHandler):
 
 
 
-# for language in ['eng', 'ger']:
-# #     ts = TextStatistics(language)
-# #     ts.get_longest_shortest_text()
+for language in ['eng', 'ger']:
+#     ts = TextStatistics(language)
+#     ts.get_longest_shortest_text()
 
-#     # pc = PlotCanonscores(language)
-#     # pc.plot()
+    # pc = PlotCanonscores(language)
+    # pc.plot()
 
-#     pfd = PlotFeatureDist(language)
-#     pfd.plot()
-
+    pfd = PlotFeatureDist(language)
+    pfd.plot()
 
 
 

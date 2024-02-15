@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import os
 import numpy as np
+from copy import deepcopy
 from typing import List
 
 import matplotlib.lines as mlines
@@ -25,7 +26,7 @@ class VizBase(DataHandler):
         self.plttitle = plttitle
         self.expname = expname
         self.fontsize = 12
-        self.add_subdir(f'{self.cmode}{self.expname}')
+        self.add_subdir(f'{self.cmode}_{self.expname}')
 
         self.cat_attrs = ['gender', 'author']
         self.is_cat = False
@@ -35,6 +36,29 @@ class VizBase(DataHandler):
         if hasattr(self.info, 'special'):
             self.has_special = True
         self.needs_cbar = self.check_cbar()
+        self.is_topattr_viz = False
+        self.check_expattrs()
+
+
+    def check_expattrs(self):
+        # Checks for extra visualisations
+        self.exp_attrs = ['author', 'canon', 'gender', 'year']
+        attrs_str = [f'top{x}' for x in self.exp_attrs]
+        if any(x in self.expname for x in attrs_str):
+            self.is_topattr_viz = True
+            self.exp_attrs.remove(self.info.attr)
+
+
+    def get_feature_columns(self, df):
+        df = deepcopy(df)
+        interesting_cols = ['canon', 'year', 'gender', 'author']
+        special_cols = ['cluster', 'clst_shape', 'gender_cluster', 'author_cluster']
+        # Get list of attributes in interesting order
+        if self.expname == 'attrviz':
+            cols = interesting_cols + [col for col in df.columns if col not in interesting_cols and col not in special_cols and ('_color' not in col)]
+        else:
+            cols = interesting_cols
+        return cols
 
 
     def check_cbar(self):
@@ -52,12 +76,22 @@ class VizBase(DataHandler):
         ax.text(x=x, y=y, s=textwrap.fill(self.plttitle, width), fontsize=self.fontsize)
 
 
-    def save_plot(self, plt, file_name=None, file_path=None):
-        self.save_data(data=plt, data_type=self.data_type, subdir=True, file_name=file_name, file_path=file_path)
-   
+    def save_plot(self, plt):
+        self.save_data(data=plt, data_type=self.data_type, file_name=None, file_path=self.vizpath, plt_kwargs={'dpi': 600})
 
-    def get_path(self, name='viz', omit: List[str] = [], data_type='pkl'):
-        file_name = f'{name}-{self.info.as_string(omit=omit)}.{data_type}'
+        # if self.cmode == 'nk':
+            # Save graphml
+            # path = self.get_path(data_type='graphml', omit=always_omit+omit, name=vizname)
+            # graph = self.save_graphml()
+            # self.save_data(data=graph, data_type='graphml', file_name=None, file_path=path)
+
+
+    def get_path(self, name='viz', omit: List[str]=[], data_type=None):
+        # always_omit has to be added because 'special' it is not included in omit_default of the CombinationInfo objects on file
+        always_omit = ['special']
+        if data_type is None:
+            data_type = self.data_type
+        file_name = f'{name}-{self.info.as_string(omit=always_omit+omit)}.{data_type}'
         return self.get_file_path(file_name, subdir=True)
     
 

@@ -12,6 +12,7 @@ sys.path.append("..")
 from sklearn.preprocessing import minmax_scale
 from copy import deepcopy
 from matplotlib.colors import to_rgba
+from scipy.stats import skew
 
 from utils import DataHandler, DataLoader, TextsByAuthor
 
@@ -152,11 +153,14 @@ class ShapeMap():
         #     self.logger.debug(f'Number of unique elements in "cluster" exceeds the number of shapes in SHAPES list. Different clusters have the same shape.')
 
 
+
 class Colors():
     CMAP = plt.cm.get_cmap('seismic', lut=10000)
+    CMAP_ALT = plt.cm.get_cmap('turbo', lut=10000)
 
     def __init__(self):
         pass
+
 
     @staticmethod
     def get_colors_discrete():
@@ -166,19 +170,25 @@ class Colors():
         '''
         colors = iter(cc.glasbey_bw_minc_20) # color palette with no greys
         return colors
+    
 
-    def get_colors_sequential(self, val):
+    def get_colors_sequential(self, val, skewed=False):
         '''
         val: Number between 0 and 1
         '''
         if pd.isna(val):
             return 'green'
-        color = self.CMAP(val)
+        if not skewed:
+            color = self.CMAP(val)
+        else:
+            color = self.CMAP_ALT(val)
         return color
+    
     
     def color_for_pygraphviz(self, color):
         # HSV needs to be passed as a string for pygraphviz
         return ' '.join(str(i) for i in color)
+
 
 
 class ColorMap(Colors):
@@ -221,9 +231,9 @@ class ColorMap(Colors):
 
         # Create a mapping with cycling through colors for all unique elements
         # If an element occurs only once, set it to dark grey
-        darkgrey_rgb = to_rgba('darkgrey')
+        dark_grey =  (0.7, 0.7, 0.7) # RGB for dark gray
         color_mapping = {
-            element: next(colors) if count > 1 else darkgrey_rgb
+            element: next(colors) if count > 1 else dark_grey
             for element, count in value_counts.items()
         }
 
@@ -234,7 +244,13 @@ class ColorMap(Colors):
     def map_continuous(self, colname):
         # Scale values so that lowest value is 0 and highest value is 1
         scaled_col = pd.Series(minmax_scale(self.metadf[colname]))
-        color_col = scaled_col.apply(self.get_colors_sequential)
+
+        skewed = False
+        skewness = skew(scaled_col)
+        if abs(skewness) >= 3:
+            skewed = True
+
+        color_col = scaled_col.apply(lambda x: self.get_colors_sequential(x, skewed=skewed))
         self.metadf = self.metadf.assign(newcol=color_col.values).rename(columns={'newcol': f'{colname}_color'})
 
 
@@ -242,7 +258,7 @@ class ColorMap(Colors):
 class CombinationInfo:
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
-        self.omit_default = ['metadf', 'param_comb', 'spars_param', 'omit_default', 'cluster_alg', 'spmx_path', 'clusterdf', 'order']
+        self.omit_default = ['metadf', 'param_comb', 'spars_param', 'omit_default', 'cluster_alg', 'spmx_path', 'clusterdf', 'order', 'special']
         self.clusterparams_to_string()       
         self.spars_to_string()
 
