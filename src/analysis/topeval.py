@@ -2,6 +2,7 @@ import pandas as pd
 import os
 import sys
 sys.path.append("..")
+from tqdm import tqdm
 import matplotlib.pyplot as plt
 import itertools
 from cluster.combinations import InfoHandler
@@ -16,14 +17,18 @@ logging.basicConfig(level=logging.DEBUG)
 class TopEval(InfoHandler):
     '''
     Filter evaluation files for different experiments.
+    -df: a filtered evaluation file. Must contain column 'file_info'
+        Df can be precomputed and passed to TopEval to use methods, or is calculated by TopEval
     '''
-    def __init__(self, language, cmode, exp, expdir):
+    def __init__(self, language, cmode, exp, expdir, df=None):
         super().__init__(language=language, add_color=True, cmode=cmode)
         self.cmode = cmode
         self.exp = exp
         self.expdir = expdir
         self.ntop = self.exp['ntop']
-        self.df = self.load_data()
+        self.df = df
+        if self.df is None:
+            self.df = self.load_data()
 
 
     def extend_sizes_col(self, df):
@@ -119,35 +124,20 @@ class TopEval(InfoHandler):
     
 
     def drop_na_rows(self, df):
-        nrows = len(df)
+        nrow = len(df)
         dfna = df[df.isna().any(axis=1)]
         df = df.dropna()
-        assert nrows == len(dfna) + len(df)
+        assert nrow == len(dfna) + len(df)
         dfna.to_csv(f'{self.cmode}-na-rows.csv', header=True, index=True)
         return df
     
 
-    def filter_top_rows(self, df, nrows=None):
+    def filter_top_rows(self, df, nrow=None):
         '''
         Find rows with the best evaluation scores.
         '''
-        def find_next_divisible(b, s):
-            # Check if b is divisible by s
-            if b % s == 0:
-                return b
-            
-            # Find the next bigger number that is divisible by s
-            next_divisible = (b // s + 1) * s
-            return next_divisible
-        
-        
-        if nrows is None:
-            if len(self.exp['dfs']) == 1:
-                nrows = self.ntop
-            else:
-                # The same clustering has the same internal evaluation value, but multiple rows in the df to to the different attrs
-                # Find the next multiple of the nr attrs being considered that is bigger than ntop
-                nrows = find_next_divisible(self.ntop, len(self.exp['attr']))
+        if nrow is None:
+            nrow = self.ntop
 
         evalcol = self.exp['evalcol']
         # Filter out rows that contain string values ('invalid')
@@ -155,8 +145,7 @@ class TopEval(InfoHandler):
         df = df.loc[mask]
 
         df[evalcol] = pd.to_numeric(df[evalcol], errors='raise')
-        df = df.nlargest(n=nrows, columns=evalcol, keep='all')
-        print('nlargest', df.shape)
+        df = df.nlargest(n=nrow, columns=evalcol, keep='all')
         return df 
         
 
@@ -241,7 +230,7 @@ class TopEval(InfoHandler):
         '''
         Plot the values from columns 'intcol' and 'evalcol' with lines connecting the dots.
         '''
-        df = self.filter_top_rows(df, nrows=500)
+        df = self.filter_top_rows(df, nrow=500)
         print(df.shape)
         plt.figure(figsize=(10, 6))  # Adjust the figure size as needed
         x_values = np.arange(len(df))
@@ -254,9 +243,9 @@ class TopEval(InfoHandler):
         plt.title(f'Plot of intcol and evalcol (Correlation: {correlation:.2f})')
 
 
-        plt.legend()  # Show legend
-        plt.grid(True)  # Show grid
-        plt.show()  # Display the plot
+        plt.legend()
+        plt.grid(True)
+        plt.show()
     
 
     def run_logreg(self, info, metadf):
@@ -271,17 +260,21 @@ class TopEval(InfoHandler):
             logreg_acc, logrec_acc_balanced = ee.logreg(X, y_true, draw=True, path=self.expdir)
 
 
-    def get_top_combinations(self):
+    def get_top_combinations(self, ncomb=float('inf')):
         '''
         Get combinations with the best evaluation scores, load their info from file.
+        - df: Can be passed as a parameter so that method can be used independently.
+            Otherwise, the class's df is used.
         '''
         df = self.df
         if 'evalcol' in self.exp: # keep only rows with best evaluation metric
             df = self.filter_top_rows(df)
 
         topdict = dict(zip(df['file_info'], df['plttitle'])) 
-    
-        for tinfo, plttitle in topdict.items():
+
+        for i, (tinfo, plttitle) in tqdm(enumerate(topdict.items())):
+            if i >= ncomb:
+                break
             comb_info, attr = tinfo.rsplit('_', 1)
             info = self.load_info(comb_info)
             
@@ -289,7 +282,7 @@ class TopEval(InfoHandler):
             metadf = self.merge_dfs(self.metadf, info.clusterdf)
             metadf = self.mh.add_cluster_color_and_shape(metadf)
             info.add('metadf', metadf)
-            self.run_logreg(info, metadf) #######################
+            self.run_logreg(info, metadf)
             yield info, plttitle
 
 

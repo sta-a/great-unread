@@ -356,7 +356,7 @@ class MxVizAttr(MxViz):
         self.save_data(data=df, subdir=True, file_name='visual-assessment.csv', data_type='csv')
 
 
-    def visualize(self):
+    def visualize(self, vizname): # vizname for compatibility
         all_cols = self.get_feature_columns(self.info.metadf)
         nfields = self.nrow * self.ncol # fields per plot
         nplots = len(all_cols)*2 # 2 fields used for each feature

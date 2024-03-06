@@ -18,6 +18,7 @@ from collections import Counter
 from scipy.stats import skew
 import os
 from utils import DataHandler, get_filename_from_path, get_files_in_dir, DataLoader
+from cluster.cluster_utils import MetadataHandler
 #from hpo_functions import get_data, ColumnTransformer
 
 class TextStatistics(DataHandler):
@@ -108,11 +109,16 @@ class PlotCanonscores(DataHandler):
 class PlotFeatureDist(DataHandler):
     def __init__(self, language):
         super().__init__(language, output_dir='text_statistics', data_type='svg')
+        self.cat_attrs = ['author', 'gender']
 
 
     def plot(self):
-        df = DataLoader(self.language).prepare_features(scale=True)
-        nrows = 13
+        # df = DataLoader(self.language).prepare_features(scale=True)
+        mh = MetadataHandler(self.language)
+        df = mh.get_metadata(add_color=False)
+
+
+        nrows = 14 # 13 if only text features (without author, gender, year, canon) are plotted
         ncols = 7
         fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(30, 40))
 
@@ -123,8 +129,11 @@ class PlotFeatureDist(DataHandler):
 
         for i, column in enumerate(df.columns):
             df[column].hist(ax=axes[i], bins=20)
-            skewness = skew(df[column])
-            axes[i].set_title(f'{column},{round(skewness, 2)}')
+            if column not in self.cat_attrs:
+                skewness = skew(df[column])
+                axes[i].set_title(f'{column},{round(skewness, 2)}')
+            else:
+                axes[i].set_title(f'{column}')
 
         # Adjust layout to prevent overlapping
         plt.tight_layout()
@@ -136,15 +145,15 @@ class PlotFeatureDist(DataHandler):
 
 
 
-for language in ['eng', 'ger']:
-#     ts = TextStatistics(language)
-#     ts.get_longest_shortest_text()
+# for language in ['eng', 'ger']:
+# #     ts = TextStatistics(language)
+# #     ts.get_longest_shortest_text()
 
-    # pc = PlotCanonscores(language)
-    # pc.plot()
+#     # pc = PlotCanonscores(language)
+#     # pc.plot()
 
-    pfd = PlotFeatureDist(language)
-    pfd.plot()
+#     pfd = PlotFeatureDist(language)
+#     pfd.plot()
 
 
 

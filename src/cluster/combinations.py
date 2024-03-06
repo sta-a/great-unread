@@ -26,12 +26,13 @@ logging.basicConfig(level=logging.DEBUG)
 
 
 class InfoHandler(DataHandler):
-    def __init__(self, language, add_color, cmode):
+    def __init__(self, language, add_color, cmode, by_author=False):
         super().__init__(language=language, output_dir='similarity', data_type='csv')
         self.add_color = add_color
         self.cmode = cmode
+        self.by_author = by_author # aggregate metadata if authors instead of single texts are of interest
         self.add_subdir(f'{self.cmode}comb')
-        self.mh = MetadataHandler(self.language)
+        self.mh = MetadataHandler(self.language, by_author=self.by_author)
         self.metadf = self.mh.get_metadata(add_color=True)
         self.combinations_path = os.path.join(self.output_dir, f'{self.cmode}_log_combinations.txt')
 
@@ -71,8 +72,8 @@ class CombinationsBase(InfoHandler):
     This class runs all combinations of distance measures, sparsification algorithms, clustering algorithms, parameters, and evaluates the result for all attributes.
     Performed for both MDS and networks.
     '''
-    def __init__(self, language, add_color=False, cmode='nk'):
-        super().__init__(language, add_color, cmode)
+    def __init__(self, language, add_color=False, cmode='nk', by_author=False):
+        super().__init__(language, add_color, cmode, by_author)
         self.test = False
         self.mxs = self.load_mxs()
 
@@ -157,8 +158,8 @@ class CombinationsBase(InfoHandler):
 
 
 class MxCombinations(CombinationsBase):
-    def __init__(self, language, add_color):
-        super().__init__(language, add_color, cmode='mx')
+    def __init__(self, language, add_color, by_author=False):
+        super().__init__(language, add_color, cmode='mx', by_author=by_author)
 
 
     def create_combinations(self):
@@ -197,8 +198,8 @@ class MxCombinations(CombinationsBase):
 
 
 class NkCombinations(CombinationsBase):
-    def __init__(self, language, add_color):
-        super().__init__(language, add_color, cmode='nk')
+    def __init__(self, language, add_color, by_author=False):
+        super().__init__(language, add_color, cmode='nk', by_author=by_author)
         self.noedges_path = os.path.join(self.output_dir, 'nk_noedges.txt')
 
 

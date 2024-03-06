@@ -56,6 +56,12 @@ class NkViz(VizBase):
         if self.too_many_edges:
             self.write_noviz(edges_info)
 
+        if not self.too_many_edges:
+            self.logger.debug(f'Nr edges below cutoff for {self.info.as_string()}. Making visualization.')
+            self.get_graphs()
+            self.get_positions()
+            self.prepare_metadata()
+
 
     def get_cmap_params(self):
         '''
@@ -80,18 +86,16 @@ class NkViz(VizBase):
             if not os.path.exists(self.vizpath):
                 start = time.time()
                 self.logger.debug(f'Nr edges below cutoff for {self.info.as_string()}. Making visualization.')
-                self.graph_con, self.graphs_two, self.nodes_removed, self.nodes_iso = self.get_graphs()
-                self.pos = self.get_positions()
 
                 self.get_figure()
+                self.adjust_subplots()
                 self.add_edges()
 
-                self.df = self.prepare_metadata()
                 self.fill_subplots()
 
                 # self.fig.set_constrained_layout(True)
                 self.save_plot(plt)
-                # plt.show()
+                plt.show()
                     
                 calctime = time.time()-start
                 if calctime > 10:
@@ -142,6 +146,16 @@ class NkViz(VizBase):
                 ax.scatter(df_iso['x'], df_iso['y'], c=df_iso[color_col], marker='o', s=2)
 
 
+    def adjust_subplots(self):
+        self.fig.subplots_adjust(
+            left=self.ws_left,
+            right=self.ws_right,
+            bottom=self.ws_bottom,
+            top=self.ws_top,
+            wspace=self.ws_wspace,
+            hspace=self.ws_hspace)  
+        
+
     def get_figure(self):
         # Add column for legends and titles at the end
 
@@ -157,15 +171,7 @@ class NkViz(VizBase):
 
         width_ratios = (ncol-1)*[7] + [1]
 
-        self.fig, self.axs = plt.subplots(4, ncol, figsize=(sum(width_ratios), 11), gridspec_kw={'height_ratios': [7, 0.5, 7, 0.5], 'width_ratios': width_ratios})
-
-        self.fig.subplots_adjust(
-            left=self.ws_left,
-            right=self.ws_right,
-            bottom=self.ws_bottom,
-            top=self.ws_top,
-            wspace=self.ws_wspace,
-            hspace=self.ws_hspace)        
+        self.fig, self.axs = plt.subplots(4, ncol, figsize=(sum(width_ratios), 11), gridspec_kw={'height_ratios': [7, 0.5, 7, 0.5], 'width_ratios': width_ratios})      
 
         for row in self.axs: 
             for ax in row:
@@ -282,7 +288,7 @@ class NkViz(VizBase):
         df = deepcopy(self.info.metadf)
         df['pos'] = df.index.map(self.pos)
         df[['x', 'y']] = pd.DataFrame(df['pos'].tolist(), index=df.index)
-        return df
+        self.df = df
 
 
     def draw_nodes(self, graph, ax, df, color_col, use_different_shapes=True):
@@ -338,17 +344,16 @@ class NkViz(VizBase):
             graph = self.graph.to_undirected()
         else:
             graph = deepcopy(self.graph)
-        graphs_two = [graph.subgraph(comp).copy() for comp in nx.connected_components(graph) if len(comp) == 2]
+        self.graphs_two = [graph.subgraph(comp).copy() for comp in nx.connected_components(graph) if len(comp) == 2]
         # Extract nodes from the connected components with 2 nodes
-        nodes_two = [node for subgraph in graphs_two for node in subgraph.nodes()]
+        nodes_two = [node for subgraph in self.graphs_two for node in subgraph.nodes()]
 
         # Isolated nodes
-        nodes_iso = list(nx.isolates(self.graph))
-        nodes_removed = nodes_two + nodes_iso
+        self.nodes_iso = list(nx.isolates(self.graph))
+        self.nodes_removed = nodes_two + self.nodes_iso
     
         # Main graphs
-        graph_con = self.graph.subgraph([node for node in self.graph.nodes if node not in nodes_removed])
-        return graph_con, graphs_two, nodes_removed, nodes_iso
+        self.graph_con = self.graph.subgraph([node for node in self.graph.nodes if node not in self.nodes_removed])
     
 
     def get_positions(self):
@@ -358,17 +363,19 @@ class NkViz(VizBase):
         If layout programs are used on whole graph, isolated nodes are randomly distributed.
         To adress this, connected (2 nodes that are only connected to each other) and isolated nodes are visualized separately.
         '''
-        # Calculate node positions for main graph and removed nodes
-        nodes_per_line = 40
+        if not hasattr(self, 'pos'):
+            # Calculate node positions for main graph and removed nodes
+            nodes_per_line = 40
 
-        # Custom grid layout for two-node components and isolated nodes
-        row_height = 0.5
-        pos_removed = {node: (i % nodes_per_line, -(i // nodes_per_line) * row_height) for i, node in enumerate(self.nodes_removed)}
+            # Custom grid layout for two-node components and isolated nodes
+            row_height = 0.5
+            pos_removed = {node: (i % nodes_per_line, -(i // nodes_per_line) * row_height) for i, node in enumerate(self.nodes_removed)}
 
-        pos_con = nx.nx_agraph.graphviz_layout(self.graph_con, self.prog)
+            pos_con = nx.nx_agraph.graphviz_layout(self.graph_con, self.prog)
 
-        pos = {**pos_removed, **pos_con}
-        return pos
+            self.pos = {**pos_removed, **pos_con}
+        else:
+            print('self.pos already exists.')
 
 
     def count_visible_edges(self):
@@ -433,15 +440,25 @@ class NkViz(VizBase):
 class NkVizAttr(NkViz):
     def __init__(self, language, network, info, plttitle, expname):
         super().__init__(language, network, info, plttitle, expname)
-        self.info.metadf.to_csv('nkvizmeta', index=True, header=True) #################3
         self.data_type = 'png'
-        if self.expname == 'attrviz':
-            self.nrows = 2
-            self.ncol = 4
-        else:
-            self.nrows = 2
-            self.ncol = 2
-        self.markersize = 12
+        # if self.expname == 'attrviz':
+        #     self.nrow = 2
+        #     self.ncol = 4
+        # else:
+        #     self.nrow = 2
+        #     self.ncol = 2
+        self.nrow = 8
+        self.ncol = 12
+        self.markersize = 10
+        self.fontsize = 6
+
+        # Whitespace
+        self.ws_left = 0.01
+        self.ws_right = 0.99
+        self.ws_bottom = 0.01
+        self.ws_top = 0.99
+        self.ws_wspace = 0
+        self.ws_hspace = 0
 
 
     def create_logfile(self, all_cols, nfields):
@@ -462,46 +479,87 @@ class NkVizAttr(NkViz):
         self.save_data(data=df, subdir=True, file_name='visual-assessment.csv', data_type='csv')
 
 
-    def visualize(self):
+    def visualize(self, vizname='viz'): # vizname for compatibility
         all_cols = self.get_feature_columns(self.info.metadf)
-        nfields = self.nrows * self.ncol # fields per plot
+        nfields = self.nrow * self.ncol # fields per plot
         nplots = len(all_cols)
         nfig = nplots // nfields 
         if nplots % nfields != 0:
             nfig += 1
-        self.create_logfile(all_cols, nfields)
+        # self.create_logfile(all_cols, nfields)
 
         ix = 0
         for i in range(nfig):
             self.cols = all_cols[ix: ix + (nfields)]
             ix += nfields
-            super().visualize(vizname=f'viz{i}', omit=['clst_alg_params', 'attr'])
+            omit=['clst_alg_params']
+            if self.nrow*self.ncol != 1:
+                omit.append('attr')
+            else:
+                self.info.drop('attr')
+                self.info.add('attr', deepcopy(self.cols[0]))
+            s = time.time()
+            super().visualize(vizname=f'{vizname}{i}', omit=omit)
+            print(f'{time.time()-s}s to make one fig.')
 
 
     def get_figure(self):
-        # Create a figure and axis objects
-        self.fig, self.axs = plt.subplots(self.nrows, self.ncol, figsize=(15, 7.5))
+        height = self.nrow*3
+        width = self.ncol*3
+        if self.nrow == 1 and self.ncol == 1:
+            self.fig, self.axs = plt.subplots(figsize=(width, height))
+            self.axs = np.reshape(self.axs, (1, 1))  # Convert single Axes object to a 2D numpy array
+        else:
+            self.fig, self.axs = plt.subplots(self.nrow, self.ncol, figsize=(width, height))
 
-        # # Loop through each subplot
-        for i in range(self.nrows):
-            for j in range(self.ncol):
-                self.axs[i, j].set_xticks([])  # Remove x-axis ticks
-                self.axs[i, j].set_yticks([])  # Remove y-axis ticks
-                self.axs[i, j].set_xticklabels([])  # Remove x-axis tick labels
-                self.axs[i, j].set_yticklabels([])  # Remove y-axis tick labels
-                self.axs[i, j].set_aspect('equal')  # Set equal aspect ratio for squares
+
+        # min_xlim = min(self.pos[node][0] for node in self.graph_con.nodes()) - 0.1
+        # max_xlim = max(self.pos[node][0] for node in self.graph_con.nodes()) + 0.1
+        # min_ylim = min(self.pos[node][1] for node in self.graph_con.nodes()) - 0.1
+        # max_ylim = max(self.pos[node][1] for node in self.graph_con.nodes()) + 0.1
+        # self.axs[i, j].set_xlim([min_xlim, max_xlim])
+        # self.axs[i, j].set_ylim([min_ylim, max_ylim])
+
+        # for i in range(self.nrow):
+        #     for j in range(self.ncol):
+        #         self.axs[i, j].set_xticks([])
+        #         self.axs[i, j].set_yticks([])
+        #         self.axs[i, j].set_xticklabels([])
+        #         self.axs[i, j].set_yticklabels([])
+        #         self.axs[i, j].set_aspect('equal')  # Set equal aspect ratio for squares
+
+        for ax in self.axs.flat:
+            ax.set_xticks([])
+            ax.set_yticks([])
+            ax.set_xticklabels([])
+            ax.set_yticklabels([])
+            ax.set_aspect('equal') 
+
+            ax.spines['top'].set_visible(False)  # Hide the top spine
+            ax.spines['right'].set_visible(False)  # Hide the right spine
+            ax.spines['bottom'].set_visible(False)  # Hide the bottom spine
+            ax.spines['left'].set_visible(False)  # Hide the left spine
 
         plt.tight_layout()
 
 
     def add_edges(self):
-        for i in range(self.nrows):
+        souter = time.time()
+
+        for i in range(self.nrow):
             for j in range(self.ncol):
                 index = i * self.ncol + j
                 if index < len(self.cols):
-                    s = time.time()
                     self.draw_edges(self.graph_con, self.pos, [i, j])
-                    # print(f'{time.time()-s}s to draw edges for one plot.')
+
+
+
+                    # x_values = [1, 2, 3, 4, 5]
+                    # y_values = [2, 3, 5, 7, 11]
+                    # self.axs[i, j].plot(x_values, y_values)
+
+
+        print(f'{time.time()-souter}s to draw edges for all plot.')
 
 
     def add_nodes_to_ax(self, ix, df, color_col, use_different_shapes=False):
@@ -515,9 +573,12 @@ class NkVizAttr(NkViz):
 
 
     def fill_subplots(self):
-        for i in range(self.nrows):
+        for i in range(self.nrow):
             for j in range(self.ncol):
                 index = i * self.ncol + j
                 if index < len(self.cols):
-                    self.add_nodes_to_ax([i, j], self.df, color_col=f'{self.cols[index]}', use_different_shapes=False)
-                    self.axs[i, j].set_title(f'{self.cols[index]}', fontsize=self.fontsize)
+                    self.add_nodes_to_ax([i, j], self.df, color_col=f'{deepcopy(self.cols[index])}', use_different_shapes=False)
+                    # self.axs[i, j].set_title(f'{deepcopy(self.cols[index])}', fontsize=self.fontsize)
+                    self.axs[i, j].text(0.05, 0.05, f'{deepcopy(self.cols[index])}', transform=self.axs[i, j].transAxes, bbox=dict(facecolor='white', alpha=0.5))
+                    self.axs[i, j].axis('off')
+

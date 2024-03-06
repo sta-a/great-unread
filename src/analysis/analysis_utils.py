@@ -1,21 +1,28 @@
+# %%
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
 import numpy as np
 from copy import deepcopy
 from typing import List
+import networkx as nx
+import pickle
+import pandas as pd
 
 import matplotlib.lines as mlines
 import matplotlib.patches as mpatches
 from matplotlib import markers
 import textwrap
+from PIL import Image
 
 import sys
 sys.path.append("..")
 from utils import DataHandler
 from cluster.cluster_utils import Colors
+from cluster.combinations import InfoHandler
 import logging
 logging.basicConfig(level=logging.DEBUG)
+
 
 
 class VizBase(DataHandler):
@@ -41,7 +48,11 @@ class VizBase(DataHandler):
 
 
     def check_expattrs(self):
-        # Checks for extra visualisations
+        '''
+        Checks if additional plots for main attrs need to be added.
+        This is the case if 'top' is in the experiment name.
+        For example, if the experiment name is 'topcanon', author, gender and year also need to be visualized.
+        '''
         self.exp_attrs = ['author', 'canon', 'gender', 'year']
         attrs_str = [f'top{x}' for x in self.exp_attrs]
         if any(x in self.expname for x in attrs_str):
@@ -51,7 +62,7 @@ class VizBase(DataHandler):
 
     def get_feature_columns(self, df):
         df = deepcopy(df)
-        interesting_cols = ['canon', 'year', 'gender', 'author']
+        interesting_cols = ['author',  'gender', 'canon', 'year']
         special_cols = ['cluster', 'clst_shape', 'gender_cluster', 'author_cluster']
         # Get list of attributes in interesting order
         if self.expname == 'attrviz':
@@ -77,7 +88,14 @@ class VizBase(DataHandler):
 
 
     def save_plot(self, plt):
-        self.save_data(data=plt, data_type=self.data_type, file_name=None, file_path=self.vizpath, plt_kwargs={'dpi': 600})
+        self.save_data(data=plt, data_type=self.data_type, file_name=None, file_path=self.vizpath, plt_kwargs={'dpi': 300})
+        # if self.data_type == 'png':
+        #     path = self.vizpath.replace('.png', '.svg')
+        #     data_type = 'svg'
+        # else:
+        #     path = self.vizpath.replace('.svg', '.png')
+        #     data_type = 'png'
+        # self.save_data(data=plt, data_type=data_type, file_name=None, file_path=path, plt_kwargs={'dpi': 300})
 
         # if self.cmode == 'nk':
             # Save graphml
@@ -175,4 +193,206 @@ class VizBase(DataHandler):
         if specix is not None:
             self.get_ax(specix).set_title(f'{self.info.special.capitalize()}', fontsize=self.fontsize)
 
+
+
+class GridImage(DataHandler):
+    '''
+    Arrange pngs as grid
+    '''
+    def __init__(self, language, cmode, exp):
+        super().__init__(language, output_dir='analysis')
+        self.cmode = cmode
+        self.exp = exp
+        self.add_subdir(f"{self.cmode}_{self.exp['name']}")
+        self.data_type = 'png'
+        self.grid_cell_size = (200, 200)
+
+
+    def run(self):
+        self.list_images()
+        self.calculate_grid_size()
+        self.resize_images()
+        self.create_grid_image()
+        self.create_grid_image()
+        self.save_data(data=self.grid_image, file_name=f'grid.{self.data_type}', data_type=self.data_type)
+        self.grid_image.show()
+
+
+    def list_images(self):
+        """
+        List all image files in the given directory.
+        """
+        self.images = [os.path.join(self.subdir, f) for f in os.listdir(self.subdir) if f.endswith((self.data_type))]
+
+
+    def calculate_grid_size(self):
+        """
+        Calculate the number of rows and columns in the grid based on the number of images.
+        """
+        num_images = len(self.images)
+        num_rows = int(num_images ** 0.5)
+        self.num_cols = (num_images + num_rows - 1) // num_rows
+        self.num_rows = num_rows
+
+
+    def resize_images(self):
+        """
+        Resize images to the target size.
+        """
+        self.resized_images = [Image.open(img).resize(self.grid_cell_size, Image.ANTIALIAS) for img in self.images]
+    
+
+    def create_grid_image(self):
+        """
+        Create a blank image for arranging images in a grid.
+        """
+        width = self.num_cols * self.grid_cell_size[0]
+        height = self.num_rows * self.grid_cell_size[1]
+        self.grid_image = Image.new('RGB', (width, height), color='white')
+
+
+    def arrange_images_in_grid(self):
+        """
+        Paste resized images onto the grid image.
+        """
+        for i, img in enumerate(self.images):
+            row = i // self.num_cols
+            col = i % self.num_cols
+            x = col * self.grid_cell_size[0]
+            y = row * self.grid_cell_size[1]
+            self.grid_image.paste(img, (x, y))
+
+
+
+def main_attributes_crosstable():
+    eng = '/home/annina/scripts/great_unread_nlp/data/similarity/eng/metadf.csv'
+    ger = '/home/annina/scripts/great_unread_nlp/data/similarity/ger/metadf.csv'
+    df = pd.read_csv(ger, header=0)
+    correlation = df['year'].corr(df['canon'])
+
+
+    # Create cross tables for all combinations
+    cross_tables = {}
+    categorical_cols = ['gender', 'author']
+    continuous_cols = ['year', 'canon']
+
+
+    df['century'] = pd.cut(df['year'], bins=range(1600, 2001, 100), labels=['17th', '18th', '19th', '20th'])
+    df[['century', 'year']]
+    df['canon_chunk'] = pd.cut(df['canon'], bins=5, labels=['lowest', 'low', 'medium', 'high', 'highest'])
+    cross_tables = {}
+    categorical_cols = ['gender','century', 'canon_chunk'] # , 'author', 
+
+    for cat_col1 in categorical_cols:
+        for cat_col2 in categorical_cols:
+            if cat_col1 != cat_col2:  # Exclude identical combinations
+                cross_tables[(cat_col1, cat_col2)] = pd.crosstab(df[cat_col1], df[cat_col2])
+
+    # Display cross tables
+    for key, table in cross_tables.items():
+        print(f"Cross Table for {key}:")
+        print(table)
+        print()
+
+
+
+def map_indices_to_numbers(similarity_matrix):
+    """
+    Map string indices to numbers in a Pandas DataFrame.
+    
+    Parameters:
+        similarity_matrix (pd.DataFrame): DataFrame with string indices.
+        
+    Returns:
+        pd.DataFrame: DataFrame with string indices replaced by numbers.
+        dict: Mapping of string indices to numbers.
+    """
+    # Check if alphabetically sorted
+    assert list(similarity_matrix.index) == sorted(similarity_matrix.index)
+    assert list(similarity_matrix.columns) == sorted(similarity_matrix.index)
+    assert list(similarity_matrix.index) == list(similarity_matrix.columns)
+
+
+    # Create a mapping of string indices to numbers
+    index_mapping = {index: i+1 for i, index in enumerate(similarity_matrix.index)}
+    
+    # Map string indices to numbers for both index and columns
+    mapped_matrix = similarity_matrix.rename(index=index_mapping).rename(columns=index_mapping)
+
+    index_mapping = pd.DataFrame(list(index_mapping.items()), columns=['original_index', 'new_index'])
+    
+    return mapped_matrix, index_mapping
+
+
+def load_spmx_from_pkl(spmx_path):
+    '''
+    Load the sparsified matrices from pkl.
+    '''
+    with open(spmx_path, 'rb') as f:
+        simmx = pickle.load(f)
+
+    simmx = simmx.mx
+    # if simmx.equals(simmx.T):
+    #     print(f'Matrix is symmetric.')
+    # else:
+    #     print(f'Matrix is not symmetric.')
+    return simmx
+
+
+def info_to_mx_and_edgelist():
+    outdir = '/home/annina/scripts/great_unread_nlp/src/networks_to_embeddings'
+    d = {'eng': 'sqeuclidean-2000_simmel-3-10_louvain-resolution-0%1', 'ger': 'full_simmel-3-10_louvain-resolution-0%01'} # info strings for interesting combinations
+    for language, info in d.items():
+        ih = InfoHandler(language=language, add_color=False, cmode='nk')
+
+        info = ih.load_info(info)
+        print(info.as_string())
+        attributes = ih.metadf['canon']
+        attributes = pd.DataFrame({'index': attributes.index, 'canon': attributes.values})
+
+        spmx_path = info.spmx_path
+        simmx = load_spmx_from_pkl(spmx_path)
+        mapped_matrix, index_mapping = map_indices_to_numbers(simmx)
+        print('Mapped DataFrame:')
+        print(mapped_matrix)
+        print('\nIndex Mapping:')
+        print(index_mapping)
+
+        attributes = attributes.merge(index_mapping, left_on='index', right_on='original_index', how='inner', validate='1:1')
+        attributes = attributes[['new_index', 'canon']]
+        attributes = attributes.rename(columns={'canon': 'score', 'new_index': 'index'})
+        assert len(attributes) == len(mapped_matrix)
+
+        graph = nx.from_pandas_adjacency(mapped_matrix, create_using=nx.DiGraph) 
+
+
+        # mapped_matrix.to_csv(os.path.join(outdir, f'weightmatrix-{language}-{info.as_string()}'), header=True, index=True)
+        attributes.to_csv(os.path.join(outdir, f'attributes-{language}-{info.as_string()}.csv'), header=True, index=False)
+        index_mapping.to_csv(os.path.join(outdir, f'index-mapping-{language}-{info.as_string()}.csv'), header=True, index=False)
+        nx.write_weighted_edgelist(graph, os.path.join(outdir, f'edgelist-{language}-{info.as_string()}.csv'), delimiter=',')
+        
+
+def pklmxs_to_edgelist():
+    '''
+    Rewrite all sparsified matrices, which are in pkl format, as edge lists. Map string indices to numbers.
+    '''
+    for language in ['eng', 'ger']:
+        indir = f'/home/annina/scripts/great_unread_nlp/data/similarity/{language}/sparsification'
+        outdir = f'/home/annina/scripts/great_unread_nlp/data/similarity/{language}/sparsification_edgelists'
+        mxpaths = [os.path.join(indir, file) for file in os.listdir(indir) if file.endswith('.pkl')]
+        prev_idx_mapping = None
+        for spmx_path in mxpaths:
+            simmx = load_spmx_from_pkl(spmx_path)
+            mapped_matrix, index_mapping = map_indices_to_numbers(simmx)
+
+            if prev_idx_mapping is None:
+                prev_idx_mapping = index_mapping
+            else:
+                assert index_mapping.equals(prev_idx_mapping)
+
+            graph = nx.from_pandas_adjacency(mapped_matrix, create_using=nx.DiGraph)
+            file_name = os.path.splitext(os.path.basename(spmx_path))[0]
+            nx.write_weighted_edgelist(graph, os.path.join(outdir, f'edgelist-{file_name}.csv'), delimiter=',')
+        
+        index_mapping.to_csv(os.path.join(outdir, f'index-mapping.csv'), header=True, index=False)
 

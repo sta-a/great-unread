@@ -2,10 +2,13 @@ import sys
 sys.path.append("..")
 from copy import deepcopy
 import pandas as pd
+import time
 import os
+import pickle
 import numpy as np
 import colorcet as cc
 import matplotlib.pyplot as plt
+import networkx as nx
 from sklearn.metrics import pairwise_distances
 from scipy.cluster.hierarchy import linkage, optimal_leaf_ordering, leaves_list
 from scipy.spatial.distance import squareform
@@ -17,6 +20,7 @@ from matplotlib.cm import ScalarMappable
 from utils import DataHandler
 from .mxviz import MxViz, MxVizAttr
 from .nkviz import NkViz, NkVizAttr
+from .analysis_utils import GridImage
 from .topeval import TopEval
 from cluster.network import NXNetwork
 from cluster.combinations import CombinationsBase
@@ -26,7 +30,7 @@ from cluster.combinations import CombinationsBase
 
 
 
-class ExpBase(DataHandler):
+class Experiment(DataHandler):
     def __init__(self, language, cmode):
         super().__init__(language, output_dir='analysis')
         self.cmode = cmode
@@ -112,17 +116,6 @@ class ExpBase(DataHandler):
             d['mxname'] = embmxs
             topcat_emb.append(d)
 
-        # # Internal evaluation criterion
-        # interesting_attrs = ['author', 'gender', 'canon', 'year']
-        # intdicts = [
-        #     {'name': 'intfull', 'maxsize': self.nr_texts, 'attr': interesting_attrs, 'evalcol': int_evalcol, 'special': True, 'dfs': ['cat', 'cont']},
-        #     {'name': 'intmax', 'maxsize': maxsize, 'attr': interesting_attrs, 'evalcol': int_evalcol, 'special': True, 'dfs': ['cat', 'cont']}
-        # ]
-
-        # # Check if clustering is constant over multiple parameter combinations
-        # compclust = [{'name': 'compclust', 'maxsize': maxsize, 'dfs': ['cat'], 'attr': ['author'], 'ntop': self.nr_texts}] # 'clst_alg_params': 'alpa', 
-        # if self.cmode == 'mx':
-        #     compclust[0]['clst_alg_params'] = 'hierarchical-nclust-5-method-average'
 
         # Visualize attributes, ignore clustering
         attrviz = [{'name': 'attrviz', 'dfs': ['cat'], 'mxname': ['burrows'] + embmxs}]
@@ -131,8 +124,13 @@ class ExpBase(DataHandler):
 
         clustconst = [{'name': 'clustconst', 'maxsize': maxsize, 'dfs': ['cat'], 'attr': ['author']}]
 
-        exps = topcont + topcat + attrcont + attrcat + attrcat_nointernal + topcont_emb + topcat_emb + attrviz_int + clustconst # attrviz
-        exps = clustconst
+        central = deepcopy(clustconst)
+        central[0]['name'] = 'central'
+        central[0]['mxname'] = ['burrows'] + embmxs
+        central[0]['special'] = True
+
+        exps = topcont + topcat + attrcont + attrcat + attrcat_nointernal + topcont_emb + topcat_emb + attrviz_int + clustconst + attrviz
+        exps = attrviz
         return exps
 
 
@@ -148,9 +146,77 @@ class ExpBase(DataHandler):
             te = TopEval(self.language, self.cmode, exp, expdir=self.subdir)
 
             if expname == 'clustconst':
-                ClusterComparison(self.language, self.cmode, exp, te).run()
+                self.run_clustconst(exp, te)
+            elif expname == 'central':
+                if self.cmode == 'nk':
+                    self.run_central(exp, te)
             else:
                 self.visualize(exp, te)
+
+
+    def run_central(self, exp, te):
+        df = Central(self.language, self.cmode, exp, te).run()
+        centralities = df.columns
+        for centrality in centralities:
+            exp['evalcol'] = centrality
+            te = TopEval(self.language, self.cmode, exp, expdir=self.subdir, df=df)
+            self.visualize_nk(exp, te, vizname=centrality)
+
+
+    def run_clustconst(self, exp, te):
+        ClusterComparison(self.language, self.cmode, exp, te).run()
+
+
+    def visualize(self, exp, te):
+        if self.cmode == 'mx':
+            self.visualize_mx(exp, te)
+        else:
+            self.visualize_nk(exp, te)
+
+
+    def visualize_mx(self, exp, te, vizname='viz'):
+        expname = exp['name']
+
+        for topk in te.get_top_combinations():
+            info, plttitle = topk
+            print(info.as_string())
+            if 'special' in exp and exp['special']:
+                info.add('special', 'canon')
+
+            # Get matrix
+            cb = CombinationsBase(self.language, add_color=False, cmode='mx')
+            mx = [mx for mx in cb.mxs if mx.name == info.mxname]
+            assert len(mx) == 1
+            mx = mx[0]
+
+            info.add('order', 'olo')
+            if expname == 'attrviz' or expname == 'attrviz_int':
+                viz = MxVizAttr(self.language, mx, info, plttitle=plttitle, expname=expname)
+            else:
+                viz = MxViz(self.language, mx, info, plttitle=plttitle, expname=expname)
+            viz.visualize(vizname)
+
+
+    def visualize_nk(self, exp, te, vizname='viz'):
+        expname = exp['name']
+        print(expname)
+
+        for topk in te.get_top_combinations():
+            info, plttitle = topk
+            print(info.as_string())
+            if 'special' in exp and exp['special']:
+                info.add('special', 'canon')
+            network = NXNetwork(self.language, path=info.spmx_path)
+            if exp['name'] == 'attrviz' or expname == 'attrviz_int':
+                viz = NkVizAttr(self.language, network, info, plttitle=plttitle, expname=expname)
+                viz.visualize(vizname)
+                # gi = GridImage(self.language, self.cmode, exp)
+                # gi.run()      
+            else:
+                viz = NkViz(self.language, network, info, plttitle=plttitle, expname=expname) 
+                viz.visualize(vizname)
+
+
 
 
 class ClusterComparison(DataHandler):
@@ -159,7 +225,7 @@ class ClusterComparison(DataHandler):
         self.cmode = cmode
         self.exp = exp
         self.te = te
-        self.add_subdir(f"{self.cmode}{self.exp['name']}")
+        self.add_subdir(f"{self.cmode}_{self.exp['name']}")
 
 
     def run(self):
@@ -223,8 +289,7 @@ class ClusterComparison(DataHandler):
         assert dfcut.equals(dfcut.T)
         dfcut[dfcut < cutoff] = 0 
         assert dfcut.equals(dfcut.T)
-        # return {'allclst': dfa, 'sharedclst': dfs, 'shared_ordered_clst': deepcopy(dfs)}
-        return {'dfcut': dfcut, 'dfcut_ordered': deepcopy(dfcut)}
+        return {'allclst': dfa, 'sharedclst': dfs, 'shared_ordered_clst': deepcopy(dfs), 'dfcut': dfcut, 'dfcut_ordered': deepcopy(dfcut)}
 
 
     def order_mx(self, mx):
@@ -308,55 +373,83 @@ class ClusterComparison(DataHandler):
         cbar = fig.colorbar(cmap, ax=ax)
 
         self.save_data(data=plt, subdir=True, data_type='svg', file_name=f'{name}.svg')
-        plt.show()
+        # plt.show()
 
 
 
-class MxExp(ExpBase):
-    def __init__(self, language):
-        super().__init__(language, 'mx')
+
+class Central(DataHandler):
+    def __init__(self, language, cmode, exp, te):
+        super().__init__(language, output_dir='analysis', data_type='pkl')
+        self.cmode = cmode
+        self.exp = exp
+        self.te = te
+        self.add_subdir(f"{self.cmode}_{self.exp['name']}")
+        self.pkl_path = self.get_file_path(subdir=True, file_name=f'centralities.pkl')
+        self.csv_path = self.get_file_path(subdir=True, file_name=f'centralities.csv', data_type='csv')
+    
+
+    def run(self):
+        df = self.load_correlations()
+        df = df.merge(self.te.df, how='inner', left_index=True, right_on='file_info', validate='1:1')
+        return df
 
 
-    def visualize(self, exp, te):
-        expname = exp['name']
+    def create_correlations(self):
+        cents = self.load_centralities()
+        canoncol = self.te.metadf['canon']
+        corrs = {}
+        for centrality, df in cents.items():
+            correlations = df.apply(lambda col: col.corr(canoncol))
+            corrs[centrality] = correlations.round(2)
 
-        for topk in te.get_top_combinations():
+        df = pd.DataFrame(corrs)
+        self.save_data(data=df, file_path=self.csv_path, data_type='csv', subdir=True, pandas_kwargs={'index': True})
+
+
+    def load_correlations(self):
+        if not os.path.exists(self.csv_path):
+            self.create_correlations()
+        with open(self.csv_path, 'rb') as f:
+            df = pd.read_csv(self.csv_path, header=0, index_col=0)
+        return df
+
+
+    def load_centralities(self):
+        if not os.path.exists(self.pkl_path):
+            self.create_centralities()
+        with open(self.pkl_path, 'rb') as f:
+            cents = pickle.load(f)
+        return cents
+
+
+    def create_centralities(self):
+        deg = {}
+        between= {}
+        close = {}
+        eigen = {}
+
+        for topk in self.te.get_top_combinations():
             info, plttitle = topk
-            print(info.as_string())
-            if 'special' in exp and exp['special']:
-                info.add('special', 'canon')
+            graph = NXNetwork(self.language, path=info.spmx_path).graph
+            
+            deg[info.as_string()] = nx.degree_centrality(graph)
+            between[info.as_string()] = nx.betweenness_centrality(graph)
+            close[info.as_string()] = nx.closeness_centrality(graph)
+            eigen[info.as_string()] = None #nx.eigenvector_centrality_numpy(graph, max_iter=1000, tol=1e-04)
 
-            # Get matrix
-            cb = CombinationsBase(self.language, add_color=False, cmode='mx')
-            mx = [mx for mx in cb.mxs if mx.name == info.mxname]
-            assert len(mx) == 1
-            mx = mx[0]
-            info.add('order', 'olo')
-            if expname == 'attrviz' or expname == 'attrviz_int':
-                viz = MxVizAttr(self.language, mx, info, plttitle=plttitle, expname=expname)
-            else:
-                viz = MxViz(self.language, mx, info, plttitle=plttitle, expname=expname)
-            viz.visualize()
+        cents = {
+            'deg': deg,
+            'between': between,
+            'close': close,
+            # 'eigen': eigen
+        }
 
+        for k, v in cents.items():
+            df = pd.DataFrame(v)
+            cents[k] = df.round(5)
 
+        with open(self.pkl_path, 'wb') as f:
+            pickle.dump(cents, f)
 
-class NkExp(ExpBase):
-    def __init__(self, language):
-        super().__init__(language, 'nk')
-
-
-    def visualize(self, exp, te):
-        expname = exp['name']
-        print(expname)
-
-        for topk in te.get_top_combinations():
-            info, plttitle = topk
-            print(info.as_string())
-            if 'special' in exp and exp['special']:
-                info.add('special', 'canon')
-            network = NXNetwork(self.language, path=info.spmx_path)
-            if exp['name'] == 'attrviz' or expname == 'attrviz_int':
-                viz = NkVizAttr(self.language, network, info, plttitle=plttitle, expname=expname)          
-            else:
-                viz = NkViz(self.language, network, info, plttitle=plttitle, expname=expname) 
-            viz.visualize()
+        

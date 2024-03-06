@@ -180,6 +180,9 @@ class DataHandler():
         self.test = test
         self.language = language
         self.data_dir = data_dir
+        self.data_type = data_type
+        self.modes = modes
+        self.tokens_per_chunk = tokens_per_chunk
 
         self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.setLevel(logging.DEBUG)
@@ -197,9 +200,6 @@ class DataHandler():
         self.output_dir = self.create_output_dir(output_dir)
         self.text_raw_dir = os.path.join(self.data_dir, 'text_raw', language)
         self.doc_paths = get_doc_paths(self.text_raw_dir)
-        self.data_type = data_type
-        self.modes = modes
-        self.tokens_per_chunk = tokens_per_chunk
         self.data_types = ('.npz', '.csv', '.pkl', '.txt', '.svg', '.png', '.graphml')
         self.separator = 'ƒ'
         self.subdir = None
@@ -485,7 +485,7 @@ class TextsByAuthor(DataHandler):
     def create_data(self):
         authors = []
         author_filename_mapping = {}
-        #Get texts per authors
+        # Get texts per authors
         for file_name in self.filenames:
             author = '_'.join(file_name.split('_')[:2])
             authors.append(author)
@@ -503,8 +503,16 @@ class TextsByAuthor(DataHandler):
                         author_filename_mapping[author].extend(author_filename_mapping[alias]) 
                         del author_filename_mapping[alias]
                         authors = [author for author in authors if author != alias]
+
+        # Sort lists to insure that order of texts is always the same
+        new = {}
+        for author, works_by_author in author_filename_mapping.items():
+            new[author] = sorted(works_by_author)
+        author_filename_mapping = new
         
         nr_texts_per_author = Counter(authors)
+        # Anonymous are counted as being by the same author, even though they probably aren't.
+        self.logger.warning('The count for "anonymous" contains all works by anonymous authors.')
         # author_filename_mapping: dict{author name: [list of works by author]}
         # nr_texts_per_author: dict{author name: nr texts by author}
         return author_filename_mapping, nr_texts_per_author
@@ -523,8 +531,8 @@ class MetadataChecks(DataHandler):
     Hegeler_Wilhelm_Mutter-Bertha_1893 # raw docs
     '''
 
-    def __init__(self, language):
-        super().__init__(language, output_dir='corpus_corrections', data_type='csv') 
+    def __init__(self, language, data_dir):
+        super().__init__(language, output_dir='corpus_corrections', data_type='csv', data_dir=data_dir) 
         self.dfs = self.load_dfs()
 
     def run(self):
@@ -832,7 +840,9 @@ class DataLoader(DataHandler):
     Load various data frames to be used in other classes.
     '''
     def __init__(self, language):
-        super().__init__(language, output_dir=None, data_type='csv') 
+        super().__init__(language, output_dir=None, data_type='csv', data_dir='/home/annina/scripts/great_unread_nlp/data')
+        print(self.data_dir)
+
 
 
     def prepare_canon_df(self, fn_mapping):
@@ -850,9 +860,12 @@ class DataLoader(DataHandler):
         # Select rows from current language (df contains data for both eng and ger)
         # Get a list of filenames without the '.txt' extension
         rdfn = [f.rstrip('.txt') for f in os.listdir(self.text_raw_dir) if f.endswith(".txt")]
+        print(self.text_raw_dir)
         # Select rows from the DataFrame where 'file_name' is in the list of filenames
         df = df[df['file_name'].isin(rdfn)]
+        df.to_csv('canondf')
         # Check if all filenames in the directory are in the DataFrame
+        print(len(df), self.nr_texts, len(rdfn))
         assert all(file_name in df['file_name'].values for file_name in rdfn)
         assert len(df) == self.nr_texts
         return df
@@ -890,7 +903,7 @@ class DataLoader(DataHandler):
 
 
     def prepare_metadata(self, type):
-        mc = MetadataChecks(self.language) 
+        mc = MetadataChecks(self.language, data_dir=self.data_dir) 
         fn_mapping = mc.compare_rawdocs_dfs()
         fn_mapping = dict(zip(fn_mapping['metadata-fn'], fn_mapping['rawdocs-fn']))
 
@@ -996,11 +1009,9 @@ class DataLoader(DataHandler):
 
 
 
-
 # # Provide the directory path and the string to search for
-# directory_path = '/home/annina/scripts/great_unread_nlp/data/text_tokenized'
 # directory_path = '/home/annina/scripts/great_unread_nlp/src/'
-# search_string = "_cluster_color"
+# search_string = 'MetadataHandler'
 # extension = ['.txt', '.py']
 # search_string_in_files(directory_path, search_string, extension, full_word=False)
 

@@ -26,8 +26,9 @@ logging.basicConfig(level=logging.DEBUG)
 
 
 class MetadataHandler(DataHandler):
-    def __init__(self, language):
+    def __init__(self, language, by_author=False):
         super().__init__(language, output_dir='similarity', data_type='png')
+        self.by_author = by_author
         self.cat_attrs = ['gender', 'author']
 
 
@@ -79,6 +80,14 @@ class MetadataHandler(DataHandler):
         metadf = metadf.rename(columns=lambda x: x.rstrip('_full'))
         # Replace '_' in feature names with '-'
         metadf = metadf.rename(columns=lambda x: x.replace('_', '-'))
+
+        if self.by_author:
+            # Assert each author has only one value in the gender column
+            assert metadf.groupby('author')['gender'].nunique().max() == 1, 'Each author should have only one value in the gender column.'
+            metadf = metadf.groupby('author').mean().reset_index()
+            nr_authors = sum(1 for _ in os.listdir(self.raw_text_dir) if os.path.isfile(os.path.join(self.raw_text_dir, _)))
+            assert nr_authors == len(metadf)
+
 
         if add_color:
             metadf = self.add_attr_colors(metadf)

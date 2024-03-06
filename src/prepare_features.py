@@ -1,6 +1,6 @@
 # %%
-%load_ext autoreload
-%autoreload 2
+# %load_ext autoreload
+# %autoreload 2
 
 import os
 import time
@@ -10,20 +10,16 @@ from utils import get_doc_paths, check_equal_files, DataHandler, get_filename_fr
 from feature_extraction.embeddings import D2vProcessor, SbertProcessor, RewriteSbertData
 from feature_extraction.ngrams import NgramCounter, MfwExtractor
 from feature_extraction.process_rawtext import Tokenizer, ChunkHandler, SentenceTokenizer
-import logging
 
 
 class FeaturePreparer(DataHandler):
     '''
-    Extract basic features that take a while to process before using more detailed processing.
-    This is not necessary, since all data preparation steps are also called from the detailed processing, but is practical.
+    Extract basic features that take a while to process before extracting the final features.
+    This is not necessary, since all data preparation steps are also called from the feature extraction script, but it is convenient.
     '''
     def __init__(self, language):
-        super().__init__(language, 'features')
-        # self.doc_paths = self.doc_paths[:10]  ##################################
-        self.doc_paths = get_doc_paths_sorted(self.text_raw_dir)[:5]
-        # self.doc_paths = list(reversed(self.doc_paths))
-        # print('doc paths sorted', self.doc_paths)
+        super().__init__(language=language, output_dir='features')
+        self.doc_paths = get_doc_paths_sorted(self.text_raw_dir)
 
 
     def sentence_tokenizer(self):
@@ -38,6 +34,7 @@ class FeaturePreparer(DataHandler):
                     item_path = os.path.join(dirpath, item)
                     if os.path.isfile(item_path):
                         os.remove(item_path)
+        remove = False ####################################### delete if needed
         if remove:
             chars_path = f'/home/annina/scripts/great_unread_nlp/src/special_chars_{language}.txt'
             if os.path.exists(chars_path):
@@ -98,32 +95,28 @@ class FeaturePreparer(DataHandler):
 
     def sbert(self):
         s = SbertProcessor(language=self.language, tokens_per_chunk=self.tokens_per_chunk)
-        # s.create_all_data()
+        s.create_all_data()
         s.check_data() 
-        # d = s.load_data(file_name='Kipling_Rudyard_How-the-Rhinoceros-Got-His-Skin_1902', doc_path='/home/annina/scripts/great_unread_nlp/data/text_raw/eng/Kipling_Rudyard_How-the-Rhinoceros-Got-His-Skin_1902.txt')
-        # print(type(d), len(d))
 
     def rewrite_sbert(self):
         sb = RewriteSbertData(language=self.language, tokens_per_chunk=self.tokens_per_chunk)
         sb.process_and_save_data()
         
     def run(self):
-        # self.load_text_tokenized()
-        # self.sentence_tokenizer()
-        # self.tokenizer()
-        # self.chunker()
-        # self.ngramcounter()
-        # self.ngram_chunkloader()
-        # self.ngramshapes()
+        self.sentence_tokenizer()
+        self.tokenizer()
+        self.chunker()
+        self.ngramcounter()
+        self.ngram_chunkloader()
+        self.ngramshapes()
         self.mfwextractor()
-        # self.d2v()
+        self.d2v()
         # self.sbert()
         # self.rewrite_sbert()
 
 
-remove = False
-for language in ['eng', 'ger']:
-    fp = FeaturePreparer(language)
-    fp.run()
-
-# %%
+if __name__ == '__main__':
+    remove = False
+    for language in ['eng', 'ger']:
+        fp = FeaturePreparer(language=language)
+        fp.run()

@@ -14,7 +14,7 @@ from tqdm import tqdm
 from feature_extraction.doc_based_feature_extractor import DocBasedFeatureExtractor
 from feature_extraction.corpus_based_feature_extractor import CorpusBasedFeatureExtractor
 from feature_extraction.ngrams import NgramCounter
-from feature_extraction.process_rawtext import ChunkHandler
+from feature_extraction.process_rawtext import ChunkHandler, DataChecker
 
 import sys
 sys.path.append("..")
@@ -154,7 +154,7 @@ class FeatureProcessor(DataHandler):
         )
         
 
-for language in ['ger']:
+for language in ['eng', 'ger']:
     fe = FeatureProcessor(language).run()
 
 
@@ -306,7 +306,7 @@ class FeatureChecker(DataHandler):
 
     def check_chunk(self):
         ch = ChunkHandler(self.language, self.tokens_per_chunk)
-        nr_chunks_per_doc, total_nr_chunks = ch.DataChecker(self.language, ch.output_dir).count_chunks_per_doc()
+        nr_chunks_per_doc, total_nr_chunks = DataChecker(self.language, ch.output_dir).count_chunks_per_doc()
         for key in ['chunk', 'cacb']:
             df = self.dfs[key]
             assert df.shape[0] == total_nr_chunks

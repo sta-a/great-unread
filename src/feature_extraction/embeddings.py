@@ -18,7 +18,7 @@ from sklearn.utils import shuffle
 from sentence_transformers import SentenceTransformer
 
 
-from .process_rawtext import ChunkHandler
+from .process_rawtext import ChunkHandler, DataChecker
 sys.path.append("..")
 from utils import get_filename_from_path, get_doc_paths, DataHandler, save_list_of_lines
 logging.basicConfig(level=logging.DEBUG)
@@ -87,7 +87,8 @@ class SbertProcessor(DataHandler):
     def check_data(self):
         # Check if there is one embedding for every sentence
         ch = ChunkHandler(self.language, self.tokens_per_chunk)
-        _, sentences_per_doc = ch.DataChecker(self.language, ch.output_dir).count_sentences_per_chunk()
+        _, sentences_per_doc = DataChecker(self.language, ch.output_dir).count_sentences_per_chunk()
+        
         for doc_path in self.doc_paths:
             bookname = get_filename_from_path(doc_path)
             nr_sents = sentences_per_doc[bookname]
@@ -197,7 +198,7 @@ class D2vProcessor(DataHandler):
 
         if mode == 'chunk' or mode == 'both':
             ch = ChunkHandler(self.language, self.tokens_per_chunk)
-            nr_chunks_per_doc, total_nr_chunks = ch.DataChecker(self.language, ch.output_dir).count_chunks_per_doc()
+            nr_chunks_per_doc, total_nr_chunks = DataChecker(self.language, ch.output_dir).count_chunks_per_doc()
             
             if mode == 'chunk':
                 assert len(dvs) == total_nr_chunks ########################

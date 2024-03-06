@@ -7,7 +7,7 @@ logging.getLogger("matplotlib.font_manager").setLevel(logging.ERROR)
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.feature_extraction.text import CountVectorizer
-from .process_rawtext import ChunkHandler
+from .process_rawtext import ChunkHandler, DataChecker
 import sys
 sys.path.append("..")
 from utils import DataHandler, get_filename_from_path, get_files_in_dir
@@ -27,6 +27,7 @@ class NgramCounter(DataHandler):
         self.modes = [(item1, item2) for item1 in self.unigrams for item2 in self.sizes]
         self.ch = ChunkHandler(self.language, self.tokens_per_chunk)
         self.chunk_names = []
+
 
     def get_chunknames(self, doc_path, nr_chunks, size):
         bookname = get_filename_from_path(doc_path)
@@ -169,119 +170,120 @@ class NgramCounter(DataHandler):
         
 
     def check_data(self):
-        dc = self.DataChecker(self.language, ngrams_dir=self.output_dir)
+        dc = NgramDataChecker(self.language, ngrams_dir=self.output_dir)
         dc.check_filenames()
         dc.check_rare_words()
         df = dc.get_total_unigram_freq()
         dc.plot_zipfs_law(df)
 
 
-    class DataChecker(DataHandler):
+
+class NgramDataChecker(DataHandler):
+    '''
+    Class for checking chunking
+    '''
+    def __init__(self, language, ngrams_dir):
+        super().__init__(language, output_dir='text_statistics', data_type='svg')
+        self.ngrams_dir = ngrams_dir
+        self.nc = NgramCounter(language=self.language)
+
+    def check_filenames(self):
+        ch = ChunkHandler(self.language, self.tokens_per_chunk)
+        nr_chunks_per_doc, total_nr_chunks = DataChecker(self.language, ch.output_dir).count_chunks_per_doc()
+        nr_texts = len(nr_chunks_per_doc)
+        for unigram in self.nc.unigrams:
+            for size in self.nc.sizes:
+                data_dict = self.nc.load_data(file_name=f'{unigram}_{size}')
+
+                fn = data_dict['file_names']
+                nr_fn = len(fn)
+                print(f'nr texts: {nr_texts}, nr filenames: {nr_fn}')
+
+                if size == 'full':
+                    assert nr_fn ==   nr_texts
+                else:
+                    assert nr_fn == total_nr_chunks
+
+
+    def check_rare_words(self):
         '''
-        Class for checking chunking
+        Print some words that occur only once in the corpus and the file in which they occur.
         '''
-        def __init__(self, language, ngrams_dir):
-            super().__init__(language, output_dir='text_statistics', data_type='svg')
-            self.ngrams_dir = ngrams_dir
-            self.nc = NgramCounter(language=self.language)
+        data_dict = self.nc.load_data(mode='unigram_chunk')
+        words = data_dict['words']
 
-        def check_filenames(self):
-            ch = ChunkHandler(self.language, self.tokens_per_chunk)
-            nr_chunks_per_doc, total_nr_chunks = ch.DataChecker(self.language, ch.output_dir).count_chunks_per_doc()
-            nr_texts = len(nr_chunks_per_doc)
-            for unigram in self.nc.unigrams:
-                for size in self.nc.sizes:
-                    data_dict = self.nc.load_data(file_name=f'{unigram}_{size}')
+        dtm = data_dict['dtm']
 
-                    fn = data_dict['file_names']
-                    nr_fn = len(fn)
-                    print(f'nr texts: {nr_texts}, nr filenames: {nr_fn}')
+        # Calculate the sum along axis 0 (columns) directly on the sparse matrix
+        dtm_sum = np.array(dtm.sum(axis=0))[0]
 
-                    if size == 'full':
-                        assert nr_fn ==   nr_texts
-                    else:
-                        assert nr_fn == total_nr_chunks
+        # Randomly select a word with count 1
+        unique_word_indices = np.where(dtm_sum == 1)[0]
 
-
-        def check_rare_words(self):
-            '''
-            Print some words that occur only once in the corpus and the file in which they occur.
-            '''
-            data_dict = self.nc.load_data(mode='unigram_chunk')
-            words = data_dict['words']
-
-            dtm = data_dict['dtm']
-
-            # Calculate the sum along axis 0 (columns) directly on the sparse matrix
-            dtm_sum = np.array(dtm.sum(axis=0))[0]
-
-            # Randomly select a word with count 1
-            unique_word_indices = np.where(dtm_sum == 1)[0]
-
-            for i in range(0, 10):
-                    # Find the indices where the unique word appears in the DTM
-                    random_unique_word_index = np.random.choice(unique_word_indices)
-                    
-                    # Get the indices of documents where this word appears directly from the sparse matrix
-                    document_indices = dtm[:, random_unique_word_index].nonzero()[0]
-                    
-                    # Retrieve the file name associated with the first document where the word appears
-                    idx = data_dict['file_names'][int(document_indices[0])]
-                    
-                    # Print the randomly selected word and the indices of documents where it appears
-                    print(f"Randomly selected word with count 1: '{words[random_unique_word_index]}'")
-                    print(f"Indices of documents where this word appears: {idx}")
+        for i in range(0, 10):
+                # Find the indices where the unique word appears in the DTM
+                random_unique_word_index = np.random.choice(unique_word_indices)
+                
+                # Get the indices of documents where this word appears directly from the sparse matrix
+                document_indices = dtm[:, random_unique_word_index].nonzero()[0]
+                
+                # Retrieve the file name associated with the first document where the word appears
+                idx = data_dict['file_names'][int(document_indices[0])]
+                
+                # Print the randomly selected word and the indices of documents where it appears
+                print(f"Randomly selected word with count 1: '{words[random_unique_word_index]}'")
+                print(f"Indices of documents where this word appears: {idx}")
 
 
-        def get_total_unigram_freq(self):
-            data_dict = self.nc.load_data(mode='unigram_full')
-            words = data_dict['words']
+    def get_total_unigram_freq(self):
+        data_dict = self.nc.load_data(mode='unigram_full')
+        words = data_dict['words']
 
-            dtm = data_dict['dtm']
-   
-            # Calculate the sum along axis 0
-            dtm_sum = list(np.array(dtm.sum(axis=0))[0])
+        dtm = data_dict['dtm']
 
-            data = {'word': words, 'count': dtm_sum}
-            df = pd.DataFrame(data)
-            self.save_data(data=df, file_name='unigram_counts.csv')
-            return df
-        
-        def plot_zipfs_law(self, df):
-            df = df.sort_values(by='count', ascending=False)
-            ranks = np.arange(1, df.shape[0] + 1)
+        # Calculate the sum along axis 0
+        dtm_sum = list(np.array(dtm.sum(axis=0))[0])
 
-
-            # Calculate expected frequencies based on Zipf's Law
-            k = df['count'].iloc[0]  # Take the count of the top-ranked word as k
-            expected_freq = k / ranks
-
-            # Plot Zipf's Law on a log-log scale
-            plt.figure(figsize=(10, 6))
-            plt.loglog(ranks, expected_freq, linestyle='-', color='r', label="Zipf's Law")
-            plt.loglog(ranks, df['count'], marker='.', linestyle='None', color='b', label='Counted')
-            plt.xlabel('Rank')
-            plt.ylabel('Frequency')
-            plt.title("Zipf's Law (log-log scale)")
-            plt.legend()
-            plt.grid(True)
-
-            for i in range(4):
-                plt.annotate(f'{df.iloc[i]["word"]}', (ranks[i], df.iloc[i]["count"]), textcoords='offset points', xytext=(0, 5))
-
-            count_greater_than_1 = len(df[df['count'] > 1])
-
-            plt.text(0.99, 0.85, f'Words with count > 1: {count_greater_than_1:,}\nNr. unique words: {df.shape[0]:,}', transform=plt.gca().transAxes, 
-                     va='top', ha='right', bbox=dict(facecolor='white', edgecolor='black', alpha=0.7))                    
-            # # Annotate the plot with words at every power of 10 frequency
-            # for power in range(1, int(np.log10(df['count'].max())) + 1):
-            #     freq_threshold = 10 ** power
-            #     closest_index = np.argmin(np.abs(df['count'] - freq_threshold))
-            #     word_to_annotate = df.iloc[closest_index]['word']
-            #     plt.annotate(f'{word_to_annotate}', (ranks[closest_index], df['count'].iloc[closest_index]), textcoords='offset points', xytext=(0, 5))
+        data = {'word': words, 'count': dtm_sum}
+        df = pd.DataFrame(data)
+        self.save_data(data=df, file_name='unigram_counts.csv')
+        return df
+    
+    def plot_zipfs_law(self, df):
+        df = df.sort_values(by='count', ascending=False)
+        ranks = np.arange(1, df.shape[0] + 1)
 
 
-            self.save_data(file_name='zipfs-law', data=plt, data_type='png')
+        # Calculate expected frequencies based on Zipf's Law
+        k = df['count'].iloc[0]  # Take the count of the top-ranked word as k
+        expected_freq = k / ranks
+
+        # Plot Zipf's Law on a log-log scale
+        plt.figure(figsize=(10, 6))
+        plt.loglog(ranks, expected_freq, linestyle='-', color='r', label="Zipf's Law")
+        plt.loglog(ranks, df['count'], marker='.', linestyle='None', color='b', label='Counted')
+        plt.xlabel('Rank')
+        plt.ylabel('Frequency')
+        plt.title("Zipf's Law (log-log scale)")
+        plt.legend()
+        plt.grid(True)
+
+        for i in range(4):
+            plt.annotate(f'{df.iloc[i]["word"]}', (ranks[i], df.iloc[i]["count"]), textcoords='offset points', xytext=(0, 5))
+
+        count_greater_than_1 = len(df[df['count'] > 1])
+
+        plt.text(0.99, 0.85, f'Words with count > 1: {count_greater_than_1:,}\nNr. unique words: {df.shape[0]:,}', transform=plt.gca().transAxes, 
+                    va='top', ha='right', bbox=dict(facecolor='white', edgecolor='black', alpha=0.7))                    
+        # # Annotate the plot with words at every power of 10 frequency
+        # for power in range(1, int(np.log10(df['count'].max())) + 1):
+        #     freq_threshold = 10 ** power
+        #     closest_index = np.argmin(np.abs(df['count'] - freq_threshold))
+        #     word_to_annotate = df.iloc[closest_index]['word']
+        #     plt.annotate(f'{word_to_annotate}', (ranks[closest_index], df['count'].iloc[closest_index]), textcoords='offset points', xytext=(0, 5))
+
+
+        self.save_data(file_name='zipfs-law', data=plt, data_type='png')
 
 
 class MfwExtractor(DataHandler):
