@@ -107,7 +107,7 @@ class Sparsifier(DataHandler):
             '''
             mx: similarity marix
             Edge only if texts are equally or more similar than the least (if by='min') (most if by='max) similar text by the same author
-            This results in a directed weight matrix
+            This results in a directed weight matrix.
             '''
             directed_mx = []
             author_filename_mapping = TextsByAuthor(self.language, filenames=mx.index).author_filename_mapping

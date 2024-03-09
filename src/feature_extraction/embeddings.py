@@ -80,7 +80,7 @@ class SbertProcessor(DataHandler):
     def load_data_type(self, file_path, **kwargs):
         data = np.load(file_path)['arr_0'] # List of arrays
         data = np.array(data)
-        self.logger.info(f'Returning sbert embedding as an array of arrays.')
+        # self.logger.info(f'Returning sbert embedding as an array of arrays.')
         return data
 
 

@@ -14,7 +14,7 @@ from copy import deepcopy
 from matplotlib.colors import to_rgba
 from scipy.stats import skew
 
-from utils import DataHandler, DataLoader, TextsByAuthor
+from utils import DataHandler, DataLoader, TextsByAuthor, FeaturesLoader
 
 import logging
 logging.basicConfig(level=logging.DEBUG)
@@ -27,9 +27,15 @@ logging.basicConfig(level=logging.DEBUG)
 
 class MetadataHandler(DataHandler):
     def __init__(self, language, by_author=False):
-        super().__init__(language, output_dir='similarity', data_type='png')
+        super().__init__(language, output_dir=None, data_type='png')
         self.by_author = by_author
         self.cat_attrs = ['gender', 'author']
+        print('\n###################3metadata by authro############\n', self.by_author)
+
+    def add_title_mapping(self, tmap, df):
+        df = df.merge(tmap, left_index=True, right_on='file_name', validate='1:1')
+        df = df.drop(columns=['author', 'file_name'])
+        return df
 
 
     def get_metadata(self, add_color=False):
@@ -39,20 +45,34 @@ class MetadataHandler(DataHandler):
 
         canon = DataLoader(self.language).prepare_metadata(type='canon')
 
+        if self.by_author:
+            output_dir = self.create_output_dir(output_dir='title_mapping')
+            tmap = pd.read_csv(os.path.join(output_dir, 'title_mapping.csv'), header=0)
+
+            gender = self.add_title_mapping(tmap, gender)
+            # 'Stevenson-Grift_Robert-Louis-Fanny-van-de_The-Dynamiter_1885' has gender 'b'
+            # Text is treated as one of Stevenson's texts
+            gender.loc[gender['new_file_name'] == 'Stevenson_Robert-Louis_all_1888', 'gender'] = 0
+            # grouped = gender.groupby('new_file_name')
+
+            # # Printing each group
+            # for name, group in grouped:
+            #     print(f"Group: {name}")
+            #     assert group['gender'].nunique() == 1, f"Assertion failed for group '{name}'. Each author should have only one value in the gender."
+
+            assert gender.groupby('new_file_name')['gender'].nunique().max() == 1, 'Each author should have only one value in the gender column.'
+            gender = gender.drop_duplicates(subset=['new_file_name'])
+            gender = gender.set_index('new_file_name')
+            
+            # Average over canon scores of individual texts
+            canon = self.add_title_mapping(tmap, canon)
+            canon = canon.groupby('new_file_name').mean()
+
         # Load features scaled to range between 0 and 1
-        features = DataLoader(self.language).prepare_features(scale=True)
-        # Check if all feature values are between 0 and 1, ignore nan
+        features = FeaturesLoader(self.language).prepare_features(scale=True)
+        # Check if all feature values are between 0 and 1 (except for nan)
         features_test = features.fillna(0)
         assert ((features_test >= 0) & (features_test <= 1) | (features_test.isin([0, 1]))).all().all()
-
-
-        out_of_range_indices = features[(features < 0)].stack().index
-
-        # Print the elements with row and column indices
-        for row_idx, col_idx in out_of_range_indices:
-            print(f"Element at ({row_idx}, {col_idx}): {features.loc[row_idx, col_idx]}")
-
-
 
         author_filename_mapping = TextsByAuthor(self.language).author_filename_mapping
         author = pd.DataFrame([(author, work) for author, works in author_filename_mapping.items() for work in works],
@@ -74,19 +94,18 @@ class MetadataHandler(DataHandler):
             else:
                 metadf = pd.merge(metadf, df, left_index=True, right_index=True, how='inner', validate='1:1')
 
-        assert len(metadf) == self.nr_texts
-        
         # Remove '_full' from column names
         metadf = metadf.rename(columns=lambda x: x.rstrip('_full'))
         # Replace '_' in feature names with '-'
         metadf = metadf.rename(columns=lambda x: x.replace('_', '-'))
 
         if self.by_author:
-            # Assert each author has only one value in the gender column
-            assert metadf.groupby('author')['gender'].nunique().max() == 1, 'Each author should have only one value in the gender column.'
-            metadf = metadf.groupby('author').mean().reset_index()
-            nr_authors = sum(1 for _ in os.listdir(self.raw_text_dir) if os.path.isfile(os.path.join(self.raw_text_dir, _)))
+            nr_authors = sum(1 for _ in os.listdir(self.text_raw_dir) if os.path.isfile(os.path.join(self.text_raw_dir, _)))
             assert nr_authors == len(metadf)
+
+        else:
+            print('--------------------0', self.by_author)
+            assert len(metadf) == self.nr_texts
 
 
         if add_color:

@@ -486,11 +486,6 @@ class CorpusBasedFeatureExtractor():
                 else:
                     book_features.append(features)
 
-        if self.language == 'eng':
-            # Correct for error in pickled file, features ok but filenames not
-            chunk_features[4]['file_name'] = chunk_features[0]['file_name'].values
-
-
         chunk_features = reduce(lambda df1, df2: df1.merge(df2, how='inner', on='file_name', validate='one_to_one'), chunk_features)
         if self.as_chunk:
             book_features = reduce(lambda df1, df2: df1.merge(df2, how='inner', on='file_name', validate='one_to_one'), book_features)

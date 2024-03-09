@@ -20,8 +20,8 @@ class TopEval(InfoHandler):
     -df: a filtered evaluation file. Must contain column 'file_info'
         Df can be precomputed and passed to TopEval to use methods, or is calculated by TopEval
     '''
-    def __init__(self, language, cmode, exp, expdir, df=None):
-        super().__init__(language=language, add_color=True, cmode=cmode)
+    def __init__(self, language, cmode, exp, expdir, df=None, by_author=False):
+        super().__init__(language=language, add_color=True, cmode=cmode, by_author=by_author)
         self.cmode = cmode
         self.exp = exp
         self.expdir = expdir

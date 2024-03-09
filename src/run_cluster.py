@@ -30,11 +30,13 @@ if __name__ == "__main__":
 
     parser.add_argument('--language', type=str)
     parser.add_argument('--mode', type=str)
+    parser.add_argument('--by_author', action='store_true')  # Boolean argument, if flag is used, by_author is set to True
 
     args = parser.parse_args()
 
     language = args.language
     mode = args.mode
+    by_author = args.by_author
 
     print(f"Selected language: {language}")
     print(f"Selected mode: {mode}")
@@ -44,14 +46,14 @@ if __name__ == "__main__":
     if mode == 'mxc':
         # remove_directories(['/home/annina/scripts/great_unread_nlp/data/similarity/eng/mxeval'])
         # remove_directories(['/home/annina/scripts/great_unread_nlp/data/similarity/eng/mxcomb'])
-        mxc = MxCombinations(language=language, add_color=False)
-        mxc.evaluate_all_combinations()
+        mxc = MxCombinations(language=language, add_color=False, by_author=by_author)
+        # mxc.evaluate_all_combinations()
         mxc.check_data()
         
     elif mode == 'nkc':
         # remove_directories(['/home/annina/scripts/great_unread_nlp/data/similarity/eng/nkeval'])
         # remove_directories(['/home/annina/scripts/great_unread_nlp/data/similarity/eng/nkcomb'])
-        nkc = NkCombinations(language=language, add_color=False)
+        nkc = NkCombinations(language=language, add_color=False, by_author=by_author)
         # nkc.evaluate_all_combinations()
-        # nkc.check_data()
+        nkc.check_data()
 

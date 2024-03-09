@@ -175,7 +175,7 @@ class DataHandler():
     '''
     Base class for creating, saving, and loading data.
     '''
-    def __init__(self, language=None, output_dir=None, data_type='csv', modes=None, tokens_per_chunk=1000, data_dir='/home/annina/scripts/great_unread_nlp/data', test=False):
+    def __init__(self, language=None, output_dir=None, data_type='csv', modes=None, tokens_per_chunk=1000, data_dir='/home/annina/scripts/great_unread_nlp/data_author', test=False):
 
         self.test = test
         self.language = language
@@ -203,10 +203,17 @@ class DataHandler():
         self.data_types = ('.npz', '.csv', '.pkl', '.txt', '.svg', '.png', '.graphml')
         self.separator = 'ƒ'
         self.subdir = None
+
         if self.language == 'eng':
             self.nr_texts = 605
         else:
             self.nr_texts = 547
+        if 'data_author' in self.data_dir:
+            if self.language == 'eng':
+                self.nr_texts = 165
+            else:
+                self.nr_texts = 183
+
         if self.test:
             self.doc_paths = get_doc_paths_sorted(self.text_raw_dir)[:3]
 
@@ -485,9 +492,17 @@ class TextsByAuthor(DataHandler):
     def create_data(self):
         authors = []
         author_filename_mapping = {}
+        anon_counter = 0
         # Get texts per authors
         for file_name in self.filenames:
-            author = '_'.join(file_name.split('_')[:2])
+            last_name, first_name = file_name.split('_')[:2]
+
+            # Treat anonymous authors as different authors
+            if last_name == 'Anonymous':
+                last_name = f'{last_name}{anon_counter}'
+                anon_counter += 1
+
+            author = '_'.join([last_name, first_name])
             authors.append(author)
             if author in author_filename_mapping:
                 author_filename_mapping[author].append(file_name)
@@ -511,8 +526,6 @@ class TextsByAuthor(DataHandler):
         author_filename_mapping = new
         
         nr_texts_per_author = Counter(authors)
-        # Anonymous are counted as being by the same author, even though they probably aren't.
-        self.logger.warning('The count for "anonymous" contains all works by anonymous authors.')
         # author_filename_mapping: dict{author name: [list of works by author]}
         # nr_texts_per_author: dict{author name: nr texts by author}
         return author_filename_mapping, nr_texts_per_author
@@ -840,9 +853,10 @@ class DataLoader(DataHandler):
     Load various data frames to be used in other classes.
     '''
     def __init__(self, language):
+        # Data dir is fixed because dfs use file names of single texts
+        # There is no author-based version of the metadata files
         super().__init__(language, output_dir=None, data_type='csv', data_dir='/home/annina/scripts/great_unread_nlp/data')
         print(self.data_dir)
-
 
 
     def prepare_canon_df(self, fn_mapping):
@@ -985,13 +999,19 @@ class DataLoader(DataHandler):
         return df
 
 
+
+class FeaturesLoader(DataHandler):
+    '''
+    Load various data frames to be used in other classes.
+    '''
+    def __init__(self, language):
+        super().__init__(language, output_dir='features', data_type='csv')
+        print(self.data_dir)
+
     def prepare_features(self, scale=False):
         '''
         Return features table for full-book features
         '''
-        self.output_dir = self.create_output_dir('features')
-        self.logger.debug(f'Created output dir from inside function.')
-
         path = os.path.join(self.output_dir, 'book.csv')
         df = pd.read_csv(path, index_col='file_name')
 
@@ -1011,7 +1031,7 @@ class DataLoader(DataHandler):
 
 # # Provide the directory path and the string to search for
 # directory_path = '/home/annina/scripts/great_unread_nlp/src/'
-# search_string = 'MetadataHandler'
+# search_string = 'TextsByAuthor'
 # extension = ['.txt', '.py']
 # search_string_in_files(directory_path, search_string, extension, full_word=False)
 

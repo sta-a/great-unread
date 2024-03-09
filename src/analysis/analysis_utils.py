@@ -332,11 +332,10 @@ def load_spmx_from_pkl(spmx_path):
         simmx = pickle.load(f)
 
     simmx = simmx.mx
-    # if simmx.equals(simmx.T):
-    #     print(f'Matrix is symmetric.')
-    # else:
-    #     print(f'Matrix is not symmetric.')
-    return simmx
+    symmetric = False
+    if simmx.equals(simmx.T):
+        symmetric = True
+    return simmx, symmetric
 
 
 def info_to_mx_and_edgelist():
@@ -351,7 +350,7 @@ def info_to_mx_and_edgelist():
         attributes = pd.DataFrame({'index': attributes.index, 'canon': attributes.values})
 
         spmx_path = info.spmx_path
-        simmx = load_spmx_from_pkl(spmx_path)
+        simmx, symmetric = load_spmx_from_pkl(spmx_path)
         mapped_matrix, index_mapping = map_indices_to_numbers(simmx)
         print('Mapped DataFrame:')
         print(mapped_matrix)
@@ -369,7 +368,7 @@ def info_to_mx_and_edgelist():
         # mapped_matrix.to_csv(os.path.join(outdir, f'weightmatrix-{language}-{info.as_string()}'), header=True, index=True)
         attributes.to_csv(os.path.join(outdir, f'attributes-{language}-{info.as_string()}.csv'), header=True, index=False)
         index_mapping.to_csv(os.path.join(outdir, f'index-mapping-{language}-{info.as_string()}.csv'), header=True, index=False)
-        nx.write_weighted_edgelist(graph, os.path.join(outdir, f'edgelist-{language}-{info.as_string()}.csv'), delimiter=',')
+        nx.write_weighted_edgelist(graph, os.path.join(outdir, f'edgelist_{language}-{info.as_string()}.csv'), delimiter=',')
         
 
 def pklmxs_to_edgelist():
@@ -378,11 +377,14 @@ def pklmxs_to_edgelist():
     '''
     for language in ['eng', 'ger']:
         indir = f'/home/annina/scripts/great_unread_nlp/data/similarity/{language}/sparsification'
-        outdir = f'/home/annina/scripts/great_unread_nlp/data/similarity/{language}/sparsification_edgelists'
+        outdir = f'/home/annina/scripts/great_unread_nlp/data/analysis/{language}/sparsification_edgelists'
+        if not os.path.exists(outdir):
+            os.mkdir(outdir)
+
         mxpaths = [os.path.join(indir, file) for file in os.listdir(indir) if file.endswith('.pkl')]
         prev_idx_mapping = None
         for spmx_path in mxpaths:
-            simmx = load_spmx_from_pkl(spmx_path)
+            simmx, symmetric = load_spmx_from_pkl(spmx_path)
             mapped_matrix, index_mapping = map_indices_to_numbers(simmx)
 
             if prev_idx_mapping is None:
@@ -392,7 +394,13 @@ def pklmxs_to_edgelist():
 
             graph = nx.from_pandas_adjacency(mapped_matrix, create_using=nx.DiGraph)
             file_name = os.path.splitext(os.path.basename(spmx_path))[0]
-            nx.write_weighted_edgelist(graph, os.path.join(outdir, f'edgelist-{file_name}.csv'), delimiter=',')
+            if symmetric:
+                fnstr = 'undirected'
+            else:
+                fnstr = 'directed'
+            nx.write_weighted_edgelist(graph, os.path.join(outdir, f'edgelist_{file_name}_{fnstr}.csv'), delimiter=',')
         
         index_mapping.to_csv(os.path.join(outdir, f'index-mapping.csv'), header=True, index=False)
 
+# pklmxs_to_edgelist()
+# %%

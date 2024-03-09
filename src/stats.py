@@ -17,7 +17,7 @@ import pickle
 from collections import Counter
 from scipy.stats import skew
 import os
-from utils import DataHandler, get_filename_from_path, get_files_in_dir, DataLoader
+from utils import DataHandler, get_filename_from_path, get_files_in_dir, DataLoader, TextsByAuthor
 from cluster.cluster_utils import MetadataHandler
 #from hpo_functions import get_data, ColumnTransformer
 
@@ -144,17 +144,62 @@ class PlotFeatureDist(DataHandler):
 
 
 
+class PlotCanonScoresPerAuthor(DataHandler):
+    def __init__(self, language):
+        super().__init__(language, output_dir='text_statistics', data_type='svg')
+
+
+    def get_data(self):
+        # df = DataLoader(self.language).prepare_features(scale=True)
+        mh = MetadataHandler(self.language)
+        df = mh.get_metadata(add_color=False)[['canon']]
+        author_filename_mapping = TextsByAuthor(self.language).author_filename_mapping
+        author = pd.DataFrame([(author, work) for author, works in author_filename_mapping.items() for work in works],
+                        columns=['author', 'file_name'])
+        df = df.merge(author, left_index=True, right_on='file_name', validate='1:1')
+
+        # Get x-positions
+        mean_canon = df.groupby('author')['canon'].mean()
+        sorted_authors = mean_canon.sort_values().index
+        author_positions = {author: i for i, author in enumerate(sorted_authors)}
+        df['author_position'] = df['author'].map(author_positions)
+
+        
+        fig, ax = plt.subplots(figsize=(25, 8))
+        for author, group in df.groupby('author'):
+            x_position = group['author_position'].iloc[0]  # Take the x-position from the first row of the group
+            ax.scatter([x_position] * len(group), group['canon'], c='b', s=5) # , label=author
+
+            ax.vlines(x_position, ymin=0, ymax=group['canon'].max(), linestyle='dotted', color='gray', linewidth=1) # ymin=group['canon'].min()
+
+        # Set labels and title
+        ax.set_xlabel('Author')
+        ax.set_ylabel('Canon Score')
+        ax.set_title('Canon Scores by Author')
+
+        # Set x-axis tick positions and labels
+        ax.set_xticks(range(len(sorted_authors)))
+        ax.set_xticklabels(sorted_authors, rotation=45, ha='right', fontsize=7)
+
+        # Adjust layout to prevent clipping of labels
+        plt.tight_layout()
+
+        self.save_data(data=plt, file_name='canonscores_per_author')
+
+
 
 # for language in ['eng', 'ger']:
-# #     ts = TextStatistics(language)
-# #     ts.get_longest_shortest_text()
+#     ts = TextStatistics(language)
+#     ts.get_longest_shortest_text()
 
-#     # pc = PlotCanonscores(language)
-#     # pc.plot()
+    # pc = PlotCanonscores(language)
+    # pc.plot()
 
-#     pfd = PlotFeatureDist(language)
-#     pfd.plot()
+    # pfd = PlotFeatureDist(language)
+    # pfd.plot()
 
+    # pcspa = PlotCanonScoresPerAuthor(language)
+    # pcspa.get_data()
 
 
 
@@ -165,14 +210,14 @@ class PlotFeatureDist(DataHandler):
 
 
 # %%
-task = 'regression-importances'
-label_type = 'canon'
-# Importances are calculated on cacb features
-features = 'book'
+# task = 'regression-importances'
+# label_type = 'canon'
+# # Importances are calculated on cacb features
+# features = 'book'
 
-data_dir = '../data'
-canonscores_dir = os.path.join(data_dir, 'canonscores')
-n_outer_folds = 5
+# data_dir = '../data'
+# canonscores_dir = os.path.join(data_dir, 'canonscores')
+# n_outer_folds = 5
 
 
 

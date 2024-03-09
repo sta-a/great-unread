@@ -31,9 +31,10 @@ class InfoHandler(DataHandler):
         self.add_color = add_color
         self.cmode = cmode
         self.by_author = by_author # aggregate metadata if authors instead of single texts are of interest
+        print('by author', self.by_author)
         self.add_subdir(f'{self.cmode}comb')
         self.mh = MetadataHandler(self.language, by_author=self.by_author)
-        self.metadf = self.mh.get_metadata(add_color=True)
+        self.metadf = self.mh.get_metadata(add_color=self.add_color)
         self.combinations_path = os.path.join(self.output_dir, f'{self.cmode}_log_combinations.txt')
 
 
@@ -142,7 +143,6 @@ class CombinationsBase(InfoHandler):
         
         for attr in ['cluster'] + self.colnames: # evaluate 'cluster' first
             info.add('attr', attr)
-            print(info.as_string())
             exteval.evaluate(attr=attr, info=info)
         
         # Pickle only after evaluations are done
@@ -152,7 +152,7 @@ class CombinationsBase(InfoHandler):
     def check_data(self):
         if not os.path.exists(self.combinations_path):
             self.log_combinations()
-        dc = CombDataChecker(self.language, self.cmode, self.combinations_path)
+        dc = CombDataChecker(self.language, self.cmode, self.combinations_path, self.by_author)
         dc.check()
 
 
@@ -270,10 +270,11 @@ class CombDataChecker(DataHandler):
     eng: 95 features
     ger: 92 features
     '''
-    def __init__(self, language, cmode, combinations_path):
+    def __init__(self, language, cmode, combinations_path, by_author):
         super().__init__(language=language, output_dir='similarity', data_type='csv')
         self.cmode = cmode
         self.combinations_path = combinations_path
+        self.by_author = by_author
 
 
     def check(self):
@@ -335,7 +336,7 @@ class CombDataChecker(DataHandler):
         # Get nr possible combinations
         nlines = self.prepare_comb_log()
 
-        mh = MetadataHandler(self.language)
+        mh = MetadataHandler(self.language, by_author=self.by_author)
         metadf = mh.get_metadata(add_color=False)
         nfeatures = metadf.shape[1]
         npossible = nfeatures * nlines

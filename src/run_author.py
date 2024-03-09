@@ -3,11 +3,12 @@
 This script prepares data for running the whole pipeline based on texts where all works of an author are combined into one.
 The default data_dir in the class DataHandler needs to be set to "data".
 '''
-# %load_ext autoreload
-# %autoreload 2
+%load_ext autoreload
+%autoreload 2
 from utils import TextsByAuthor, DataHandler
 import os
 from statistics import mean
+import pandas as pd
 import numpy as np
 import shutil
 from feature_extraction.embeddings import SbertProcessor
@@ -25,19 +26,24 @@ class AuthorCombiner(DataHandler):
         self.tba = TextsByAuthor(self.language)
 
     def get_author_path(self, cdir, author, list_of_works):
-        year = self.get_average_year(list_of_works)
-        file_name = f'{author}_all_{year}.{self.data_type}' # Maintain title 'all' for compatibility
+        title = self.get_title(author, list_of_works)
+        file_name = f'{title}.{self.data_type}' # Keep title 'all' for compatibility
         return os.path.join(cdir, file_name)
     
-    def get_anon_path(self, cdir, title):
-        file_name = f'{title}.{self.data_type}' # Maintain title "all" for compatibility
-        return os.path.join(cdir, file_name) 
+    def get_title(self, author, list_of_works):        
+        year = self.get_average_year(list_of_works)
+        title = f'{author}_all_{year}'
+        return title
     
     def get_average_year(self, list_of_works):
         year = []
         for work in list_of_works:
             year.append(int(work[-4:]))
         return round(mean(year))
+
+    def get_anon_path(self, cdir, title):
+        file_name = f'{title}.{self.data_type}'
+        return os.path.join(cdir, file_name) 
 
 
 class AuthorTexts(AuthorCombiner):
@@ -53,7 +59,7 @@ class AuthorTexts(AuthorCombiner):
         # Combine texts by the same author into one text
         for author, list_of_works in self.tba.author_filename_mapping.items():
 
-            if author != 'Anonymous_Anonymous':
+            if not 'Anonymous' in author:
                 outpath = self.get_author_path(self.output_dir, author, list_of_works)
                 with open(outpath, 'w') as f:
                     for title in list_of_works:
@@ -63,12 +69,39 @@ class AuthorTexts(AuthorCombiner):
                             f.write(content)
 
             else:
-                # Treat anonymous authors and individual authors, don't combine texts
+                # Treat anonymous authors and different authors, don't combine texts
                 # Copy files, don't change title
                 for title in list_of_works:
                     inpath = self.get_anon_path(self.indir, title)
                     outpath = self.get_anon_path(self.output_dir, title)
                     shutil.copy(inpath, outpath)
+
+
+class AuthorTitleMapping(AuthorCombiner):
+    '''
+    Map new titles to original titles.
+    '''
+    def __init__(self, language, output_dir='title_mapping'):
+        super().__init__(language, output_dir=output_dir, data_type='txt')
+
+
+    def create_titles(self):
+        title_mapping = []
+        # Combine texts by the same author into one text
+        for author, list_of_works in self.tba.author_filename_mapping.items():
+
+            if not 'Anonymous' in author:
+                newtitle = self.get_title(author, list_of_works)
+                for title in list_of_works:
+                    title_mapping.append((author, newtitle, title))
+
+            else:
+                for title in list_of_works:
+                    title_mapping.append((author, title, title))
+
+        title_mapping = pd.DataFrame(title_mapping, columns=['author', 'new_file_name', 'file_name'])
+        print(title_mapping)
+        self.save_data(data=title_mapping, data_type='csv', file_name=f'title_mapping')
 
 
 class AuthorChunks(AuthorTexts):
@@ -96,7 +129,7 @@ class AuthorSbert(AuthorCombiner):
     def combine_sbert_embeddings(self):
         for author, list_of_works in self.tba.author_filename_mapping.items():
 
-            if author != 'Anonymous_Anonymous':
+            if not 'Anonymous' in author:
                 all_embeddings = []
                 outpath = self.get_author_path(self.output_dir, author, list_of_works)
                 for title in list_of_works:
@@ -129,6 +162,34 @@ class AuthorSbert(AuthorCombiner):
             self.logger.debug(f'One embedding per sentence for {fn}.')
 
 
+# data dir as data
+for language in ['eng', 'ger']:
+    at = AuthorTexts(language)
+    at.combine_texts()
+    atm = AuthorTitleMapping(language)
+    atm.create_titles()
+    ac = AuthorChunks(language)
+    ac.combine_texts()
+    asb = AuthorSbert(language)
+    asb.combine_sbert_embeddings()
+    asb.check_data(ac)
+
+
+
+# %%
+    
+%load_ext autoreload
+%autoreload 2
+from utils import TextsByAuthor, DataHandler
+import os
+from statistics import mean
+import numpy as np
+import shutil
+from feature_extraction.embeddings import SbertProcessor
+from prepare_features import FeaturePreparer
+from feature_extraction.process_rawtext import DataChecker
+
+
 class FeaturePreparerAuthor(FeaturePreparer):
     '''
     Prepare only features that have not already been prepared above with the other author-specific classes.
@@ -147,20 +208,8 @@ class FeaturePreparerAuthor(FeaturePreparer):
         self.mfwextractor()
         self.d2v()
 
-for language in ['eng', 'ger']:
-    at = AuthorTexts(language)
-    at.combine_texts()
-    ac = AuthorChunks(language)
-    ac.combine_texts()
-    asb = AuthorSbert(language)
-    asb.combine_sbert_embeddings()
-    asb.check_data(ac)
 
-
-
-
-
-
+# data_dir as data_author
 for language in ['eng', 'ger']:
     fp = FeaturePreparerAuthor(language)
     fp.run()

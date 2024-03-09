@@ -1,11 +1,11 @@
 # Install and load required packages
 # install.packages("stylo")
 library(stylo)
-languages <- c("ger") # "eng", 
+languages <- c("eng") # "eng", 
 
   for (language in languages) {
   # Set the directory where the CSV files are located
-  csv_dir <- file.path("/home/annina/scripts/great_unread_nlp/data/ngram_counts", language)
+  csv_dir <- file.path("/home/annina/scripts/great_unread_nlp/data_author/ngram_counts", language)
   print(csv_dir)
 
   # Get a list of all CSV files in the directory
@@ -77,7 +77,7 @@ languages <- c("ger") # "eng",
       }
     }
 
-    output_dir <- file.path("/home/annina/scripts/great_unread_nlp/data/similarity", language, "stylo_distances")
+    output_dir <- file.path("/home/annina/scripts/great_unread_nlp/data_author/similarity", language, "stylo_distances")
     dir.create(output_dir, showWarnings = FALSE)
 
     # Extract the number using regular expression

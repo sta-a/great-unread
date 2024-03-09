@@ -29,11 +29,11 @@ from cluster.combinations import CombinationsBase
 # logging.basicConfig(level=logging.DEBUG)
 
 
-
 class Experiment(DataHandler):
-    def __init__(self, language, cmode):
+    def __init__(self, language, cmode, by_author=False):
         super().__init__(language, output_dir='analysis')
         self.cmode = cmode
+        self.by_author = by_author
         # self.mh = MetadataHandler(self.language)
         # self.metadf = self.mh.get_metadata(add_color=True)
 
@@ -143,7 +143,7 @@ class Experiment(DataHandler):
                 exp['ntop'] = ntop
 
             self.add_subdir(f'{self.cmode}_{expname}')
-            te = TopEval(self.language, self.cmode, exp, expdir=self.subdir)
+            te = TopEval(self.language, self.cmode, exp, expdir=self.subdir, by_author=self.by_author)
 
             if expname == 'clustconst':
                 self.run_clustconst(exp, te)
@@ -159,7 +159,7 @@ class Experiment(DataHandler):
         centralities = df.columns
         for centrality in centralities:
             exp['evalcol'] = centrality
-            te = TopEval(self.language, self.cmode, exp, expdir=self.subdir, df=df)
+            te = TopEval(self.language, self.cmode, exp, expdir=self.subdir, df=df, by_author=self.by_author)
             self.visualize_nk(exp, te, vizname=centrality)
 
 
