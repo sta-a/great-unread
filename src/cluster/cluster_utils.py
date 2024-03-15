@@ -30,7 +30,7 @@ class MetadataHandler(DataHandler):
         super().__init__(language, output_dir=None, data_type='png')
         self.by_author = by_author
         self.cat_attrs = ['gender', 'author']
-        print('\n###################3metadata by authro############\n', self.by_author)
+
 
     def add_title_mapping(self, tmap, df):
         df = df.merge(tmap, left_index=True, right_on='file_name', validate='1:1')
@@ -53,20 +53,14 @@ class MetadataHandler(DataHandler):
             # 'Stevenson-Grift_Robert-Louis-Fanny-van-de_The-Dynamiter_1885' has gender 'b'
             # Text is treated as one of Stevenson's texts
             gender.loc[gender['new_file_name'] == 'Stevenson_Robert-Louis_all_1888', 'gender'] = 0
-            # grouped = gender.groupby('new_file_name')
-
-            # # Printing each group
-            # for name, group in grouped:
-            #     print(f"Group: {name}")
-            #     assert group['gender'].nunique() == 1, f"Assertion failed for group '{name}'. Each author should have only one value in the gender."
-
             assert gender.groupby('new_file_name')['gender'].nunique().max() == 1, 'Each author should have only one value in the gender column.'
             gender = gender.drop_duplicates(subset=['new_file_name'])
             gender = gender.set_index('new_file_name')
             
             # Average over canon scores of individual texts
             canon = self.add_title_mapping(tmap, canon)
-            canon = canon.groupby('new_file_name').mean()
+            canon = canon.groupby('new_file_name')['canon'].agg(['mean', 'max', 'min'])
+            canon.columns = ['canon', 'canon-max', 'canon-min']
 
         # Load features scaled to range between 0 and 1
         features = FeaturesLoader(self.language).prepare_features(scale=True)
@@ -104,9 +98,7 @@ class MetadataHandler(DataHandler):
             assert nr_authors == len(metadf)
 
         else:
-            print('--------------------0', self.by_author)
             assert len(metadf) == self.nr_texts
-
 
         if add_color:
             metadf = self.add_attr_colors(metadf)
@@ -351,5 +343,4 @@ class CombinationInfo:
             del self.__dict__[key]
             logging.info(f"Key '{key}' removed successfully.")
         else:
-            # Print a log message if the key is not in the dictionary
             logging.info(f"Key '{key}' not found.")

@@ -175,7 +175,7 @@ class DataHandler():
     '''
     Base class for creating, saving, and loading data.
     '''
-    def __init__(self, language=None, output_dir=None, data_type='csv', modes=None, tokens_per_chunk=1000, data_dir='/home/annina/scripts/great_unread_nlp/data_author', test=False):
+    def __init__(self, language=None, output_dir=None, data_type='csv', modes=None, tokens_per_chunk=1000, data_dir='/home/annina/scripts/great_unread_nlp/data', test=False):
 
         self.test = test
         self.language = language
@@ -196,6 +196,7 @@ class DataHandler():
             self.logger.addHandler(console_handler)
             self.logger.propagate = False
 
+        print('Data dir: ', self.data_dir)
 
         self.output_dir = self.create_output_dir(output_dir)
         self.text_raw_dir = os.path.join(self.data_dir, 'text_raw', language)
@@ -856,7 +857,6 @@ class DataLoader(DataHandler):
         # Data dir is fixed because dfs use file names of single texts
         # There is no author-based version of the metadata files
         super().__init__(language, output_dir=None, data_type='csv', data_dir='/home/annina/scripts/great_unread_nlp/data')
-        print(self.data_dir)
 
 
     def prepare_canon_df(self, fn_mapping):
@@ -1023,7 +1023,7 @@ class FeaturesLoader(DataHandler):
         if scale:
             # Min-Max Scaling
             df = (df - df.min()) / (df.max() - df.min())
-            self.logger.info('Returning df scaled to values between 0 and 1.')
+            self.logger.debug('Returning df scaled to values between 0 and 1.')
         return df
     
 

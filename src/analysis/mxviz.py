@@ -143,7 +143,7 @@ class MxViz(VizBase):
         self.vizpath = self.get_path(name=vizname, omit=omit)
         if not os.path.exists(self.vizpath):
             self.pos = self.get_mds_positions()
-            self.df = self.prepare_metadata()
+            self.prepare_metadata()
             self.get_figure()
             self.fill_subplots()
             self.add_legends_and_titles()
@@ -251,12 +251,12 @@ class MxViz(VizBase):
             self.draw_mds(self.specix, color_col=self.info.special, use_different_shapes=True)
 
         if self.is_topattr_viz:
-            self.draw_mds([2, 1], color_col=self.exp_attrs[0], use_different_shapes=True)
-            self.draw_mds([2, 2], color_col=self.exp_attrs[1], use_different_shapes=True)
-            self.draw_mds([2, 3], color_col=self.exp_attrs[2], use_different_shapes=True)
-            self.get_ax([2, 1]).set_title(self.exp_attrs[0], fontsize=self.fontsize)
-            self.get_ax([2, 2]).set_title(self.exp_attrs[1], fontsize=self.fontsize)
-            self.get_ax([2, 3]).set_title(self.exp_attrs[2], fontsize=self.fontsize)
+            self.draw_mds([2, 1], color_col=self.key_attrs[0], use_different_shapes=True)
+            self.draw_mds([2, 2], color_col=self.key_attrs[1], use_different_shapes=True)
+            self.draw_mds([2, 3], color_col=self.key_attrs[2], use_different_shapes=True)
+            self.get_ax([2, 1]).set_title(self.key_attrs[0], fontsize=self.fontsize)
+            self.get_ax([2, 2]).set_title(self.key_attrs[1], fontsize=self.fontsize)
+            self.get_ax([2, 3]).set_title(self.key_attrs[2], fontsize=self.fontsize)
 
         for j in range(1, self.nrow):
             for i in range(1, self.ncol):
@@ -296,8 +296,8 @@ class MxViz(VizBase):
 
 
     def prepare_metadata(self):
-        df = self.info.metadf.merge(self.pos, how='inner', left_index=True, right_index=True, validate='1:1')
-        return df
+        # Combine positions and metadata
+        self.df = self.info.metadf.merge(self.pos, how='inner', left_index=True, right_index=True, validate='1:1')
 
 
     def draw_mds(self, ix, color_col=None, use_different_shapes=False):
@@ -356,7 +356,7 @@ class MxVizAttr(MxViz):
         self.save_data(data=df, subdir=True, file_name='visual-assessment.csv', data_type='csv')
 
 
-    def visualize(self, vizname): # vizname for compatibility
+    def visualize(self, vizname='viz'): # vizname for compatibility
         all_cols = self.get_feature_columns(self.info.metadf)
         nfields = self.nrow * self.ncol # fields per plot
         nplots = len(all_cols)*2 # 2 fields used for each feature
@@ -371,7 +371,12 @@ class MxVizAttr(MxViz):
             print(ix, ix + int((nfields)/2))
             print(self.cols)
             ix += int(nfields/2)
-            super().visualize(vizname=f'viz{i}', omit=['clst_alg_params', 'attr'])
+            
+            if nfig == 1:
+                vizname = vizname
+            else:
+                vizname = f'viz{i}'
+            super().visualize(vizname=vizname, omit=['clst_alg_params', 'attr'])
 
 
     def get_figure(self):

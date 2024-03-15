@@ -274,7 +274,8 @@ class MxCluster(ClusterBase):
         
         kmedoids = KMedoids(n_clusters=kwargs['nclust'], metric='precomputed', method='pam', init='build', random_state=8)
         clusters = kmedoids.fit_predict(self.mx.dmx)
-        return clusters 
+        return clusters
+    
     
     def dbscan(self, **kwargs):
         d = DBSCAN(eps=kwargs['eps'], min_samples=kwargs['minsamples'], metric='precomputed', n_jobs=self.n_jobs)

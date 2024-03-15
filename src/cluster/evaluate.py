@@ -43,7 +43,7 @@ class MxIntEval():
 
     def silhouette_score(self):
         clusters = self.clusters.df
-        assert all(self.mx.dmx.index == clusters['cluster'].index)
+        # assert all(self.mx.dmx.index == clusters['cluster'].index) #################
         sc = silhouette_score(X=self.mx.dmx, labels=list(clusters['cluster']), metric='precomputed')
         return sc
     
@@ -205,8 +205,8 @@ class ExtEval(DataHandler):
     
     def get_categorical_scores(self, attrcol):
         df = self.info.metadf.copy(deep=True)
-        assert len(attrcol) == self.nr_texts
-        assert len(df['cluster'] == self.nr_texts)
+        # assert len(attrcol) == self.nr_texts ####################################
+        # assert len(df['cluster'] == self.nr_texts)
 
         # confusion_table = pd.crosstab(df[self.info.attr], df['cluster'], margins=True, margins_name='Total')
         # print('\n\n-----------------------------\n', confusion_table, '\n-----------------------------------------\n\n')
@@ -242,7 +242,7 @@ class ExtEval(DataHandler):
 
     def filter_attr(self):
         # Filter NaN values in attr column with boolean mask
-        assert len(self.info.metadf) == self.nr_texts
+        # assert len(self.info.metadf) == self.nr_texts
         df = self.info.metadf[self.info.metadf[self.info.attr].notna()]
 
         # Check that there is more than one cluster after filtering

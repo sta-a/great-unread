@@ -38,8 +38,8 @@ class NkViz(VizBase):
 
         # Visualization parameters
         self.prog = 'neato'
-        self.markersize = 8
-        self.fontsize = 8
+        self.markersize = 20
+        self.fontsize = 10
         self.global_vmax, self.global_vmin = self.get_cmap_params()
 
         # Whitespace
@@ -104,6 +104,7 @@ class NkViz(VizBase):
 
     def add_edges(self):
         # Main plot
+        print('subplots', self.subplots)
         for ix in self.subplots:
             s = time.time()
             self.draw_edges(self.graph_con, self.pos, ix)
@@ -168,6 +169,8 @@ class NkViz(VizBase):
             ncol += 1
             if self.is_cat:
                 ncol += 1
+            if self.by_author:
+                ncol += 1
 
         width_ratios = (ncol-1)*[7] + [1]
 
@@ -194,21 +197,30 @@ class NkViz(VizBase):
             self.combix = None
             self.specix = None
 
-        if self.is_topattr_viz:
+        if self.is_topattr_viz: # no special
             if not self.is_cat:
                 self.first_ext_ix = [2,1]
-                self.second_ext_ix = [0, 2]
-                self.third_ext_ix = [2, 2]
+                self.second_ext_ix = [0,2]
+                self.third_ext_ix = [2,2]
+                if self.by_author:
+                    # Add plots for canon-max and canon-min. 
+                    # Only one plot needs to be added because 'author' is not visualized.
+                    self.fourth_ext_ix = [0,3]
             else:
-                self.first_ext_ix = [0, 2]
-                self.second_ext_ix = [2, 2]  
-                self.third_ext_ix = [0, 3]           
+                self.first_ext_ix = [0,2]
+                self.second_ext_ix = [2,2]  
+                self.third_ext_ix = [0,3]
+                if self.by_author:
+                    self.fourth_ext_ix = [2,3]
 
 
         self.subplots = [self.attrix, self.clstix, self.shapeix, self.combix, self.specix]
         if self.is_topattr_viz:
             self.subplots.extend([self.first_ext_ix, self.second_ext_ix, self.third_ext_ix])
+            if self.by_author:
+                self.subplots.extend([self.fourth_ext_ix])
 
+        
 
     def add_legends_and_titles(self):
 
@@ -274,17 +286,23 @@ class NkViz(VizBase):
 
         
         if self.is_topattr_viz:    
-            self.add_nodes_to_ax(self.first_ext_ix, self.df, color_col=self.exp_attrs[0], use_different_shapes=True)
-            self.add_nodes_to_ax(self.second_ext_ix, self.df, color_col=self.exp_attrs[1], use_different_shapes=True)
-            self.add_nodes_to_ax(self.third_ext_ix, self.df, color_col=self.exp_attrs[2], use_different_shapes=True)
-            self.get_ax(self.first_ext_ix).set_title(self.exp_attrs[0], fontsize=self.fontsize)
-            self.get_ax(self.second_ext_ix).set_title(self.exp_attrs[1], fontsize=self.fontsize)
-            self.get_ax(self.third_ext_ix).set_title(self.exp_attrs[2], fontsize=self.fontsize)
+            self.add_nodes_to_ax(self.first_ext_ix, self.df, color_col=self.key_attrs[0], use_different_shapes=True)
+            self.add_nodes_to_ax(self.second_ext_ix, self.df, color_col=self.key_attrs[1], use_different_shapes=True)
+            self.add_nodes_to_ax(self.third_ext_ix, self.df, color_col=self.key_attrs[2], use_different_shapes=True)
+            self.get_ax(self.first_ext_ix).set_title(self.key_attrs[0], fontsize=self.fontsize)
+            self.get_ax(self.second_ext_ix).set_title(self.key_attrs[1], fontsize=self.fontsize)
+            self.get_ax(self.third_ext_ix).set_title(self.key_attrs[2], fontsize=self.fontsize)
+
+            if self.by_author:
+                self.add_nodes_to_ax(self.fourth_ext_ix, self.df, color_col=self.key_attrs[3], use_different_shapes=True)
+                self.get_ax(self.fourth_ext_ix).set_title(self.key_attrs[3], fontsize=self.fontsize)
+
 
         self.add_legends_and_titles()
 
 
     def prepare_metadata(self):
+        # Combine positions and metadata
         df = deepcopy(self.info.metadf)
         df['pos'] = df.index.map(self.pos)
         df[['x', 'y']] = pd.DataFrame(df['pos'].tolist(), index=df.index)
@@ -351,6 +369,7 @@ class NkViz(VizBase):
         # Isolated nodes
         self.nodes_iso = list(nx.isolates(self.graph))
         self.nodes_removed = nodes_two + self.nodes_iso
+        print('nodes removed: ', len(self.nodes_removed))
     
         # Main graphs
         self.graph_con = self.graph.subgraph([node for node in self.graph.nodes if node not in self.nodes_removed])
@@ -447,8 +466,8 @@ class NkVizAttr(NkViz):
         # else:
         #     self.nrow = 2
         #     self.ncol = 2
-        self.nrow = 8
-        self.ncol = 12
+        self.nrow = 7
+        self.ncol = 14
         self.markersize = 10
         self.fontsize = 6
 
@@ -483,6 +502,7 @@ class NkVizAttr(NkViz):
         all_cols = self.get_feature_columns(self.info.metadf)
         nfields = self.nrow * self.ncol # fields per plot
         nplots = len(all_cols)
+        print('nplots', nplots)
         nfig = nplots // nfields 
         if nplots % nfields != 0:
             nfig += 1
@@ -490,6 +510,7 @@ class NkVizAttr(NkViz):
 
         ix = 0
         for i in range(nfig):
+            # If ix + nfields > len(cols), no error is raised because Python allows out-of-bound slicing
             self.cols = all_cols[ix: ix + (nfields)]
             ix += nfields
             omit=['clst_alg_params']
@@ -499,7 +520,12 @@ class NkVizAttr(NkViz):
                 self.info.drop('attr')
                 self.info.add('attr', deepcopy(self.cols[0]))
             s = time.time()
-            super().visualize(vizname=f'{vizname}{i}', omit=omit)
+
+            if nfig == 1:
+                vizname = vizname
+            else:
+                vizname = f'{vizname}{i}'
+            super().visualize(vizname=vizname, omit=omit)
             print(f'{time.time()-s}s to make one fig.')
 
 
@@ -551,13 +577,6 @@ class NkVizAttr(NkViz):
                 index = i * self.ncol + j
                 if index < len(self.cols):
                     self.draw_edges(self.graph_con, self.pos, [i, j])
-
-
-
-                    # x_values = [1, 2, 3, 4, 5]
-                    # y_values = [2, 3, 5, 7, 11]
-                    # self.axs[i, j].plot(x_values, y_values)
-
 
         print(f'{time.time()-souter}s to draw edges for all plot.')
 

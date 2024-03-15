@@ -149,7 +149,7 @@ class PlotCanonScoresPerAuthor(DataHandler):
         super().__init__(language, output_dir='text_statistics', data_type='svg')
 
 
-    def get_data(self):
+    def plot(self):
         # df = DataLoader(self.language).prepare_features(scale=True)
         mh = MetadataHandler(self.language)
         df = mh.get_metadata(add_color=False)[['canon']]
@@ -187,6 +187,30 @@ class PlotCanonScoresPerAuthor(DataHandler):
         self.save_data(data=plt, file_name='canonscores_per_author')
 
 
+class PlotYear(DataHandler):
+    def __init__(self, language):
+        super().__init__(language, output_dir='text_statistics', data_type='svg', data_dir='/home/annina/scripts/great_unread_nlp/data',)
+
+    def plot(self):
+        # df = DataLoader(self.language).prepare_features(scale=True)
+        mh = MetadataHandler(self.language)
+        df = mh.get_metadata(add_color=False)[['author', 'year']]
+        df = df.sort_values(by='year', ascending=True)
+
+        fig, ax = plt.subplots(figsize=(25, 8))
+        ax.scatter(df.index, df['year'])
+
+        ax.set_xlabel('Text')
+        ax.set_ylabel('Year')
+        ax.set_title('Publication Years')
+
+        # Remove x-axis labels
+        ax.tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)
+
+
+        self.save_data(data=plt, file_name='year')
+
+
 
 # for language in ['eng', 'ger']:
 #     ts = TextStatistics(language)
@@ -199,8 +223,10 @@ class PlotCanonScoresPerAuthor(DataHandler):
     # pfd.plot()
 
     # pcspa = PlotCanonScoresPerAuthor(language)
-    # pcspa.get_data()
+    # pcspa.plot()
 
+    # py = PlotYear(language)
+    # py.plot()
 
 
 

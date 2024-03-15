@@ -26,13 +26,13 @@ logging.basicConfig(level=logging.DEBUG)
 
 
 class InfoHandler(DataHandler):
-    def __init__(self, language, add_color, cmode, by_author=False):
-        super().__init__(language=language, output_dir='similarity', data_type='csv')
+    def __init__(self, language, output_dir='similarity', add_color=True, cmode=None, by_author=False):
+        super().__init__(language=language, output_dir=output_dir, data_type='csv')
         self.add_color = add_color
         self.cmode = cmode
+        if self.cmode is not None:
+            self.add_subdir(f'{self.cmode}comb')
         self.by_author = by_author # aggregate metadata if authors instead of single texts are of interest
-        print('by author', self.by_author)
-        self.add_subdir(f'{self.cmode}comb')
         self.mh = MetadataHandler(self.language, by_author=self.by_author)
         self.metadf = self.mh.get_metadata(add_color=self.add_color)
         self.combinations_path = os.path.join(self.output_dir, f'{self.cmode}_log_combinations.txt')
@@ -73,14 +73,13 @@ class CombinationsBase(InfoHandler):
     This class runs all combinations of distance measures, sparsification algorithms, clustering algorithms, parameters, and evaluates the result for all attributes.
     Performed for both MDS and networks.
     '''
-    def __init__(self, language, add_color=False, cmode='nk', by_author=False):
-        super().__init__(language, add_color, cmode, by_author)
+    def __init__(self, language, output_dir='similarity', add_color=False, cmode='nk', by_author=False):
+        super().__init__(language, output_dir=output_dir, add_color=add_color, cmode=cmode, by_author=by_author)
         self.test = False
         self.mxs = self.load_mxs()
 
         self.save_data(data=self.metadf, filename='metadf')
         self.colnames = [col for col in self.metadf.columns if not col.endswith('_color')]
-
 
         if self.test:
             self.mxs = self.mxs[3:6]
@@ -115,6 +114,7 @@ class CombinationsBase(InfoHandler):
         mxs_list = []
         for name, mx in mxs.items():
             mx.name = name
+            print(name)
             mxs_list.append(mx)
         return mxs_list
     
@@ -158,8 +158,8 @@ class CombinationsBase(InfoHandler):
 
 
 class MxCombinations(CombinationsBase):
-    def __init__(self, language, add_color, by_author=False):
-        super().__init__(language, add_color, cmode='mx', by_author=by_author)
+    def __init__(self, language, output_dir='similarity', add_color=False, by_author=False):
+        super().__init__(language, output_dir=output_dir, add_color=add_color, cmode='mx', by_author=by_author)
 
 
     def create_combinations(self):
@@ -339,6 +339,7 @@ class CombDataChecker(DataHandler):
         mh = MetadataHandler(self.language, by_author=self.by_author)
         metadf = mh.get_metadata(add_color=False)
         nfeatures = metadf.shape[1]
+        print('nfeat', nfeatures)
         npossible = nfeatures * nlines
 
         # Combinations where clustering alg failed

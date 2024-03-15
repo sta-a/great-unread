@@ -35,40 +35,52 @@ class VizBase(DataHandler):
         self.fontsize = 12
         self.add_subdir(f'{self.cmode}_{self.expname}')
 
+        self.by_author = False
+        if 'canon-max' in self.info.metadf.columns:
+            self.by_author = True
+            self.by_author_attrs = ['canon-max', 'canon-min']
+
+        self.key_attrs = ['author', 'gender', 'year', 'canon']
+        if self.by_author:
+            self.key_attrs.remove('author')
+            self.key_attrs.extend(self.by_author_attrs)
+
         self.cat_attrs = ['gender', 'author']
         self.is_cat = False
         if self.info.attr in self.cat_attrs:
             self.is_cat = True
+
         self.has_special = False
         if hasattr(self.info, 'special'):
             self.has_special = True
+
         self.needs_cbar = self.check_cbar()
+
         self.is_topattr_viz = False
-        self.check_expattrs()
+        self.check_is_topattr_viz()
 
 
-    def check_expattrs(self):
+    def check_is_topattr_viz(self):
         '''
         Checks if additional plots for main attrs need to be added.
         This is the case if 'top' is in the experiment name.
         For example, if the experiment name is 'topcanon', author, gender and year also need to be visualized.
-        '''
-        self.exp_attrs = ['author', 'canon', 'gender', 'year']
-        attrs_str = [f'top{x}' for x in self.exp_attrs]
+        '''       
+        attrs_str = [f'top{x}' for x in self.key_attrs]
         if any(x in self.expname for x in attrs_str):
             self.is_topattr_viz = True
-            self.exp_attrs.remove(self.info.attr)
+            print('info attr', self.info.attr)
+            self.key_attrs.remove(self.info.attr)
 
 
     def get_feature_columns(self, df):
         df = deepcopy(df)
-        interesting_cols = ['author',  'gender', 'canon', 'year']
         special_cols = ['cluster', 'clst_shape', 'gender_cluster', 'author_cluster']
         # Get list of attributes in interesting order
         if self.expname == 'attrviz':
-            cols = interesting_cols + [col for col in df.columns if col not in interesting_cols and col not in special_cols and ('_color' not in col)]
+            cols = self.key_attrs + [col for col in df.columns if col not in self.key_attrs and col not in special_cols and ('_color' not in col)]
         else:
-            cols = interesting_cols
+            cols = self.key_attrs
         return cols
 
 
@@ -185,11 +197,11 @@ class VizBase(DataHandler):
 
 
     def add_subtitles(self, attrix, clstix, shapeix, combix=None, specix=None):
-        self.get_ax(attrix).set_title('Attribute', fontsize=self.fontsize)
-        self.get_ax(clstix).set_title('Cluster', fontsize=self.fontsize)
-        self.get_ax(shapeix).set_title('Attributes and clusters (shapes)', fontsize=self.fontsize)
+        self.get_ax(attrix).set_title(f'Attribute: {self.info.attr}', fontsize=self.fontsize)
+        self.get_ax(clstix).set_title('Clusters', fontsize=self.fontsize)
+        self.get_ax(shapeix).set_title('Attribute (color) and clusters (shapes)', fontsize=self.fontsize)
         if combix is not None:
-            self.get_ax(combix).set_title('Attributes and clusters (combined)', fontsize=self.fontsize)
+            self.get_ax(combix).set_title('Attribute and clusters (combined)', fontsize=self.fontsize)
         if specix is not None:
             self.get_ax(specix).set_title(f'{self.info.special.capitalize()}', fontsize=self.fontsize)
 
@@ -377,7 +389,7 @@ def pklmxs_to_edgelist():
     '''
     for language in ['eng', 'ger']:
         indir = f'/home/annina/scripts/great_unread_nlp/data/similarity/{language}/sparsification'
-        outdir = f'/home/annina/scripts/great_unread_nlp/data/analysis/{language}/sparsification_edgelists'
+        outdir = f'/home/annina/scripts/great_unread_nlp/data/n2v/{language}/sparsification_edgelists'
         if not os.path.exists(outdir):
             os.mkdir(outdir)
 
@@ -394,6 +406,7 @@ def pklmxs_to_edgelist():
 
             graph = nx.from_pandas_adjacency(mapped_matrix, create_using=nx.DiGraph)
             file_name = os.path.splitext(os.path.basename(spmx_path))[0]
+            file_name = file_name.replace('sparsmx-', '')
             if symmetric:
                 fnstr = 'undirected'
             else:
@@ -403,4 +416,7 @@ def pklmxs_to_edgelist():
         index_mapping.to_csv(os.path.join(outdir, f'index-mapping.csv'), header=True, index=False)
 
 # pklmxs_to_edgelist()
+
+
+
 # %%

@@ -243,17 +243,13 @@ class D2vDist(SimMxCreatorBase):
     '''
     Create similarity matrices based on doc2vec docuement vectors.
     '''
-    def __init__(self, language):
-        super().__init__(language)
-        self.modes = ['full', 'both']
+    def __init__(self, language, output_dir='similarity', modes=['full', 'both']):
+        super().__init__(language, output_dir=output_dir)
+        self.modes = modes
         self.file_string = 'd2v'
 
 
-    def create_data(self, **kwargs):
-        '''
-        Create similarity matrix based on d2v embeddings for modes 'doc_tags' and 'both'.
-        '''
-        mode = kwargs.get('mode')
+    def get_embeddings_dict(self, mode):
         dp = D2vProcessor(language=self.language, tokens_per_chunk=self.tokens_per_chunk)
 
         # Can only be used for doc_paths, not for chunks
@@ -262,9 +258,17 @@ class D2vDist(SimMxCreatorBase):
             book_name = get_filename_from_path(doc_path)
             d2v_embeddings = dp.load_data(file_name=book_name, mode=mode, subdir=True)[book_name]
             doc_dvs[book_name] = d2v_embeddings
-        dv_dict = doc_dvs
+        emb_dict = doc_dvs
+        return emb_dict
+    
 
-        mx = self.calculate_similarity(dv_dict)
+    def create_data(self, **kwargs):
+        '''
+        Create similarity matrix based on d2v embeddings for modes 'doc_tags' and 'both'.
+        '''
+        mode = kwargs.get('mode')
+        emb_dict = self.get_embeddings_dict(mode)
+        mx = self.calculate_similarity(emb_dict)
         sm = SimMx(language=self.language, name=mode, mx=mx, normalized=False, is_sim=True)
         sm.postprocess_mx(file_string=self.file_string)
         # Scale values of cosine similarity from [-1, 1] to [0, 1]

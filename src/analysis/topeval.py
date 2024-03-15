@@ -149,23 +149,22 @@ class TopEval(InfoHandler):
         return df 
         
 
-    def filter_column_exact(self, df, colname):
-        '''
-        Filter the df based on whether the values in the column 'colname'
-        contain strings that are in the list stored in self.exp[colname].
-        '''
-        # Create a regex pattern by joining the list elements with '|'
-        pattern = '|'.join(map(re.escape, self.exp[colname]))
+    # def filter_attribute(self, df):
+    #     '''
+    #     Filter the df and keep only the rows with a certain attribute.
+    #     '''
+    #     # Create a regex pattern by joining the list elements with '|'
+    #     pattern = '|'.join(map(re.escape, self.exp['attr']))
 
-        # Apply the filter
-        filtered_df = df[df[colname].str.contains(pattern, na=False)]
+    #     # Apply the filter
+    #     filtered_df = df[df['attr'].str.contains(pattern, na=False)]
         
-        return filtered_df
+    #     return filtered_df
 
 
     def filter_columns_substring(self, df, colname):     
         '''
-        Filter the df based on whether the values in column colname contain
+        Filter the df based on whether the values in column 'colname' contain
         substrings that are in the list.
         '''
         # Create a regex pattern by joining substrings_list with '|'
@@ -199,7 +198,9 @@ class TopEval(InfoHandler):
             if 'maxsize' in self.exp:
                 df = self.filter_clst_sizes(df)
             if 'attr' in self.exp:
-                df = self.filter_column_exact(df, 'attr')
+                # df = self.filter_attribute(df)
+                print('ext attr', self.exp['attr'])
+                df = df[df['attr'] == self.exp['attr']]
             if 'mxname' in self.exp:
                 df = self.filter_columns_substring(df, 'mxname')
             if 'clst_alg_params' in self.exp:

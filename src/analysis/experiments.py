@@ -18,7 +18,8 @@ from matplotlib.cm import ScalarMappable
 
 
 from utils import DataHandler
-from .mxviz import MxViz, MxVizAttr
+from .mxviz import MxViz
+from .mxviz import MxVizAttr
 from .nkviz import NkViz, NkVizAttr
 from .analysis_utils import GridImage
 from .topeval import TopEval
@@ -58,7 +59,7 @@ class Experiment(DataHandler):
             return d
 
 
-        # Overall best performance
+        # Find combinations with highest evaluation scores
         topcont = [
             {'name': 'topcont', 'evalcol': cont_evalcol, 'dfs': ['cont']},
             {'name': 'topcont_bal', 'evalcol': 'logreg_acc_balanced', 'dfs': ['cont']},
@@ -68,23 +69,36 @@ class Experiment(DataHandler):
         topcat = [add_to_top(d) for d in topcat]
 
 
+        # Find combinations with highest evaluation scores for interesting attributes
         attrcont = []
         for attr in ['canon', 'year']:
             dlist = deepcopy(topcont)
             for d in dlist:
                 d['name'] = d['name'].replace('cont', attr)
-                d['attr'] = [attr]
+                d['attr'] = attr
                 d['special'] = False
                 attrcont.append(d)
+
+
+        # If by_author, also look at aggregated canon attributes
+        canonminmax = []
+        if self.by_author:
+            for attr in ['canon-max', 'canon-min']:
+                dlist = deepcopy(attrcont[0])
+                d['name'] = d['name'].replace('canon', attr)
+                d['attr'] = attr
+                canonminmax.append(d)
+
 
         attrcat = []
         for attr in ['gender', 'author']:
             dlist = deepcopy(topcat)
             for d in dlist:
                 d['name'] = d['name'].replace('cat', attr)
-                d['attr'] = [attr]
+                d['attr'] = attr
                 d['special'] = False
                 attrcat.append(d)
+
 
         attrcat_nointernal = []
         for cdict in attrcat:
@@ -105,8 +119,6 @@ class Experiment(DataHandler):
             d['mxname'] = embmxs
             topcont_emb.append(d)
 
-
-        # Get best performance of embedding distances
         topcat_emb = []
         for cdict in topcat:
             d = deepcopy(cdict)
@@ -122,15 +134,18 @@ class Experiment(DataHandler):
 
         attrviz_int = [{'name': 'attrviz_int', 'dfs': ['cat']}]
 
-        clustconst = [{'name': 'clustconst', 'maxsize': maxsize, 'dfs': ['cat'], 'attr': ['author']}]
+        clustconst = []
+        central = []
+        if not self.by_author:
+            clustconst = [{'name': 'clustconst', 'maxsize': maxsize, 'dfs': ['cat'], 'attr': ['author']}]
+            central = deepcopy(clustconst)
+            central[0]['name'] = 'central'
+            central[0]['mxname'] = ['burrows'] + embmxs
+            central[0]['special'] = True
 
-        central = deepcopy(clustconst)
-        central[0]['name'] = 'central'
-        central[0]['mxname'] = ['burrows'] + embmxs
-        central[0]['special'] = True
-
-        exps = topcont + topcat + attrcont + attrcat + attrcat_nointernal + topcont_emb + topcat_emb + attrviz_int + clustconst + attrviz
         exps = attrviz
+        exps = topcont + topcat + attrcont + attrcat + attrcat_nointernal + topcont_emb + topcat_emb + attrviz_int + clustconst + attrviz + canonminmax
+        exps = attrcont
         return exps
 
 
@@ -209,11 +224,13 @@ class Experiment(DataHandler):
             network = NXNetwork(self.language, path=info.spmx_path)
             if exp['name'] == 'attrviz' or expname == 'attrviz_int':
                 viz = NkVizAttr(self.language, network, info, plttitle=plttitle, expname=expname)
+                print('Init NkVizAttr')
                 viz.visualize(vizname)
                 # gi = GridImage(self.language, self.cmode, exp)
                 # gi.run()      
             else:
                 viz = NkViz(self.language, network, info, plttitle=plttitle, expname=expname) 
+                print('Init Nkviz')
                 viz.visualize(vizname)
 
 
