@@ -329,9 +329,9 @@ class DistanceMetrics():
         self.register('burrows_argamon', self.burrows_argamon, 'burrows', True)
         self.register('eder', self.eder, 'eder')
         self.register('edersimple', self.edersimple, 'edersimple')
-        self.register('argamon_quadratic', self.argamon_quadratic, 'argamon')
-        self.register('argamon_quadratic_argamon', self.argamon_quadratic_argamon, 'argamon', True)
-        self.register('argamon_linear', self.argamon_linear) # Not implemented in stylo
+        self.register('argamonquadratic', self.argamonquadratic, 'argamon')
+        self.register('argamonquadratic_argamon', self.argamonquadratic_argamon, 'argamon', True)
+        self.register('argamonlinear', self.argamonlinear) # Not implemented in stylo
         self.register('cosinedelta', self.cosinedelta, 'cosinedelta')
         self.register('cosinesim', self.cosinesim) # Implemented in Stylo as 'dist.cosine', but code has bug
         self.register('minmax', self.minmax) # Implemented in Stylo as 'minmax', but too slow for big matrix. Tested with toy example, see minmax dir
@@ -371,7 +371,7 @@ class DistanceMetrics():
         dist = np.sum(np.abs(row1 - row2))
         return dist
 
-    def argamon_quadratic(self, row1, row2):
+    def argamonquadratic(self, row1, row2):
         # Argamon’s Quadratic Delta
         # Follow notation in Stylo and Jannidis2015
         # Stylo implelentation: euclidean distance between z-scores
@@ -380,7 +380,7 @@ class DistanceMetrics():
         dist = minkowski(row1, row2, p=2)
         return dist/len(row1)
 
-    def argamon_quadratic_argamon(self, row1, row2, std_dev):
+    def argamonquadratic_argamon(self, row1, row2, std_dev):
         # Alternative implementation of self.argamon()
         # Argamon’s Quadratic Delta
         # Argamon's notation with simplified formula that does not need z-scores: use word frequencies normalized by inversed squared std dev
@@ -388,7 +388,7 @@ class DistanceMetrics():
         dist = minkowski(row1, row2, p=2, w=(1/np.square(std_dev)))
         return dist/len(row1)
     
-    def argamon_linear(self, row1, row2, b):
+    def argamonlinear(self, row1, row2, b):
         # Not implemented in Stylo
         # Partially implemented in Pydelta
         return minkowski(row1, row2, p=1, w=1/b)
@@ -444,19 +444,19 @@ class Delta(SimMxCreatorBase):
               
     def calculate_similarity(self, metric, df):
         # Z-Score
-        if metric in ['eder', 'argamon_quadratic', 'cosinedelta']:
+        if metric in ['eder', 'argamonquadratic', 'cosinedelta']:
             df = zscore(df, axis=0)
             mx = pd.DataFrame(pairwise_distances(df.values, metric=self.metrics.get_func(metric), n_jobs=self.n_jobs), index=df.index, columns=df.index)
         
         # Eder's weighting factor
-        elif metric in ['argamon_linear']:
+        elif metric in ['argamonlinear']:
             # Calculate b for linear Delta
             x = df - df.median()
             b = x.abs().sum() / len(df.columns) # Sum over all documents and divide by nmfw
             mx = pd.DataFrame(pairwise_distances(df.values, metric=self.metrics.get_func(metric), n_jobs=self.n_jobs, b=b), index=df.index, columns=df.index)
         
         # Std dev
-        elif metric in ['burrows', 'burrows_argamon', 'argamon_quadratic_argamon']:
+        elif metric in ['burrows', 'burrows_argamon', 'argamonquadratic_argamon']:
             std_dev = df.std(axis=0)
             mx = pd.DataFrame(pairwise_distances(df.values, metric=self.metrics.get_func(metric),  n_jobs=self.n_jobs, std_dev=std_dev), index=df.index, columns=df.index)
         

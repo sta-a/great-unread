@@ -156,9 +156,6 @@ class MxViz(VizBase):
         if self.is_cat:
             self.ncol += 1
 
-        if self.has_special:
-            self.ncol += 1
-
         width = 5
         self.nrow = 2
         if self.is_topattr_viz:
@@ -205,18 +202,10 @@ class MxViz(VizBase):
         self.clstix = [0, 2]
         self.shapeix = [0, 3]
 
-        if self.is_cat and self.has_special:
+        if self.is_cat:
             self.combix = [0,4]
-            self.specix = [0,5]
-        if self.is_cat and not self.has_special:
-            self.combix = [0,4]
-            self.specix = None
-        if not self.is_cat and self.has_special:
+        else:
             self.combix = None
-            self.specix = [0,4]
-        if not self.is_cat and not self.has_special:
-            self.combix = None
-            self.specix = None
 
 
     def add_legends_and_titles(self):
@@ -227,7 +216,7 @@ class MxViz(VizBase):
         if self.is_cat:
             self.add_legend(self.fig, self.info.attr, label='attr', loc='upper left', boxx=self.ws_left + 0.05, boxy=0.4, boxwidth=0.1, boxheight=0.1, fontsize=self.fontsize)
 
-        self.add_subtitles(self.attrix, self.clstix, self.shapeix, self.combix, self.specix)
+        self.add_subtitles(self.attrix, self.clstix, self.shapeix, self.combix)
         # Place the title at the bottom left below the heatmap
         self.add_text(self.axs[1,0], x=self.ws_left, y=self.ws_bottom, width=50)
 
@@ -246,9 +235,6 @@ class MxViz(VizBase):
         # cluster and attr combined as colors
         if self.is_cat:
             self.draw_mds(self.combix, color_col=f'{self.info.attr}_cluster', use_different_shapes=False)
-
-        if self.has_special:
-            self.draw_mds(self.specix, color_col=self.info.special, use_different_shapes=True)
 
         if self.is_topattr_viz:
             self.draw_mds([2, 1], color_col=self.key_attrs[0], use_different_shapes=True)

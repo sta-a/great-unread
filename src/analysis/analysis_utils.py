@@ -26,62 +26,35 @@ logging.basicConfig(level=logging.DEBUG)
 
 
 class VizBase(DataHandler):
-    def __init__(self, language, cmode, info, plttitle, expname=None):
+    def __init__(self, language, cmode, info=None, plttitle=None, exp=None):
         super().__init__(language, output_dir='analysis', data_type='png')
         self.cmode = cmode
         self.info = info
         self.plttitle = plttitle
-        self.expname = expname
+        self.exp = exp
         self.fontsize = 12
-        self.add_subdir(f'{self.cmode}_{self.expname}')
+        self.add_subdir(f"{self.cmode}_{self.exp['name']}")
 
-        self.by_author = False
-        if 'canon-max' in self.info.metadf.columns:
-            self.by_author = True
-            self.by_author_attrs = ['canon-max', 'canon-min']
-
+        self.special_cols = ['cluster', 'clst_shape', 'gender_cluster', 'author_cluster', 'pos']
         self.key_attrs = ['author', 'gender', 'year', 'canon']
-        if self.by_author:
-            self.key_attrs.remove('author')
-            self.key_attrs.extend(self.by_author_attrs)
-
         self.cat_attrs = ['gender', 'author']
-        self.is_cat = False
-        if self.info.attr in self.cat_attrs:
-            self.is_cat = True
-
-        self.has_special = False
-        if hasattr(self.info, 'special'):
-            self.has_special = True
-
-        self.needs_cbar = self.check_cbar()
-
-        self.is_topattr_viz = False
-        self.check_is_topattr_viz()
 
 
-    def check_is_topattr_viz(self):
-        '''
-        Checks if additional plots for main attrs need to be added.
-        This is the case if 'top' is in the experiment name.
-        For example, if the experiment name is 'topcanon', author, gender and year also need to be visualized.
-        '''       
-        attrs_str = [f'top{x}' for x in self.key_attrs]
-        if any(x in self.expname for x in attrs_str):
-            self.is_topattr_viz = True
-            print('info attr', self.info.attr)
-            self.key_attrs.remove(self.info.attr)
+        if self.info is not None:
+            self.by_author = False
+            if 'canon-max' in self.info.metadf.columns:
+                self.by_author = True
+                self.by_author_attrs = ['canon-max', 'canon-min']
 
+            if self.by_author:
+                self.key_attrs.remove('author')
+                self.key_attrs.extend(self.by_author_attrs)
 
-    def get_feature_columns(self, df):
-        df = deepcopy(df)
-        special_cols = ['cluster', 'clst_shape', 'gender_cluster', 'author_cluster']
-        # Get list of attributes in interesting order
-        if self.expname == 'attrviz':
-            cols = self.key_attrs + [col for col in df.columns if col not in self.key_attrs and col not in special_cols and ('_color' not in col)]
-        else:
-            cols = self.key_attrs
-        return cols
+            self.is_cat = False
+            if self.info.attr in self.cat_attrs:
+                self.is_cat = True
+
+            self.needs_cbar = self.check_cbar()
 
 
     def check_cbar(self):
@@ -89,8 +62,6 @@ class VizBase(DataHandler):
         # If yes, a cbar is necessary.
         cbar = False
         if not self.is_cat:
-            cbar = True
-        if self.has_special and (self.info.special not in self.cat_attrs):
             cbar = True
         return cbar
 
@@ -111,17 +82,15 @@ class VizBase(DataHandler):
 
         # if self.cmode == 'nk':
             # Save graphml
-            # path = self.get_path(data_type='graphml', omit=always_omit+omit, name=vizname)
+            # path = self.get_path(data_type='graphml', omit=omit, name=vizname)
             # graph = self.save_graphml()
             # self.save_data(data=graph, data_type='graphml', file_name=None, file_path=path)
 
 
     def get_path(self, name='viz', omit: List[str]=[], data_type=None):
-        # always_omit has to be added because 'special' it is not included in omit_default of the CombinationInfo objects on file
-        always_omit = ['special']
         if data_type is None:
             data_type = self.data_type
-        file_name = f'{name}-{self.info.as_string(omit=always_omit+omit)}.{data_type}'
+        file_name = f'{name}-{self.info.as_string(omit=omit)}.{data_type}'
         return self.get_file_path(file_name, subdir=True)
     
 
@@ -196,14 +165,12 @@ class VizBase(DataHandler):
         return self.axs[ix[0], ix[1]]
 
 
-    def add_subtitles(self, attrix, clstix, shapeix, combix=None, specix=None):
+    def add_subtitles(self, attrix, clstix, shapeix, combix=None):
         self.get_ax(attrix).set_title(f'Attribute: {self.info.attr}', fontsize=self.fontsize)
         self.get_ax(clstix).set_title('Clusters', fontsize=self.fontsize)
         self.get_ax(shapeix).set_title('Attribute (color) and clusters (shapes)', fontsize=self.fontsize)
         if combix is not None:
             self.get_ax(combix).set_title('Attribute and clusters (combined)', fontsize=self.fontsize)
-        if specix is not None:
-            self.get_ax(specix).set_title(f'{self.info.special.capitalize()}', fontsize=self.fontsize)
 
 
 

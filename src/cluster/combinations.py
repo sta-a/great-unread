@@ -46,7 +46,15 @@ class InfoHandler(DataHandler):
         pickle_path = self.get_info_path(comb_info)              
         with open(pickle_path, 'rb') as pickle_file:
             info = pickle.load(pickle_file)
-            return info
+        
+        repdict = {'argamon_quadratic': 'argamonquadratic', 'argamon_linear': 'argamonlinear'}
+        for key, value in repdict.items():
+            for attr_key, attr_value in info.__dict__.items():
+                if key in str(attr_value):
+                    setattr(info, attr_key, str(attr_value).replace(key, value))
+                    print(info.__dict__)
+        
+        return info
         
 
     def merge_dfs(self, metadf, clusterdf):
@@ -64,7 +72,6 @@ class InfoHandler(DataHandler):
         pickle_path = self.get_pickle_path(info.as_string())
         with open(pickle_path, 'wb') as f:
             pickle.dump(info, f)
-            print(info.as_string())
 
 
 

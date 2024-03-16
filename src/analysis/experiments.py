@@ -20,7 +20,7 @@ from matplotlib.cm import ScalarMappable
 from utils import DataHandler
 from .mxviz import MxViz
 from .mxviz import MxVizAttr
-from .nkviz import NkViz, NkVizAttr
+from .nkviz import NkKeyAttrViz, NkAttrGridViz, NkNetworGridkViz
 from .analysis_utils import GridImage
 from .topeval import TopEval
 from cluster.network import NXNetwork
@@ -42,28 +42,33 @@ class Experiment(DataHandler):
     def get_experiments(self):
         # Default values
         maxsize = 0.9
-        embmxs = ['both', 'full']
+        embmxs = ['both', 'full'] # embedding-based distance matrices
         cat_evalcol = 'ARI'
         cont_evalcol = 'logreg_acc'
         if self.cmode == 'mx':
             int_evalcol = 'silhouette_score'
         else:
             int_evalcol = 'modularity'
+        cont_attrs = ['canon', 'year']
+        cat_attrs = ['gender', 'author']
+        by_author_attrs = ['canon-max', 'canon-min']
+        if self.by_author:
+            cont_attrs = cont_attrs + by_author_attrs
 
 
+
+        '''
+        Top: Find combinations with highest evaluation scores
+        '''
+        # Highest scores over all attributes
         def add_to_top(d):
             d['maxsize'] = maxsize
-            d['special'] = True
             d['intthresh'] = 0.3
             d['intcol'] = int_evalcol
+            d['viztype'] = 'keyattr'
             return d
-
-
-        # Find combinations with highest evaluation scores
-        topcont = [
-            {'name': 'topcont', 'evalcol': cont_evalcol, 'dfs': ['cont']},
-            {'name': 'topcont_bal', 'evalcol': 'logreg_acc_balanced', 'dfs': ['cont']},
-        ]
+        topcont = [{'name': 'topcont', 'evalcol': cont_evalcol, 'dfs': ['cont']},
+                    {'name': 'topcont_bal', 'evalcol': 'logreg_acc_balanced', 'dfs': ['cont']}]
         topcont = [add_to_top(d) for d in topcont]
         topcat = [{'name': 'topcat', 'evalcol': cat_evalcol, 'dfs': ['cat']}]
         topcat = [add_to_top(d) for d in topcat]
@@ -71,42 +76,19 @@ class Experiment(DataHandler):
 
         # Find combinations with highest evaluation scores for interesting attributes
         attrcont = []
-        for attr in ['canon', 'year']:
+        for attr in cont_attrs:
             dlist = deepcopy(topcont)
             for d in dlist:
                 d['name'] = d['name'].replace('cont', attr)
                 d['attr'] = attr
-                d['special'] = False
                 attrcont.append(d)
-
-
-        # If by_author, also look at aggregated canon attributes
-        canonminmax = []
-        if self.by_author:
-            for attr in ['canon-max', 'canon-min']:
-                dlist = deepcopy(attrcont[0])
-                d['name'] = d['name'].replace('canon', attr)
-                d['attr'] = attr
-                canonminmax.append(d)
-
-
         attrcat = []
-        for attr in ['gender', 'author']:
+        for attr in cat_attrs:
             dlist = deepcopy(topcat)
             for d in dlist:
                 d['name'] = d['name'].replace('cat', attr)
                 d['attr'] = attr
-                d['special'] = False
                 attrcat.append(d)
-
-
-        attrcat_nointernal = []
-        for cdict in attrcat:
-            d = deepcopy(cdict)
-            d['name'] = d['name'] + '_nointernal'
-            del d['intcol']
-            del d['intthresh']
-            attrcat_nointernal.append(cdict)
 
 
         # Get best performance of embedding distances
@@ -114,26 +96,61 @@ class Experiment(DataHandler):
         for cdict in topcont:
             d = deepcopy(cdict)
             d['name'] = d['name'] + '_emb'
-            del d['intthresh']
-            del d['intcol']
             d['mxname'] = embmxs
             topcont_emb.append(d)
-
         topcat_emb = []
         for cdict in topcat:
             d = deepcopy(cdict)
             d['name'] = d['name'] + '_emb'
-            del d['intthresh']
-            del d['intcol']
             d['mxname'] = embmxs
             topcat_emb.append(d)
 
+        
+        all_top = topcont + topcat + attrcont + attrcat + topcont_emb + topcat_emb
 
-        # Visualize attributes, ignore clustering
-        attrviz = [{'name': 'attrviz', 'dfs': ['cat'], 'mxname': ['burrows'] + embmxs}]
 
-        attrviz_int = [{'name': 'attrviz_int', 'dfs': ['cat']}]
+        '''
+        Many networks on the same figure.
+        '''
+        # One network, all attributes
+        # cat: it doesn't matter which df is chosen
+        # In Topeval, a single combination for each sparsified matrix is chosen, attributes don't matter
+        attrgrid = [{'name': 'attrgrid', 'dfs': ['cat'], 'mxname': ['burrows'] + embmxs, 'viztype': 'attrgrid'}]
+        attrgrid_int = [{'name': 'attrgrid_int', 'dfs': ['cat'], 'intcol': int_evalcol, 'viztype': 'attrgrid'}]
 
+        all_attrgrid = attrgrid + attrgrid_int
+
+
+        # One attribute, all networks
+        nkgridcont = []
+        for x in attrcont:
+            d = deepcopy(x)
+            d['name'] = d['name'].replace('top', 'nkgrid')
+            d['viztype'] = 'nkgrid'
+            del d['evalcol']
+            del d['dfs']
+            del d['maxsize']
+            del d['intthresh']
+            del d['intcol']
+            nkgridcont.append(d)
+        nkgridcat = []
+        for x in attrcat:
+            d = deepcopy(x)
+            d['name'] = d['name'].replace('top', 'nkgrid')
+            d['viztype'] = 'nkgrid'
+            del d['evalcol']
+            del d['dfs']
+            del d['maxsize']
+            del d['intthresh']
+            del d['intcol']
+            nkgridcat.append(d)
+        
+        all_nkgrid = nkgridcat + nkgridcont
+
+
+        '''
+        Consistent clusters and centralities
+        '''
         clustconst = []
         central = []
         if not self.by_author:
@@ -141,28 +158,33 @@ class Experiment(DataHandler):
             central = deepcopy(clustconst)
             central[0]['name'] = 'central'
             central[0]['mxname'] = ['burrows'] + embmxs
-            central[0]['special'] = True
 
-        exps = attrviz
-        exps = topcont + topcat + attrcont + attrcat + attrcat_nointernal + topcont_emb + topcat_emb + attrviz_int + clustconst + attrviz + canonminmax
-        exps = attrcont
+
+        exps = all_top + all_attrgrid + clustconst + central
+        exps = all_top + all_attrgrid + all_nkgrid + clustconst + central
+        exps = all_nkgrid
+
+        for e in exps:
+            print(e['name'])
         return exps
 
 
     def run_experiments(self, ntop=10):
         exps = self.get_experiments()
         for exp in exps:
-            expname = exp['name']
-            print(f'------------------{expname}-------------------\n')
+            print(f"------------------{exp['name']}-------------------\n")
             if 'ntop' not in exp:
                 exp['ntop'] = ntop
 
-            self.add_subdir(f'{self.cmode}_{expname}')
-            te = TopEval(self.language, self.cmode, exp, expdir=self.subdir, by_author=self.by_author)
+            self.add_subdir(f"{self.cmode}_{exp['name']}")
+            if exp['viztype'] == 'nkgrid':
+                te = None
+            else:
+                te = TopEval(self.language, self.cmode, exp, expdir=self.subdir, by_author=self.by_author)
 
-            if expname == 'clustconst':
+            if exp['name'] == 'clustconst':
                 self.run_clustconst(exp, te)
-            elif expname == 'central':
+            elif exp['name'] == 'central':
                 if self.cmode == 'nk':
                     self.run_central(exp, te)
             else:
@@ -190,14 +212,8 @@ class Experiment(DataHandler):
 
 
     def visualize_mx(self, exp, te, vizname='viz'):
-        expname = exp['name']
-
         for topk in te.get_top_combinations():
             info, plttitle = topk
-            print(info.as_string())
-            if 'special' in exp and exp['special']:
-                info.add('special', 'canon')
-
             # Get matrix
             cb = CombinationsBase(self.language, add_color=False, cmode='mx')
             mx = [mx for mx in cb.mxs if mx.name == info.mxname]
@@ -205,33 +221,30 @@ class Experiment(DataHandler):
             mx = mx[0]
 
             info.add('order', 'olo')
-            if expname == 'attrviz' or expname == 'attrviz_int':
-                viz = MxVizAttr(self.language, mx, info, plttitle=plttitle, expname=expname)
+            if exp['viztype'] == 'attrgrid':
+                viz = MxVizAttr(self.language, mx, info, plttitle=plttitle, exp=exp)
             else:
-                viz = MxViz(self.language, mx, info, plttitle=plttitle, expname=expname)
+                viz = MxViz(self.language, mx, info, plttitle=plttitle, exp=exp)
             viz.visualize(vizname)
 
 
-    def visualize_nk(self, exp, te, vizname='viz'):
-        expname = exp['name']
-        print(expname)
+    def visualize_nk(self, exp, te):
+        # viztypes: 'attrgrid', 'nkgrid' 'keyattr'
+        if exp['viztype'] == 'nkgrid':
+            viz = NkNetworGridkViz(self.language, exp, self.by_author)
+            viz.visualize()
+        else:
+            for topk in te.get_top_combinations():
+                info, plttitle = topk
+                print('info nk viz', info.as_string())
 
-        for topk in te.get_top_combinations():
-            info, plttitle = topk
-            print(info.as_string())
-            if 'special' in exp and exp['special']:
-                info.add('special', 'canon')
-            network = NXNetwork(self.language, path=info.spmx_path)
-            if exp['name'] == 'attrviz' or expname == 'attrviz_int':
-                viz = NkVizAttr(self.language, network, info, plttitle=plttitle, expname=expname)
-                print('Init NkVizAttr')
-                viz.visualize(vizname)
-                # gi = GridImage(self.language, self.cmode, exp)
-                # gi.run()      
-            else:
-                viz = NkViz(self.language, network, info, plttitle=plttitle, expname=expname) 
-                print('Init Nkviz')
-                viz.visualize(vizname)
+                if exp['viztype'] == 'attrgrid':
+                    viz = NkAttrGridViz(self.language, info, plttitle=plttitle, exp=exp)
+                    # gi = GridImage(self.language, self.cmode, exp)
+                    # gi.run()      
+                else:
+                    viz = NkKeyAttrViz(self.language, info, plttitle=plttitle, exp=exp) 
+                viz.visualize()
 
 
 

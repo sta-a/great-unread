@@ -278,7 +278,7 @@ class ColorMap(Colors):
 class CombinationInfo:
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
-        self.omit_default = ['metadf', 'param_comb', 'spars_param', 'omit_default', 'cluster_alg', 'spmx_path', 'clusterdf', 'order', 'special']
+        self.omit_default = ['metadf', 'param_comb', 'spars_param', 'omit_default', 'cluster_alg', 'spmx_path', 'clusterdf', 'order']
         self.clusterparams_to_string()       
         self.spars_to_string()
 

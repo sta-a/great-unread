@@ -1,12 +1,13 @@
 
 
 # %%
-# %load_ext autoreload
-# %autoreload 2
+%load_ext autoreload
+%autoreload 2
 
 import sys
 sys.path.append("..")
 import pandas as pd
+import time
 import pickle
 import os
 import networkx as nx
@@ -55,17 +56,25 @@ class N2VCreator(DataHandler):
             print(info, directed)
             return info, directed
       
+      def get_file_path(self, info):
+            return os.path.join(self.subdir, f'{info}.embeddings')
+      
 
       def create_data(self):
             for file in self.edgelists:
+                  if self.language == 'eng' and ('cosinesim-500_simmel-4-6' in file or 'cosinesim-500_simmel-7-10' in file):
+                        continue
+
                   info, directed = self.extract_directed(file)
-                  network = self.network_from_edgelist(os.path.join(self.edgelist_dir, file), directed)
-                  self.create_embeddings(network, info)
+                  EMBEDDING_FILENAME = os.path.join(self.subdir, f'{info}.embeddings')
+                  if not os.path.exists(EMBEDDING_FILENAME):
+                        network = self.network_from_edgelist(os.path.join(self.edgelist_dir, file), directed)
+                        self.create_embeddings(network, info)
 
 
       def create_embeddings(self, network, info):
+            s = time.time()
             # Adapted from https://github.com/eliorc/node2vec
-            
             node2vec = Node2Vec(network, dimensions=64, walk_length=30, num_walks=200, workers=4)  # Use temp_folder for big graphs
 
             # Embed nodes
@@ -78,6 +87,8 @@ class N2VCreator(DataHandler):
             # Save model
             EMBEDDING_MODEL_FILENAME = os.path.join(self.subdir, f'{info}.model')
             model.save(EMBEDDING_MODEL_FILENAME)
+            print(f'{time.time()-s}s to get embeddings for one mx.')
+
 
 
       def load_embeddings(self, file_name):
@@ -100,8 +111,15 @@ class N2VCreator(DataHandler):
             return df
       
 
-if '__name__' == '__main__':
-      ne = N2VCreator('eng')
+# if '__name__' == '__main__':
+for language in ['eng', 'ger']:
+      ne = N2VCreator(language)
       ne.create_data()
 
 # %%
+'''
+noedges eng: cosinesim-500_simmel-4-6
+cosinesim-500_simmel-7-10
+use type of spars for directed
+
+'''

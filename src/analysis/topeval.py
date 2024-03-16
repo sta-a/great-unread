@@ -177,7 +177,7 @@ class TopEval(InfoHandler):
         return df[df[self.exp['intcol']] >= self.exp['intthresh']]
     
 
-    def filter_attrviz(self, df):
+    def filter_unique_mxs(self, df):
         # df = df[['mxname', 'clst_alg_params', 'file_info']]
         subset = ['mxname']
         if 'sparsmode' in df.columns:
@@ -199,7 +199,6 @@ class TopEval(InfoHandler):
                 df = self.filter_clst_sizes(df)
             if 'attr' in self.exp:
                 # df = self.filter_attribute(df)
-                print('ext attr', self.exp['attr'])
                 df = df[df['attr'] == self.exp['attr']]
             if 'mxname' in self.exp:
                 df = self.filter_columns_substring(df, 'mxname')
@@ -207,8 +206,8 @@ class TopEval(InfoHandler):
                 df = self.filter_columns_substring(df, 'clst_alg_params')
             if 'intthresh' in self.exp:
                 df = self.filter_inteval(df)
-            if (self.exp['name'] == 'attrviz') or (self.exp['name'] == 'attrviz_int'):
-                df = self.filter_attrviz(df)
+            if (self.exp['viztype'] == 'attrgrid' or self.exp['viztype'] == 'nkgrid'):
+                df = self.filter_unique_mxs(df)
             self.dfs[self.scale] = df
     
 
@@ -232,7 +231,6 @@ class TopEval(InfoHandler):
         Plot the values from columns 'intcol' and 'evalcol' with lines connecting the dots.
         '''
         df = self.filter_top_rows(df, nrow=500)
-        print(df.shape)
         plt.figure(figsize=(10, 6))  # Adjust the figure size as needed
         x_values = np.arange(len(df))
         plt.plot(x_values, df[self.exp['intcol']], marker='o', label='intcol', color='blue', markersize=3, linewidth=1)
@@ -283,11 +281,10 @@ class TopEval(InfoHandler):
             metadf = self.merge_dfs(self.metadf, info.clusterdf)
             metadf = self.mh.add_cluster_color_and_shape(metadf)
             info.add('metadf', metadf)
-            self.run_logreg(info, metadf)
+            # self.run_logreg(info, metadf) ###############
             yield info, plttitle
 
 
-    def get_file_path(self, file_name):
-        # file_name for compatibility
+    def get_file_path(self, file_name): # file_name for compatibility
         return os.path.join(self.expdir, f'df.{self.data_type}')
     

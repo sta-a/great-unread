@@ -196,8 +196,6 @@ class DataHandler():
             self.logger.addHandler(console_handler)
             self.logger.propagate = False
 
-        print('Data dir: ', self.data_dir)
-
         self.output_dir = self.create_output_dir(output_dir)
         self.text_raw_dir = os.path.join(self.data_dir, 'text_raw', language)
         self.doc_paths = get_doc_paths(self.text_raw_dir)
@@ -874,12 +872,10 @@ class DataLoader(DataHandler):
         # Select rows from current language (df contains data for both eng and ger)
         # Get a list of filenames without the '.txt' extension
         rdfn = [f.rstrip('.txt') for f in os.listdir(self.text_raw_dir) if f.endswith(".txt")]
-        print(self.text_raw_dir)
         # Select rows from the DataFrame where 'file_name' is in the list of filenames
         df = df[df['file_name'].isin(rdfn)]
         df.to_csv('canondf')
         # Check if all filenames in the directory are in the DataFrame
-        print(len(df), self.nr_texts, len(rdfn))
         assert all(file_name in df['file_name'].values for file_name in rdfn)
         assert len(df) == self.nr_texts
         return df
@@ -1006,11 +1002,11 @@ class FeaturesLoader(DataHandler):
     '''
     def __init__(self, language):
         super().__init__(language, output_dir='features', data_type='csv')
-        print(self.data_dir)
+
 
     def prepare_features(self, scale=False):
         '''
-        Return features table for full-book features
+        Return features df for full-book features
         '''
         path = os.path.join(self.output_dir, 'book.csv')
         df = pd.read_csv(path, index_col='file_name')
@@ -1027,11 +1023,9 @@ class FeaturesLoader(DataHandler):
         return df
     
 
-
-
-# # Provide the directory path and the string to search for
+# Provide the directory path and the string to search for
 # directory_path = '/home/annina/scripts/great_unread_nlp/src/'
-# search_string = 'TextsByAuthor'
+# search_string = 'argamon_linear'
 # extension = ['.txt', '.py']
 # search_string_in_files(directory_path, search_string, extension, full_word=False)
 
