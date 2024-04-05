@@ -143,7 +143,7 @@ class MxViz(VizBase):
         self.vizpath = self.get_path(name=vizname, omit=omit)
         if not os.path.exists(self.vizpath):
             self.pos = self.get_mds_positions()
-            self.prepare_metadata()
+            self.add_positions_to_metadf()
             self.get_figure()
             self.fill_subplots()
             self.add_legends_and_titles()
@@ -281,9 +281,10 @@ class MxViz(VizBase):
         return df
 
 
-    def prepare_metadata(self):
+    def add_positions_to_metadf(self):
         # Combine positions and metadata
-        self.df = self.info.metadf.merge(self.pos, how='inner', left_index=True, right_index=True, validate='1:1')
+        self.get_metadf()
+        self.df = self.df.merge(self.pos, how='inner', left_index=True, right_index=True, validate='1:1')
 
 
     def draw_mds(self, ix, color_col=None, use_different_shapes=False):

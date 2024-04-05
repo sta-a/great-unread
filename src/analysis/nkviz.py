@@ -31,9 +31,9 @@ warnings.filterwarnings("ignore", category=RuntimeWarning, module="pygraphviz") 
 
 class NkVizBase(VizBase):
 
-    def __init__(self, language, info=None, plttitle=None, exp=None):
+    def __init__(self, language, info=None, plttitle=None, exp=None, by_author=False):
         self.cmode = 'nk'
-        super().__init__(language, self.cmode, info, plttitle, exp)
+        super().__init__(language, self.cmode, info, plttitle, exp, by_author)
         # Visualization parameters
         self.prog = 'neato'
         self.markersize = 20
@@ -62,7 +62,7 @@ class NkVizBase(VizBase):
                 self.logger.debug(f'Nr edges below cutoff for {self.info.as_string()}. Making visualization.')
                 self.get_graphs()
                 self.get_positions()
-                self.prepare_metadata()
+                self.add_positions_to_metadf()
 
 
     def get_cmap_params(self):
@@ -113,18 +113,16 @@ class NkVizBase(VizBase):
             top=self.ws_top,
             wspace=self.ws_wspace,
             hspace=self.ws_hspace)  
-        
 
 
-    def prepare_metadata(self):
+    def add_positions_to_metadf(self):
         # Combine positions and metadata
-        df = deepcopy(self.info.metadf)
-        df['pos'] = df.index.map(self.pos)
-        df[['x', 'y']] = pd.DataFrame(df['pos'].tolist(), index=df.index)
-        self.df = df
+        self.get_metadf()
+        self.df['pos'] = self.df.index.map(self.pos)
+        self.df[['x', 'y']] = pd.DataFrame(self.df['pos'].tolist(), index=self.df.index)
 
 
-    def draw_nodes(self, graph, ax, df, color_col, use_different_shapes=True):
+    def draw_nodes(self, graph, ax, df, color_col, use_different_shapes=True, node_size=None, edgecolors='black', margins=None):
         # Iterate through shapes because only one shape can be passed at a time, no lists
         if use_different_shapes:
             shapes = df['clst_shape'].unique()
@@ -132,6 +130,9 @@ class NkVizBase(VizBase):
             shapes = ['o']
             df = df.copy() # Avoid chained assingment warning
             df['clst_shape'] = 'o'
+
+        if node_size is None:
+            node_size = self.markersize
 
         for shape in shapes:
             sdf = df[df['clst_shape'] == shape]
@@ -141,9 +142,10 @@ class NkVizBase(VizBase):
                                 nodelist=sdf.index.tolist(), 
                                 node_shape=shape,
                                 node_color=sdf[color_col],
-                                node_size=self.markersize,
-                                edgecolors='black',
-                                linewidths=0.2)
+                                node_size=node_size,
+                                edgecolors=edgecolors,
+                                linewidths=0.2,
+                                margins=margins)
                  
 
     def draw_edges(self, graph, pos, ix):
@@ -198,10 +200,23 @@ class NkVizBase(VizBase):
         '''
         # Calculate node positions for main graph and removed nodes
         nodes_per_line = 40
+        num_rows = (len(self.nodes_removed) // nodes_per_line) + 1 
+        if len(self.nodes_removed) % nodes_per_line != 0:
+                num_rows += 1
+        # num_rows += 2 # top and bottom line to be left empty
+        row_height = 1/num_rows
+        
+        # Compress the x-coordinates to the range between 0.1 and 0.9
+        x_min = 0.1
+        x_max = 0.9
+        scaling = 10
+        x_range = scaling*(x_max - x_min)
+        
+        normalized_x_values = [(i % nodes_per_line)/nodes_per_line for i, node in enumerate(self.nodes_removed)]
+        compressed_x_values = [x_min + value * x_range for value in normalized_x_values]
+        pos_removed = {node: (compressed_x_values[i], -((i) // nodes_per_line) * row_height) for i, node in enumerate(self.nodes_removed)}
 
-        # Custom grid layout for two-node components and isolated nodes
-        row_height = 0.3
-        pos_removed = {node: (i % nodes_per_line, -(i // nodes_per_line) * row_height) for i, node in enumerate(self.nodes_removed)}
+
 
         pos_con = nx.nx_agraph.graphviz_layout(self.graph_con, self.prog)
 
@@ -244,10 +259,11 @@ class NkKeyAttrViz(NkVizBase):
     '''
     Plot main attribute (including clustering) plus key attributes
     '''
-    def __init__(self, language, info, plttitle, exp):
-        super().__init__(language, info, plttitle, exp)
-        if self.info.attr in self.key_attrs:
-            self.key_attrs.remove(self.info.attr)
+    def __init__(self, language, info, plttitle, exp, by_author=False):
+        super().__init__(language, info, plttitle, exp, by_author)
+        if info is not None:
+            if self.info.attr in self.key_attrs:
+                self.key_attrs.remove(self.info.attr)
 
 
     def add_edges(self):
@@ -271,24 +287,33 @@ class NkKeyAttrViz(NkVizBase):
         ax = self.get_ax(ix)
         self.draw_nodes(self.graph_con, ax, df_con, color_col, use_different_shapes=use_different_shapes)
 
-        ax = self.axs[ix[0]+1, ix[1]]
-        # Isolated nodes
-        if self.nodes_removed:
-            # Two nodes
-            for curr_g in self.graphs_two:
-                curr_nodes = list(curr_g.nodes)
-                curr_df_two = df[df.index.isin(curr_nodes)]
-                self.draw_nodes(curr_g, ax, curr_df_two, color_col, use_different_shapes=use_different_shapes)
 
-            # Isolated nodes
-            df_iso = df[df.index.isin(self.nodes_iso)]
-            if use_different_shapes:
-                for shape in df_iso['clst_shape'].unique():
-                    sdf = df_iso[df_iso['clst_shape'] == shape]
-                    ax.scatter(sdf['x'], sdf['y'], c=sdf[color_col], marker=shape, s=2)
-            else:
-                ax.scatter(df_iso['x'], df_iso['y'], c=df_iso[color_col], marker='o', s=2)
-        
+        iso_node_size = round(0.3 * self.markersize)
+        ax = self.axs[ix[0]+1, ix[1]]
+
+
+        # # Isolated nodes
+        # if self.nodes_removed:
+        #     # Two nodes
+        #     for curr_g in self.graphs_two:
+        #         curr_nodes = list(curr_g.nodes)
+        #         curr_df_two = df[df.index.isin(curr_nodes)]
+        #         self.draw_nodes(curr_g, ax, curr_df_two, color_col, use_different_shapes=use_different_shapes, node_size=iso_node_size, edgecolors=None)
+
+        # self.graph_iso = self.graph.subgraph([node for node in self.graph.nodes if node in self.nodes_iso])
+        # isodf = df[df.index.isin(self.nodes_iso)]
+        # self.draw_nodes(self.graph_iso, ax, isodf, color_col, use_different_shapes=use_different_shapes, node_size=iso_node_size, edgecolors=None)
+
+
+        # Isolated nodes
+        df_iso = df[df.index.isin(self.nodes_removed)] #########33iso/removed
+        if use_different_shapes:
+            for shape in df_iso['clst_shape'].unique():
+                sdf = df_iso[df_iso['clst_shape'] == shape]
+                ax.scatter(sdf['x'], sdf['y'], c=sdf[color_col], marker=shape, s=iso_node_size, edgecolors=None, clip_on=False)
+        else:
+            ax.scatter(df_iso['x'], df_iso['y'], c=df_iso[color_col], marker='o', s=iso_node_size, edgecolors=None, clip_on=False)
+    
 
     def get_figure(self):
         # Add column for legends and titles at the end
@@ -308,7 +333,6 @@ class NkKeyAttrViz(NkVizBase):
         self.attrix = [0,0]
         self.clstix = [0,1]
         self.shapeix = [2,0]
-
 
         if self.is_cat:
             self.combix = [2,1]
@@ -330,13 +354,11 @@ class NkKeyAttrViz(NkVizBase):
             if self.by_author:
                 self.fourth_ext_ix = [2,3]
 
-
         self.subplots = [self.attrix, self.clstix, self.shapeix, self.combix, self.first_ext_ix, self.second_ext_ix, self.third_ext_ix]
         if self.by_author:
             self.subplots.extend([self.fourth_ext_ix])
 
         
-
     def add_legends_and_titles(self):
 
         def make_clst_legend(fig_or_ax, boxx, boxy):
@@ -380,21 +402,6 @@ class NkKeyAttrViz(NkVizBase):
         self.add_subtitles(self.attrix, self.clstix, self.shapeix, self.combix)
         self.add_text(self.axs[3, -1], width=25)
 
-    # pdict = {
-    #     'attr': {
-    #         'color': self.info.attr,
-    #         'use_shapes': False
-    #     },
-    #     'cluster': {
-    #         'color': 'cluster',
-    #         'use_shapes': False
-    #     },
-    #     'clst_shape': {
-    #         'color': self.info.attr,
-    #         'use_shapes': True
-    #     },
-    # }
-        
 
     def fill_subplots(self):
         # attr
@@ -410,7 +417,6 @@ class NkKeyAttrViz(NkVizBase):
         if self.is_cat:
             self.add_nodes_to_ax(self.combix, self.df, color_col=f'{self.info.attr}_cluster', use_different_shapes=False)
 
-        
         self.add_nodes_to_ax(self.first_ext_ix, self.df, color_col=self.key_attrs[0], use_different_shapes=True)
         self.add_nodes_to_ax(self.second_ext_ix, self.df, color_col=self.key_attrs[1], use_different_shapes=True)
         self.add_nodes_to_ax(self.third_ext_ix, self.df, color_col=self.key_attrs[2], use_different_shapes=True)
@@ -422,7 +428,6 @@ class NkKeyAttrViz(NkVizBase):
             self.add_nodes_to_ax(self.fourth_ext_ix, self.df, color_col=self.key_attrs[3], use_different_shapes=True)
             self.get_ax(self.fourth_ext_ix).set_title(self.key_attrs[3], fontsize=self.fontsize)
 
-
         self.add_legends_and_titles()
 
 
@@ -431,8 +436,8 @@ class NkAttrGridViz(NkVizBase):
     '''
     Plot every attribute for a network
     '''
-    def __init__(self, language, info, plttitle, exp):
-        super().__init__(language, info, plttitle, exp)
+    def __init__(self, language, info, plttitle, exp, by_author=False):
+        super().__init__(language, info, plttitle, exp, by_author)
         self.data_type = 'png'
         self.nrow = 7
         self.ncol = 14
@@ -468,31 +473,32 @@ class NkAttrGridViz(NkVizBase):
 
     def visualize(self, vizname='viz'):
         # Get all features
-        all_cols = self.key_attrs + [col for col in self.df.columns if col not in self.key_attrs and col not in self.special_cols and ('_color' not in col)] # key_attrs come first
-        nfields = self.nrow * self.ncol # fields per plot
-        nplots = len(all_cols)
-        nfig = nplots // nfields 
-        if nplots % nfields != 0:
-            nfig += 1
-        # self.create_logfile(all_cols, nfields)
+        if not self.too_many_edges:
+            all_cols = self.key_attrs + [col for col in self.df.columns if col not in self.key_attrs and col not in self.special_cols and ('_color' not in col)] # key_attrs come first
+            nfields = self.nrow * self.ncol # fields per plot
+            nplots = len(all_cols)
+            nfig = nplots // nfields 
+            if nplots % nfields != 0:
+                nfig += 1
+            # self.create_logfile(all_cols, nfields)
 
-        ix = 0
-        for i in range(nfig):
-            # If ix + nfields > len(cols), no error is raised because Python allows out-of-bound slicing
-            self.cols = all_cols[ix: ix + (nfields)]
-            ix += nfields
-            omit=['clst_alg_params']
-            if self.nrow*self.ncol != 1:
-                omit.append('attr')
-            else:
-                self.info.drop('attr')
-                self.info.add('attr', deepcopy(self.cols[0]))
+            ix = 0
+            for i in range(nfig):
+                # If ix + nfields > len(cols), no error is raised because Python allows out-of-bound slicing
+                self.cols = all_cols[ix: ix + (nfields)]
+                ix += nfields
+                omit=['clst_alg_params']
+                if self.nrow*self.ncol != 1:
+                    omit.append('attr')
+                else:
+                    self.info.drop('attr')
+                    self.info.add('attr', deepcopy(self.cols[0]))
 
-            if nfig == 1:
-                vizname = vizname
-            else:
-                vizname = f'{vizname}{i}'
-            super().visualize(vizname=vizname, omit=omit)
+                if nfig == 1:
+                    vizname = vizname
+                else:
+                    vizname = f'{vizname}{i}'
+                super().visualize(vizname=vizname, omit=omit)
 
 
     def get_figure(self):
@@ -516,7 +522,7 @@ class NkAttrGridViz(NkVizBase):
             ax.spines['bottom'].set_visible(False)  # Hide the bottom spine
             ax.spines['left'].set_visible(False)  # Hide the left spine
 
-        plt.tight_layout()
+        plt.tight_layout() ################
 
 
     def add_edges(self):
@@ -547,21 +553,22 @@ class NkAttrGridViz(NkVizBase):
 
 
 
-class NkNetworGridkViz(NkVizBase):
+class NkNetworkGridkViz(NkKeyAttrViz):
     '''
     Plot every network for an attribute.
     '''
-    def __init__(self, language, exp, by_author):
-        super().__init__(language, info=None, plttitle=None, exp=exp)
-        self.by_author = by_author
-        self.data_type = 'png'
-        self.ih = InfoHandler(language=self.language, add_color=True, cmode=self.cmode, by_author=self.by_author)
+    def __init__(self, language, exp, by_author=False):
+        super().__init__(language, info=None, plttitle=None, exp=exp, by_author=by_author)
+        self.ih = InfoHandler(language=language, add_color=True, cmode=self.cmode, by_author=by_author)
 
-        self.nr_mxs = 58 * 9 # 58 mxs, 9 sparsification methods
+        self.nr_mxs = 58
+        self.nr_spars = 9
+        if self.by_author:
+            self.nr_spars = 7 # authormin, authormax make no sense
 
         self.nrow = 3
         self.ncol = 3
-        self.markersize = 10
+        self.markersize = 6
         self.fontsize = 6
 
         # Whitespace
@@ -569,37 +576,86 @@ class NkNetworGridkViz(NkVizBase):
         self.ws_right = 0.99
         self.ws_bottom = 0.01
         self.ws_top = 0.99
-        self.ws_wspace = 0
-        self.ws_hspace = 0
+        self.ws_wspace = 0.01
+        self.ws_hspace = 0.01
+
+        self.mxdir = os.path.join(self.ih.output_dir, 'sparsification')
+        self.name_index = 0
+        self.nfields = 9
+        self.figsize = (self.ncol*2, self.nrow*2 + 1)
 
 
-    def load_sparsmxs(self):
-        mxdir = os.path.join(self.ih.output_dir, 'sparsification')
-        mxs = [filename for filename in os.listdir(mxdir) if filename.startswith('sparsmx')]
+    def create_overview_file(self):
+        dfpath = os.path.join(self.output_dir, 'nk_visualizations.csv')
+        if not os.path.exists(dfpath):
+            mxs = self.load_mxnames()
+            mxs = [mx.replace('sparsmx-', '') for mx in mxs]
+            mxs = [mx.split('.')[0] for mx in mxs]
+            mxs =  [mx.split('_') for mx in mxs]
+            mxs = sorted(mxs)
+
+            df = pd.DataFrame(mxs, columns=['mxname', 'sparsification'])
+
+
+            # Add column names to DataFrame with new empty columns
+            for col_name in ['from_sparsmethod'] + self.key_attrs:
+                df[col_name] = ''
+            df.to_csv(dfpath, index=False, header=True)
+
+
+    def load_mxnames(self):
+        mxs = [filename for filename in os.listdir(self.mxdir) if filename.startswith('sparsmx')]
+        if self.by_author:
+            noedges_sparsmethods = ['authormin', 'authormax'] # these distance matrices have no edges if author-based
+            mxs = [filename for filename in mxs if all(substr not in filename for substr in noedges_sparsmethods)]
         mxs = sorted(mxs)
-        # assert len(mxs) == self.nr_mxs
+        assert len(mxs) == (self.nr_mxs * self.nr_spars)
+        return mxs
+
+
+    def create_filenames_list(self):
+        mxs = self.load_mxnames()
+        # Create a list of lists that contain either all matrices with the same mxname or with the same sparsification technique
+        mxdict = {}
+
         for mx in mxs:
-            yield os.path.join(mxdir, mx)
+            name = mx.split('_')[self.name_index]
+            
+            if name not in mxdict:
+                mxdict[name] = []
+            mxdict[name].append(mx)
+
+        for name in mxdict:
+            mxdict[name].sort()
+
+        return mxdict
     
 
-
-    def prepare_metadata(self):
-        # Combine positions and metadata
-        df = deepcopy(self.ih.metadf)
-        df['pos'] = df.index.map(self.pos)
-        df[['x', 'y']] = pd.DataFrame(df['pos'].tolist(), index=df.index)
-        self.df = df
+    def get_metadf(self):
+        self.df = deepcopy(self.ih.metadf)
         
 
     def get_figure(self):
-        ncol = self.ncol * 2 # duplicate to add small plots for iso nodes
-        width_ratios = (ncol-1)*[7] + [1]
-        self.fig, self.axs = plt.subplots(self.nrow, ncol, figsize=(sum(width_ratios), 11), gridspec_kw={'height_ratios': [7, 0.5, 7, 0.5], 'width_ratios': width_ratios})    
+        nrow = self.nrow * 2 # duplicate to add small plots for iso nodes
+
+        # if self.nrow == 1 and self.ncol == 1:
+        #     self.fig, self.axs = plt.subplots(nrow, self.ncol, figsize=self.figsize, gridspec_kw={'height_ratios': [7, 1]*self.nrow}) 
+        #     self.axs = np.reshape(self.axs, (1, 1))  # Convert single Axes object to a 2D numpy array
+        # else:
+        # self.fig, self.axs = plt.subplots(nrow, self.ncol, figsize=self.figsize, gridspec_kw={'height_ratios': [7, 1]*self.nrow})
+        # print('self axs', self.axs.ndim)
+
+        if self.nrow == 1 and self.ncol == 1:
+            self.fig, self.axs = plt.subplots(nrow, self.ncol, figsize=self.figsize, gridspec_kw={'height_ratios': [7, 2]*self.nrow}) 
+            self.axs = self.axs.reshape(-1, 1) # Convert single Axes object to a 2D numpy array
+        else:
+            self.fig, self.axs = plt.subplots(nrow, self.ncol, figsize=self.figsize, gridspec_kw={'height_ratios': [7, 2]*self.nrow})
+            
 
 
-        height = self.nrow*3
-        width = self.ncol*3
-        self.fig, self.axs = plt.subplots(self.nrow, self.ncol, figsize=(width, height))
+        # height = self.nrow*3
+        # width = self.ncol*3
+        # self.fig, self.axs = plt.subplots(self.nrow, self.ncol, figsize=(width, height))
 
         for ax in self.axs.flat:
             ax.set_xticks([])
@@ -616,60 +672,139 @@ class NkNetworGridkViz(NkVizBase):
         plt.tight_layout()
 
 
-    def add_nodes_to_ax(self, ix):
-        # Draw connected components with more than 2 nodes
-        df_con = self.df[~self.df.index.isin(self.nodes_removed)]
-        ax = self.get_ax(ix)
-        self.draw_nodes(self.graph_con, ax, df_con, color_col=f"{self.exp['attr']}_color", use_different_shapes=False)
+    # def add_nodes_to_ax(self, ix):
+    #     # Draw connected components with more than 2 nodes
+    #     df_con = self.df[~self.df.index.isin(self.nodes_removed)]
+    #     ax = self.get_ax(ix)
+    #     self.draw_nodes(self.graph_con, ax, df_con, color_col=f"{self.exp['attr']}_color", use_different_shapes=False)
+        
+    def get_title(self, mxname):
+        if self.name_index == 0:
+            ix = 1
+        else:
+            ix = 0
+        mxname = mxname.replace('sparsmx-', '')
+        mxname = mxname.split('.')[0]
+        mxname = mxname.split('_')[ix]
+        return mxname
+    
+    def get_filename(self, figname):
+        return f"gridviz_{self.exp['attr']}_{figname}"
 
 
     def visualize(self, vizname='viz'): # vizname for compatibility
-        nfields = self.nrow * self.ncol # fields per plot
-        nplots = self.nr_mxs
-        nfig = nplots // nfields 
-        if nplots % nfields != 0:
-            nfig += 1
-        mxgenerator = self.load_sparsmxs()
-        for i in range(nfig):
-            self.get_figure()
-            print('attr', self.exp['attr'])
+        self.create_overview_file()
+        mxdict = self.create_filenames_list()
 
-            for i in range(self.nrow):
-                for j in range(self.ncol):
-                    index = i * self.ncol + j
-                    if index <= nfields:
-                        mxpath = next(mxgenerator)
-                        print(mxpath)
+        for figname, mxlist in mxdict.items():
+            figname = figname.replace('.pkl', '')
+            file_name = self.get_filename(figname)
 
-                        title = os.path.basename(mxpath).split('.')[0]
-                        title = title.replace('sparsmx-', '')
-                        print('title', title)
-                        self.get_ax([i,j]).set_title(title, fontsize=self.fontsize)
-                        # repdict = {'argamon_quadratic': 'argamonquadratic', 'argamon_linear': 'argamonlinear'} ###########################
-                        # for key, val in repdict.items():
-                        #     if key in title:
-                        #         title = title.replace(key, val)
-                        file_name = f"gridviz_{self.exp['attr']}_{title.split('_')[0]}"
-                        # for key, val in repdict.items():
-                        #     if val in file_name:
-                        #         file_name = file_name.replace(val, key)
+            self.vizpath = self.get_file_path(file_name, subdir=True)
 
-                        print('file name', file_name)
-                        self.vizpath = self.get_file_path(file_name, subdir=True)
-                        
-                        if not os.path.exists(self.vizpath):
-                            self.network = NXNetwork(self.language, path=mxpath)
+
+            if not os.path.exists(self.vizpath):
+                self.get_figure()
+                for i in range(0, self.nrow*2, 2):
+                    for j in range(self.ncol):
+                        index = int(i/2) * self.ncol + j
+                        if index < self.nfields:
+                            mxname = mxlist[index]
+
+                            title = self.get_title(mxname)
+                            self.get_ax([i,j]).set_title(title, fontsize=self.fontsize)
+                            
+                            self.network = NXNetwork(self.language, path=os.path.join(self.mxdir, mxname))
                             self.graph = self.network.graph
                             self.too_many_edges, edges_info = self.check_nr_edges()
 
-                            # if (self.graph.number_of_edges() > 0) and (not self.too_many_edges):
-                            if (self.graph.number_of_edges() > 0):
+                            if (self.graph.number_of_edges() > 0) and (not self.too_many_edges):
+                            #if (self.graph.number_of_edges() > 0):
                                 self.global_vmax, self.global_vmin = self.get_cmap_params()
                                 self.get_graphs()
                                 self.get_positions()
-                                self.prepare_metadata()
-                                self.draw_edges(self.graph_con, self.pos, [i, j])
-                                self.add_nodes_to_ax([i,j])
+                                self.add_positions_to_metadf()
+                                self.subplots = [[i, j]]
+                                self.add_edges()
+                                self.add_nodes_to_ax([i,j], self.df, color_col=f"{self.exp['attr']}", use_different_shapes=False)
             
-            self.save_plot(plt)
+                self.save_plot(plt)
+                plt.close()
+                # plt.show()
 
+
+class SparsGridkViz(NkNetworkGridkViz):
+    '''
+    Plot every network per sparsification technique. Attribute "canon" is highlighted.
+    '''
+    def __init__(self, language, exp, by_author):
+        super().__init__(language, exp, by_author)
+        self.nrow = 6 # 58 mxs per figure
+        self.ncol = 11
+        self.name_index = 1
+        self.nfields = 58
+        self.markersize = 6
+        self.fontsize = 6
+        self.figsize = (self.ncol*2, self.nrow*2 + 2)
+    
+    def get_filename(self, figname):
+        return f"gridviz_{figname}"
+
+
+
+class NkSingleViz(NkNetworkGridkViz):
+    '''
+    Create a single plot per network.
+    Attribute "canon" is highlighted.
+    '''
+    def __init__(self, language, exp, by_author):
+        super().__init__(language, exp, by_author)
+        self.nrow = 1
+        self.ncol = 1
+        self.fontsize = 6
+        self.markersize = 25
+        self.default_attr = 'author'
+        self.data_type = 'png'
+        print('by author', self.by_author)
+        print(self.key_attrs)
+        
+        
+    def clear_mxname(self, mxname):
+        mxname = mxname.replace('.pkl', '')
+        mxname = mxname.replace('sparsmx-', '')
+        return mxname
+    
+
+    def visualize(self, vizname='viz'): # vizname for compatibility
+        mxs = self.load_mxnames()
+        for mxname in mxs:
+            mxpath = os.path.join(self.mxdir, mxname)
+            mxname = self.clear_mxname(mxname)
+            # Check if plot for last key attr has been created
+            vizpath_test = self.get_file_path(f'{mxname}_{self.key_attrs[-1]}', subdir=True)
+            print(mxname, vizpath_test)
+
+
+            if not os.path.exists(vizpath_test):
+                i = 0
+                j = 0
+                self.get_figure()
+                
+                self.network = NXNetwork(self.language, path=mxpath)
+                self.graph = self.network.graph
+                self.too_many_edges, edges_info = self.check_nr_edges()
+
+                # if (self.graph.number_of_edges() > 0) and (not self.too_many_edges):
+                if (self.graph.number_of_edges() > 0):
+                    self.global_vmax, self.global_vmin = self.get_cmap_params()
+                    self.get_graphs()
+                    self.get_positions()
+                    self.add_positions_to_metadf()
+                    self.subplots = [[i, j]]
+                    self.add_edges()
+                    for curr_attr in self.key_attrs:
+                        self.add_nodes_to_ax([i,j], self.df, color_col=curr_attr, use_different_shapes=False)
+                        self.vizpath = self.get_file_path(f'{mxname}_{curr_attr}', subdir=True)
+                        self.save_plot(plt)
+                plt.show()
+                plt.close()

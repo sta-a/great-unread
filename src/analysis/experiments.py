@@ -20,7 +20,7 @@ from matplotlib.cm import ScalarMappable
 from utils import DataHandler
 from .mxviz import MxViz
 from .mxviz import MxVizAttr
-from .nkviz import NkKeyAttrViz, NkAttrGridViz, NkNetworGridkViz
+from .nkviz import NkKeyAttrViz, NkAttrGridViz, NkNetworkGridkViz, SparsGridkViz, NkSingleViz
 from .analysis_utils import GridImage
 from .topeval import TopEval
 from cluster.network import NXNetwork
@@ -104,7 +104,6 @@ class Experiment(DataHandler):
             d['name'] = d['name'] + '_emb'
             d['mxname'] = embmxs
             topcat_emb.append(d)
-
         
         all_top = topcont + topcat + attrcont + attrcat + topcont_emb + topcat_emb
 
@@ -119,7 +118,6 @@ class Experiment(DataHandler):
         attrgrid_int = [{'name': 'attrgrid_int', 'dfs': ['cat'], 'intcol': int_evalcol, 'viztype': 'attrgrid'}]
 
         all_attrgrid = attrgrid + attrgrid_int
-
 
         # One attribute, all networks
         nkgridcont = []
@@ -144,9 +142,12 @@ class Experiment(DataHandler):
             del d['intthresh']
             del d['intcol']
             nkgridcat.append(d)
+
         
         all_nkgrid = nkgridcat + nkgridcont
 
+        sparsgrid = [{'name': 'sparsgrid', 'viztype': 'sparsgrid', 'attr': 'canon'}]
+        singleimage = [{'name': 'singleimage', 'viztype': 'singleimage', 'attr': 'canon'}]
 
         '''
         Consistent clusters and centralities
@@ -160,9 +161,9 @@ class Experiment(DataHandler):
             central[0]['mxname'] = ['burrows'] + embmxs
 
 
-        exps = all_top + all_attrgrid + clustconst + central
-        exps = all_top + all_attrgrid + all_nkgrid + clustconst + central
-        exps = all_nkgrid
+        exps = sparsgrid
+        exps = all_nkgrid + sparsgrid + all_attrgrid + all_top + clustconst + central
+        exps = singleimage
 
         for e in exps:
             print(e['name'])
@@ -177,7 +178,7 @@ class Experiment(DataHandler):
                 exp['ntop'] = ntop
 
             self.add_subdir(f"{self.cmode}_{exp['name']}")
-            if exp['viztype'] == 'nkgrid':
+            if (exp['viztype'] == 'nkgrid') or (exp['viztype'] == 'sparsgrid') or (exp['viztype'] == 'singleimage'):
                 te = None
             else:
                 te = TopEval(self.language, self.cmode, exp, expdir=self.subdir, by_author=self.by_author)
@@ -231,7 +232,13 @@ class Experiment(DataHandler):
     def visualize_nk(self, exp, te):
         # viztypes: 'attrgrid', 'nkgrid' 'keyattr'
         if exp['viztype'] == 'nkgrid':
-            viz = NkNetworGridkViz(self.language, exp, self.by_author)
+            viz = NkNetworkGridkViz(self.language, exp, self.by_author)
+            viz.visualize()
+        elif exp['viztype'] == 'sparsgrid':
+            viz = SparsGridkViz(self.language, exp, self.by_author)
+            viz.visualize()
+        elif exp['viztype'] == 'singleimage':
+            viz = NkSingleViz(self.language, exp, self.by_author)
             viz.visualize()
         else:
             for topk in te.get_top_combinations():
@@ -239,11 +246,9 @@ class Experiment(DataHandler):
                 print('info nk viz', info.as_string())
 
                 if exp['viztype'] == 'attrgrid':
-                    viz = NkAttrGridViz(self.language, info, plttitle=plttitle, exp=exp)
-                    # gi = GridImage(self.language, self.cmode, exp)
-                    # gi.run()      
+                    viz = NkAttrGridViz(self.language, info, plttitle=plttitle, exp=exp, by_author=self.by_author)    
                 else:
-                    viz = NkKeyAttrViz(self.language, info, plttitle=plttitle, exp=exp) 
+                    viz = NkKeyAttrViz(self.language, info, plttitle=plttitle, exp=exp, by_author=self.by_author) 
                 viz.visualize()
 
 

@@ -149,42 +149,114 @@ class PlotCanonScoresPerAuthor(DataHandler):
         super().__init__(language, output_dir='text_statistics', data_type='svg')
 
 
-    def plot(self):
+    def make_plot(self):
+        self.combine_author_work_metadata()
+        self.get_x_position()
+        self.plot()
+
+
+    def combine_author_work_metadata(self):
         # df = DataLoader(self.language).prepare_features(scale=True)
         mh = MetadataHandler(self.language)
-        df = mh.get_metadata(add_color=False)[['canon']]
-        author_filename_mapping = TextsByAuthor(self.language).author_filename_mapping
-        author = pd.DataFrame([(author, work) for author, works in author_filename_mapping.items() for work in works],
-                        columns=['author', 'file_name'])
-        df = df.merge(author, left_index=True, right_on='file_name', validate='1:1')
+        df = mh.get_metadata(add_color=True)# [['canon', 'gender', 'year']]
+        # author_filename_mapping = TextsByAuthor(self.language).author_filename_mapping
+        # author = pd.DataFrame([(author, work) for author, works in author_filename_mapping.items() for work in works],
+        #                 columns=['author', 'file_name'])
+        # self.df = df.merge(author, left_index=True, right_on='file_name', validate='1:1')
+        self.df = df
 
-        # Get x-positions
-        mean_canon = df.groupby('author')['canon'].mean()
-        sorted_authors = mean_canon.sort_values().index
-        author_positions = {author: i for i, author in enumerate(sorted_authors)}
-        df['author_position'] = df['author'].map(author_positions)
 
-        
+    def get_sorted_authors(self):
+        mean_canon = self.df.groupby('author')['canon'].mean()
+        self.sorted_authors = mean_canon.sort_values().index
+
+
+    def get_x_position(self):
+        self.get_sorted_authors()
+        author_positions = {author: i for i, author in enumerate(self.sorted_authors)}
+        self.df['author_position'] = self.df['author'].map(author_positions)
+
+    
+    def plot(self):
         fig, ax = plt.subplots(figsize=(25, 8))
-        for author, group in df.groupby('author'):
+        for author, group in self.df.groupby('author'):
             x_position = group['author_position'].iloc[0]  # Take the x-position from the first row of the group
-            ax.scatter([x_position] * len(group), group['canon'], c='b', s=5) # , label=author
-
+            ax.scatter([x_position] * len(group), group['canon'], c='b', s=5)
             ax.vlines(x_position, ymin=0, ymax=group['canon'].max(), linestyle='dotted', color='gray', linewidth=1) # ymin=group['canon'].min()
 
-        # Set labels and title
         ax.set_xlabel('Author')
         ax.set_ylabel('Canon Score')
         ax.set_title('Canon Scores by Author')
 
-        # Set x-axis tick positions and labels
-        ax.set_xticks(range(len(sorted_authors)))
-        ax.set_xticklabels(sorted_authors, rotation=45, ha='right', fontsize=7)
+
+        ax.set_xticks(range(len(self.sorted_authors)))
+        ax.set_xticklabels(self.sorted_authors, rotation=45, ha='right', fontsize=7)
 
         # Adjust layout to prevent clipping of labels
         plt.tight_layout()
 
         self.save_data(data=plt, file_name='canonscores_per_author')
+
+
+
+class PlotCanonScoresPerAuthorByYearAndGender(PlotCanonScoresPerAuthor):
+    def __init__(self, language):
+        super().__init__(language)
+
+    def get_sorted_authors(self):
+        self.df['min_year'] = self.df.groupby('author')['year'].transform('min')
+        self.df['author_min_year'] = self.df['author'] + ' (' + self.df['min_year'].astype(str) + ')'
+        self.df = self.df.sort_values(by='min_year', ascending=True)
+        self.sorted_authors = self.df.index
+
+
+    def get_x_position(self):
+        self.get_sorted_authors()
+        self.df['author_position'] = self.df['min_year']
+
+        # Slightly adjust position if several authors have same min_year
+        df_unique_author = self.df.drop_duplicates(subset=['author'])
+        duplicated_min_year = df_unique_author['min_year'].duplicated().any()
+        space_increment = 0.1
+        if duplicated_min_year:
+            duplicated_min_year_rows = df_unique_author[df_unique_author.duplicated(subset=['min_year'], keep=False)]
+            for min_year, group in duplicated_min_year_rows.groupby('min_year'):
+                assert len(group) < 10 # not more than 10 entries per group because space increment is 0.1
+                increment = 0
+                for _, row in group.iterrows():
+                    # print('rowname', row.name)
+                    self.df.loc[row.name, 'author_position'] += increment
+                    increment += space_increment
+
+        self.df['author_position'].to_csv('authorpos')
+
+
+    def plot(self):
+        fig, ax = plt.subplots(figsize=(25, 8))
+        for author, group in self.df.groupby('author'):
+            x_position = group['author_position'].iloc[0]  # Take the x-position from the first row of the group
+            color = group['gender_color']
+            ax.scatter([x_position] * len(group), group['canon'], c=color, s=6)
+            ax.vlines(x_position, ymin=0, ymax=group['canon'].max(), linestyle='dotted', color=color, linewidth=1) # ymin=group['canon'].min()
+
+            # Position the label at the topmost marker
+            # max_canon = group['canon'].max()  # Find the maximum canon score in the group
+            # ax.text(x_position, max_canon, author, ha='center', va='bottom', fontsize=3, rotation=45)
+
+
+        ax.set_xlabel('Year of first publication by author')
+        ax.set_ylabel('Canon Score')
+        ax.set_title('Canon Scores by Author, Year and Gender')
+
+        ax.set_xticks(self.df['author_position'])
+        ax.set_xticklabels(self.df['author_min_year'], rotation=45, ha='right', fontsize=1) # Position labels at the bottom
+        # ax.set_xticklabels(self.df['min_year'], rotation=45, ha='right', fontsize=5)
+
+        # Adjust layout to prevent clipping of labels
+        plt.tight_layout()
+
+        self.save_data(data=plt, file_name='canonscores_per_author_and_year')
+
 
 
 class PlotYear(DataHandler):
@@ -194,7 +266,7 @@ class PlotYear(DataHandler):
     def plot(self):
         # df = DataLoader(self.language).prepare_features(scale=True)
         mh = MetadataHandler(self.language)
-        df = mh.get_metadata(add_color=False)[['author', 'year']]
+        df = mh.get_metadata(add_color=True)[['author', 'year']]
         df = df.sort_values(by='year', ascending=True)
 
         fig, ax = plt.subplots(figsize=(25, 8))
@@ -213,21 +285,23 @@ class PlotYear(DataHandler):
 
 
 # for language in ['eng', 'ger']:
-#     ts = TextStatistics(language)
-#     ts.get_longest_shortest_text()
+#     # ts = TextStatistics(language)
+#     # ts.get_longest_shortest_text()
 
-    # pc = PlotCanonscores(language)
-    # pc.plot()
+#     # pc = PlotCanonscores(language)
+#     # pc.plot()
 
-    # pfd = PlotFeatureDist(language)
-    # pfd.plot()
+#     # pfd = PlotFeatureDist(language)
+#     # pfd.plot()
 
-    # pcspa = PlotCanonScoresPerAuthor(language)
-    # pcspa.plot()
+#     # py = PlotYear(language)
+#     # py.plot()
 
-    # py = PlotYear(language)
-    # py.plot()
+#     # pcspa = PlotCanonScoresPerAuthor(language)
+#     # pcspa.make_plot()
 
+#     p = PlotCanonScoresPerAuthorByYearAndGender(language)
+#     p.make_plot()
 
 
 

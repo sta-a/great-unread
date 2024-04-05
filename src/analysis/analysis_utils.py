@@ -26,35 +26,34 @@ logging.basicConfig(level=logging.DEBUG)
 
 
 class VizBase(DataHandler):
-    def __init__(self, language, cmode, info=None, plttitle=None, exp=None):
+    def __init__(self, language, cmode, info=None, plttitle=None, exp=None, by_author=False):
         super().__init__(language, output_dir='analysis', data_type='png')
         self.cmode = cmode
         self.info = info
         self.plttitle = plttitle
         self.exp = exp
+        self.by_author = by_author
         self.fontsize = 12
         self.add_subdir(f"{self.cmode}_{self.exp['name']}")
 
-        self.special_cols = ['cluster', 'clst_shape', 'gender_cluster', 'author_cluster', 'pos']
+        self.special_cols = ['cluster', 'clst_shape', 'gender_cluster', 'author_cluster', 'x', 'y', 'pos']
         self.key_attrs = ['author', 'gender', 'year', 'canon']
         self.cat_attrs = ['gender', 'author']
 
+        self.by_author_attrs = ['canon-max', 'canon-min']
+        if self.by_author:
+            self.key_attrs.remove('author')
+            self.key_attrs.extend(self.by_author_attrs)
 
-        if self.info is not None:
-            self.by_author = False
-            if 'canon-max' in self.info.metadf.columns:
-                self.by_author = True
-                self.by_author_attrs = ['canon-max', 'canon-min']
+        self.is_cat = False
+        if (self.info is not None) and (self.info.attr in self.cat_attrs):
+            self.is_cat = True
 
-            if self.by_author:
-                self.key_attrs.remove('author')
-                self.key_attrs.extend(self.by_author_attrs)
+        self.needs_cbar = self.check_cbar()
 
-            self.is_cat = False
-            if self.info.attr in self.cat_attrs:
-                self.is_cat = True
 
-            self.needs_cbar = self.check_cbar()
+    def get_metadf(self):
+        self.df = deepcopy(self.info.metadf)
 
 
     def check_cbar(self):
@@ -72,19 +71,6 @@ class VizBase(DataHandler):
 
     def save_plot(self, plt):
         self.save_data(data=plt, data_type=self.data_type, file_name=None, file_path=self.vizpath, plt_kwargs={'dpi': 300})
-        # if self.data_type == 'png':
-        #     path = self.vizpath.replace('.png', '.svg')
-        #     data_type = 'svg'
-        # else:
-        #     path = self.vizpath.replace('.svg', '.png')
-        #     data_type = 'png'
-        # self.save_data(data=plt, data_type=data_type, file_name=None, file_path=path, plt_kwargs={'dpi': 300})
-
-        # if self.cmode == 'nk':
-            # Save graphml
-            # path = self.get_path(data_type='graphml', omit=omit, name=vizname)
-            # graph = self.save_graphml()
-            # self.save_data(data=graph, data_type='graphml', file_name=None, file_path=path)
 
 
     def get_path(self, name='viz', omit: List[str]=[], data_type=None):

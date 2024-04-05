@@ -33,17 +33,19 @@ class N2VCreator(DataHandler):
                   f'nx Graph Overview: \n'
                   f'Nr. of nodes: {graph.number_of_nodes()} \n'
                   f'Nr. of edges: {graph.number_of_edges()} \n'
-                  f'is weighted: {nx.is_weighted(graph)} \n'
+                  f'is weighted: {nx.is_weighted(graph, weight="weight")} \n'
                   f'is directed: {nx.is_directed(graph)} \n'
                   f'Nr. of Selfloops: {nx.number_of_selfloops(graph)} \n'
                   f'--------------\n')
 
 
-      def network_from_edgelist(self, file_path, directed):
-            if directed == 'directed':
-                  graph = nx.read_weighted_edgelist(file_path, delimiter=',', create_using=nx.DiGraph()) ###### set node type to int???
-            else:
+      def network_from_edgelist(self, file_path):
+            if 'threshold' in file_path:
                   graph = nx.read_weighted_edgelist(file_path, delimiter=',')
+                  print('undirected')
+            else:
+                  graph = nx.read_weighted_edgelist(file_path, delimiter=',', create_using=nx.DiGraph()) ###### set node type to int???
+                  print('directed')
             graph.remove_edges_from(nx.selfloop_edges(graph))
             self.print_graph_info(graph)
             return graph
@@ -53,7 +55,6 @@ class N2VCreator(DataHandler):
             filename = filename.replace('edgelist_', '')
             info, directed = filename.rsplit('_', maxsplit=1)
             directed = directed.split('.')[0]
-            print(info, directed)
             return info, directed
       
       def get_file_path(self, info):
@@ -62,20 +63,31 @@ class N2VCreator(DataHandler):
 
       def create_data(self):
             for file in self.edgelists:
-                  if self.language == 'eng' and ('cosinesim-500_simmel-4-6' in file or 'cosinesim-500_simmel-7-10' in file):
+                  if self.language == 'eng' and ('cosinesim-500_simmel-4-6' in file or 'cosinesim-500_simmel-7-10' in file): # no edges
                         continue
 
                   info, directed = self.extract_directed(file)
                   EMBEDDING_FILENAME = os.path.join(self.subdir, f'{info}.embeddings')
                   if not os.path.exists(EMBEDDING_FILENAME):
-                        network = self.network_from_edgelist(os.path.join(self.edgelist_dir, file), directed)
-                        self.create_embeddings(network, info)
+                        if 'simmel' in EMBEDDING_FILENAME:
+                              print(f'Embeddings for {EMBEDDING_FILENAME}')
+                              network = self.network_from_edgelist(os.path.join(self.edgelist_dir, file), directed)
+                              self.create_embeddings(network, info)
 
 
       def create_embeddings(self, network, info):
             s = time.time()
             # Adapted from https://github.com/eliorc/node2vec
-            node2vec = Node2Vec(network, dimensions=64, walk_length=30, num_walks=200, workers=4)  # Use temp_folder for big graphs
+            node2vec = Node2Vec(
+                  graph=network, 
+                  dimensions=64, 
+                  walk_length=8, 
+                  num_walks=200, 
+                  p=1,
+                  q=1,
+                  weight_key='weight',
+                  quiet=True,
+                  workers=7)
 
             # Embed nodes
             model = node2vec.fit(window=10, min_count=1, batch_words=4)  # Any keywords acceptable by gensim.Word2Vec can be passed, `dimensions` and `workers` are automatically passed (from the Node2Vec constructor)
