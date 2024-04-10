@@ -1,0 +1,316 @@
+import pandas as pd
+import itertools
+import numpy as np
+from matplotlib import pyplot as plt
+import networkx as nx
+import pickle
+from copy import deepcopy
+import os
+import matplotlib.gridspec as gridspec
+import time
+import random
+import textwrap
+from typing import List
+from cluster.network import NXNetwork
+random.seed(9)
+
+
+import sys
+sys.path.append("..")
+from utils import DataHandler
+from .analysis_utils import VizBase
+from cluster.cluster_utils import CombinationInfo
+from cluster.combinations import InfoHandler
+from .nkviz import NkKeyAttrViz
+import logging
+logging.basicConfig(level=logging.DEBUG)
+
+
+import tkinter as tk
+from matplotlib import pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from PIL import Image, ImageDraw
+
+
+class Selector(DataHandler):
+    def __init__(self, language):
+        super().__init__(language, output_dir='analysis', data_type='png')
+        self.imgdir = os.path.join(self.output_dir, 'nk_singleimage')
+        self.nr_mxs = 58
+        self.nr_spars = 9
+        self.data_author_path = self.output_dir.repl
+    
+
+    def get_mx_and_spars_names(self):
+        mxnames = set()
+        sparsnames = set()
+
+        for filename in os.listdir(self.imgdir):
+            if filename.endswith('.png'):
+                # Split the filename by underscores to extract mxname and sparsname
+                parts = filename.split('_')
+                assert len(parts)== 3
+                mxnames.add(parts[0])
+                sparsnames.add(parts[1])
+
+        mxnames = list(mxnames)
+        sparsnames = list(sparsnames)
+        assert len(mxnames) == self.nr_mxs
+        assert len(sparsnames) == self.nr_spars
+        return mxnames, sparsnames
+            
+
+    def remove_png(self, l):
+        l = [x.replace('.png', '') for x in l]
+        return l
+    
+
+    def read_names_from_file(self, attr, by_author=False):
+        self.add_subdir(f'nkselect_{attr}')
+        if by_author:
+            self.subdir = self.subdir.replace('data', 'data_author')
+            print(self.subdir)
+        path = os.path.join(self.subdir, f'selected_{attr}.txt')
+        unique_lines = []
+        with open(path, 'r') as file:
+            for line in file:
+                clean_line = line.strip()
+                if clean_line not in unique_lines:
+                    unique_lines.append(clean_line)
+       
+        unique_lines = self.remove_png(unique_lines)
+        return unique_lines
+
+
+    def get_interesting_spars(self):
+        return ['simmel-3-10', 'simmel-5-10'] # authormin
+
+
+    def get_interesting_networks(self):
+        canon = self.read_names_from_file('canon')
+        # Find distances where texts are not grouped by year.
+        # Text-based and author-based find approximately the same distances.
+        # For eng, 'correlation' and 'sqeuclidean' are border cases -> include them
+        interesting_mxnames = self.read_names_from_file('year', by_author=False) # distances where texts do not cluster according to year
+        interesting_sparsnames = self.get_interesting_spars()
+        all_mxnames, all_sparsnames = self.get_mx_and_spars_names()
+        interesting_mxnames_all_spars = [elem1 + '_' + elem2 for elem1 in interesting_mxnames for elem2 in all_sparsnames]
+        all_mxnames_interesting_spars = [elem1 + '_' + elem2 for elem1 in all_mxnames for elem2 in interesting_sparsnames]
+        all_interesting = list(set(canon + interesting_mxnames_all_spars + all_mxnames_interesting_spars))
+        print(len(all_interesting))
+        print(len(canon), len(all_mxnames_interesting_spars), len(interesting_mxnames_all_spars))
+
+
+
+class ImageGrid(DataHandler):
+    def __init__(self, language, attr=None, by_author=False):
+        super().__init__(language, output_dir='analysis', data_type='png')
+        self.attr = attr
+        self.by_author = by_author
+        self.nrow = 3
+        self.ncol = 3
+        self.imgdir = os.path.join(self.output_dir, 'nk_singleimage')
+        self.imgs = self.load_single_images()
+        self.fontsize = 6
+
+        self.img_width = 1.8 # format of single-network plots stored on file
+        self.img_height = 2.1
+        self.nr_mxs = 58
+        self.nr_spars = 9
+
+        # Whitespace
+        self.ws_left = 0.01
+        self.ws_right = 0.99
+        self.ws_bottom = 0.01
+        self.ws_top = 0.99
+        self.ws_wspace = 0
+        self.ws_hspace = 0.1
+
+
+    def adjust_subplots(self):
+        self.fig.subplots_adjust(
+            left=self.ws_left,
+            right=self.ws_right,
+            bottom=self.ws_bottom,
+            top=self.ws_top,
+            wspace=self.ws_wspace,
+            hspace=self.ws_hspace)  
+
+
+    def get_figure(self):
+        self.fig, self.axs = plt.subplots(self.nrow, self.ncol, figsize=(self.ncol*self.img_width, self.nrow*self.img_height))
+        plt.tight_layout(pad=0)
+
+
+    def load_attr_images(self, file_names):
+        file_names = [fn for fn in file_names if fn.split('_')[2].split('.')[0] == self.attr]
+        return file_names
+
+
+    def load_single_images(self):
+        file_names = [fn for fn in os.listdir(self.imgdir) if fn.endswith('.png')]
+        if self.attr is not None:
+            file_names = self.load_attr_images(file_names)
+        return file_names
+
+
+    def select_image(self, event, imgs):
+        path = os.path.join(self.subdir, f'selected_{self.attr}.txt')
+        with open(path, 'a') as f:
+            for i in range(self.nrow):
+                for j in range(self.ncol):
+                    index = i * self.ncol + j
+                    if event.inaxes == self.axs[i, j]:
+                        f.write(imgs[index] + '\n')
+                        break
+
+
+    def get_title(self, imgname):
+        return '_'.join(imgname.split('_')[:2])
+
+        
+    def visualize(self, vizname='viz', imgs=None):
+        self.vizpath = self.get_file_path(vizname, subdir=True)
+
+        if imgs is None:
+            imgs = self.imgs
+
+        if not os.path.exists(self.vizpath):
+            # Create tkinter window
+            root = tk.Tk()
+            root.title(vizname)
+
+            # Display images in grid layout
+            self.get_figure()
+            self.adjust_subplots()
+            for i in range(self.nrow):
+                for j in range(self.ncol):
+                    index = i * self.ncol + j
+                    if index < len(imgs):
+                        img = plt.imread(os.path.join(self.imgdir, imgs[index]))
+                        self.axs[i, j].imshow(img)
+                        self.axs[i, j].axis('off')
+                        title = self.get_title(imgs[index])
+                        self.axs[i, j].set_title(title, fontsize=self.fontsize)
+                        self.axs[i, j].figure.canvas.mpl_connect('button_press_event', lambda event, imgs=imgs: self.select_image(event, imgs))
+                    else:
+                        self.axs[i, j].clear()
+                        self.axs[i, j].axis('off')
+            
+            # bbox_inches because titles are cut off
+            self.save_data(data=plt, data_type=self.data_type, file_name=None, file_path=self.vizpath, plt_kwargs={'dpi': 300, 'bbox_inches': 'tight'})
+            plt.show()
+            plt.close()
+
+            # Add matplotlib plot to tkinter window
+            canvas = FigureCanvasTkAgg(self.fig, master=root)
+            canvas.draw()
+            canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+            # Run the tkinter event loop
+            # tk.mainloop()
+
+
+
+class NkNetworkGrid(ImageGrid):
+    '''
+    Plot every network for an attribute.
+    '''
+    def __init__(self, language, attr=None, by_author=False):
+        super().__init__(language, attr, by_author)
+        self.by_author = by_author
+        self.data_type = 'png'
+
+        self.nrow = 2
+        self.ncol = 5
+
+        self.name_index = 0
+        self.nfields = 9
+
+        self.add_subdir(f'nkselect_{self.attr}')
+
+
+    def visualize(self, vizname='viz'):
+        # self.create_overview_file()
+        fndict = self.create_filenames_list()
+
+        for figname, imglist in fndict.items():
+            print(figname)
+            vizname = self.get_filename(figname)
+
+
+            nfields = self.nrow * self.ncol # fields per plot
+            nplots = len(imglist)
+            nfig = nplots // nfields 
+            if nplots % nfields != 0:
+                nfig += 1
+
+            ix = 0
+            for i in range(nfig):
+                # If ix + nfields > len(cols), no error is raised because Python allows out-of-bound slicing
+                imgs = imglist[ix: ix + (nfields)]
+                ix += nfields
+
+
+                if nfig == 1:
+                    vizname = vizname
+                else:
+                    vizname = f'{vizname}{i}'
+                super().visualize(vizname=vizname, imgs=imgs)
+
+
+
+    def create_filenames_list(self):
+        # Create a list of lists that contain either all matrices with the same mxname or with the same sparsification technique
+        fndict = {}
+
+        for im in self.imgs:
+            name = im.split('_')[self.name_index]
+            
+            if name not in fndict:
+                fndict[name] = []
+            fndict[name].append(im)
+
+        for name in fndict:
+            fndict[name].sort()
+
+        return fndict
+
+    # def create_overview_file(self):
+    #     dfpath = os.path.join(self.output_dir, 'nk_visualizations.csv')
+    #     if not os.path.exists(dfpath):
+    #         mxs = self.load_mxnames()
+    #         mxs = [mx.replace('sparsmx-', '') for mx in mxs]
+    #         mxs = [mx.split('.')[0] for mx in mxs]
+    #         mxs =  [mx.split('_') for mx in mxs]
+    #         mxs = sorted(mxs)
+
+    #         df = pd.DataFrame(mxs, columns=['mxname', 'sparsification'])
+
+
+    #         # Add column names to DataFrame with new empty columns
+    #         for col_name in ['from_sparsmethod'] + self.key_attrs:
+    #             df[col_name] = ''
+    #         df.to_csv(dfpath, index=False, header=True)
+
+
+    def get_filename(self, figname):
+        return figname
+
+
+class SparsGrid(NkNetworkGrid):
+    '''
+    Plot every network per sparsification technique. Attribute "canon" is highlighted.
+    '''
+    def __init__(self, language, attr=None, by_author=False):
+        super().__init__(language, attr, by_author)
+        self.nrow = 6 # 58 mxs per figure
+        self.ncol = 11
+        self.name_index = 1
+        self.nfields = 58 ##################################
+        self.fontsize = 6
+
+        self.add_subdir(f'nkselect_sparsgrid_{self.attr}')
+
+    
+    def get_filename(self, figname):
+        return f"gridviz_{figname}"

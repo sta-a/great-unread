@@ -1,4 +1,4 @@
-# %%
+
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
@@ -14,12 +14,14 @@ import matplotlib.patches as mpatches
 from matplotlib import markers
 import textwrap
 from PIL import Image
+from tqdm import tqdm
 
 import sys
 sys.path.append("..")
 from utils import DataHandler
 from cluster.cluster_utils import Colors
 from cluster.combinations import InfoHandler
+from cluster.network import NXNetwork
 import logging
 logging.basicConfig(level=logging.DEBUG)
 
@@ -297,10 +299,8 @@ def load_spmx_from_pkl(spmx_path):
         simmx = pickle.load(f)
 
     simmx = simmx.mx
-    symmetric = False
-    if simmx.equals(simmx.T):
-        symmetric = True
-    return simmx, symmetric
+
+    return simmx
 
 
 def info_to_mx_and_edgelist():
@@ -315,8 +315,8 @@ def info_to_mx_and_edgelist():
         attributes = pd.DataFrame({'index': attributes.index, 'canon': attributes.values})
 
         spmx_path = info.spmx_path
-        simmx, symmetric = load_spmx_from_pkl(spmx_path)
-        mapped_matrix, index_mapping = map_indices_to_numbers(simmx)
+        network = NXNetwork(language=language, path=spmx_path)
+        mapped_matrix, index_mapping = map_indices_to_numbers(network.mx)
         print('Mapped DataFrame:')
         print(mapped_matrix)
         print('\nIndex Mapping:')
@@ -327,8 +327,12 @@ def info_to_mx_and_edgelist():
         attributes = attributes.rename(columns={'canon': 'score', 'new_index': 'index'})
         assert len(attributes) == len(mapped_matrix)
 
-        graph = nx.from_pandas_adjacency(mapped_matrix, create_using=nx.DiGraph) 
-
+        if mapped_matrix.equals(mapped_matrix.T):
+            graph = nx.from_pandas_adjacency(mapped_matrix)
+        else:
+            graph = nx.from_pandas_adjacency(mapped_matrix, create_using=nx.DiGraph) 
+        # Remove selfloops
+        graph.remove_edges_from(nx.selfloop_edges(graph))
 
         # mapped_matrix.to_csv(os.path.join(outdir, f'weightmatrix-{language}-{info.as_string()}'), header=True, index=True)
         attributes.to_csv(os.path.join(outdir, f'attributes-{language}-{info.as_string()}.csv'), header=True, index=False)
@@ -336,40 +340,66 @@ def info_to_mx_and_edgelist():
         nx.write_weighted_edgelist(graph, os.path.join(outdir, f'edgelist_{language}-{info.as_string()}.csv'), delimiter=',')
         
 
-def pklmxs_to_edgelist():
+def pklmxs_to_edgelist(params):
     '''
     Rewrite all sparsified matrices, which are in pkl format, as edge lists. Map string indices to numbers.
+    exclude_iso_nodes: if True, isolated nodes are not in the edgelist.
     '''
+    spars_dir, exclude_iso_nodes, sep = params
+    print(spars_dir, exclude_iso_nodes, sep)
+
     for language in ['eng', 'ger']:
         indir = f'/home/annina/scripts/great_unread_nlp/data/similarity/{language}/sparsification'
-        outdir = f'/home/annina/scripts/great_unread_nlp/data/n2v/{language}/sparsification_edgelists'
+        outdir = f'/home/annina/scripts/great_unread_nlp/data/similarity/{language}/{spars_dir}'
         if not os.path.exists(outdir):
             os.mkdir(outdir)
 
         mxpaths = [os.path.join(indir, file) for file in os.listdir(indir) if file.endswith('.pkl')]
         prev_idx_mapping = None
-        for spmx_path in mxpaths:
-            simmx, symmetric = load_spmx_from_pkl(spmx_path)
-            mapped_matrix, index_mapping = map_indices_to_numbers(simmx)
+        for spmx_path in tqdm(mxpaths):
+            network = NXNetwork(language=language, path=spmx_path)
+            mapped_matrix, index_mapping = map_indices_to_numbers(network.mx.mx)
+
+            if exclude_iso_nodes:
+                diag_val = 0
+            else:
+                diag_val = 1
+            assert mapped_matrix.index.equals(mapped_matrix.columns)
+            for i in range(len(mapped_matrix)):
+                for j in range(len(mapped_matrix)):
+                    if i == j:
+                        mapped_matrix.iloc[i,j] = diag_val
+
 
             if prev_idx_mapping is None:
                 prev_idx_mapping = index_mapping
             else:
                 assert index_mapping.equals(prev_idx_mapping)
 
-            graph = nx.from_pandas_adjacency(mapped_matrix, create_using=nx.DiGraph)
+            if mapped_matrix.equals(mapped_matrix.T):
+                graph = nx.from_pandas_adjacency(mapped_matrix)
+            else:
+                graph = nx.from_pandas_adjacency(mapped_matrix, create_using=nx.DiGraph)
+
+            
+            # Remove selfloops so that isolated nodes are not included
+            if exclude_iso_nodes:
+                graph.remove_edges_from(nx.selfloop_edges(graph))
+
+
             file_name = os.path.splitext(os.path.basename(spmx_path))[0]
             file_name = file_name.replace('sparsmx-', '')
-            if symmetric:
-                fnstr = 'undirected'
-            else:
-                fnstr = 'directed'
-            nx.write_weighted_edgelist(graph, os.path.join(outdir, f'edgelist_{file_name}_{fnstr}.csv'), delimiter=',')
+
+            nx.write_weighted_edgelist(graph, os.path.join(outdir, f'{file_name}.csv'), delimiter=sep)
         
         index_mapping.to_csv(os.path.join(outdir, f'index-mapping.csv'), header=True, index=False)
 
-# pklmxs_to_edgelist()
+
+params = [('sparsification_edgelists', False, ','), ('sparsification_edgelists_s2v', True, ' ')]
+params = [('sparsification_edgelists_s2v', True, ' ')]
+
+for p in params:
+    pklmxs_to_edgelist(p)
 
 
-
-# %%
+ # %%

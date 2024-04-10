@@ -15,7 +15,7 @@ from .sparsifier import Sparsifier
 class NXNetwork(DataHandler):
     def __init__(self, language, mx=None, path=None, graph=None):
         super().__init__(language, output_dir='similarity', data_type='svg')
-        self.mx = mx
+        self.mx = mx # self.mx is a create.SimMx object, not a df
         self.path = path
         self.graph = graph
 
