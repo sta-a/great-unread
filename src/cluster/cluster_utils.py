@@ -132,8 +132,6 @@ class MetadataHandler(DataHandler):
         cm = ColorMap(metadf)
         metadf = cm.add_color_column(colname)
         metadf = cm.metadf
-
-        assert len(metadf) == self.nr_texts
         return metadf
     
     

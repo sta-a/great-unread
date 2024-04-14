@@ -1,26 +1,17 @@
 
 
 # %%
-%load_ext autoreload
-%autoreload 2
-
 import sys
 sys.path.append("..")
-import pandas as pd
 import time
-import pickle
 import os
-import networkx as nx
-import matplotlib as plt
 from node2vec import Node2Vec
-from utils import DataHandler
-from tqdm import tqdm
 from embedding_utils import EmbeddingBase
 
 
 class N2vCreator(EmbeddingBase):
       def __init__(self, language):
-            super().__init__(language, output_dir='n2v')
+            super().__init__(language, output_dir='n2v', edgelist_dir='sparsification_edgelists')
 
 
       def create_embeddings(self, fn, kwargs={}):
@@ -63,17 +54,6 @@ class N2vCreator(EmbeddingBase):
             'q': [1]
             }
             return params
-
-
-
-
-
-# for language in ['eng', 'ger']:
-#       ne = N2vCreator(language)
-      # ne.get_network_selfloops()
-      # ne.analyze_network_stats()
-      # ne.create_data()
-      # ne.run_combinations()
 
 
 # %%

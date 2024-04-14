@@ -12,30 +12,39 @@ from itertools import product
 
 class EdgelistHandler(DataHandler):
     def __init__(self, language, output_dir, edgelist_dir='sparsification_edgelists'):
-        super().__init__(language, output_dir=output_dir)
+        super().__init__(language, output_dir=output_dir, load_doc_paths=False)
         self.edgelist_dir = os.path.join(self.data_dir, 'similarity', self.language, edgelist_dir)
         self.edgelists = [file for file in os.listdir(self.edgelist_dir) if 'index-mapping' not in file and file.endswith('.csv')]
-        spars_examples = [
-             'cosinedelta-1000_threshold-0%8', 
-             'both_threshold-0%9.', # dot to avoid confusion with 0%95
-             'cosinesim-1000_threshold-0%95', 
-             'full_authormin', 
-             'cosinesim-5000_authormax', 
-             'sqeuclidean-500_simmel-3-10', 
-             'both_simmel-4-6', 
-             'burrows-500_simmel-5-10',
-             'eder-5000_simmel-7-10', 
-             ]
-        self.edgelists = [
-            filename for filename in self.edgelists
-            if any(substring in filename for substring in spars_examples)
-        ]
+        self.examples = {
+             'cosinedelta-1000_threshold-0%8': None, 
+             'both_threshold-0%9.': None, # dot to avoid confusion with 0%95
+             'cosinesim-1000_threshold-0%95': None, 
+             'full_authormin': None, 
+             'cosinesim-5000_authormax': None, 
+             'sqeuclidean-500_simmel-3-10': None, 
+             'both_simmel-4-6': None, 
+             'burrows-500_simmel-5-10': 'Corelli_Marie_The-Sorrows-of-Satan_1895',
+             'eder-5000_simmel-7-10': None, 
+        }
+
+        self.examples = {
+             'burrows-500_simmel-5-10': 'Corelli_Marie_The-Sorrows-of-Satan_1895'
+        }
+        self.use_examples = True
+        if self.use_examples:
+            self.edgelists = [
+                filename for filename in self.edgelists
+                if any(substring in filename for substring in self.examples.keys())
+            ]
   
 
         self.nr_mxs = 58
         self.nr_spars = 9
         # assert len(self.edgelists) == self.nr_mxs * self.nr_spars
         self.remove_iso = True
+        self.index_mapping = pd.read_csv(os.path.join(self.edgelist_dir, 'index-mapping.csv'), header=0, dtype={'new_index': str})
+        self.logger.info(f'Read index mapping from file. "new_index" is str.')
+
 
 
     def print_graph_info(self, graph):
@@ -48,16 +57,29 @@ class EdgelistHandler(DataHandler):
                 f'Nr. of Selfloops: {nx.number_of_selfloops(graph)} \n'
                 f'Nr. isolated nodes: {len(list(nx.isolates(graph)))} \n'
                 f'--------------\n')
+        
+
+    # def map_edgelist_indices(self, file_path, delimiter=','):
+    #     df = pd.read_csv(file_path, header=None, names=['source', 'target', 'weight'])
+    #     print(df)
+
+         
 
 
-    def network_from_edgelist(self, file_path, print_info=False):
+    def network_from_edgelist(self, file_path, delimiter=',', nodes_as_str=False, print_info=False):
         if self.remove_iso:
                 self.logger.debug(f'Isolated nodes are removed from the graph.')
 
         if 'threshold' in file_path:
-                graph = nx.read_weighted_edgelist(file_path, delimiter=',')
+                graph = nx.read_weighted_edgelist(file_path, delimiter=delimiter)
         else:
-                graph = nx.read_weighted_edgelist(file_path, delimiter=',', create_using=nx.DiGraph()) ###### set node type to int???
+                graph = nx.read_weighted_edgelist(file_path, delimiter=delimiter, create_using=nx.DiGraph())
+
+
+        if nodes_as_str:
+        # Create a new graph with updated node names
+            mapping = dict(zip(self.index_mapping['new_index'], self.index_mapping['original_index']))
+            graph = nx.relabel_nodes(graph, mapping)
 
         # An isolated node has degree zero. A single node with only a self-loop is not an isolated node.
         graph.remove_edges_from(nx.selfloop_edges(graph))
@@ -168,28 +190,32 @@ class EmbeddingBase(EdgelistHandler):
     noedges eng: cosinesim-500_simmel-4-6
     cosinesim-500_simmel-7-10
     '''
-    def __init__(self, language, output_dir, edgelist_dir):
+    def __init__(self, language, output_dir, edgelist_dir='sparsification_edgelists'):
         super().__init__(language, output_dir=output_dir, edgelist_dir=edgelist_dir)
         self.add_subdir('embeddings')
 
 
     def load_embeddings(self, file_name):
-        index_mapping = pd.read_csv(os.path.join(self.edgelist_dir, 'index-mapping.csv'), header=0)
+        '''
+        Map embeddings to string node names.
+        '''
 
         inpath = os.path.join(self.subdir, f'{file_name}.embeddings')
-        df = pd.read_csv(inpath, skiprows=1, sep=' ')
-        
-        # Use the first column with the ID as index
-        df = df.set_index(df.columns[0])
+        # First line in embedding file contains number of nodes and number of dimensions, there is no header
+        # Use the first column with the node ID as index
+        df = pd.read_csv(inpath, skiprows=1, header=None, sep=' ', index_col=0, dtype={0: str})
+        print(df.shape)
+
 
         # Rename columns as col1, col2, ...
         df.columns = [f'col{i}' for i in range(1, len(df.columns) + 1)]
 
         # Map int IDs to file names
-        df = df.merge(index_mapping, left_index=True, right_on='new_index', validate='1:1')
+        df = df.merge(self.index_mapping, left_index=True, right_on='new_index', validate='1:1')
         df = df.set_index('original_index')
         df = df.drop('new_index', axis=1)
         df.index = df.index.rename('file_name')
+
         return df
     
 
@@ -238,6 +264,17 @@ class EmbeddingBase(EdgelistHandler):
         param_combs = self.get_param_combinations()
         for comb in param_combs:
             self.create_data(comb)
+
+
+    def count_combinations(self):
+        param_comb = self.get_param_combinations()
+        nr_param_comb = len(param_comb)
+        if self.use_examples:
+            nr_networks = len(self.examples)
+        else:
+            nr_networks = len(self.edgelists)
+        nr_comb = nr_param_comb * nr_networks
+        return nr_comb
 
 
 # for language in ['eng', 'ger']:

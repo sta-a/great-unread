@@ -1,4 +1,6 @@
 
+
+
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
@@ -36,7 +38,7 @@ class VizBase(DataHandler):
         self.exp = exp
         self.by_author = by_author
         self.fontsize = 12
-        self.add_subdir(f"{self.cmode}_{self.exp['name']}")
+        self.add_custom_subdir()
 
         self.special_cols = ['cluster', 'clst_shape', 'gender_cluster', 'author_cluster', 'x', 'y', 'pos']
         self.key_attrs = ['author', 'gender', 'year', 'canon']
@@ -52,6 +54,10 @@ class VizBase(DataHandler):
             self.is_cat = True
 
         self.needs_cbar = self.check_cbar()
+
+
+    def add_custom_subdir(self):
+        self.add_subdir(f"{self.cmode}_{self.exp['name']}")
 
 
     def get_metadf(self):
@@ -263,7 +269,7 @@ def main_attributes_crosstable():
 
 
 
-def map_indices_to_numbers(similarity_matrix):
+def map_indices_to_numbers(similarity_matrix, map_index_to_int=True):
     """
     Map string indices to numbers in a Pandas DataFrame.
     
@@ -278,6 +284,9 @@ def map_indices_to_numbers(similarity_matrix):
     assert list(similarity_matrix.index) == sorted(similarity_matrix.index)
     assert list(similarity_matrix.columns) == sorted(similarity_matrix.index)
     assert list(similarity_matrix.index) == list(similarity_matrix.columns)
+
+    if not map_index_to_int:
+        return similarity_matrix, None
 
 
     # Create a mapping of string indices to numbers
@@ -345,7 +354,7 @@ def pklmxs_to_edgelist(params):
     Rewrite all sparsified matrices, which are in pkl format, as edge lists. Map string indices to numbers.
     exclude_iso_nodes: if True, isolated nodes are not in the edgelist.
     '''
-    spars_dir, exclude_iso_nodes, sep = params
+    spars_dir, exclude_iso_nodes, map_index_to_int, sep = params
     print(spars_dir, exclude_iso_nodes, sep)
 
     for language in ['eng', 'ger']:
@@ -358,7 +367,7 @@ def pklmxs_to_edgelist(params):
         prev_idx_mapping = None
         for spmx_path in tqdm(mxpaths):
             network = NXNetwork(language=language, path=spmx_path)
-            mapped_matrix, index_mapping = map_indices_to_numbers(network.mx.mx)
+            mapped_matrix, index_mapping = map_indices_to_numbers(network.mx.mx, map_index_to_int)
 
             if exclude_iso_nodes:
                 diag_val = 0
@@ -392,14 +401,15 @@ def pklmxs_to_edgelist(params):
 
             nx.write_weighted_edgelist(graph, os.path.join(outdir, f'{file_name}.csv'), delimiter=sep)
         
-        index_mapping.to_csv(os.path.join(outdir, f'index-mapping.csv'), header=True, index=False)
+        if index_mapping is not None:
+            index_mapping.to_csv(os.path.join(outdir, f'index-mapping.csv'), header=True, index=False)
 
 
-params = [('sparsification_edgelists', False, ','), ('sparsification_edgelists_s2v', True, ' ')]
-params = [('sparsification_edgelists_s2v', True, ' ')]
+params = [('sparsification_edgelists', False, True, ','), ('sparsification_edgelists_s2v', True, True, ' '), ('sparsification_edgelists_labels', False, False, ',')]
+params = [('sparsification_edgelists_labels', False, False, ',')]
 
-for p in params:
-    pklmxs_to_edgelist(p)
+# for p in params:
+#     pklmxs_to_edgelist(p)
 
 
  # %%

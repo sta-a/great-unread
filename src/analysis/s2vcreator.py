@@ -1,9 +1,6 @@
 
 
-# # %%
-# %load_ext autoreload
-# %autoreload 2
-
+# %%
 import sys
 sys.path.append("..")
 import pandas as pd
@@ -18,6 +15,7 @@ from embedding_utils import EmbeddingBase
 class S2vCreator(EmbeddingBase):
     def __init__(self, language):
         super().__init__(language, output_dir='s2v', edgelist_dir='sparsification_edgelists_s2v')
+        self.file_string = 's2v'
 
 
     def get_params(self):
@@ -86,9 +84,9 @@ class S2vCreator(EmbeddingBase):
 
 
 
-for language in ['eng', 'ger']:
-    ne = S2vCreator(language)
-    ne.run_combinations()
+# for language in ['eng', 'ger']:
+#     ne = S2vCreator(language)
+#     ne.run_combinations()
     # pc = ne.get_param_combinations()
     # for i in pc:
     #     print(i)

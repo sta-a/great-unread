@@ -18,10 +18,10 @@ random.seed(9)
 import sys
 sys.path.append("..")
 from utils import DataHandler
-from .analysis_utils import VizBase
+from analysis_utils import VizBase
 from cluster.cluster_utils import CombinationInfo
 from cluster.combinations import InfoHandler
-from .nkviz import NkKeyAttrViz
+from nkviz import NkKeyAttrViz
 import logging
 logging.basicConfig(level=logging.DEBUG)
 
@@ -103,13 +103,13 @@ class Selector(DataHandler):
 
 
 class ImageGrid(DataHandler):
-    def __init__(self, language, attr=None, by_author=False):
-        super().__init__(language, output_dir='analysis', data_type='png')
+    def __init__(self, language, attr=None, by_author=False, output_dir='analysis', imgdir='nk_singleimage'):
+        super().__init__(language, output_dir=output_dir, data_type='png')
         self.attr = attr
         self.by_author = by_author
         self.nrow = 3
         self.ncol = 3
-        self.imgdir = os.path.join(self.output_dir, 'nk_singleimage')
+        self.imgdir = os.path.join(self.output_dir, imgdir)
         self.imgs = self.load_single_images()
         self.fontsize = 6
 
@@ -169,8 +169,8 @@ class ImageGrid(DataHandler):
         return '_'.join(imgname.split('_')[:2])
 
         
-    def visualize(self, vizname='viz', imgs=None):
-        self.vizpath = self.get_file_path(vizname, subdir=True)
+    def visualize(self, vizname='viz', imgs=None, **kwargs):
+        self.vizpath = self.get_file_path(vizname, subdir=True, **kwargs)
 
         if imgs is None:
             imgs = self.imgs

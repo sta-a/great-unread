@@ -19,7 +19,7 @@ random.seed(9)
 import sys
 sys.path.append("..")
 from utils import DataHandler
-from .analysis_utils import VizBase
+from analysis_utils import VizBase
 from cluster.cluster_utils import CombinationInfo
 from cluster.combinations import InfoHandler
 import logging
@@ -31,10 +31,11 @@ warnings.filterwarnings("ignore", category=RuntimeWarning, module="pygraphviz") 
 
 class NkVizBase(VizBase):
 
-    def __init__(self, language, info=None, plttitle=None, exp=None, by_author=False):
+    def __init__(self, language, info=None, plttitle=None, exp=None, by_author=False, graph=None):
         self.cmode = 'nk'
         super().__init__(language, self.cmode, info, plttitle, exp, by_author)
         # Visualization parameters
+        self.graph = graph
         self.prog = 'neato'
         self.markersize = 20
         self.fontsize = 10
@@ -48,8 +49,9 @@ class NkVizBase(VizBase):
         self.ws_hspace = 0.1
 
         if info is not None:
-            self.network = NXNetwork(self.language, path=info.spmx_path)
-            self.graph = self.network.graph
+            if self.graph is None:
+                self.network = NXNetwork(self.language, path=info.spmx_path)
+                self.graph = self.network.graph
 
             self.global_vmax, self.global_vmin = self.get_cmap_params()
             # If graph has too many edges, it cannot be drawn
@@ -236,7 +238,8 @@ class NkVizBase(VizBase):
         else:
             nrvis = len(edges)
 
-        nr_possible_edges = self.network.mx.mx.shape[0]**2
+        nr_nodes = self.graph.number_of_nodes()
+        nr_possible_edges = nr_nodes**2
         ratio_vis = nrvis/nr_possible_edges
         edges_info = CombinationInfo(nr_edges=len(edges), nr_vis_edges=nrvis, ratio_vis_edges=ratio_vis)
         return edges_info

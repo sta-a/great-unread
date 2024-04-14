@@ -86,6 +86,10 @@ class SimMx(DataHandler):
         self.set_diagonal(value=1)
         self.plot_similarity_distribution(**kwargs)
 
+        # Sort rows and columns alphabetically
+        self.mx = self.mx.sort_index(axis=0)
+        self.mx = self.mx.sort_index(axis=1)
+
         assert self.mx.index.equals(self.mx.columns)
         assert self.mx.equals(self.mx.T) # Check symmetry
         # Check if 1 is only on the diagonal
@@ -289,6 +293,7 @@ class D2vDist(SimMxCreatorBase):
         """
         # Extract the names and vectors from the dictionary
         names = list(dictionary.keys())
+        print(names)
         vectors = list(dictionary.values())
         # Convert the list of vectors into a 2D numpy array
         vectors = np.array(vectors)

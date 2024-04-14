@@ -175,7 +175,7 @@ class DataHandler():
     '''
     Base class for creating, saving, and loading data.
     '''
-    def __init__(self, language=None, output_dir=None, data_type='csv', modes=None, tokens_per_chunk=1000, data_dir='/home/annina/scripts/great_unread_nlp/data', test=False):
+    def __init__(self, language=None, output_dir=None, data_type='csv', modes=None, tokens_per_chunk=1000, data_dir='/home/annina/scripts/great_unread_nlp/data', test=False, load_doc_paths=True):
 
         self.test = test
         self.language = language
@@ -198,7 +198,8 @@ class DataHandler():
 
         self.output_dir = self.create_output_dir(output_dir)
         self.text_raw_dir = os.path.join(self.data_dir, 'text_raw', language)
-        self.doc_paths = get_doc_paths(self.text_raw_dir)
+        if load_doc_paths:
+            self.doc_paths = get_doc_paths(self.text_raw_dir)
         self.data_types = ('.npz', '.csv', '.pkl', '.txt', '.svg', '.png', '.graphml')
         self.separator = 'ƒ'
         self.subdir = None
@@ -1025,7 +1026,7 @@ class FeaturesLoader(DataHandler):
 
 # Provide the directory path and the string to search for
 # directory_path = '/home/annina/scripts/great_unread_nlp/src/'
-# search_string = 'NXNetwork'
+# search_string = 'add_color_column'
 # extension = ['.txt', '.py']
 # search_string_in_files(directory_path, search_string, extension, full_word=False)
 
