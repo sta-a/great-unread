@@ -83,13 +83,11 @@ class CombinationsBase(InfoHandler):
     def __init__(self, language, output_dir='similarity', add_color=False, cmode='nk', by_author=False):
         super().__init__(language, output_dir=output_dir, add_color=add_color, cmode=cmode, by_author=by_author)
         self.test = False
-        self.mxs = self.load_mxs()
 
         self.save_data(data=self.metadf, filename='metadf')
         self.colnames = [col for col in self.metadf.columns if not col.endswith('_color')]
 
         if self.test:
-            self.mxs = self.mxs[3:6]
             self.colnames = ['gender', 'author', 'canon', 'year']
             MxCluster.ALGS = {
                 'hierarchical': {
@@ -107,24 +105,41 @@ class CombinationsBase(InfoHandler):
             }
 
 
+    # def load_mxs(self):
+    #     # Delta distance mxs
+    #     delta = Delta(self.language)
+    #     # delta.create_all_data(use_kwargs_for_fn='mode')
+    #     all_delta = delta.load_all_data(use_kwargs_for_fn='mode', subdir=True)
+
+    #     # D2v distance mxs
+    #     d2v = D2vDist(language=self.language)
+    #     all_d2v = d2v.load_all_data(use_kwargs_for_fn='mode', file_string=d2v.file_string, subdir=True)
+    #     mxs = {**all_delta, **all_d2v}
+
+    #     mxs_list = []
+    #     for name, mx in mxs.items():
+    #         mx.name = name
+    #         print(name)
+    #         mxs_list.append(mx)
+    #     return mxs_list
+
+
     def load_mxs(self):
         # Delta distance mxs
         delta = Delta(self.language)
-        # delta.create_all_data(use_kwargs_for_fn='mode')
         all_delta = delta.load_all_data(use_kwargs_for_fn='mode', subdir=True)
 
         # D2v distance mxs
         d2v = D2vDist(language=self.language)
         all_d2v = d2v.load_all_data(use_kwargs_for_fn='mode', file_string=d2v.file_string, subdir=True)
+
         mxs = {**all_delta, **all_d2v}
 
-        mxs_list = []
         for name, mx in mxs.items():
             mx.name = name
             print(name)
-            mxs_list.append(mx)
-        return mxs_list
-    
+            yield mx
+
     
     def evaluate_all_combinations(self):
         '''
@@ -146,7 +161,7 @@ class CombinationsBase(InfoHandler):
         elif self.cmode == 'nk':
             inteval = NkIntEval(combination).evaluate()
 
-        exteval = ExtEval(self.language, self.cmode, info, inteval)
+        exteval = ExtEval(language=self.language, cmode=self.cmode, info=info, inteval=inteval, output_dir=self.output_dir)
         
         for attr in ['cluster'] + self.colnames: # evaluate 'cluster' first
             info.add('attr', attr)
@@ -159,7 +174,7 @@ class CombinationsBase(InfoHandler):
     def check_data(self):
         if not os.path.exists(self.combinations_path):
             self.log_combinations()
-        dc = CombDataChecker(self.language, self.cmode, self.combinations_path, self.by_author)
+        dc = CombDataChecker(language=self.language, cmode=self.cmode, combinations_path=self.combinations_path, by_author=self.by_author, output_dir=self.output_dir)
         dc.check()
 
 
@@ -170,10 +185,17 @@ class MxCombinations(CombinationsBase):
 
 
     def create_combinations(self):
-        for mx, cluster_alg in itertools.product(self.mxs, MxCluster.ALGS.keys()):
+        mxname_old = ''
+        s = time.time()
+        mxs_generator = self.load_mxs()
+        for mx, cluster_alg in itertools.product(mxs_generator, MxCluster.ALGS.keys()):
             print(mx.name)
+            if mx.name != mxname_old:
+                print(f'Time for {mxname_old}: {time.time()-s}')
+                mxname_old = mx.name
+                s = time.time()
 
-            sc = MxCluster(self.language, cluster_alg, mx)
+            sc = MxCluster(self.language, cluster_alg, mx, output_dir=self.output_dir)
             param_combs = sc.get_param_combinations()
 
             for param_comb in param_combs:
@@ -183,7 +205,7 @@ class MxCombinations(CombinationsBase):
                 clusters = sc.cluster(info, param_comb)
 
                 if clusters is not None:
-                    print(info.as_string())
+                    # print(info.as_string())
                     metadf = self.merge_dfs(self.metadf, clusters.df)
                     info.add('metadf', metadf)
                     info.add('clusterdf', clusters.df)
@@ -193,9 +215,10 @@ class MxCombinations(CombinationsBase):
 
 
     def log_combinations(self):
+        mxs_generator = self.load_mxs()
         with open(self.combinations_path, 'w') as f:
-            for mx, cluster_alg in itertools.product(self.mxs, MxCluster.ALGS.keys()):
-                sc = MxCluster(self.language, cluster_alg, mx)
+            for mx, cluster_alg in itertools.product(mxs_generator, MxCluster.ALGS.keys()):
+                sc = MxCluster(self.language, cluster_alg, mx, output_dir=self.output_dir)
                 param_combs = sc.get_param_combinations()
 
                 for param_comb in param_combs:
@@ -216,12 +239,13 @@ class NkCombinations(CombinationsBase):
 
 
     def create_combinations(self):
-        for mx, sparsmode in itertools.product(self.mxs, Sparsifier.MODES.keys()):
+        mxs_generator = self.load_mxs()
+        for mx, sparsmode in itertools.product(mxs_generator, Sparsifier.MODES.keys()):
             print(mx.name)
             # substring_list = ['manhattan', 'full', 'both']
             # if any(substring in mx.name for substring in substring_list):
 
-            sparsifier = Sparsifier(self.language, mx, sparsmode)
+            sparsifier = Sparsifier(self.language, mx, sparsmode, output_dir=self.output_dir)
             spars_params = Sparsifier.MODES[sparsmode]
             
             for spars_param in spars_params:
@@ -232,7 +256,7 @@ class NkCombinations(CombinationsBase):
                 else:
                     for cluster_alg in  NkCluster.ALGS.keys():
                         network = NXNetwork(self.language, mx=mx)
-                        nc = NkCluster(self.language, cluster_alg, network)
+                        nc = NkCluster(self.language, cluster_alg, network, output_dir=self.output_dir)
                         param_combs = nc.get_param_combinations()
                         
                         for param_comb in param_combs:
@@ -252,9 +276,10 @@ class NkCombinations(CombinationsBase):
 
 
     def log_combinations(self):
+        mxs_generator = self.load_mxs()
         with open(self.combinations_path, 'w') as f:
-            for mx, sparsmode in itertools.product(self.mxs, Sparsifier.MODES.keys()):
-                sparsifier = Sparsifier(self.language, mx, sparsmode)
+            for mx, sparsmode in itertools.product(mxs_generator, Sparsifier.MODES.keys()):
+                sparsifier = Sparsifier(self.language, mx, sparsmode, output_dir=self.output_dir)
                 spars_params = Sparsifier.MODES[sparsmode]
                 
                 for spars_param in spars_params:
@@ -262,7 +287,7 @@ class NkCombinations(CombinationsBase):
                     if filtered_nr_edges != 0: # ignore if no edges
 
                         for cluster_alg in  NkCluster.ALGS.keys():
-                            nc = NkCluster(language=self.language, cluster_alg=cluster_alg, network=None)
+                            nc = NkCluster(language=self.language, cluster_alg=cluster_alg, network=None, output_dir=self.output_dir)
                             param_combs = nc.get_param_combinations()
                             
                             for param_comb in param_combs:
@@ -277,8 +302,8 @@ class CombDataChecker(DataHandler):
     eng: 95 features
     ger: 92 features
     '''
-    def __init__(self, language, cmode, combinations_path, by_author):
-        super().__init__(language=language, output_dir='similarity', data_type='csv')
+    def __init__(self, language, cmode, combinations_path, by_author, output_dir='similarity'):
+        super().__init__(language=language, output_dir=output_dir, data_type='csv')
         self.cmode = cmode
         self.combinations_path = combinations_path
         self.by_author = by_author
@@ -332,7 +357,7 @@ class CombDataChecker(DataHandler):
         Drop rows with duplicated info.
         Duplicated log entries can happen if the program is restarted multiple times.
         '''
-        cluster_logfile = ClusterBase(self.language, self.cmode, cluster_alg=None).logfile_path
+        cluster_logfile = ClusterBase(self.language, self.cmode, cluster_alg=None, output_dir=self.output_dir).logfile_path
         cdf = pd.read_csv(cluster_logfile, header=0)
         cdf = cdf.drop_duplicates(subset=['info'], keep='first')
         cdf = cdf.loc[cdf['source'] == 'clst']

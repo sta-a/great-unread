@@ -18,10 +18,10 @@ random.seed(9)
 import sys
 sys.path.append("..")
 from utils import DataHandler
-from analysis_utils import VizBase
+from .analysis_utils import VizBase
+from .nkviz import NkKeyAttrViz
 from cluster.cluster_utils import CombinationInfo
 from cluster.combinations import InfoHandler
-from nkviz import NkKeyAttrViz
 import logging
 logging.basicConfig(level=logging.DEBUG)
 
@@ -38,7 +38,6 @@ class Selector(DataHandler):
         self.imgdir = os.path.join(self.output_dir, 'nk_singleimage')
         self.nr_mxs = 58
         self.nr_spars = 9
-        self.data_author_path = self.output_dir.repl
     
 
     def get_mx_and_spars_names(self):
@@ -74,16 +73,31 @@ class Selector(DataHandler):
         unique_lines = []
         with open(path, 'r') as file:
             for line in file:
-                clean_line = line.strip()
-                if clean_line not in unique_lines:
-                    unique_lines.append(clean_line)
+                line = line.strip()
+                if line not in unique_lines:
+                    unique_lines.append(line)
        
         unique_lines = self.remove_png(unique_lines)
         return unique_lines
+    
+
+    def remove_attr_and_duplicates(self, nklist):
+        # if element has format mxname_spars_attr, remove attr
+        all_mxnames, all_sparsnames = self.get_mx_and_spars_names()
+        newlist = []
+        for nk in nklist:
+            nk = nk.split('_')
+            assert len(nk) == 2 or len(nk) == 3
+            assert nk[0] in all_mxnames
+            assert nk[1] in all_sparsnames
+            nk = f'{nk[0]}_{nk[1]}'
+            newlist.append(nk)
+        return list(set(newlist))
+
 
 
     def get_interesting_spars(self):
-        return ['simmel-3-10', 'simmel-5-10'] # authormin
+        return ['simmel-3-10', 'simmel-5-10']
 
 
     def get_interesting_networks(self):
@@ -92,13 +106,18 @@ class Selector(DataHandler):
         # Text-based and author-based find approximately the same distances.
         # For eng, 'correlation' and 'sqeuclidean' are border cases -> include them
         interesting_mxnames = self.read_names_from_file('year', by_author=False) # distances where texts do not cluster according to year
+        interesting_mxnames = interesting_mxnames + ['full', 'both']
         interesting_sparsnames = self.get_interesting_spars()
         all_mxnames, all_sparsnames = self.get_mx_and_spars_names()
         interesting_mxnames_all_spars = [elem1 + '_' + elem2 for elem1 in interesting_mxnames for elem2 in all_sparsnames]
         all_mxnames_interesting_spars = [elem1 + '_' + elem2 for elem1 in all_mxnames for elem2 in interesting_sparsnames]
+
         all_interesting = list(set(canon + interesting_mxnames_all_spars + all_mxnames_interesting_spars))
+        all_interesting = self.remove_attr_and_duplicates(all_interesting)
         print(len(all_interesting))
         print(len(canon), len(all_mxnames_interesting_spars), len(interesting_mxnames_all_spars))
+        with open(os.path.join(self.output_dir, 'interesting_networks.csv'), 'w') as f:
+            f.write('\n'.join(all_interesting))
 
 
 
@@ -123,8 +142,8 @@ class ImageGrid(DataHandler):
         self.ws_right = 0.99
         self.ws_bottom = 0.01
         self.ws_top = 0.99
-        self.ws_wspace = 0
-        self.ws_hspace = 0.1
+        self.ws_wspace = 0.01
+        self.ws_hspace = 0.01
 
 
     def adjust_subplots(self):

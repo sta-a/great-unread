@@ -1,6 +1,3 @@
-# %%
-%load_ext autoreload
-%autoreload 2
 
 import sys
 sys.path.append("..")
@@ -9,15 +6,16 @@ import os
 import numpy as np
 import networkx as nx
 from matplotlib import pyplot as plt
+from tqdm import tqdm
 
-from embedding_utils import EmbeddingBase
+from .embedding_utils import EmbeddingBase
+from .nkselect import ImageGrid
+from .nkviz import NkVizBase
 from cluster.combinations import MxCombinations
 from cluster.create import D2vDist
 from cluster.cluster_utils import MetadataHandler, CombinationInfo
-from nkselect import ImageGrid
-from nkviz import NkVizBase
-from n2vcreator import N2vCreator
-from s2vcreator import S2vCreator
+# from .n2vcreator import N2vCreator
+from .s2vcreator import S2vCreator
 from copy import deepcopy
 
 
@@ -44,33 +42,49 @@ class EmbDist(D2vDist):
 
 
 class EmbLoader():
-    def __init__(self, language, file_string):
+    def __init__(self, language, file_string, mode=None):
         self.language = language
         self.file_string = file_string
+        self.mode = mode
 
 
-    def load_mxs(self, as_list=True):
-        if self.file_string == 'n2v':
-            ec = N2vCreator(self.language)
-        else:
-            ec = S2vCreator(self.language)
+    def load_mxs(self, list_of_substrings=[]):
+        '''
+        list_of_substrings: embedding files must contain a substring from this list to be included if list is not empty
+        '''
+        # if self.file_string == 'n2v':
+        #     self.ec = N2vCreator(self.language, mode=self.mode)
+        # else:
+        self.ec = S2vCreator(self.language, mode=self.mode)
 
-        # Load similarity matrices, if they don't exist, they are created
-        embedding_files = [file.split('.')[0] for file in os.listdir(ec.subdir) if file.endswith('embeddings')] # remove '.embeddings'
-        embedding_files = [x for x in embedding_files if 'burrows-500_simmel-5-10' in x] ####################3
-        # embedding_files = ['burrows-500_simmel-5-10_dimensions-32_walklength-3_numwalks-50_windowsize-3_untillayer-5_OPT1-True_OPT2-True_OPT3-True'] ###########
+        all_embedding_paths = self.ec.get_all_embedding_paths()
+        all_embedding_paths = [os.path.basename(x) for x in all_embedding_paths]
+        all_embedding_paths = [x.split('.')[0] for x in all_embedding_paths][:4] ######################
+
+        print('all emb path', len(all_embedding_paths))
+
+
+
+        # Filter list of embedding files
+        embedding_files = [file.split('.')[0] for file in os.listdir(self.ec.subdir) if file.endswith('embeddings')] # remove '.embeddings'
+        if self.mode is not None:
+            embedding_files = [file for file in embedding_files if any(sub in file for sub in all_embedding_paths)]
+
+        if list_of_substrings:
+            embedding_files = [file for file in embedding_files if any(sub in file for sub in list_of_substrings)]
+
+        print('len ebm files', len(embedding_files))
+
+
+        # Load similarity matrices. If they don't exist, they are created
         emdist = EmbDist(language=self.language, output_dir=self.file_string, modes=embedding_files)
-        mxs = emdist.load_all_data(use_kwargs_for_fn='mode', file_string=self.file_string, subdir=True)
 
 
-        if as_list:
-            mxs_list = []
-            for name, mx in mxs.items():
-                mx.name = name
-                mxs_list.append(mx)
-        else:
-            mxs_list = mxs
-        return mxs_list
+        for mode in tqdm(embedding_files):
+            mx  = emdist.load_data(load=True, mode=mode, use_kwargs_for_fn='mode', file_string=self.file_string, subdir=True)
+            print('mode', mode)
+            mx.name = mode
+            yield mx
     
 
 
@@ -80,17 +94,23 @@ class EmbeddingEvalViz(NkVizBase):
     '''
     def __init__(self, language, info=True, plttitle=None, exp=None, by_author=False, graph=None):
         super().__init__(language, info, plttitle, exp, by_author, graph)
+        self.ws_left = 0.01
+        self.ws_right = 0.99
+        self.ws_bottom = 0.01
+        self.ws_top = 0.99
+        self.ws_wspace = 0.01
+        self.ws_hspace = 0.01
+        self.markersize = 7
 
     def get_figure(self):
-        self.fig, self.axs = plt.subplots()
+        self.fig, self.axs = plt.subplots(figsize=(5, 4))
         self.axs = np.reshape(self.axs, (1, 1))
         self.axs[0, 0].axis('off')
 
     def add_custom_subdir(self):
-        self.sc = S2vCreator(self.language)
+        self.sc = S2vCreator(self.language, mode='params')
         self.output_dir=self.sc.output_dir
         self.add_subdir('singleimages')
-        print(self.subdir)
 
     def get_graphs(self):
         # nx.connected_components is only implemented for undirected graphs
@@ -100,7 +120,6 @@ class EmbeddingEvalViz(NkVizBase):
             graph = deepcopy(self.graph)
         self.graph_con = self.graph
         self.nodes_removed = []
-
 
     def add_edges(self):
         # Main plot
@@ -131,8 +150,8 @@ class EvalImageGrid(ImageGrid):
         self.imgs = self.load_single_images()
         self.fontsize = 6
 
-        self.img_width = 1.92 # format of single-network plots stored on file
-        self.img_height = 1.44
+        self.img_width = 1.92*2 # format of single-network plots stored on file, times 2 to make fig bigger
+        self.img_height = 1.44*2
         self.nr_mxs = 58
         self.nr_spars = 9
 
@@ -141,8 +160,8 @@ class EvalImageGrid(ImageGrid):
         self.ws_right = 0.99
         self.ws_bottom = 0.01
         self.ws_top = 0.99
-        self.ws_wspace = 0
-        self.ws_hspace = 0.1
+        self.ws_wspace = 0.01
+        self.ws_hspace = 0.01
 
         self.add_subdir('gridimage')
 
@@ -156,24 +175,24 @@ class EvalImageGrid(ImageGrid):
     
 
     def get_file_path(self, vizname, subdir=None, **kwargs):
-        file_name = f"{vizname}_dimensions-{kwargs['dimensions']}_untillayer-{kwargs['untillayer']}_windowsize{kwargs['windowsize']}.png"
+        file_name = f"{vizname}_dimensions-{kwargs['dimensions']}_windowsize{kwargs['windowsize']}.png"
         return os.path.join(self.subdir, file_name)
     
 
     def get_title(self, imgname):
         x = os.path.basename(imgname)
-        print(x)
-        mxname, spars, dim, walklengths, numwalks, windowsize, untillayer, opt1, opt2, opt3 = x.split('_')
+        mxname, spars, dim, walklengths, numwalks, windowsize = x.split('_')
         title = f'{walklengths}, {numwalks}' #, {windowsize}'
         return title
 
 
 
 
+
 class ParamEval(S2vCreator):
     def __init__(self, language):
-        super().__init__(language)
-        self.el = EmbLoader(self.language, self.file_string)
+        super().__init__(language, mode='params')
+        self.el = EmbLoader(self.language, self.file_string, mode='params')
 
 
     def check_embeddings(self):
@@ -183,54 +202,59 @@ class ParamEval(S2vCreator):
         print(f'Nr combinations in subdir: {nr_embeddings}')
 
 
-
     def create_single_images(self):
-        self.mxs_dict = self.el.load_mxs(as_list=False)
-
+        mxs_dict = {}
+        mxs_generator = self.load_mxs()
+        for i in mxs_generator:
+            mxs_dict[i.name] = i
+        
 
         for network_name, node in self.examples.items():
-            if node is not None:
-                mxs = {k: v for k, v in self.mxs_dict.items() if network_name in k}
-                for cmxname, cmx in mxs.items():
-                    df = cmx.mx.loc[node].to_frame()
+            print('creating single image for', network_name)
+            mxs = {k: v for k, v in mxs_dict.items() if network_name in k}
+            for cmxname, cmx in mxs.items():
 
 
-                    mh = MetadataHandler(self.language)
-                    df = mh.add_color_column(metadf=df, colname=node)
-                    df.loc[node, f'{node}_color'] = 'green'
+                # Select all col with all distances to 'node'
+                df = cmx.mx.loc[[node]]
+                # Exclude the entry for 'node' from the df so that scaling for color is not affected by similarity=1
+                row_without_node = df.drop(columns=[node])
+                df = row_without_node.transpose()
+                assert len(df) == len(cmx.mx) - 1
 
-                    # path = '/home/annina/scripts/great_unread_nlp/data/s2v/eng/burrows-500_simmel-5-10/viz-Corelli_Marie_The-Sorrows-of-Satan_1895.png'
-                    # if os.path.exists(path): ###############
-                    #     os.remove(path)
-                    info = CombinationInfo(metadf=df, attr=node)
-                    network = self.network_from_edgelist(os.path.join(self.edgelist_dir, f'{network_name}.csv'), delimiter=' ', nodes_as_str=True, print_info=False)
-                    viz = EmbeddingEvalViz(self.language, info=info, exp={'attr': node}, by_author=False, graph=network)
-                    viz.visualize(vizname=cmxname)
+
+                mh = MetadataHandler(self.language)
+                df = mh.add_color_column(metadf=df, colname=node, use_skewed_colormap=False)
+                df.loc[node, f'{node}_color'] = 'lime'
+                assert len(df) == len(cmx.mx)
+                
+
+                info = CombinationInfo(metadf=df, attr=node)
+                network = self.network_from_edgelist(os.path.join(self.edgelist_dir, f'{network_name}.csv'), delimiter=' ', nodes_as_str=True, print_info=False)
+                viz = EmbeddingEvalViz(self.language, info=info, exp={'attr': node}, by_author=False, graph=network)
+                viz.visualize(vizname=cmxname)
 
 
     def create_grid_images(self):
         for network_name, node in self.examples.items():
-            if node is not None:
-
-                params = self.get_params()
-                param_combs =  super().get_param_combinations()
-                for dim in params['dimensions']:
-                    for ul in params['until-layer']:
-                        for ws in params['window-size']:
-
-                            combs = [
-                                d for d in param_combs
-                                if d['dimensions'] == dim and d['until-layer'] == ul and d['window-size'] == ws
-                            ]
-                            combs = [self.get_param_string(x) for x  in combs]
-                            combs = [f'{network_name}_{x}' for x in combs]
-                            ig = EvalImageGrid(self.language, combs)
-                            ig.visualize(vizname=network_name, dimensions=dim, untillayer=ul, windowsize=ws)
+            # if node == 'Corelli_Marie_The-Sorrows-of-Satan_1895' or node == 'Dronke_Ernst_Polizeigeschichten_1846': ################333
+            params = self.get_params()
+            param_combs =  super().get_param_combinations()
 
 
-pe = ParamEval('eng')
-pe.create_grid_images()
-# pe.check_embeddings()
+            for dim in params['dimensions']:
+                for ws in params['window-size']:
+                    combs = [
+                        d for d in param_combs
+                        if d['dimensions'] == dim and d['window-size'] == ws
+                    ]
+                    combs = [self.get_param_string(x) for x  in combs]
+                    combs = [f'{network_name}_{x}' for x in combs]
+                    ig = EvalImageGrid(self.language, combs)
+                    ig.visualize(vizname=network_name, dimensions=dim, windowsize=ws)
+
+
+
 
 
 
@@ -253,7 +277,7 @@ class EmbMxCombinations(EmbLoader, MxCombinations):
     def __init__(self, language, output_dir, add_color=False, by_author=False):
         self.file_string = output_dir # 'n2v' or 's2v'
         # Inherit 'load_mxs' method
-        EmbLoader.__init__(self, language=language, file_string=self.file_string)
+        EmbLoader.__init__(self, language=language, file_string=self.file_string, mode='run')
         # Inherit everything else
         MxCombinations.__init__(self, language=language, output_dir=output_dir, add_color=add_color, by_author=by_author)
 

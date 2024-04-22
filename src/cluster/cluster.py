@@ -86,8 +86,8 @@ class Clusters():
 class ClusterBase(DataHandler):
     ALGS = None
 
-    def __init__(self, language=None, cmode=None, cluster_alg=None):
-        super().__init__(language=language, output_dir='similarity', data_type='pkl')
+    def __init__(self, language=None, cmode=None, cluster_alg=None, output_dir='similarity'):
+        super().__init__(language=language, output_dir=output_dir, data_type='pkl')
         self.cmode = cmode
         self.cluster_alg = cluster_alg
         self.n_jobs = 1
@@ -181,17 +181,17 @@ class ClusterBase(DataHandler):
         if self.cluster_alg == 'dbscan' and (df['cluster'] == -1).all():
             valid = False
             self.log_clst(info, source, 'noisy')
-            self.logger.info(f'DBSCAN only returns noisy samples with value -1.')
+            self.logger.debug(f'DBSCAN only returns noisy samples with value -1.')
 
         if df['cluster'].nunique() == 1:
             valid = False
             self.log_clst(info, source, 'single')
-            self.logger.info(f'All data points put into the same cluster.')
+            self.logger.debug(f'All data points put into the same cluster.')
 
         elif df['cluster'].nunique() == self.nr_texts:
             valid = False
             self.log_clst(info, source, 'iso')
-            self.logger.info(f'All data points put into isolated clusters.')
+            self.logger.debug(f'All data points put into isolated clusters.')
 
         else:
             # self.log_clst(info, source, 'success')
@@ -243,8 +243,8 @@ class MxCluster(ClusterBase):
     }
 
 
-    def __init__(self, language=None, cluster_alg=None, mx=None):
-        super().__init__(language=language, cmode='mx', cluster_alg=cluster_alg)
+    def __init__(self, language=None, cluster_alg=None, mx=None, output_dir='similarity'):
+        super().__init__(language=language, cmode='mx', cluster_alg=cluster_alg, output_dir=output_dir)
         self.mx = mx
 
     
@@ -296,8 +296,8 @@ class NkCluster(ClusterBase):
     }
 
 
-    def __init__(self, language, cluster_alg=None, network=None):
-        super().__init__(language=language, cmode='nk', cluster_alg=cluster_alg)
+    def __init__(self, language, cluster_alg=None, network=None, output_dir='similarity'):
+        super().__init__(language=language, cmode='nk', cluster_alg=cluster_alg, output_dir=output_dir)
         self.network = network
         # Network can be None if class is only created to get parameter combination
         if self.network is not None:

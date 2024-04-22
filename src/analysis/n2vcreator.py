@@ -6,12 +6,12 @@ sys.path.append("..")
 import time
 import os
 from node2vec import Node2Vec
-from embedding_utils import EmbeddingBase
+from .embedding_utils import EmbeddingBase
 
 
 class N2vCreator(EmbeddingBase):
-      def __init__(self, language):
-            super().__init__(language, output_dir='n2v', edgelist_dir='sparsification_edgelists')
+      def __init__(self, language, mode=None):
+            super().__init__(language, output_dir='n2v', edgelist_dir='sparsification_edgelists', mode=None)
 
 
       def create_embeddings(self, fn, kwargs={}):

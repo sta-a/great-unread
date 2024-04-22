@@ -19,7 +19,7 @@ random.seed(9)
 import sys
 sys.path.append("..")
 from utils import DataHandler
-from analysis_utils import VizBase
+from .analysis_utils import VizBase
 from cluster.cluster_utils import CombinationInfo
 from cluster.combinations import InfoHandler
 import logging
@@ -59,12 +59,15 @@ class NkVizBase(VizBase):
             self.too_many_edges, edges_info = self.check_nr_edges()
             if self.too_many_edges:
                 self.write_noviz(edges_info)
+                print('Too many edges.')
 
-            if not self.too_many_edges:
-                self.logger.debug(f'Nr edges below cutoff for {self.info.as_string()}. Making visualization.')
-                self.get_graphs()
-                self.get_positions()
-                self.add_positions_to_metadf()
+            self.too_many_edges = False  ############################
+            # if not self.too_many_edges:
+            #     self.logger.debug(f'Nr edges below cutoff for {self.info.as_string()}. Making visualization.')
+            #     self.get_graphs()
+            #     self.get_positions()
+            #     self.add_positions_to_metadf()
+
 
 
     def get_cmap_params(self):
@@ -87,7 +90,15 @@ class NkVizBase(VizBase):
     def visualize(self, vizname='viz', omit=[]):
         if not self.too_many_edges:
             self.vizpath = self.get_path(name=vizname, omit=omit)
+            print(self.vizpath)
             if not os.path.exists(self.vizpath):
+                self.get_graphs() ####################################delete
+                self.get_positions()
+                self.add_positions_to_metadf()
+
+
+
+
                 start = time.time()
                 self.logger.debug(f'Nr edges below cutoff for {self.info.as_string()}. Making visualization.')
 
@@ -105,6 +116,8 @@ class NkVizBase(VizBase):
                 calctime = time.time()-start
                 if calctime > 10:
                     print(f'{calctime}s to visualize.')
+            else:
+                print('path exists')
 
 
     def adjust_subplots(self):

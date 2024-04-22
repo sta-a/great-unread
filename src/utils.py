@@ -12,6 +12,7 @@ import joblib
 import logging
 import Levenshtein
 import networkx as nx
+from tqdm import tqdm
 from itertools import combinations
 
 logging.basicConfig(level=logging.INFO)
@@ -239,7 +240,16 @@ class DataHandler():
         if self.data_dir is None or output_dir is None or self.language is None:
             output_dir = None
         else:
-            output_dir = os.path.join(self.data_dir, output_dir, self.language)
+            # It is possible that output_dir is a path instead of only a string with the output dir name.
+            # Check if output_dir is an absolute path
+            if os.path.isabs(output_dir):
+                # Use output_dir directly
+                output_dir = output_dir
+                self.logger.debug(f'The output dir {output_dir} was passed as a full path.')
+            else:
+                # Construct the full path
+                output_dir = os.path.join(self.data_dir, output_dir, self.language)
+
             if not os.path.exists(output_dir):
                 self.create_dir(output_dir)
         return output_dir
@@ -363,7 +373,7 @@ class DataHandler():
     def load_all_data(self, **kwargs):
         # Check if file exists, create it if necessary, return all data
         all_data = {}
-        for mode in self.modes:
+        for mode in tqdm(self.modes):
             data  = self.load_data(load=True, mode=mode, **kwargs)
             all_data[mode] = data
         return all_data
@@ -875,7 +885,6 @@ class DataLoader(DataHandler):
         rdfn = [f.rstrip('.txt') for f in os.listdir(self.text_raw_dir) if f.endswith(".txt")]
         # Select rows from the DataFrame where 'file_name' is in the list of filenames
         df = df[df['file_name'].isin(rdfn)]
-        df.to_csv('canondf')
         # Check if all filenames in the directory are in the DataFrame
         assert all(file_name in df['file_name'].values for file_name in rdfn)
         assert len(df) == self.nr_texts
@@ -926,7 +935,7 @@ class DataLoader(DataHandler):
         
         elif type == 'meta' or type == 'gender':
             self.output_dir = self.create_output_dir('metadata')
-            self.logger.debug(f'Created output dir from inside function.')
+            self.logger.debug(f'Created output dir from inside function: {self.output_dir}')
 
             file_name = f'{self.language.upper()}_texts_meta.csv'
             df = pd.read_csv(os.path.join(self.output_dir, file_name), sep=';')
@@ -1026,7 +1035,10 @@ class FeaturesLoader(DataHandler):
 
 # Provide the directory path and the string to search for
 # directory_path = '/home/annina/scripts/great_unread_nlp/src/'
-# search_string = 'add_color_column'
+# search_string = 'NXNetwork'
+# search_string = 'NkCluster('
+# search_string = 'Sparsifier('
+# search_string = "output_dir='similarity'"
 # extension = ['.txt', '.py']
 # search_string_in_files(directory_path, search_string, extension, full_word=False)
 

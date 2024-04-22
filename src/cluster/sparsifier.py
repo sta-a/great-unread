@@ -22,14 +22,14 @@ logging.basicConfig(level=logging.DEBUG)
 
 class Sparsifier(DataHandler):
       MODES = {
-            'threshold': [0.9, 0.95, 0.8],
+            'threshold': [0.90, 0.95, 0.8], # 0.90: trailing zero is important to avoid naming conflics with 0.95
             'simmel': [(5, 10), (3, 10), (4,6), (7, 10)],
             'authormax': [None],
             'authormin': [None],
             }
       
-      def __init__(self, language=None, mx=None, mode=None):
-            super().__init__(language, output_dir='similarity')
+      def __init__(self, language=None, mx=None, mode=None, output_dir='similarity'):
+            super().__init__(language, output_dir=output_dir)
             self.mx = mx
             self.mode = mode
             self.logger = logging.getLogger(__name__)

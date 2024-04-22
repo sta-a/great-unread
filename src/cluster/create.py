@@ -293,7 +293,6 @@ class D2vDist(SimMxCreatorBase):
         """
         # Extract the names and vectors from the dictionary
         names = list(dictionary.keys())
-        print(names)
         vectors = list(dictionary.values())
         # Convert the list of vectors into a 2D numpy array
         vectors = np.array(vectors)

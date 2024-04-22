@@ -127,10 +127,10 @@ class MetadataHandler(DataHandler):
         return metadf
 
 
-    def add_color_column(self, metadf, colname):
+    def add_color_column(self, metadf, colname, use_skewed_colormap=True):
         # Add a color column to a df
         cm = ColorMap(metadf)
-        metadf = cm.add_color_column(colname)
+        metadf = cm.add_color_column(colname, use_skewed_colormap)
         metadf = cm.metadf
         return metadf
     
@@ -222,13 +222,13 @@ class ColorMap(Colors):
         self.cat_attrs_combined = [f'{cattr}_cluster' for cattr in self.cat_attrs]
 
 
-    def add_color_column(self, colname):
+    def add_color_column(self, colname, use_skewed_colormap=True):
         if colname == 'gender':
             self.map_gender(colname)
         elif colname in self.cat_attrs + self.cat_attrs_combined + ['cluster']:
             self.map_categorical(colname)
         else:
-            self.map_continuous(colname)
+            self.map_continuous(colname, use_skewed_colormap)
 
         # Transform format so it is compatible with pgv
         if self.pgv:
@@ -259,7 +259,10 @@ class ColorMap(Colors):
         self.metadf[f'{colname}_color'] = self.metadf[colname].map(color_mapping)
 
 
-    def map_continuous(self, colname):
+    def map_continuous(self, colname, use_skewed_colormap=True):
+        '''
+        use_skewed_colormap: if True, alternative colormap is used if distribution of continuous values is skewed so that close values are better visually distinguishable
+        '''
         # Scale values so that lowest value is 0 and highest value is 1
         scaled_col = pd.Series(minmax_scale(self.metadf[colname]))
 
@@ -267,6 +270,10 @@ class ColorMap(Colors):
         skewness = skew(scaled_col)
         if abs(skewness) >= 3:
             skewed = True
+        
+        # Set skewed to False if skewed, but alternative color map should not be used
+        if not use_skewed_colormap:
+            skewed = False
 
         color_col = scaled_col.apply(lambda x: self.get_colors_sequential(x, skewed=skewed))
         self.metadf = self.metadf.assign(newcol=color_col.values).rename(columns={'newcol': f'{colname}_color'})
@@ -288,7 +295,13 @@ class CombinationInfo:
             elif isinstance(self.spars_param, tuple):
                 self.sparsmode = f'{self.sparsmode}-{self.spars_param[0]}-{self.spars_param[1]}'
             else:
+                # Add trailing 0 to 0.9 (-> 0.90) to avoid naming conflics with 0.95
+                if self.sparsmode == 'threshold' and self.spars_param == 0.9:
+                    add_zero_to_str = True
+                    print(f'Add zero to string for {self.sparsmode} {self.spars_param}.')
                 self.sparsmode = f'{self.sparsmode}-{str(self.replace_dot(self.spars_param))}'
+                if add_zero_to_str:
+                    self.sparsmode = f'{self.sparsmode}0'
 
 
     def clusterparams_to_string(self):

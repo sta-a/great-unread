@@ -11,39 +11,70 @@ from itertools import product
 
 
 class EdgelistHandler(DataHandler):
-    def __init__(self, language, output_dir, edgelist_dir='sparsification_edgelists'):
+    def __init__(self, language, output_dir, edgelist_dir='sparsification_edgelists', mode=None):
+        '''
+        mode: 
+            - if None: embeddings for all networks in edgelist dir
+            - if 'run': embeddings for interesting networks
+            - if 'params': embeddings for example networks with many parameter combinations
+        '''
         super().__init__(language, output_dir=output_dir, load_doc_paths=False)
+        self.mode = mode
+        assert self.mode in [None, 'run', 'params']
+
         self.edgelist_dir = os.path.join(self.data_dir, 'similarity', self.language, edgelist_dir)
         self.edgelists = [file for file in os.listdir(self.edgelist_dir) if 'index-mapping' not in file and file.endswith('.csv')]
-        self.examples = {
-             'cosinedelta-1000_threshold-0%8': None, 
-             'both_threshold-0%9.': None, # dot to avoid confusion with 0%95
-             'cosinesim-1000_threshold-0%95': None, 
-             'full_authormin': None, 
-             'cosinesim-5000_authormax': None, 
-             'sqeuclidean-500_simmel-3-10': None, 
-             'both_simmel-4-6': None, 
-             'burrows-500_simmel-5-10': 'Corelli_Marie_The-Sorrows-of-Satan_1895',
-             'eder-5000_simmel-7-10': None, 
-        }
 
-        self.examples = {
-             'burrows-500_simmel-5-10': 'Corelli_Marie_The-Sorrows-of-Satan_1895'
-        }
-        self.use_examples = True
-        if self.use_examples:
+        if self.mode == 'params':
+            if self.language == 'eng':
+                self.examples = {
+                    'cosinesim-5000_authormax': 'James_Henry_The-Turn-of-the-Screw_1898', 
+                    'cosinedelta-1000_threshold-0%8': 'Kipling_Rudyard_On-the-Strength-of-a-Likeness_1888', 
+                    'both_threshold-0%90': 'Dickens_Charles_Barnaby-Rudge_1841', # dot to avoid confusion with 0%95
+                    'cosinesim-1000_threshold-0%95': 'Kipling_Rudyard_How-the-Whale-Got-His-Throat_1902', 
+                    'full_authormin': 'Baldwin_Louisa_The-Uncanny-Bairn_1895', 
+                    'sqeuclidean-500_simmel-3-10': 'James_Henry_What-Maisie-Knew_1897', 
+                    'both_simmel-4-6': 'Wells_H-G_Tono-Bungay_1909', 
+                    'burrows-500_simmel-5-10': 'Corelli_Marie_The-Sorrows-of-Satan_1895',
+                    'eder-5000_simmel-7-10': 'Dickens_Charles_David-Copperfield_1849', 
+                }
+            else:
+                self.examples = {
+                    'both_threshold-0%8': 'Gutzkow_Karl_Die-Ritter-vom-Geiste_1850',
+                    'manhattan-2000_threshold-0%90': 'Tieck_Ludwig_Die-Vogelscheuche_1834',
+                    'cosinedelta-1000_threshold-0%95': 'Sacher-Masoch_Leopold_Venus-im-Pelz_1869',
+                    'burrows-5000_authormin': 'Wezel_Johann-Karl_Die-Erziehung-der-Moahi_1777',
+                    'minmax-500_authormax': 'Schlaf_Johannes_Fruehling_1896',
+                    'sqeuclidean-500_simmel-3-10': 'Saar_Ferdinand_Ninon_1892',
+                    'canberra-2000_simmel-4-6': 'Suttner_Bertha-von_Die-Waffen-nieder_1889',
+                    'sqeuclidean-5000_simmel-5-10': 'Dronke_Ernst_Polizeigeschichten_1846',
+                    'edersimple-2000_simmel-7-10': 'Conrad_Michael-Georg_Was-die-Isar-rauscht_1887',
+                }
+            self.nklist = self.examples.keys()
             self.edgelists = [
                 filename for filename in self.edgelists
-                if any(substring in filename for substring in self.examples.keys())
+                if any(substring in filename for substring in self.nklist)
             ]
-  
+
+        elif self.mode == 'run':
+            intnk_path = os.path.join(self.data_dir, 'analysis', self.language, 'interesting_networks.csv')
+            self.nklist = []
+            with open(intnk_path, 'r') as f:
+                for line in f:
+                    row = line.rstrip()
+                    self.nklist.append(row)
+            self.edgelists = [
+                filename for filename in self.edgelists
+                if any(substring in filename for substring in self.nklist)
+            ]
+            print('len nklist', len(self.nklist), 'len edgeslit', len(self.edgelists))
+
 
         self.nr_mxs = 58
         self.nr_spars = 9
-        # assert len(self.edgelists) == self.nr_mxs * self.nr_spars
         self.remove_iso = True
         self.index_mapping = pd.read_csv(os.path.join(self.edgelist_dir, 'index-mapping.csv'), header=0, dtype={'new_index': str})
-        self.logger.info(f'Read index mapping from file. "new_index" is str.')
+        self.logger.debug(f'Read index mapping from file. "new_index" is str.')
 
 
 
@@ -58,13 +89,6 @@ class EdgelistHandler(DataHandler):
                 f'Nr. isolated nodes: {len(list(nx.isolates(graph)))} \n'
                 f'--------------\n')
         
-
-    # def map_edgelist_indices(self, file_path, delimiter=','):
-    #     df = pd.read_csv(file_path, header=None, names=['source', 'target', 'weight'])
-    #     print(df)
-
-         
-
 
     def network_from_edgelist(self, file_path, delimiter=',', nodes_as_str=False, print_info=False):
         if self.remove_iso:
@@ -190,8 +214,8 @@ class EmbeddingBase(EdgelistHandler):
     noedges eng: cosinesim-500_simmel-4-6
     cosinesim-500_simmel-7-10
     '''
-    def __init__(self, language, output_dir, edgelist_dir='sparsification_edgelists'):
-        super().__init__(language, output_dir=output_dir, edgelist_dir=edgelist_dir)
+    def __init__(self, language, output_dir, edgelist_dir='sparsification_edgelists', mode=None):
+        super().__init__(language, output_dir=output_dir, edgelist_dir=edgelist_dir, mode=mode)
         self.add_subdir('embeddings')
 
 
@@ -204,7 +228,6 @@ class EmbeddingBase(EdgelistHandler):
         # First line in embedding file contains number of nodes and number of dimensions, there is no header
         # Use the first column with the node ID as index
         df = pd.read_csv(inpath, skiprows=1, header=None, sep=' ', index_col=0, dtype={0: str})
-        print(df.shape)
 
 
         # Rename columns as col1, col2, ...
@@ -220,7 +243,7 @@ class EmbeddingBase(EdgelistHandler):
     
 
     def get_param_string(self, kwargs):
-        d = {key.replace('-', ''): value for key, value in kwargs.items()} # remove '-', such as in 'walk-length'
+        d = {key.replace('-', ''): value for key, value in kwargs.items()} # remove '-', such as in 'walk-length', which are required in the s2v main script
         return '_'.join(f'{key}-{value}' for key, value in d.items())
     
 
@@ -231,15 +254,36 @@ class EmbeddingBase(EdgelistHandler):
         return os.path.join(self.subdir, f'{fn}_{param_string}.embeddings')
     
 
-    def create_data(self, kwargs={}):
-        for fn in self.edgelists:
-                print(fn)
-                if self.language == 'eng' and ('cosinesim-500_simmel-4-6' in fn or 'cosinesim-500_simmel-7-10' in fn): # no edges
+    def get_all_embedding_paths(self):
+        paths = []
+        param_combs = self.get_param_combinations()
+        for comb in param_combs:
+            for fn in self.edgelists:
+                if self.language == 'eng' and ('cosinesim-500_simmel-4-6' in fn or 'cosinesim-500_simmel-7-10' in fn):
                     continue
+                
+                embedding_path = self.get_embedding_path(fn, comb)
+                paths.append(embedding_path)
+        
+        return paths
+   
 
-                embedding_path = self.get_embedding_path(fn, kwargs)
-                if not os.path.exists(embedding_path):
-                    self.create_embeddings(fn, kwargs)
+    def generate_paths(self, kwargs={}):
+        for fn in self.edgelists:
+            print(fn)
+            if self.language == 'eng' and ('cosinesim-500_simmel-4-6' in fn or 'cosinesim-500_simmel-7-10' in fn):
+                continue
+            
+            embedding_path = self.get_embedding_path(fn, kwargs)
+            yield embedding_path
+
+
+    def create_data(self, kwargs={}):
+        for embedding_path in self.generate_paths(kwargs):
+            if not os.path.exists(embedding_path):
+                # Perform embedding creation for this path
+                fn = os.path.basename(embedding_path)  # Extract filename from path
+                self.create_embeddings(fn, kwargs)
 
 
     def get_param_combinations(self):

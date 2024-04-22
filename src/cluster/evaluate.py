@@ -77,14 +77,14 @@ class ExtEval(DataHandler):
     '''
     Evaluate cluster quality with an external criterion (the ground truths)
     '''
-    def __init__(self, language, mode, info, inteval):
-        super().__init__(language, output_dir='similarity')
-        self.mode = mode
+    def __init__(self, language, cmode, info, inteval, output_dir='similarity'):
+        super().__init__(language, output_dir=output_dir)
+        self.cmode = cmode
         self.info = info
         self.inteval = inteval
         self.cat_attrs = ['gender', 'author']
 
-        self.add_subdir(f'{self.mode}eval')
+        self.add_subdir(f'{self.cmode}eval')
         self.file_paths = self.get_file_paths()
 
 
@@ -246,7 +246,7 @@ class ExtEval(DataHandler):
         df = self.info.metadf[self.info.metadf[self.info.attr].notna()]
 
         # Check that there is more than one cluster after filtering
-        cb = ClusterBase(language=self.language, cmode=self.mode, cluster_alg=None)
+        cb = ClusterBase(language=self.language, cmode=self.cmode, cluster_alg=None, output_dir=self.output_dir)
         valid = cb.evaluate_clusters(df, self.info, source='eval')
 
         # Re-evaluate clustering if rows were dropped because of nan in attr column
@@ -349,7 +349,7 @@ class ExtEval(DataHandler):
             legend_entries = [f'{label} (count: {count})' for label, count in zip(unique_labels, label_counts)]
 
             # Display the legend with label counts
-            plt.legend(legend_entries) ########################3
+            plt.legend(legend_entries)
 
 
 

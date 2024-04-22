@@ -9,26 +9,43 @@ from utils import DataHandler
 from tqdm import tqdm
 import subprocess
 import time
-from embedding_utils import EmbeddingBase
+import shutil
+from .embedding_utils import EmbeddingBase
 
 
 class S2vCreator(EmbeddingBase):
-    def __init__(self, language):
-        super().__init__(language, output_dir='s2v', edgelist_dir='sparsification_edgelists_s2v')
+    def __init__(self, language, mode=None):
+        super().__init__(language, output_dir='s2v', edgelist_dir='sparsification_edgelists_s2v', mode=mode)
         self.file_string = 's2v'
 
 
-    def get_params(self):
+    def get_params_params(self):
+        # Return many different parameter combinations for parameter selection
         params = {
             'dimensions': [32, 64, 128],
             'walk-length': [3, 5, 8, 15],
             'num-walks': [20, 50, 200],
-            'window-size': [3, 5, 10, 15],
-            'until-layer': [5, 10],
-            'OPT1': ['True'],
-            'OPT2': ['True'],
-            'OPT3': ['True']
+            'window-size': [3, 5, 10, 15]
         }
+        return params
+    
+
+    def get_run_params(self):
+        # Return few parameter combinations for creating the embeddings for the actual data
+        params = {
+            'dimensions': [32],
+            'walk-length': [3, 15],
+            'num-walks': [200],
+            'window-size': [3, 15]
+        }
+        return params
+    
+
+    def get_params(self):
+        if self.mode == 'params':
+            params = self.get_params_params()
+        elif self.mode == 'run':
+            params = self.get_run_params()
         return params
     
 
@@ -38,8 +55,27 @@ class S2vCreator(EmbeddingBase):
         print(embedding_path)
 
         parent_dir = os.path.dirname(self.data_dir)
-        s2v_dir = os.path.join(parent_dir, 'src', 'struc2vec-master', 'src')
-        s2v_script = os.path.join(s2v_dir, 'main.py')
+        s2v_dir = os.path.join(parent_dir, 'src', 'struc2vec-master')
+        s2v_pkl = os.path.join(s2v_dir, 'pickles')
+        s2v_script = os.path.join(s2v_dir, 'src', 'main.py')
+
+
+        if os.path.exists(s2v_pkl):
+            try:
+                shutil.rmtree(s2v_pkl)
+                print(f"Directory '{s2v_pkl}' deleted successfully.")
+            except Exception as e:
+                print(f"Error: Failed to delete directory '{s2v_pkl}': {e}")
+        
+        # Recreate the directory
+        try:
+            os.makedirs(s2v_pkl)
+            print(f"Directory '{s2v_pkl}' created successfully.")
+        except Exception as e:
+            print(f"Error: Failed to create directory '{s2v_pkl}': {e}")
+
+
+
 
         if 'threshold' in fn:
             directed = '--undirected'
@@ -70,26 +106,3 @@ class S2vCreator(EmbeddingBase):
         subprocess.run(cmd)
         print(f'{time.time()-s}s to create embeddings for {fn}.')
 
-
-    def get_param_combinations(self):
-        param_combs =  super().get_param_combinations()
-
-        # Remove combinations that differ only in the value of 'until-layer', except when OPT3 is set to True
-        param_combs = [
-            d for d in param_combs
-            if d.get('OPT3', True) or d['until-layer'] == 5  # Keep dicts with OPT3: True or until-layer: 5
-        ]
-        return param_combs   
-
-
-
-
-# for language in ['eng', 'ger']:
-#     ne = S2vCreator(language)
-#     ne.run_combinations()
-    # pc = ne.get_param_combinations()
-    # for i in pc:
-    #     print(i)
-    # print(len(pc))
-
-# %%
