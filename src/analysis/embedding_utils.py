@@ -63,11 +63,19 @@ class EdgelistHandler(DataHandler):
                 for line in f:
                     row = line.rstrip()
                     self.nklist.append(row)
-            self.edgelists = [
-                filename for filename in self.edgelists
-                if any(substring in filename for substring in self.nklist)
-            ]
-            print('len nklist', len(self.nklist), 'len edgeslit', len(self.edgelists))
+            # self.nklist = ['cosinesim-2000_threshold-0%90'] ##############################################
+
+            # Filter edgelist based on nklist
+            filtered_egelists = []
+            for i in self.nklist:
+                el_name = f'{i}.csv'
+                assert el_name in self.edgelists, f'{el_name} not in self.edgelists'
+                filtered_egelists.append(el_name)
+            self.edgelists = filtered_egelists
+
+            # for i in self.edgelists:
+            #     print('edgelist', i)
+            print('len nklist', len(self.nklist), 'len edgeslist', len(self.edgelists))
 
 
         self.nr_mxs = 58
@@ -127,12 +135,12 @@ class NetworkStats(EdgelistHandler):
     def get_network_stats(self):
         stats = []
 
-        for fn in tqdm(self.edgelists):
-        # if 'braycurtis-2000' in fn:
-            if self.language == 'eng' and ('cosinesim-500_simmel-4-6' in fn or 'cosinesim-500_simmel-7-10' in fn): # no edges
+        for edgelist in tqdm(self.edgelists):
+        # if 'braycurtis-2000' in edgelist:
+            if self.language == 'eng' and ('cosinesim-500_simmel-4-6' in edgelist or 'cosinesim-500_simmel-7-10' in edgelist): # no edges
                 continue
-            print(fn)
-            network = self.network_from_edgelist(os.path.join(self.edgelist_dir, fn))
+            print(edgelist)
+            network = self.network_from_edgelist(os.path.join(self.edgelist_dir, edgelist))
             if nx.is_directed(network): # nx.connected_components only implemented for undirected
                 network = network.to_undirected()
             components = list(nx.connected_components(network))
@@ -144,7 +152,7 @@ class NetworkStats(EdgelistHandler):
             aspl = nx.average_shortest_path_length(largest_component_graph)
             diam = nx.diameter(largest_component_graph)
             
-            nrs = [fn, min(component_sizes), max(component_sizes), len(component_sizes), all_sizes, aspl, diam]
+            nrs = [edgelist, min(component_sizes), max(component_sizes), len(component_sizes), all_sizes, aspl, diam]
             stats.append(nrs)
 
         stats = pd.DataFrame(stats, columns=['file_name', 'min_component_size', 'max_component_size', 'nr_components', 'all_size', 'av_shortest_path_length', 'diameter'])
@@ -153,11 +161,11 @@ class NetworkStats(EdgelistHandler):
 
     def get_network_selfloops(self):
         stats = []
-        for fn in self.edgelists:
-                if self.language == 'eng' and ('cosinesim-500_simmel-4-6' in fn or 'cosinesim-500_simmel-7-10' in fn): # no edges
+        for edgelist in self.edgelists:
+                if self.language == 'eng' and ('cosinesim-500_simmel-4-6' in edgelist or 'cosinesim-500_simmel-7-10' in edgelist): # no edges
                     continue
-                print(fn)
-                network = self.network_from_edgelist(os.path.join(self.edgelist_dir, fn))
+                print(edgelist)
+                network = self.network_from_edgelist(os.path.join(self.edgelist_dir, edgelist))
                 if nx.is_directed(network): # nx.connected_components only implemented for undirected
                     network = network.to_undirected()
                 components = list(nx.connected_components(network))
@@ -166,7 +174,7 @@ class NetworkStats(EdgelistHandler):
                 nr_selfloops = nx.number_of_selfloops(network)
 
                 all_sizes = ','.join([str(x) for x in component_sizes])
-                nrs = [fn, nr_selfloops, len(component_sizes), all_sizes]
+                nrs = [edgelist, nr_selfloops, len(component_sizes), all_sizes]
                 stats.append(nrs)
 
         stats = pd.DataFrame(stats, columns=['file_name', 'has_selfloops', 'nr_components', 'all_size'])
@@ -247,43 +255,40 @@ class EmbeddingBase(EdgelistHandler):
         return '_'.join(f'{key}-{value}' for key, value in d.items())
     
 
-    def get_embedding_path(self, fn, kwargs):
-        if '.csv' in fn:
-            fn = os.path.splitext(fn)[0]
+    def get_embedding_path(self, edgelist, kwargs):
+        if '.csv' in edgelist:
+            edgelist = os.path.splitext(edgelist)[0]
         param_string = self.get_param_string(kwargs)
-        return os.path.join(self.subdir, f'{fn}_{param_string}.embeddings')
+        return os.path.join(self.subdir, f'{edgelist}_{param_string}.embeddings')
     
 
     def get_all_embedding_paths(self):
         paths = []
         param_combs = self.get_param_combinations()
         for comb in param_combs:
-            for fn in self.edgelists:
-                if self.language == 'eng' and ('cosinesim-500_simmel-4-6' in fn or 'cosinesim-500_simmel-7-10' in fn):
+            for edgelist in self.edgelists:
+                if self.language == 'eng' and ('cosinesim-500_simmel-4-6' in edgelist or 'cosinesim-500_simmel-7-10' in edgelist):
                     continue
                 
-                embedding_path = self.get_embedding_path(fn, comb)
+                embedding_path = self.get_embedding_path(edgelist, comb)
                 paths.append(embedding_path)
         
         return paths
    
 
     def generate_paths(self, kwargs={}):
-        for fn in self.edgelists:
-            print(fn)
-            if self.language == 'eng' and ('cosinesim-500_simmel-4-6' in fn or 'cosinesim-500_simmel-7-10' in fn):
+        for edgelist in self.edgelists:
+            if self.language == 'eng' and ('cosinesim-500_simmel-4-6' in edgelist or 'cosinesim-500_simmel-7-10' in edgelist):
                 continue
             
-            embedding_path = self.get_embedding_path(fn, kwargs)
-            yield embedding_path
+            embedding_path = self.get_embedding_path(edgelist, kwargs)
+            yield (edgelist, embedding_path)
 
 
     def create_data(self, kwargs={}):
-        for embedding_path in self.generate_paths(kwargs):
+        for edgelist, embedding_path in self.generate_paths(kwargs):
             if not os.path.exists(embedding_path):
-                # Perform embedding creation for this path
-                fn = os.path.basename(embedding_path)  # Extract filename from path
-                self.create_embeddings(fn, kwargs)
+                self.create_embeddings(edgelist, embedding_path, kwargs)
 
 
     def get_param_combinations(self):

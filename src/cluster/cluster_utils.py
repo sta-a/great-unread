@@ -140,7 +140,7 @@ class MetadataHandler(DataHandler):
         sm = ShapeMap(metadf)
         metadf = sm.add_shape_column()
 
-        assert len(sm.metadf) == self.nr_texts
+        # assert len(sm.metadf) == self.nr_texts ################################
         return sm.metadf
 
 

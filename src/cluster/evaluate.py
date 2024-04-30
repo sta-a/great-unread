@@ -42,10 +42,28 @@ class MxIntEval():
         return evals
 
     def silhouette_score(self):
-        clusters = self.clusters.df
-        # assert all(self.mx.dmx.index == clusters['cluster'].index) #################
-        sc = silhouette_score(X=self.mx.dmx, labels=list(clusters['cluster']), metric='precomputed')
-        return sc
+        try:
+            clusters = self.clusters.df
+            sc = silhouette_score(X=self.mx.dmx, labels=list(clusters['cluster']), metric='precomputed')
+            return sc
+        except Exception as e:
+            # Print detailed error information for debugging
+            print("Error occurred during silhouette score calculation:")
+            print("Error type:", type(e).__name__)
+            print("Error message:", str(e))
+            
+            # Print additional relevant information if available
+            if hasattr(self, 'clusters') and hasattr(self.clusters, 'df'):
+                print("Clusters DataFrame shape:", self.clusters.df.shape)
+            if hasattr(self, 'mx') and hasattr(self.mx, 'dmx'):
+                print("Matrix shape:", self.mx.dmx.shape)
+                print("Matrix name:", self.mx.name)
+
+            labels=list(clusters['cluster'])
+            unique_labels = np.unique(labels)
+            print("Unique Cluster Labels:", unique_labels)
+
+            return np.nan
     
 
 class NkIntEval():

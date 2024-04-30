@@ -18,28 +18,34 @@ from matplotlib.cm import ScalarMappable
 
 
 from utils import DataHandler
-from .mxviz import MxViz
-from .mxviz import MxVizAttr
+from .mxviz import MxAttrGridViz, MxSingleViz, MxKeyAttrViz
 from .nkviz import NkKeyAttrViz, NkAttrGridViz, NkNetworkGridkViz, SparsGridkViz, NkSingleViz
-from .analysis_utils import GridImage
+from .embedding_eval import EmbMxCombinations
 from .topeval import TopEval
 from cluster.network import NXNetwork
-from cluster.combinations import CombinationsBase
+from cluster.combinations import MxCombinations
 
 # import logging
 # logging.basicConfig(level=logging.DEBUG)
 
 
 class Experiment(DataHandler):
-    def __init__(self, language, cmode, by_author=False):
-        super().__init__(language, output_dir='analysis')
+    def __init__(self, language, cmode, by_author=False, output_dir='analysis'):
+        assert output_dir in ['analysis', 'analysis_s2v']
+        super().__init__(language, output_dir=output_dir)
         self.cmode = cmode
         self.by_author = by_author
-        # self.mh = MetadataHandler(self.language)
-        # self.metadf = self.mh.get_metadata(add_color=True)
+
+        # Use embeddings
+        if 's2v' in self.output_dir:
+            self.mc = EmbMxCombinations(self.language)
+        # Use distances
+        else:
+            self.mc = MxCombinations(self.language)
 
 
-    def get_experiments(self):
+
+    def get_experiments(self, select_exp=None):
         # Default values
         maxsize = 0.9
         embmxs = ['both', 'full'] # embedding-based distance matrices
@@ -159,19 +165,18 @@ class Experiment(DataHandler):
             central = deepcopy(clustconst)
             central[0]['name'] = 'central'
             central[0]['mxname'] = ['burrows'] + embmxs
+            
 
-
-        exps = sparsgrid
-        exps = all_nkgrid + sparsgrid + all_attrgrid + all_top + clustconst + central
-        exps = singleimage
+        if select_exp:
+            exps = [x for x in exps if x['name'] == select_exp]
 
         for e in exps:
             print(e['name'])
         return exps
 
 
-    def run_experiments(self, ntop=10):
-        exps = self.get_experiments()
+    def run_experiments(self, select_exp=None, ntop=10):
+        exps = self.get_experiments(select_exp)
         for exp in exps:
             print(f"------------------{exp['name']}-------------------\n")
             if 'ntop' not in exp:
@@ -181,7 +186,7 @@ class Experiment(DataHandler):
             if (exp['viztype'] == 'nkgrid') or (exp['viztype'] == 'sparsgrid') or (exp['viztype'] == 'singleimage'):
                 te = None
             else:
-                te = TopEval(self.language, self.cmode, exp, expdir=self.subdir, by_author=self.by_author)
+                te = TopEval(self.language, self.mc.output_dir, self.cmode, exp, expdir=self.subdir, by_author=self.by_author)
 
             if exp['name'] == 'clustconst':
                 self.run_clustconst(exp, te)
@@ -197,7 +202,7 @@ class Experiment(DataHandler):
         centralities = df.columns
         for centrality in centralities:
             exp['evalcol'] = centrality
-            te = TopEval(self.language, self.cmode, exp, expdir=self.subdir, df=df, by_author=self.by_author)
+            te = TopEval(self.language, self.mc.output_dir, self.cmode, exp, expdir=self.subdir, df=df, by_author=self.by_author)
             self.visualize_nk(exp, te, vizname=centrality)
 
 
@@ -213,42 +218,49 @@ class Experiment(DataHandler):
 
 
     def visualize_mx(self, exp, te, vizname='viz'):
-        for topk in te.get_top_combinations():
-            info, plttitle = topk
-            # Get matrix
-            cb = CombinationsBase(self.language, add_color=False, cmode='mx')
-            mx = [mx for mx in cb.mxs if mx.name == info.mxname]
-            assert len(mx) == 1
-            mx = mx[0]
-
-            info.add('order', 'olo')
-            if exp['viztype'] == 'attrgrid':
-                viz = MxVizAttr(self.language, mx, info, plttitle=plttitle, exp=exp)
-            else:
-                viz = MxViz(self.language, mx, info, plttitle=plttitle, exp=exp)
-            viz.visualize(vizname)
+        # viztypes: 'attrgrid', 'nkgrid' 'keyattr'
+        if exp['viztype'] == 'nkgrid':
+            pass
+            # viz = NkNetworkGridkViz(self.language, self.output_dir, exp, self.by_author)
+            # viz.visualize()
+        elif exp['viztype'] == 'sparsgrid':
+            pass
+        elif exp['viztype'] == 'singleimage':
+            viz = MxSingleViz(self.language, self.output_dir, exp, self.by_author, self.mc)
+            viz.visualize()
+        else:
+            for topk in te.get_top_combinations():
+                info, plttitle = topk
+                
+                # Get matrix
+                mx = self.mc.load_single_mx(mxname=info.mxname)
+                info.add('order', 'olo')
+                if exp['viztype'] == 'attrgrid':
+                    viz = MxAttrGridViz(self.language, self.output_dir, mx, info, plttitle=plttitle, exp=exp)
+                else:
+                    viz = MxKeyAttrViz(self.language, self.output_dir, mx, info, plttitle=plttitle, exp=exp, by_author=self.by_author)
+                viz.visualize(vizname)
 
 
     def visualize_nk(self, exp, te):
         # viztypes: 'attrgrid', 'nkgrid' 'keyattr'
         if exp['viztype'] == 'nkgrid':
-            viz = NkNetworkGridkViz(self.language, exp, self.by_author)
+            viz = NkNetworkGridkViz(self.language, self.output_dir, exp, self.by_author)
             viz.visualize()
         elif exp['viztype'] == 'sparsgrid':
-            viz = SparsGridkViz(self.language, exp, self.by_author)
+            viz = SparsGridkViz(self.language, self.output_dir, exp, self.by_author)
             viz.visualize()
         elif exp['viztype'] == 'singleimage':
-            viz = NkSingleViz(self.language, exp, self.by_author)
+            viz = NkSingleViz(self.language, self.output_dir, exp, self.by_author)
             viz.visualize()
         else:
             for topk in te.get_top_combinations():
                 info, plttitle = topk
-                print('info nk viz', info.as_string())
-
                 if exp['viztype'] == 'attrgrid':
-                    viz = NkAttrGridViz(self.language, info, plttitle=plttitle, exp=exp, by_author=self.by_author)    
+                    # In Topeval, a single combination for each sparsified matrix is chosen, attributes don't matter
+                    viz = NkAttrGridViz(self.language, self.output_dir, info, plttitle=plttitle, exp=exp, by_author=self.by_author)    
                 else:
-                    viz = NkKeyAttrViz(self.language, info, plttitle=plttitle, exp=exp, by_author=self.by_author) 
+                    viz = NkKeyAttrViz(self.language, self.output_dir, info, plttitle=plttitle, exp=exp, by_author=self.by_author)
                 viz.visualize()
 
 

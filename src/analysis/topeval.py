@@ -20,8 +20,8 @@ class TopEval(InfoHandler):
     -df: a filtered evaluation file. Must contain column 'file_info'
         Df can be precomputed and passed to TopEval to use methods, or is calculated by TopEval
     '''
-    def __init__(self, language, cmode, exp, expdir, df=None, by_author=False):
-        super().__init__(language=language, add_color=True, cmode=cmode, by_author=by_author)
+    def __init__(self, language, output_dir, cmode, exp, expdir, df=None, by_author=False):
+        super().__init__(language=language, output_dir=output_dir, add_color=True, cmode=cmode, by_author=by_author)
         self.cmode = cmode
         self.exp = exp
         self.expdir = expdir
@@ -29,6 +29,10 @@ class TopEval(InfoHandler):
         self.df = df
         if self.df is None:
             self.df = self.load_data()
+
+
+    def get_file_path(self, file_name): # file_name for compatibility
+        return os.path.join(self.expdir, f'df.{self.data_type}')
 
 
     def extend_sizes_col(self, df):
@@ -190,6 +194,7 @@ class TopEval(InfoHandler):
         for scale in self.exp['dfs']:
             self.scale = scale
             evaldir = os.path.join(self.output_dir, f'{self.cmode}eval')
+            print(f'Loading eval df from dir {evaldir}')
             df = pd.read_csv(os.path.join(evaldir, f'{self.scale}_results.csv'), header=0, na_values=['NA'])
 
             df = self.drop_na_rows(df)
@@ -285,6 +290,5 @@ class TopEval(InfoHandler):
             yield info, plttitle
 
 
-    def get_file_path(self, file_name): # file_name for compatibility
-        return os.path.join(self.expdir, f'df.{self.data_type}')
+
     

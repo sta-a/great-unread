@@ -97,6 +97,7 @@ class SimMx(DataHandler):
         print('self.mx.isnull().values.any()', self.mx.isnull().values.any())
         print('self.mx.all().all()', self.mx.all().all()) # Check if all values are True
 
+
     def find_zero_elements(self):
         # Find rows and cols with value 0
         zero_indices = np.where(self.mx == 0)
@@ -235,7 +236,11 @@ class SimMxCreatorBase(DataHandler):
         self.save_data(data=sm.mx, file_name=sm.name, subir=True, use_kwargs_for_fn='mode', pandas_kwargs={'index': True}, **kwargs)
         self.logger.debug(f'Created similarity matrix.')
 
+
     def load_data(self, load=True, file_name=None, **kwargs):
+        '''
+        Load mx from csv and create SimMx object
+        '''
         mx = super().load_data(load, file_name, **kwargs)
         file_name = get_filename_from_path(self.get_file_path(file_name, **kwargs))
         mx = SimMx(self.language, name=file_name, mx=mx, normalized=True, is_sim=True)

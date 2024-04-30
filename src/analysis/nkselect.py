@@ -32,103 +32,15 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from PIL import Image, ImageDraw
 
 
-class Selector(DataHandler):
-    def __init__(self, language):
-        super().__init__(language, output_dir='analysis', data_type='png')
-        self.imgdir = os.path.join(self.output_dir, 'nk_singleimage')
-        self.nr_mxs = 58
-        self.nr_spars = 9
-    
-
-    def get_mx_and_spars_names(self):
-        mxnames = set()
-        sparsnames = set()
-
-        for filename in os.listdir(self.imgdir):
-            if filename.endswith('.png'):
-                # Split the filename by underscores to extract mxname and sparsname
-                parts = filename.split('_')
-                assert len(parts)== 3
-                mxnames.add(parts[0])
-                sparsnames.add(parts[1])
-
-        mxnames = list(mxnames)
-        sparsnames = list(sparsnames)
-        assert len(mxnames) == self.nr_mxs
-        assert len(sparsnames) == self.nr_spars
-        return mxnames, sparsnames
-            
-
-    def remove_png(self, l):
-        l = [x.replace('.png', '') for x in l]
-        return l
-    
-
-    def read_names_from_file(self, attr, by_author=False):
-        self.add_subdir(f'nkselect_{attr}')
-        if by_author:
-            self.subdir = self.subdir.replace('data', 'data_author')
-            print(self.subdir)
-        path = os.path.join(self.subdir, f'selected_{attr}.txt')
-        unique_lines = []
-        with open(path, 'r') as file:
-            for line in file:
-                line = line.strip()
-                if line not in unique_lines:
-                    unique_lines.append(line)
-       
-        unique_lines = self.remove_png(unique_lines)
-        return unique_lines
-    
-
-    def remove_attr_and_duplicates(self, nklist):
-        # if element has format mxname_spars_attr, remove attr
-        all_mxnames, all_sparsnames = self.get_mx_and_spars_names()
-        newlist = []
-        for nk in nklist:
-            nk = nk.split('_')
-            assert len(nk) == 2 or len(nk) == 3
-            assert nk[0] in all_mxnames
-            assert nk[1] in all_sparsnames
-            nk = f'{nk[0]}_{nk[1]}'
-            newlist.append(nk)
-        return list(set(newlist))
-
-
-
-    def get_interesting_spars(self):
-        return ['simmel-3-10', 'simmel-5-10']
-
-
-    def get_interesting_networks(self):
-        canon = self.read_names_from_file('canon')
-        # Find distances where texts are not grouped by year.
-        # Text-based and author-based find approximately the same distances.
-        # For eng, 'correlation' and 'sqeuclidean' are border cases -> include them
-        interesting_mxnames = self.read_names_from_file('year', by_author=False) # distances where texts do not cluster according to year
-        interesting_mxnames = interesting_mxnames + ['full', 'both']
-        interesting_sparsnames = self.get_interesting_spars()
-        all_mxnames, all_sparsnames = self.get_mx_and_spars_names()
-        interesting_mxnames_all_spars = [elem1 + '_' + elem2 for elem1 in interesting_mxnames for elem2 in all_sparsnames]
-        all_mxnames_interesting_spars = [elem1 + '_' + elem2 for elem1 in all_mxnames for elem2 in interesting_sparsnames]
-
-        all_interesting = list(set(canon + interesting_mxnames_all_spars + all_mxnames_interesting_spars))
-        all_interesting = self.remove_attr_and_duplicates(all_interesting)
-        print(len(all_interesting))
-        print(len(canon), len(all_mxnames_interesting_spars), len(interesting_mxnames_all_spars))
-        with open(os.path.join(self.output_dir, 'interesting_networks.csv'), 'w') as f:
-            f.write('\n'.join(all_interesting))
-
-
-
 class ImageGrid(DataHandler):
-    def __init__(self, language, attr=None, by_author=False, output_dir='analysis', imgdir='nk_singleimage'):
+    def __init__(self, language, attr=None, by_author=False, output_dir='analysis', imgdir='nk_singleimage', select_with_gui=False):
         super().__init__(language, output_dir=output_dir, data_type='png')
         self.attr = attr
         self.by_author = by_author
+        self.imgdir = os.path.join(self.output_dir, imgdir)
+        self.select_with_gui = select_with_gui
         self.nrow = 3
         self.ncol = 3
-        self.imgdir = os.path.join(self.output_dir, imgdir)
         self.imgs = self.load_single_images()
         self.fontsize = 6
 
@@ -158,11 +70,17 @@ class ImageGrid(DataHandler):
 
     def get_figure(self):
         self.fig, self.axs = plt.subplots(self.nrow, self.ncol, figsize=(self.ncol*self.img_width, self.nrow*self.img_height))
+        if self.nrow == 1:
+            self.axs = self.axs.reshape(1, -1) # one row, infer number of cols
         plt.tight_layout(pad=0)
 
 
+
     def load_attr_images(self, file_names):
-        file_names = [fn for fn in file_names if fn.split('_')[2].split('.')[0] == self.attr]
+        # Select all file names where the last part before .png seperated by an underscore is equal to attr
+        file_names = [fn for fn in file_names if fn.rsplit('.', 1)[0].rsplit('_', 1)[1] == self.attr]
+        for i in file_names:
+            print('attr file name', i)
         return file_names
 
 
@@ -174,6 +92,7 @@ class ImageGrid(DataHandler):
 
 
     def select_image(self, event, imgs):
+        # Select images via mouse click, write their name to file
         path = os.path.join(self.subdir, f'selected_{self.attr}.txt')
         with open(path, 'a') as f:
             for i in range(self.nrow):
@@ -195,9 +114,10 @@ class ImageGrid(DataHandler):
             imgs = self.imgs
 
         if not os.path.exists(self.vizpath):
-            # Create tkinter window
-            root = tk.Tk()
-            root.title(vizname)
+            if self.select_with_gui:
+                # Create tkinter window
+                root = tk.Tk()
+                root.title(vizname)
 
             # Display images in grid layout
             self.get_figure()
@@ -218,15 +138,18 @@ class ImageGrid(DataHandler):
             
             # bbox_inches because titles are cut off
             self.save_data(data=plt, data_type=self.data_type, file_name=None, file_path=self.vizpath, plt_kwargs={'dpi': 300, 'bbox_inches': 'tight'})
-            plt.show()
+            # plt.show() ###########################
             plt.close()
 
-            # Add matplotlib plot to tkinter window
-            canvas = FigureCanvasTkAgg(self.fig, master=root)
-            canvas.draw()
-            canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
-            # Run the tkinter event loop
-            # tk.mainloop()
+            if self.select_with_gui:
+                # Add matplotlib plot to tkinter window
+                canvas = FigureCanvasTkAgg(self.fig, master=root)
+                canvas.draw()
+                canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+
+                # Set select_with_gui to True for selecting networks with mouse click
+                # Run the tkinter event loop
+                tk.mainloop()
 
 
 
@@ -235,16 +158,12 @@ class NkNetworkGrid(ImageGrid):
     Plot every network for an attribute.
     '''
     def __init__(self, language, attr=None, by_author=False):
-        super().__init__(language, attr, by_author)
+        super().__init__(language=language, attr=attr, by_author=by_author, select_with_gui=True)
         self.by_author = by_author
-        self.data_type = 'png'
-
         self.nrow = 2
         self.ncol = 5
-
         self.name_index = 0
         self.nfields = 9
-
         self.add_subdir(f'nkselect_{self.attr}')
 
 
@@ -325,7 +244,7 @@ class SparsGrid(NkNetworkGrid):
         self.nrow = 6 # 58 mxs per figure
         self.ncol = 11
         self.name_index = 1
-        self.nfields = 58 ##################################
+        self.nfields = 58
         self.fontsize = 6
 
         self.add_subdir(f'nkselect_sparsgrid_{self.attr}')
@@ -333,3 +252,96 @@ class SparsGrid(NkNetworkGrid):
     
     def get_filename(self, figname):
         return f"gridviz_{figname}"
+    
+
+
+class Selector(DataHandler):
+    '''
+    Write names of interesting networks to file
+    Interesting networks are networks where canonized texts seem to be non-randomly distributed, or which have an interesting structure, or which are not dependent on the year
+    '''
+    def __init__(self, language):
+        super().__init__(language, output_dir='analysis', data_type='png')
+        self.imgdir = os.path.join(self.output_dir, 'nk_singleimage')
+        self.nr_mxs = 58
+        self.nr_spars = 9
+    
+
+    def get_mx_and_spars_names(self):
+        mxnames = set()
+        sparsnames = set()
+
+        for filename in os.listdir(self.imgdir):
+            if filename.endswith('.png'):
+                # Split the filename by underscores to extract mxname and sparsname
+                parts = filename.split('_')
+                assert len(parts)== 3
+                mxnames.add(parts[0])
+                sparsnames.add(parts[1])
+
+        mxnames = list(mxnames)
+        sparsnames = list(sparsnames)
+        assert len(mxnames) == self.nr_mxs
+        assert len(sparsnames) == self.nr_spars
+        return mxnames, sparsnames
+            
+
+    def remove_png(self, l):
+        l = [x.replace('.png', '') for x in l]
+        return l
+    
+
+    def read_names_from_file(self, attr, by_author=False):
+        self.add_subdir(f'nkselect_{attr}')
+        if by_author:
+            self.subdir = self.subdir.replace('data', 'data_author')
+            print(self.subdir)
+        path = os.path.join(self.subdir, f'selected_{attr}.txt')
+        unique_lines = []
+        with open(path, 'r') as file:
+            for line in file:
+                line = line.strip()
+                if line not in unique_lines:
+                    unique_lines.append(line)
+       
+        unique_lines = self.remove_png(unique_lines)
+        return unique_lines
+    
+
+    def remove_attr_and_duplicates(self, nklist):
+        # if element has format mxname_spars_attr, remove attr
+        all_mxnames, all_sparsnames = self.get_mx_and_spars_names()
+        newlist = []
+        for nk in nklist:
+            nk = nk.split('_')
+            assert len(nk) == 2 or len(nk) == 3
+            assert nk[0] in all_mxnames
+            assert nk[1] in all_sparsnames
+            nk = f'{nk[0]}_{nk[1]}'
+            newlist.append(nk)
+        return list(set(newlist))
+
+
+    def get_interesting_networks(self):
+        # Canon: networks were selected in class NkNetworkGrid with GUI implemented in ImageGrid
+        canon = self.read_names_from_file('canon')
+
+        # Find distances where texts are not grouped by year.
+        # Text-based and author-based find approximately the same distances.
+        # For eng, 'correlation' and 'sqeuclidean' are border cases -> include them
+        interesting_mxnames = self.read_names_from_file('year', by_author=False) # distances where texts do not cluster according to year
+
+        # Combine interesting distance measures and interesting sparsification methods
+        interesting_mxnames = interesting_mxnames + ['full', 'both'] # embedding-based distances are also interesting
+        interesting_sparsnames = ['simmel-3-10', 'simmel-5-10']
+
+        all_mxnames, all_sparsnames = self.get_mx_and_spars_names()
+        interesting_mxnames_all_spars = [elem1 + '_' + elem2 for elem1 in interesting_mxnames for elem2 in all_sparsnames]
+        all_mxnames_interesting_spars = [elem1 + '_' + elem2 for elem1 in all_mxnames for elem2 in interesting_sparsnames]
+
+        all_interesting = list(set(canon + interesting_mxnames_all_spars + all_mxnames_interesting_spars))
+        all_interesting = self.remove_attr_and_duplicates(all_interesting)
+        print(len(all_interesting))
+        print(len(canon), len(all_mxnames_interesting_spars), len(interesting_mxnames_all_spars))
+        with open(os.path.join(self.output_dir, 'interesting_networks.csv'), 'w') as f:
+            f.write('\n'.join(all_interesting))

@@ -1,3 +1,5 @@
+import logging
+logging.basicConfig(level=logging.INFO)
 import numpy as np
 import networkx as nx
 import sys
@@ -14,6 +16,18 @@ class NXNetwork():
         self.mx = mx # self.mx is a create.SimMx object, not a df
         self.path = path
         self.graph = graph
+
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger.setLevel(logging.DEBUG)
+        # Check if the logger already has handlers to avoid adding duplicates
+        if not self.logger.handlers:
+            # Set the logger's name to the class name
+            console_handler = logging.StreamHandler()
+            console_handler.setLevel(logging.INFO)  # Set the handler's threshold level
+            formatter = logging.Formatter('%(levelname)s - %(name)s - %(message)s')
+            console_handler.setFormatter(formatter)
+            self.logger.addHandler(console_handler)
+            self.logger.propagate = False
 
 
         if (self.mx is not None and self.path is not None):

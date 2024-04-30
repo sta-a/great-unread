@@ -42,15 +42,27 @@ class EmbDist(D2vDist):
 
 
 class EmbLoader():
-    def __init__(self, language, file_string, mode=None):
+    def __init__(self, language, file_string, mode=None, list_of_substrings=[]):
+        '''
+        list_of_substrings: embedding files must contain a substring from this list to be included if list is not empty
+        '''
         self.language = language
         self.file_string = file_string
         self.mode = mode
+        self.list_of_substrings = list_of_substrings
+        self.filter_embedding_files()
 
 
-    def load_mxs(self, list_of_substrings=[]):
+    def load_single_mx(self, mxname):
+        emdist = EmbDist(language=self.language, output_dir=self.file_string, modes=self.embedding_files)
+        mx = emdist.load_data(load=True, mode=mxname, use_kwargs_for_fn='mode', file_string=self.file_string, subdir=True)
+        print(f'Loaded single mx {mx.name}')
+        return mx
+
+
+    def filter_embedding_files(self):
         '''
-        list_of_substrings: embedding files must contain a substring from this list to be included if list is not empty
+        Get all embedding files that belong to either the 'run' or the 'params' mode EdgelistHandler, or that are passed as a list of substrings.
         '''
         # if self.file_string == 'n2v':
         #     self.ec = N2vCreator(self.language, mode=self.mode)
@@ -59,36 +71,43 @@ class EmbLoader():
 
         all_embedding_paths = self.ec.get_all_embedding_paths()
         all_embedding_paths = [os.path.basename(x) for x in all_embedding_paths]
-        all_embedding_paths = [x.split('.')[0] for x in all_embedding_paths][:4] ######################
+        print('nr emb paths', len(all_embedding_paths))
+        all_embedding_paths = [x.split('.')[0] for x in all_embedding_paths]
 
         print('all emb path', len(all_embedding_paths))
-
-
 
         # Filter list of embedding files
         embedding_files = [file.split('.')[0] for file in os.listdir(self.ec.subdir) if file.endswith('embeddings')] # remove '.embeddings'
         if self.mode is not None:
             embedding_files = [file for file in embedding_files if any(sub in file for sub in all_embedding_paths)]
 
-        if list_of_substrings:
-            embedding_files = [file for file in embedding_files if any(sub in file for sub in list_of_substrings)]
+        if self.list_of_substrings:
+            embedding_files = [file for file in embedding_files if any(sub in file for sub in self.list_of_substrings)]
 
         print('len ebm files', len(embedding_files))
+        self.embedding_files = embedding_files
 
 
+    def load_mxs(self):
         # Load similarity matrices. If they don't exist, they are created
-        emdist = EmbDist(language=self.language, output_dir=self.file_string, modes=embedding_files)
+        emdist = EmbDist(language=self.language, output_dir=self.file_string, modes=self.embedding_files)
 
 
-        for mode in tqdm(embedding_files):
-            mx  = emdist.load_data(load=True, mode=mode, use_kwargs_for_fn='mode', file_string=self.file_string, subdir=True)
-            print('mode', mode)
+        total_iterations = len(self.embedding_files)
+        for i, mode in enumerate(self.embedding_files):
+            mx = emdist.load_data(load=True, mode=mode, use_kwargs_for_fn='mode', file_string=self.file_string, subdir=True)
+            iteration_number = i + 1
+
             mx.name = mode
+
+            # Print every 100th file
+            if iteration_number % 100 == 0 or iteration_number == total_iterations:
+                # Print the current iteration number and the total number of iterations
+                print(f"Current embedding file: {iteration_number} out of {total_iterations}")
             yield mx
-    
 
 
-class EmbeddingEvalViz(NkVizBase):
+class EmbParamEvalViz(NkVizBase):
     '''
     Visualize each parameter combination in a seperate plot, ignore isolated nodes
     '''
@@ -141,7 +160,7 @@ class EmbeddingEvalViz(NkVizBase):
 
 
 
-class EvalImageGrid(ImageGrid):
+class EmbParamEvalGrid(ImageGrid):
     def __init__(self, language, combs):
         self.combs = combs
         super().__init__(language, attr=None, by_author=False, output_dir='s2v', imgdir='singleimages')
@@ -190,6 +209,9 @@ class EvalImageGrid(ImageGrid):
 
 
 class ParamEval(S2vCreator):
+    '''
+    Evaluate different parameter settings for s2v by highlighting nodes in network according to their similarity to a selected node in a prominent position.
+    '''
     def __init__(self, language):
         super().__init__(language, mode='params')
         self.el = EmbLoader(self.language, self.file_string, mode='params')
@@ -210,7 +232,7 @@ class ParamEval(S2vCreator):
         
 
         for network_name, node in self.examples.items():
-            print('creating single image for', network_name)
+            # Select mxs with different parameters that have the same name as network_name
             mxs = {k: v for k, v in mxs_dict.items() if network_name in k}
             for cmxname, cmx in mxs.items():
 
@@ -231,7 +253,7 @@ class ParamEval(S2vCreator):
 
                 info = CombinationInfo(metadf=df, attr=node)
                 network = self.network_from_edgelist(os.path.join(self.edgelist_dir, f'{network_name}.csv'), delimiter=' ', nodes_as_str=True, print_info=False)
-                viz = EmbeddingEvalViz(self.language, info=info, exp={'attr': node}, by_author=False, graph=network)
+                viz = EmbParamEvalViz(self.language, info=info, exp={'attr': node}, by_author=False, graph=network)
                 viz.visualize(vizname=cmxname)
 
 
@@ -250,38 +272,93 @@ class ParamEval(S2vCreator):
                     ]
                     combs = [self.get_param_string(x) for x  in combs]
                     combs = [f'{network_name}_{x}' for x in combs]
-                    ig = EvalImageGrid(self.language, combs)
+                    ig = EmbParamEvalGrid(self.language, combs)
                     ig.visualize(vizname=network_name, dimensions=dim, windowsize=ws)
 
 
 
 
+class EmbMxGrid(ImageGrid):
+    def __init__(self, language, combs, attr):
+        self.combs = combs
+        super().__init__(language, attr=attr, by_author=False, output_dir='analysis_s2v', imgdir='mx_singleimage')
+        self.nrow = 1
+        self.ncol = 4
+        self.imgs = self.load_single_images()
+        self.fontsize = 6
+
+        self.img_width = 1.2*2 # format of single-network plots stored on file, times 2 to make fig bigger
+        self.img_height = 2.4*2
+        self.nr_interesting_networks = 306
+        self.nr_param_combs = 4 # 2 values for walk-length, 2 values for window-size
+
+        # Whitespace
+        self.ws_left = 0.01
+        self.ws_right = 0.99
+        self.ws_bottom = 0.01
+        self.ws_top = 0.99
+        self.ws_wspace = 0.01
+        self.ws_hspace = 0.01
+
+        self.add_subdir('gridimage')
+
+
+    def load_single_images(self):
+        imgs = []
+        for comb in self.combs:
+            path =  os.path.join(self.imgdir, f'{comb}_{self.attr}.png')
+            imgs.append(path)
+        return imgs
+    
+
+    def get_file_path(self, vizname, subdir=None, **kwargs):
+        file_name = f"{vizname}_{self.attr}.png"
+        return os.path.join(self.subdir, file_name)
+    
+
+    def get_title(self, imgname):
+        x = os.path.basename(imgname)
+        mxname, spars, dim, walklengths, numwalks, windowsize, attr = x.split('_')
+        title = f'{walklengths}, {windowsize}'
+        return title
 
 
 
+class S2vMxvizEval(S2vCreator):
+    '''
+    Combine all images that have the same matrix name and sparsification method but different parameter settings into one image.
+    '''
+    def __init__(self, language):
+        super().__init__(language, mode='run')
+        self.el = EmbLoader(self.language, self.file_string, mode='run') # Parameter for run mode
 
 
-
-
-
-
-
-
-
+    def create_grid_images(self):
+        for network_name in self.nklist:
+            if 'simmel' in network_name: ##################3
+                param_combs =  super().get_param_combinations()
+                print(network_name)
+                combs = [self.get_param_string(x) for x  in param_combs]
+                combs = [f'{network_name}_{x}' for x in combs]
+                for i in combs:
+                    print('comb', i)
+                ig = EmbMxGrid(self.language, combs, 'canon')
+                ig.visualize(vizname=network_name)
 
 
 
 
 
 class EmbMxCombinations(EmbLoader, MxCombinations):
-    def __init__(self, language, output_dir, add_color=False, by_author=False):
+    '''
+    Adapt matrix clustering on similarity matrices created from text distance measures to similarity matrices created from embeddings.
+    '''
+    def __init__(self, language, output_dir='s2v', add_color=False, by_author=False):
         self.file_string = output_dir # 'n2v' or 's2v'
         # Inherit 'load_mxs' method
         EmbLoader.__init__(self, language=language, file_string=self.file_string, mode='run')
         # Inherit everything else
         MxCombinations.__init__(self, language=language, output_dir=output_dir, add_color=add_color, by_author=by_author)
 
-# print(EmbMxCombinations.mro())
-# emc = EmbMxCombinations(language='eng', output_dir='s2v')
-# emc.evaluate_all_combinations()
-# %%
+
+

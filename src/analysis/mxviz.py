@@ -12,6 +12,7 @@ import textwrap
 import time
 import random
 random.seed(9)
+from tqdm import tqdm
 
 from scipy.cluster.hierarchy import linkage, optimal_leaf_ordering, leaves_list
 from scipy.spatial.distance import squareform
@@ -21,7 +22,7 @@ sys.path.append("..")
 from utils import DataHandler
 from .analysis_utils import VizBase
 from cluster.create import SimMx
-from cluster.cluster_utils import Colors
+from cluster.cluster_utils import Colors, MetadataHandler
 import logging
 logging.basicConfig(level=logging.DEBUG)
 
@@ -123,10 +124,10 @@ class MxReorder():
 
 
 
-class MxViz(VizBase):
-    def __init__(self, language, mx, info, plttitle, expname):
+class MxVizBase(VizBase):
+    def __init__(self, language, output_dir, mx, info, plttitle, exp, by_author=False):
         self.cmode = 'mx'
-        super().__init__(language, self.cmode, info, plttitle, expname)
+        super().__init__(language, output_dir, self.cmode, info, plttitle, exp, by_author)
         self.mx = mx
         self.n_jobs = 1
 
@@ -137,6 +138,7 @@ class MxViz(VizBase):
         self.ws_top = 0.95
         self.ws_wspace = 0.2
         self.ws_hspace = 0.2
+        self.is_topattr_viz = True ###################################3
 
 
     def visualize(self, vizname='viz', omit=[]):
@@ -151,6 +153,86 @@ class MxViz(VizBase):
             # plt.show()
 
 
+    def get_mds_path(self):
+        mds_dir = os.path.join(self.output_dir, 'mds')
+        if not os.path.exists(mds_dir):
+            self.create_dir(mds_dir)
+        path = os.path.join(mds_dir, f'mds-{self.mx.name}.pkl')
+        return path
+
+
+    def get_mds_positions(self):
+        # Store layouts because it takes a lot of time to calculate them
+        pkl_path = self.get_mds_path() 
+        if os.path.exists(pkl_path):
+            with open(pkl_path, 'rb') as f:
+                df = pickle.load(f)
+
+        else:
+            # Apply classical MDS
+            mds_2d = MDS(n_components=2, dissimilarity='precomputed', normalized_stress='auto', n_jobs=self.n_jobs, random_state=8)
+            X_mds_2d = mds_2d.fit_transform(self.mx.dmx)
+
+            # Apply classical MDS in 3D
+            mds_3d = MDS(n_components=3, dissimilarity='precomputed', normalized_stress='auto', n_jobs=self.n_jobs, random_state=8)
+            X_mds_3d = mds_3d.fit_transform(self.mx.dmx)
+
+            df = pd.DataFrame({
+                'X_mds_2d_0': X_mds_2d[:, 0],
+                'X_mds_2d_1': X_mds_2d[:, 1],
+                'X_mds_3d_0': X_mds_3d[:, 0],
+                'X_mds_3d_1': X_mds_3d[:, 1],
+                'X_mds_3d_2': X_mds_3d[:, 2],
+                })
+            
+            df.index = self.mx.dmx.index
+
+            with open(pkl_path, 'wb') as f:
+                pickle.dump(df, f)
+        return df
+
+
+    def add_positions_to_metadf(self):
+        # Combine positions and metadata
+        self.get_metadf()
+        self.df = self.df.merge(self.pos, how='inner', left_index=True, right_index=True, validate='1:1')
+
+
+    def draw_mds(self, ix, color_col=None, use_different_shapes=False, s=30, edgecolor='black', linewidth=0.2):
+        scatter_kwargs = {'s': s, 'edgecolor': edgecolor, 'linewidth': linewidth}
+        color_col = f'{color_col}_color'
+        
+        df = self.df.copy() # Avoid chained assingment warning
+        # Iterate through shapes because only one shape can be passed at a time, no lists
+        if not use_different_shapes:
+            df['clst_shape'] = 'o'
+        shapes = df['clst_shape'].unique()
+
+        for shape in shapes:
+            sdf = df[df['clst_shape'] == shape]
+            kwargs = {'c': sdf[color_col], 'marker': shape, **scatter_kwargs}
+            self.axs[ix[0], ix[1]].scatter(x=sdf['X_mds_2d_0'], y=sdf['X_mds_2d_1'], **kwargs)
+            self.axs[ix[0]+1, ix[1]].scatter(sdf['X_mds_3d_0'], sdf['X_mds_3d_1'], sdf['X_mds_3d_2'], **kwargs)
+
+
+    def draw_heatmap(self, ax):
+        # Draw heatmap
+        ordmx = MxReorder(self.language, self.mx, self.info).order()
+
+        im = ax.imshow(ordmx, cmap=Colors.CMAP, interpolation='nearest')
+        ax.axis('off')  # Remove the axis/grid
+        ax.set_title('Attribute', fontsize=self.fontsize)
+
+        # Add a color bar to the heatmap for better understanding of the similarity values
+        cbar = plt.colorbar(im, ax=ax, fraction=0.045, pad=0.1, location='left')
+
+
+
+class MxKeyAttrViz(MxVizBase):
+    def __init__(self, language, output_dir, mx, info, plttitle, exp, by_author=False):
+        super().__init__(language, output_dir, mx, info, plttitle, exp, by_author)
+
+
     def get_figure(self):
         self.ncol = 4
         if self.is_cat:
@@ -158,7 +240,7 @@ class MxViz(VizBase):
 
         width = 5
         self.nrow = 2
-        if self.is_topattr_viz:
+        if self.is_topattr_viz: #########################3
             self.nrow += 2
 
         self.fig, self.axs = plt.subplots(self.nrow, self.ncol, figsize=(self.ncol*width, self.nrow*width))
@@ -250,75 +332,10 @@ class MxViz(VizBase):
                     self.axs[j,i].axis('off')
 
 
-    def get_mds_positions(self):
-        # Store layouts because it takes a lot of time to calculate them
-        pkl_path = self.get_file_path(file_name=f'mds-{self.mx.name}.pkl') 
-        if os.path.exists(pkl_path):
-            with open(pkl_path, 'rb') as f:
-                df = pickle.load(f)
 
-        else:
-            # Apply classical MDS
-            mds_2d = MDS(n_components=2, dissimilarity='precomputed', normalized_stress='auto', n_jobs=self.n_jobs, random_state=8)
-            X_mds_2d = mds_2d.fit_transform(self.mx.dmx)
-
-            # Apply classical MDS in 3D
-            mds_3d = MDS(n_components=3, dissimilarity='precomputed', normalized_stress='auto', n_jobs=self.n_jobs, random_state=8)
-            X_mds_3d = mds_3d.fit_transform(self.mx.dmx)
-
-            df = pd.DataFrame({
-                'X_mds_2d_0': X_mds_2d[:, 0],
-                'X_mds_2d_1': X_mds_2d[:, 1],
-                'X_mds_3d_0': X_mds_3d[:, 0],
-                'X_mds_3d_1': X_mds_3d[:, 1],
-                'X_mds_3d_2': X_mds_3d[:, 2],
-                })
-            
-            df.index = self.mx.dmx.index
-
-            with open(pkl_path, 'wb') as f:
-                pickle.dump(df, f)
-        return df
-
-
-    def add_positions_to_metadf(self):
-        # Combine positions and metadata
-        self.get_metadf()
-        self.df = self.df.merge(self.pos, how='inner', left_index=True, right_index=True, validate='1:1')
-
-
-    def draw_mds(self, ix, color_col=None, use_different_shapes=False):
-        color_col = f'{color_col}_color'
-        
-        df = self.df.copy() # Avoid chained assingment warning
-        # Iterate through shapes because only one shape can be passed at a time, no lists
-        if not use_different_shapes:
-            df['clst_shape'] = 'o'
-        shapes = df['clst_shape'].unique()
-
-        for shape in shapes:
-            sdf = df[df['clst_shape'] == shape]
-            kwargs = {'c': sdf[color_col], 'marker': shape, 's': 30, 'edgecolor': 'black', 'linewidth': 0.2} ################10
-            self.axs[ix[0], ix[1]].scatter(x=sdf['X_mds_2d_0'], y=sdf['X_mds_2d_1'], **kwargs)
-            self.axs[ix[0]+1, ix[1]].scatter(sdf['X_mds_3d_0'], sdf['X_mds_3d_1'], sdf['X_mds_3d_2'], **kwargs)
-
-
-    def draw_heatmap(self, ax):
-        # Draw heatmap
-        ordmx = MxReorder(self.language, self.mx, self.info).order()
-
-        im = ax.imshow(ordmx, cmap=Colors.CMAP, interpolation='nearest')
-        ax.axis('off')  # Remove the axis/grid
-        ax.set_title('Attribute', fontsize=self.fontsize)
-
-        # Add a color bar to the heatmap for better understanding of the similarity values
-        cbar = plt.colorbar(im, ax=ax, fraction=0.045, pad=0.1, location='left')
-
-
-
-class MxVizAttr(MxViz):
-    def __init__(self, language, mx, info, plttitle, expname):
-        super().__init__(language, mx, info, plttitle, expname)
+class MxAttrGridViz(MxVizBase):
+    def __init__(self, language, output_dir, mx, info, plttitle, exp, by_author=False):
+        super().__init__(language, output_dir, mx, info, plttitle, exp, by_author)
         self.data_type = 'svg'
         self.fontsize = 5
         self.nrow = 2
@@ -355,8 +372,7 @@ class MxVizAttr(MxViz):
         ix = 0
         for i in range(nfig):
             self.cols = all_cols[ix: ix + int((nfields)/2)]
-            print(ix, ix + int((nfields)/2))
-            print(self.cols)
+            # print(ix, ix + int((nfields)/2))
             ix += int(nfields/2)
             
             if nfig == 1:
@@ -422,3 +438,61 @@ class MxVizAttr(MxViz):
                     index = int((i * self.ncol + j)/2)
                     if index < len(self.cols):
                         self.axs[i, j].set_title(self.cols[index])
+
+
+
+
+
+class MxSingleViz(MxVizBase):
+    '''
+    Create a single plot per matrix.
+    For each matrix, a seperate plot for each key attribute is created.
+    '''
+    def __init__(self, language, output_dir, exp, by_author, mc):
+        # language, mx, info, plttitle, exp
+        super().__init__(language, output_dir, mx=None, info=None, plttitle=None, exp=exp, by_author=by_author)
+        self.mc = mc # EmbMxCombinations or MxCombinations object
+        self.fontsize = 6
+        self.markersize = 10
+        print('by author', self.by_author)
+        print(self.key_attrs)
+
+
+    def get_metadf(self):
+        self.mh = MetadataHandler(self.language, by_author=self.by_author)
+        self.df = self.mh.get_metadata(add_color=True)
+
+
+    def get_figure(self):
+        self.fig, self.axs = plt.subplots(2, 1, figsize=(4, 8))
+        self.axs = self.axs.reshape((2, 1))
+        self.axs[0, 0].axis('off')
+        self.axs[1, 0].axis('off') # has to come before 3d subplots are created
+        self.axs[1, 0] = self.fig.add_subplot(2, 1, 2, projection='3d')
+
+
+    def fill_subplots(self, attr):
+        self.draw_mds([0, 0], color_col=attr, use_different_shapes=False, s=self.markersize)
+
+
+    def visualize(self, vizname='viz'): # vizname for compatibility
+        for mx in tqdm(self.mc.load_mxs()):
+            self.mx = mx
+            mxname = mx.name
+            # Check if plot for last key attr has been created
+            vizpath_test = self.get_file_path(f'{mxname}_{self.key_attrs[-1]}', subdir=True)
+            print(mxname, '\n\n', vizpath_test)
+
+
+            if not os.path.exists(vizpath_test):
+                self.pos = self.get_mds_positions()
+                self.add_positions_to_metadf()
+
+                for curr_attr in self.key_attrs:
+                    self.get_figure()
+                    self.fill_subplots(curr_attr)
+                    self.vizpath = self.get_file_path(f'{mxname}_{curr_attr}', subdir=True)
+                    self.save_plot(plt)
+                    # plt.show()
+               
+                # self.add_legends_and_titles()

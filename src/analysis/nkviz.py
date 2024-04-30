@@ -31,9 +31,9 @@ warnings.filterwarnings("ignore", category=RuntimeWarning, module="pygraphviz") 
 
 class NkVizBase(VizBase):
 
-    def __init__(self, language, info=None, plttitle=None, exp=None, by_author=False, graph=None):
+    def __init__(self, language, output_dir, info=None, plttitle=None, exp=None, by_author=False, graph=None):
         self.cmode = 'nk'
-        super().__init__(language, self.cmode, info, plttitle, exp, by_author)
+        super().__init__(language, output_dir, self.cmode, info, plttitle, exp, by_author)
         # Visualization parameters
         self.graph = graph
         self.prog = 'neato'
@@ -109,7 +109,7 @@ class NkVizBase(VizBase):
                 self.fill_subplots()
 
                 # self.fig.set_constrained_layout(True)
-                self.save_plot(plt)
+                # self.save_plot(plt) ##############################################
                 plt.show()
                 plt.close()
                     
@@ -275,8 +275,8 @@ class NkKeyAttrViz(NkVizBase):
     '''
     Plot main attribute (including clustering) plus key attributes
     '''
-    def __init__(self, language, info, plttitle, exp, by_author=False):
-        super().__init__(language, info, plttitle, exp, by_author)
+    def __init__(self, language, output_dir, info, plttitle, exp, by_author=False):
+        super().__init__(language, output_dir, info, plttitle, exp, by_author)
         if info is not None:
             if self.info.attr in self.key_attrs:
                 self.key_attrs.remove(self.info.attr)
@@ -452,9 +452,8 @@ class NkAttrGridViz(NkVizBase):
     '''
     Plot every attribute for a network
     '''
-    def __init__(self, language, info, plttitle, exp, by_author=False):
-        super().__init__(language, info, plttitle, exp, by_author)
-        self.data_type = 'png'
+    def __init__(self, language, output_dir, info, plttitle, exp, by_author=False):
+        super().__init__(language, output_dir, info, plttitle, exp, by_author)
         self.nrow = 7
         self.ncol = 14
         self.markersize = 10
@@ -573,8 +572,8 @@ class NkNetworkGridkViz(NkKeyAttrViz):
     '''
     Plot every network for an attribute.
     '''
-    def __init__(self, language, exp, by_author=False):
-        super().__init__(language, info=None, plttitle=None, exp=exp, by_author=by_author)
+    def __init__(self, language, output_dir, exp, by_author=False):
+        super().__init__(language, output_dir, info=None, plttitle=None, exp=exp, by_author=by_author)
         self.ih = InfoHandler(language=language, add_color=True, cmode=self.cmode, by_author=by_author)
 
         self.nr_mxs = 58
@@ -611,7 +610,6 @@ class NkNetworkGridkViz(NkKeyAttrViz):
             mxs = sorted(mxs)
 
             df = pd.DataFrame(mxs, columns=['mxname', 'sparsification'])
-
 
             # Add column names to DataFrame with new empty columns
             for col_name in ['from_sparsmethod'] + self.key_attrs:
@@ -667,7 +665,6 @@ class NkNetworkGridkViz(NkKeyAttrViz):
         else:
             self.fig, self.axs = plt.subplots(nrow, self.ncol, figsize=self.figsize, gridspec_kw={'height_ratios': [7, 2]*self.nrow})
             
-
 
         # height = self.nrow*3
         # width = self.ncol*3
@@ -753,8 +750,8 @@ class SparsGridkViz(NkNetworkGridkViz):
     '''
     Plot every network per sparsification technique. Attribute "canon" is highlighted.
     '''
-    def __init__(self, language, exp, by_author):
-        super().__init__(language, exp, by_author)
+    def __init__(self, language, output_dir, exp, by_author):
+        super().__init__(language, output_dir, exp, by_author)
         self.nrow = 6 # 58 mxs per figure
         self.ncol = 11
         self.name_index = 1
@@ -770,17 +767,15 @@ class SparsGridkViz(NkNetworkGridkViz):
 
 class NkSingleViz(NkNetworkGridkViz):
     '''
-    Create a single plot per network.
-    Attribute "canon" is highlighted.
+    Create a single plot per matrix.
+    For each matrix, a seperate plot for each key attribute is created.
     '''
-    def __init__(self, language, exp, by_author):
-        super().__init__(language, exp, by_author)
+    def __init__(self, language, output_dir, exp, by_author):
+        super().__init__(language, output_dir, exp, by_author)
         self.nrow = 1
         self.ncol = 1
         self.fontsize = 6
         self.markersize = 25
-        self.default_attr = 'author'
-        self.data_type = 'png'
         print('by author', self.by_author)
         print(self.key_attrs)
         

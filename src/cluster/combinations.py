@@ -32,7 +32,7 @@ class InfoHandler(DataHandler):
         self.cmode = cmode
         if self.cmode is not None:
             self.add_subdir(f'{self.cmode}comb')
-        self.by_author = by_author # aggregate metadata if authors instead of single texts are of interest
+        self.by_author = by_author
         self.mh = MetadataHandler(self.language, by_author=self.by_author)
         self.metadf = self.mh.get_metadata(add_color=self.add_color)
         self.combinations_path = os.path.join(self.output_dir, f'{self.cmode}_log_combinations.txt')
@@ -52,7 +52,6 @@ class InfoHandler(DataHandler):
             for attr_key, attr_value in info.__dict__.items():
                 if key in str(attr_value):
                     setattr(info, attr_key, str(attr_value).replace(key, value))
-                    print(info.__dict__)
         
         return info
         
@@ -68,7 +67,7 @@ class InfoHandler(DataHandler):
     
         
     def save_info(self, info):
-        info.drop('metadf') # Only save cluster assignments and not full metadata to save space on disk
+        info.drop('metadf') # Save only the cluster assignments and not complete metadata to conserve disk space.
         pickle_path = self.get_pickle_path(info.as_string())
         with open(pickle_path, 'wb') as f:
             pickle.dump(info, f)
@@ -86,6 +85,7 @@ class CombinationsBase(InfoHandler):
 
         self.save_data(data=self.metadf, filename='metadf')
         self.colnames = [col for col in self.metadf.columns if not col.endswith('_color')]
+        self.colnames = ['gender', 'author', 'canon', 'year'] ##################3
 
         if self.test:
             self.colnames = ['gender', 'author', 'canon', 'year']
@@ -139,6 +139,16 @@ class CombinationsBase(InfoHandler):
             mx.name = name
             print(name)
             yield mx
+
+
+    def load_single_mx(self, mxname):
+        if mxname in ['both', 'full']:
+            d2v = D2vDist(language=self.language)
+            mx = d2v.load_data(use_kwargs_for_fn='mode', file_string=d2v.file_string, subdir=True, mode=mxname)
+        else:
+            delta = Delta(self.language)
+            mx = delta.load_data(use_kwargs_for_fn='mode', subdir=True, mode=mxname)      
+        return mx
 
     
     def evaluate_all_combinations(self):
@@ -195,23 +205,25 @@ class MxCombinations(CombinationsBase):
                 mxname_old = mx.name
                 s = time.time()
 
-            sc = MxCluster(self.language, cluster_alg, mx, output_dir=self.output_dir)
-            param_combs = sc.get_param_combinations()
+            if mx.mx.shape[0] > 50:
 
-            for param_comb in param_combs:
-                info = CombinationInfo(mxname=mx.name, cluster_alg=cluster_alg, param_comb=param_comb)
-                if os.path.exists(self.get_pickle_path(info.as_string())):
-                    continue
-                clusters = sc.cluster(info, param_comb)
+                sc = MxCluster(self.language, cluster_alg, mx, output_dir=self.output_dir)
+                param_combs = sc.get_param_combinations()
 
-                if clusters is not None:
-                    # print(info.as_string())
-                    metadf = self.merge_dfs(self.metadf, clusters.df)
-                    info.add('metadf', metadf)
-                    info.add('clusterdf', clusters.df)
-                    combination = [mx, clusters, info] 
+                for param_comb in param_combs:
+                    info = CombinationInfo(mxname=mx.name, cluster_alg=cluster_alg, param_comb=param_comb)
+                    if os.path.exists(self.get_pickle_path(info.as_string())):
+                        continue
+                    clusters = sc.cluster(info, param_comb)
 
-                    yield combination
+                    if clusters is not None:
+                        # print(info.as_string())
+                        metadf = self.merge_dfs(self.metadf, clusters.df)
+                        info.add('metadf', metadf)
+                        info.add('clusterdf', clusters.df)
+                        combination = [mx, clusters, info] 
+
+                        yield combination
 
 
     def log_combinations(self):

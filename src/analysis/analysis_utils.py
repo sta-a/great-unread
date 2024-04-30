@@ -12,10 +12,7 @@ import pickle
 import pandas as pd
 
 import matplotlib.lines as mlines
-import matplotlib.patches as mpatches
-from matplotlib import markers
 import textwrap
-from PIL import Image
 from tqdm import tqdm
 
 import sys
@@ -30,8 +27,8 @@ logging.basicConfig(level=logging.DEBUG)
 
 
 class VizBase(DataHandler):
-    def __init__(self, language, cmode, info=None, plttitle=None, exp=None, by_author=False):
-        super().__init__(language, output_dir='analysis', data_type='png')
+    def __init__(self, language, output_dir='analysis', cmode='nk', info=None, plttitle=None, exp=None, by_author=False):
+        super().__init__(language, output_dir=output_dir, data_type='png')
         self.cmode = cmode
         self.info = info
         self.plttitle = plttitle
@@ -167,76 +164,6 @@ class VizBase(DataHandler):
             self.get_ax(combix).set_title('Attribute and clusters (combined)', fontsize=self.fontsize)
 
 
-
-class GridImage(DataHandler):
-    '''
-    Arrange pngs as grid
-    '''
-    def __init__(self, language, cmode, exp):
-        super().__init__(language, output_dir='analysis')
-        self.cmode = cmode
-        self.exp = exp
-        self.add_subdir(f"{self.cmode}_{self.exp['name']}")
-        self.data_type = 'png'
-        self.grid_cell_size = (200, 200)
-
-
-    def run(self):
-        self.list_images()
-        self.calculate_grid_size()
-        self.resize_images()
-        self.create_grid_image()
-        self.create_grid_image()
-        self.save_data(data=self.grid_image, file_name=f'grid.{self.data_type}', data_type=self.data_type)
-        self.grid_image.show()
-
-
-    def list_images(self):
-        """
-        List all image files in the given directory.
-        """
-        self.images = [os.path.join(self.subdir, f) for f in os.listdir(self.subdir) if f.endswith((self.data_type))]
-
-
-    def calculate_grid_size(self):
-        """
-        Calculate the number of rows and columns in the grid based on the number of images.
-        """
-        num_images = len(self.images)
-        num_rows = int(num_images ** 0.5)
-        self.num_cols = (num_images + num_rows - 1) // num_rows
-        self.num_rows = num_rows
-
-
-    def resize_images(self):
-        """
-        Resize images to the target size.
-        """
-        self.resized_images = [Image.open(img).resize(self.grid_cell_size, Image.ANTIALIAS) for img in self.images]
-    
-
-    def create_grid_image(self):
-        """
-        Create a blank image for arranging images in a grid.
-        """
-        width = self.num_cols * self.grid_cell_size[0]
-        height = self.num_rows * self.grid_cell_size[1]
-        self.grid_image = Image.new('RGB', (width, height), color='white')
-
-
-    def arrange_images_in_grid(self):
-        """
-        Paste resized images onto the grid image.
-        """
-        for i, img in enumerate(self.images):
-            row = i // self.num_cols
-            col = i % self.num_cols
-            x = col * self.grid_cell_size[0]
-            y = row * self.grid_cell_size[1]
-            self.grid_image.paste(img, (x, y))
-
-
-
 def main_attributes_crosstable():
     eng = '/home/annina/scripts/great_unread_nlp/data/similarity/eng/metadf.csv'
     ger = '/home/annina/scripts/great_unread_nlp/data/similarity/ger/metadf.csv'
@@ -265,7 +192,6 @@ def main_attributes_crosstable():
     for key, table in cross_tables.items():
         print(f"Cross Table for {key}:")
         print(table)
-        print()
 
 
 

@@ -3,10 +3,7 @@
 # %%
 import sys
 sys.path.append("..")
-import pandas as pd
 import os
-from utils import DataHandler
-from tqdm import tqdm
 import subprocess
 import time
 import shutil
@@ -15,7 +12,7 @@ from .embedding_utils import EmbeddingBase
 
 class S2vCreator(EmbeddingBase):
     def __init__(self, language, mode=None):
-        super().__init__(language, output_dir='s2v', edgelist_dir='sparsification_edgelists_s2v', mode=mode)
+        super().__init__(language, output_dir='s2v_test', edgelist_dir='sparsification_edgelists_s2v', mode=mode)
         self.file_string = 's2v'
 
 
@@ -49,10 +46,10 @@ class S2vCreator(EmbeddingBase):
         return params
     
 
-    def create_embeddings(self, fn, kwargs):
-        edgelist = os.path.join(self.edgelist_dir, fn)
-        embedding_path = self.get_embedding_path(fn, kwargs)
-        print(embedding_path)
+    def create_embeddings(self, edgelist, embedding_path, kwargs):
+        edgelist = os.path.join(self.edgelist_dir, edgelist)
+        print('\n\nedgelist in create embeddings', edgelist)
+        print('embedding_path', embedding_path)
 
         parent_dir = os.path.dirname(self.data_dir)
         s2v_dir = os.path.join(parent_dir, 'src', 'struc2vec-master')
@@ -77,7 +74,7 @@ class S2vCreator(EmbeddingBase):
 
 
 
-        if 'threshold' in fn:
+        if 'threshold' in edgelist:
             directed = '--undirected'
         else:
             directed = '--directed'
@@ -104,5 +101,5 @@ class S2vCreator(EmbeddingBase):
         print(cmd)
         s = time.time()
         subprocess.run(cmd)
-        print(f'{time.time()-s}s to create embeddings for {fn}.')
+        print(f'{time.time()-s}s to create embeddings for {edgelist}.')
 

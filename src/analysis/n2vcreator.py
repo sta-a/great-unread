@@ -11,11 +11,11 @@ from .embedding_utils import EmbeddingBase
 
 class N2vCreator(EmbeddingBase):
       def __init__(self, language, mode=None):
-            super().__init__(language, output_dir='n2v', edgelist_dir='sparsification_edgelists', mode=None)
+            super().__init__(language, output_dir='n2v', edgelist_dir='sparsification_edgelists', mode=mode)
 
 
-      def create_embeddings(self, fn, kwargs={}):
-            network = self.network_from_edgelist(os.path.join(self.edgelist_dir, fn))
+      def create_embeddings(self, edgelist, embedding_path,  kwargs={}):
+            network = self.network_from_edgelist(os.path.join(self.edgelist_dir, edgelist))
             s = time.time()
 
 
@@ -36,11 +36,11 @@ class N2vCreator(EmbeddingBase):
             model = node2vec.fit(window=10, min_count=1, batch_words=4)  # Any keywords acceptable by gensim.Word2Vec can be passed, `dimensions` and `workers` are automatically passed (from the Node2Vec constructor)
 
             # Save embeddings
-            embedding_path = self.get_embedding_path(fn, kwargs)
             model.wv.save_word2vec_format(embedding_path)
 
             # Save model
-            model_filename = os.path.join(self.subdir, f'{fn}.model')
+            model_filename = edgelist.replace('.csv', '')
+            model_filename = os.path.join(self.subdir, f'{edgelist}.model')
             model.save(model_filename)
             print(f'{time.time()-s}s to get embeddings for one mx.')
 

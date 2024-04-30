@@ -9,12 +9,11 @@ import difflib
 import hashlib
 from collections import Counter
 import joblib
-import logging
 import Levenshtein
 import networkx as nx
 from tqdm import tqdm
 from itertools import combinations
-
+import logging
 logging.basicConfig(level=logging.INFO)
 
 
@@ -1035,10 +1034,7 @@ class FeaturesLoader(DataHandler):
 
 # Provide the directory path and the string to search for
 # directory_path = '/home/annina/scripts/great_unread_nlp/src/'
-# search_string = 'NXNetwork'
-# search_string = 'NkCluster('
-# search_string = 'Sparsifier('
-# search_string = "output_dir='similarity'"
+# search_string = 'create_embeddings'
 # extension = ['.txt', '.py']
 # search_string_in_files(directory_path, search_string, extension, full_word=False)
 
