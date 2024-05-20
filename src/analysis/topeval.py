@@ -182,11 +182,18 @@ class TopEval(InfoHandler):
     
 
     def filter_unique_mxs(self, df):
-        # df = df[['mxname', 'clst_alg_params', 'file_info']]
         subset = ['mxname']
         if 'sparsmode' in df.columns:
             subset.append('sparsmode')
         return df.drop_duplicates(subset=subset)
+    
+
+    def filter_nclust(self, df):
+        if 'min_nclust' in self.exp:
+            df = df[df['nclust'] >= self.exp['min_nclust']]
+        if 'max_nclust' in self.exp:
+            df = df[df['nclust'] <= self.exp['max_nclust']]
+        return df
     
     
     def create_data(self):
@@ -202,13 +209,13 @@ class TopEval(InfoHandler):
             df = self.extend_sizes_col(df)
             if 'maxsize' in self.exp:
                 df = self.filter_clst_sizes(df)
+            if 'min_nclust' in self.exp or 'max_nclust' in self.exp:
+                df = self.filter_nclust(df)
             if 'attr' in self.exp:
                 # df = self.filter_attribute(df)
                 df = df[df['attr'] == self.exp['attr']]
             if 'mxname' in self.exp:
                 df = self.filter_columns_substring(df, 'mxname')
-            if 'clst_alg_params' in self.exp:
-                df = self.filter_columns_substring(df, 'clst_alg_params')
             if 'intthresh' in self.exp:
                 df = self.filter_inteval(df)
             if (self.exp['viztype'] == 'attrgrid' or self.exp['viztype'] == 'nkgrid'):

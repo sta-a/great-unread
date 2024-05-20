@@ -1,5 +1,5 @@
 
-
+# %%
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -25,6 +25,30 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 
 
+
+class NoedgesLoader(DataHandler):
+    def __init__(self, language, output_dir='similarity'):
+        super().__init__(language, output_dir)
+        noedges_path = os.path.join(self.output_dir, 'nk_noedges.txt')
+
+        
+    def get_noedges_list(self):
+        if not os.path.exists(self.noedges_path):
+            unique_lines = []
+    
+        else:
+            lines = []
+            with open(self.noedges_path, 'r') as file:
+                lines = file.readlines()
+            unique_lines = list(set(lines))
+            unique_lines = [line.strip() for line in unique_lines if line.strip()]
+
+            print('noedges')
+            for i in unique_lines:
+                print(i)
+
+        return unique_lines
+    
 
 class VizBase(DataHandler):
     def __init__(self, language, output_dir='analysis', cmode='nk', info=None, plttitle=None, exp=None, by_author=False):
@@ -331,8 +355,8 @@ def pklmxs_to_edgelist(params):
             index_mapping.to_csv(os.path.join(outdir, f'index-mapping.csv'), header=True, index=False)
 
 
-params = [('sparsification_edgelists', False, True, ','), ('sparsification_edgelists_s2v', True, True, ' '), ('sparsification_edgelists_labels', False, False, ',')]
 params = [('sparsification_edgelists_labels', False, False, ',')]
+params = [('sparsification_edgelists', False, True, ','), ('sparsification_edgelists_s2v', True, True, ' ')]
 
 # for p in params:
 #     pklmxs_to_edgelist(p)

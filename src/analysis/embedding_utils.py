@@ -27,6 +27,19 @@ class EdgelistHandler(DataHandler):
 
         if self.mode == 'params':
             if self.language == 'eng':
+
+                self.examples_full = {
+                    'full_authormax': 'Bronte_Charlotte_Jane-Eyre_1847', 
+                    'full_threshold-0%8': 'Bronte_Charlotte_Jane-Eyre_1847', 
+                    'full_threshold-0%90': 'Bronte_Charlotte_Jane-Eyre_1847', 
+                    'full_threshold-0%95': 'Bronte_Charlotte_Jane-Eyre_1847', 
+                    'full_authormin': 'Bronte_Charlotte_Jane-Eyre_1847', 
+                    'full_simmel-3-10': 'Bronte_Charlotte_Jane-Eyre_1847', 
+                    'full_simmel-4-6': 'Bronte_Charlotte_Jane-Eyre_1847', 
+                    'full_simmel-5-10': 'Bronte_Charlotte_Jane-Eyre_1847',
+                    'full_simmel-7-10': 'Bronte_Charlotte_Jane-Eyre_1847'
+                }
+
                 self.examples = {
                     'cosinesim-5000_authormax': 'James_Henry_The-Turn-of-the-Screw_1898', 
                     'cosinedelta-1000_threshold-0%8': 'Kipling_Rudyard_On-the-Strength-of-a-Likeness_1888', 
@@ -38,7 +51,23 @@ class EdgelistHandler(DataHandler):
                     'burrows-500_simmel-5-10': 'Corelli_Marie_The-Sorrows-of-Satan_1895',
                     'eder-5000_simmel-7-10': 'Dickens_Charles_David-Copperfield_1849', 
                 }
+
+
             else:
+
+                self.examples_full = {
+                    'full_authormax': 'Buechner_Georg_Lenz_1839', 
+                    'full_threshold-0%8': 'Buechner_Georg_Lenz_1839', 
+                    'full_threshold-0%90': 'Buechner_Georg_Lenz_1839', 
+                    'full_threshold-0%95': 'Buechner_Georg_Lenz_1839', 
+                    'full_authormin': 'Buechner_Georg_Lenz_1839', 
+                    'full_simmel-3-10': 'Buechner_Georg_Lenz_1839', 
+                    'full_simmel-4-6': 'Buechner_Georg_Lenz_1839', 
+                    'full_simmel-5-10': 'Buechner_Georg_Lenz_1839',
+                    'full_simmel-7-10': 'Buechner_Georg_Lenz_1839'
+                }
+
+
                 self.examples = {
                     'both_threshold-0%8': 'Gutzkow_Karl_Die-Ritter-vom-Geiste_1850',
                     'manhattan-2000_threshold-0%90': 'Tieck_Ludwig_Die-Vogelscheuche_1834',
@@ -50,6 +79,11 @@ class EdgelistHandler(DataHandler):
                     'sqeuclidean-5000_simmel-5-10': 'Dronke_Ernst_Polizeigeschichten_1846',
                     'edersimple-2000_simmel-7-10': 'Conrad_Michael-Georg_Was-die-Isar-rauscht_1887',
                 }
+            
+            self.examples.update(self.examples_full)
+
+
+                
             self.nklist = self.examples.keys()
             self.edgelists = [
                 filename for filename in self.edgelists
@@ -73,11 +107,7 @@ class EdgelistHandler(DataHandler):
                 filtered_egelists.append(el_name)
             self.edgelists = filtered_egelists
 
-            # for i in self.edgelists:
-            #     print('edgelist', i)
-            print('len nklist', len(self.nklist), 'len edgeslist', len(self.edgelists))
-
-
+            
         self.nr_mxs = 58
         self.nr_spars = 9
         self.remove_iso = True
@@ -262,12 +292,18 @@ class EmbeddingBase(EdgelistHandler):
         return os.path.join(self.subdir, f'{edgelist}_{param_string}.embeddings')
     
 
+        # def get_noedges_combs(self):
+        # n = NoedgesLoader()
+        # self.noedges = n.get_noedges_list()
+    
+
     def get_all_embedding_paths(self):
         paths = []
         param_combs = self.get_param_combinations()
         for comb in param_combs:
             for edgelist in self.edgelists:
-                if self.language == 'eng' and ('cosinesim-500_simmel-4-6' in edgelist or 'cosinesim-500_simmel-7-10' in edgelist):
+                # if any(substring in edgelist for substring in self.noedges): ########## keep hardcoded matrix names because importing causes trouble with conda environments
+                if self.language == 'eng' and ('cosinesim-500_simmel-4-6' in edgelist or 'cosinesim-500_simmel-7-10' in edgelist): # have no edges
                     continue
                 
                 embedding_path = self.get_embedding_path(edgelist, comb)
@@ -289,6 +325,8 @@ class EmbeddingBase(EdgelistHandler):
         for edgelist, embedding_path in self.generate_paths(kwargs):
             if not os.path.exists(embedding_path):
                 self.create_embeddings(edgelist, embedding_path, kwargs)
+            else:
+                print('already exists:', embedding_path)
 
 
     def get_param_combinations(self):
@@ -318,7 +356,7 @@ class EmbeddingBase(EdgelistHandler):
     def count_combinations(self):
         param_comb = self.get_param_combinations()
         nr_param_comb = len(param_comb)
-        if self.use_examples:
+        if self.mode == 'params':
             nr_networks = len(self.examples)
         else:
             nr_networks = len(self.edgelists)

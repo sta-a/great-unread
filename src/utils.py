@@ -1032,11 +1032,12 @@ class FeaturesLoader(DataHandler):
         return df
     
 
-# Provide the directory path and the string to search for
+# # Provide the directory path and the string to search for
 # directory_path = '/home/annina/scripts/great_unread_nlp/src/'
-# search_string = 'create_embeddings'
+# search_string = 'MxSingleViz'
 # extension = ['.txt', '.py']
 # search_string_in_files(directory_path, search_string, extension, full_word=False)
+
 
 
 # %%

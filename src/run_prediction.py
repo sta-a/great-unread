@@ -42,13 +42,14 @@ n_outer_folds = 5
 sentiscores_dir = os.path.join(data_dir, 'sentiscores', language)
 metadata_dir = os.path.join(data_dir, 'metadata', language)
 canonscores_dir = os.path.join(data_dir, 'canonscores')
-features_dir = os.path.join(data_dir, 'features_None', language)
+features_dir = os.path.join(data_dir, 'features', language)
 gridsearch_dir = os.path.join(data_dir, 'nested_gridsearch', language)
 if not os.path.exists(gridsearch_dir):
     os.makedirs(gridsearch_dir, exist_ok=True)
 
 for task in tasks:
     task_params = get_task_params(task, testing, language)
+    print(task_params['param_grid'])
     for label_type in task_params['labels']:
         for features in task_params['features']:
             print(f'Task: {task}, Label_type: {label_type}, Features: {features}\n')
@@ -60,6 +61,7 @@ for task in tasks:
             y_ = y.copy(deep=True)
 
             for outer_fold, (train_idx, test_idx) in enumerate(cv_outer):
+                print('Outer fold: ', outer_fold)
                 X_train_outer, X_test_outer = X_.iloc[train_idx], X_.iloc[test_idx]
                 y_train_outer, y_test_outer = y_.iloc[train_idx], y_.iloc[test_idx]
                 

@@ -11,7 +11,7 @@ from matplotlib import pyplot as plt
 from scipy.stats import pearsonr
 from sklearn.metrics import f1_score, balanced_accuracy_score
 from sklearn.metrics import classification_report
-from hpo_functions import get_data
+from .prediction_functions import get_data
 import random
 random.seed(8)
 

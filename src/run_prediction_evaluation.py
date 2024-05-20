@@ -10,11 +10,12 @@ import warnings
 warnings.simplefilter('once', RuntimeWarning)
 import pandas as pd
 import numpy as np
-from prediction.hpo_functions import get_task_params
+from prediction.prediction_functions import get_task_params
 from prediction.evaluation_functions import *
 from copy import deepcopy
 
 languages = ['eng', 'ger']
+languages = ['ger']
 tasks = ['regression-canon']
 testing = False ###################
 data_dir = '../data'

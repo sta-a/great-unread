@@ -11,6 +11,7 @@ from tqdm import tqdm
 from .embedding_utils import EmbeddingBase
 from .nkselect import ImageGrid
 from .nkviz import NkVizBase
+from .mxviz import MxSingleViz
 from cluster.combinations import MxCombinations
 from cluster.create import D2vDist
 from cluster.cluster_utils import MetadataHandler, CombinationInfo
@@ -42,14 +43,11 @@ class EmbDist(D2vDist):
 
 
 class EmbLoader():
-    def __init__(self, language, file_string, mode=None, list_of_substrings=[]):
-        '''
-        list_of_substrings: embedding files must contain a substring from this list to be included if list is not empty
-        '''
+    def __init__(self, language, file_string, mode=None, files_substring=None):
         self.language = language
         self.file_string = file_string
         self.mode = mode
-        self.list_of_substrings = list_of_substrings
+        self.files_substring = files_substring
         self.filter_embedding_files()
 
 
@@ -71,21 +69,23 @@ class EmbLoader():
 
         all_embedding_paths = self.ec.get_all_embedding_paths()
         all_embedding_paths = [os.path.basename(x) for x in all_embedding_paths]
-        print('nr emb paths', len(all_embedding_paths))
         all_embedding_paths = [x.split('.')[0] for x in all_embedding_paths]
-
+        # all_embedding_paths = ['cosinesim-1000_threshold-0%95_dimensions-32_walklength-3_numwalks-20_windowsize-3'] ###############################
         print('all emb path', len(all_embedding_paths))
 
-        # Filter list of embedding files
-        embedding_files = [file.split('.')[0] for file in os.listdir(self.ec.subdir) if file.endswith('embeddings')] # remove '.embeddings'
-        if self.mode is not None:
-            embedding_files = [file for file in embedding_files if any(sub in file for sub in all_embedding_paths)]
+        # # Filter list of embedding files
+        # embedding_files = [file.split('.')[0] for file in os.listdir(self.ec.subdir) if file.endswith('embeddings')] # remove '.embeddings'
+        # if self.mode is not None:
+        #     embedding_files = [file for file in embedding_files if any(sub in file for sub in all_embedding_paths)]
+        # print('len ebm files', len(embedding_files))
 
-        if self.list_of_substrings:
-            embedding_files = [file for file in embedding_files if any(sub in file for sub in self.list_of_substrings)]
+        # print('len ebm files', len(embedding_files))
+        # self.embedding_files = embedding_files
 
-        print('len ebm files', len(embedding_files))
-        self.embedding_files = embedding_files
+        if self.files_substring is not None:
+            all_embedding_paths = [x for x in all_embedding_paths if self.files_substring in x]
+
+        self.embedding_files = all_embedding_paths
 
 
     def load_mxs(self):
@@ -94,11 +94,12 @@ class EmbLoader():
 
 
         total_iterations = len(self.embedding_files)
-        for i, mode in enumerate(self.embedding_files):
-            mx = emdist.load_data(load=True, mode=mode, use_kwargs_for_fn='mode', file_string=self.file_string, subdir=True)
+        for i, embedding_file in enumerate(self.embedding_files):
+            # if i < 10:
+            mx = emdist.load_data(load=True, mode=embedding_file, use_kwargs_for_fn='mode', file_string=self.file_string, subdir=True)
             iteration_number = i + 1
 
-            mx.name = mode
+            mx.name = embedding_file
 
             # Print every 100th file
             if iteration_number % 100 == 0 or iteration_number == total_iterations:
@@ -106,13 +107,44 @@ class EmbLoader():
                 print(f"Current embedding file: {iteration_number} out of {total_iterations}")
             yield mx
 
+            
+class EmbParamEvalSingleMDS(MxSingleViz):
+    def __init__(self, language, output_dir, info, exp, by_author, mc, df, attr, mx):
+        super().__init__(language, output_dir, info, exp, by_author, mc)
+        self.df = df
+        self.attr = attr
+        self.mx = mx
 
-class EmbParamEvalViz(NkVizBase):
+    # def get_metadf(self): #############################
+    #     pass
+
+    def visualize(self, vizname='mds'): # vizname for compatibility
+        # for mx in tqdm(self.mc.load_mxs()): #############################
+        #     self.mx = mx
+        #     mxname = mx.name
+        #     # Check if plot for last key attr has been created
+        self.vizpath = self.get_file_path(vizname, subdir=True)
+        print('EmbParamEvalSingleMDS vizpath', '\n\n', self.vizpath)
+
+
+        if not os.path.exists(self.vizpath):
+            self.pos = self.get_mds_positions()
+            self.add_positions_to_metadf()
+
+            
+            self.get_figure()
+            self.fill_subplots(self.attr)
+            self.save_plot(plt)
+            plt.close()
+               
+
+
+class EmbParamEvalSingleViz(NkVizBase):
     '''
     Visualize each parameter combination in a seperate plot, ignore isolated nodes
     '''
-    def __init__(self, language, info=True, plttitle=None, exp=None, by_author=False, graph=None):
-        super().__init__(language, info, plttitle, exp, by_author, graph)
+    def __init__(self, language, output_dir, info=True, plttitle=None, exp=None, by_author=False, graph=None):
+        super().__init__(language=language, output_dir=output_dir, info=info, plttitle=plttitle, exp=exp, by_author=by_author, graph=graph)
         self.ws_left = 0.01
         self.ws_right = 0.99
         self.ws_bottom = 0.01
@@ -161,11 +193,17 @@ class EmbParamEvalViz(NkVizBase):
 
 
 class EmbParamEvalGrid(ImageGrid):
+    '''
+    Arrange network and MDS visualizations for different parameter settings in a grid.
+    One column for each param value of numwalks.
+    One row for each param value of walklength.
+    Different plot for each windowsize.
+    '''
     def __init__(self, language, combs):
         self.combs = combs
         super().__init__(language, attr=None, by_author=False, output_dir='s2v', imgdir='singleimages')
-        self.nrow = 3
-        self.ncol = 3
+        self.nrow = 3*2 #############
+        self.ncol = 3*2
         self.imgs = self.load_single_images()
         self.fontsize = 6
 
@@ -186,9 +224,11 @@ class EmbParamEvalGrid(ImageGrid):
 
 
     def load_single_images(self):
+        self.mdsdir = os.path.join(self.output_dir, f'mx_singleimages')
         imgs = []
         for comb in self.combs:
-            path =  os.path.join(self.imgdir, f'{comb}.png')
+            for cdir in [self.imgdir, self.mdsdir]:
+                path =  os.path.join(cdir, f'{comb}.png')
             imgs.append(path)
         return imgs
     
@@ -200,7 +240,18 @@ class EmbParamEvalGrid(ImageGrid):
 
     def get_title(self, imgname):
         x = os.path.basename(imgname)
-        mxname, spars, dim, walklengths, numwalks, windowsize = x.split('_')
+        mxname, spars, dim, walklengths, numwalks, windowsize, untillayer, opt1, opt2, opt3 = x.split('_')
+        print(f"'mxname': {mxname}")
+        print(f"'spars': {spars}")
+        print(f"'dim': {dim}")
+        print(f"'walklengths': {walklengths}")
+        print(f"'numwalks': {numwalks}")
+        print(f"'windowsize': {windowsize}")
+        print(f"'untillayer': {untillayer}")
+        print(f"'opt1': {opt1}")
+        print(f"'opt2': {opt2}")
+        print(f"'opt3': {opt3}")
+
         title = f'{walklengths}, {numwalks}' #, {windowsize}'
         return title
 
@@ -214,7 +265,6 @@ class ParamEval(S2vCreator):
     '''
     def __init__(self, language):
         super().__init__(language, mode='params')
-        self.el = EmbLoader(self.language, self.file_string, mode='params')
 
 
     def check_embeddings(self):
@@ -224,17 +274,22 @@ class ParamEval(S2vCreator):
         print(f'Nr combinations in subdir: {nr_embeddings}')
 
 
-    def create_single_images(self):
-        mxs_dict = {}
-        mxs_generator = self.load_mxs()
-        for i in mxs_generator:
-            mxs_dict[i.name] = i
-        
-
+    def create_single_images(self):    
         for network_name, node in self.examples.items():
+            print('network name', network_name)
+
+            # Load all mxs for network_name
+            mxs_dict = {}
+            self.el = EmbLoader(self.language, self.file_string, mode='params', files_substring=network_name)
+            mxs_generator = self.el.load_mxs()
+            for i in mxs_generator:
+                mxs_dict[i.name] = i
+
+
             # Select mxs with different parameters that have the same name as network_name
             mxs = {k: v for k, v in mxs_dict.items() if network_name in k}
             for cmxname, cmx in mxs.items():
+                print('cmxname<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<', cmxname)
 
 
                 # Select all col with all distances to 'node'
@@ -253,8 +308,13 @@ class ParamEval(S2vCreator):
 
                 info = CombinationInfo(metadf=df, attr=node)
                 network = self.network_from_edgelist(os.path.join(self.edgelist_dir, f'{network_name}.csv'), delimiter=' ', nodes_as_str=True, print_info=False)
-                viz = EmbParamEvalViz(self.language, info=info, exp={'attr': node}, by_author=False, graph=network)
+                viz = EmbParamEvalSingleViz(language=self.language, output_dir=self.output_dir, info=info, exp={'attr': node}, by_author=False, graph=network)
                 viz.visualize(vizname=cmxname)
+
+
+                # MDS of similarity matrix
+                msv = EmbParamEvalSingleMDS(self.language, viz.output_dir, info=info, exp={'name': 'singleimages'}, by_author=False, mc=self.el, df=df, attr=node, mx=cmx)
+                msv.visualize(vizname=cmxname)
 
 
     def create_grid_images(self):
@@ -277,13 +337,48 @@ class ParamEval(S2vCreator):
 
 
 
+class EmbMxAttrGrid(ImageGrid):
+    '''
+    Stack the plots in the gridimage dir on top of each other.
+    '''
+    def __init__(self, language, network_name):
+        self.network_name = network_name
+        super().__init__(language, by_author=False, output_dir='analysis_s2v', imgdir='gridimage')
+        self.nrow = 2 
+        self.ncol = 2
+        self.img_width = 2.882*2
+        self.img_height = 1.615*2
 
-class EmbMxGrid(ImageGrid):
+        self.add_subdir('gridimage_allattr')
+
+
+    def get_file_path(self, vizname, subdir=None, **kwargs):
+        file_name = f"{self.network_name}.png"
+        return os.path.join(self.subdir, file_name)
+
+
+    def get_title(self, imgname):
+        return ''
+    
+    
+    def load_single_images(self):
+        imgs = []
+        for attr in self.key_attrs:
+            path =  os.path.join(self.imgdir, f'{self.network_name}_{attr}.png')
+            imgs.append(path)
+        return imgs
+    
+
+class EmbMxParamGrid(ImageGrid):
+    '''
+    Place all MDS plots for the same matrix with different s2v paramn next to each other.
+    '''
     def __init__(self, language, combs, attr):
         self.combs = combs
         super().__init__(language, attr=attr, by_author=False, output_dir='analysis_s2v', imgdir='mx_singleimage')
         self.nrow = 1
         self.ncol = 4
+        assert len(self.combs) == self.nrow * self.ncol
         self.imgs = self.load_single_images()
         self.fontsize = 6
 
@@ -318,8 +413,68 @@ class EmbMxGrid(ImageGrid):
 
     def get_title(self, imgname):
         x = os.path.basename(imgname)
+        x = x.split('.')[0]
         mxname, spars, dim, walklengths, numwalks, windowsize, attr = x.split('_')
-        title = f'{walklengths}, {windowsize}'
+        # title = f'{mxname}, \n{spars}, \n{walklengths}, \n{windowsize}, \n{attr}'
+        title = f'{walklengths}, \n{windowsize}'
+        return title
+    
+
+
+
+class EmbMxParamAttrGrid(ImageGrid):
+    '''
+    Place all MDS plots for the same matrix with different s2v paramn next to each other, and different attributes on top of each other.
+    '''
+    def __init__(self, language, combs):
+        self.combs = combs
+        super().__init__(language, by_author=False, output_dir='analysis_s2v', imgdir='mx_singleimage')
+        self.nrow = 4
+        self.ncol = 4
+        self.imgs = self.load_single_images()
+        self.fontsize = 10
+
+        self.use_2d = True # use only 2D plots
+        if self.use_2d:
+            self.img_width = 1.2*4 # format of single-network plots stored on file, times 2 to make fig bigger
+            self.img_height = 1.2*4
+        else:
+            self.img_width = 1.2*4 # format of single-network plots stored on file, times 2 to make fig bigger
+            self.img_height = 2.4*4
+        self.nr_interesting_networks = 306
+        self.nr_param_combs = 4 # 2 values for walk-length, 2 values for window-size
+
+        # Whitespace
+        self.ws_left = 0.01
+        self.ws_right = 0.99
+        self.ws_bottom = 0.01
+        self.ws_top = 0.99
+        self.ws_wspace = 0.01
+        self.ws_hspace = 0.01
+
+        self.add_subdir('grid_param_attr')
+
+
+    def load_single_images(self):
+        imgs = []
+        for comb in self.combs:
+            for attr in self.key_attrs:
+                path =  os.path.join(self.imgdir, f'{comb}_{attr}.png')
+                imgs.append(path)
+        return imgs
+    
+
+    def get_file_path(self, vizname, subdir=None, **kwargs):
+        file_name = f"{vizname}.png"
+        return os.path.join(self.subdir, file_name)
+    
+
+    def get_title(self, imgname):
+        x = os.path.basename(imgname)
+        x = x.split('.')[0]
+        mxname, spars, dim, walklengths, numwalks, windowsize, attr = x.split('_')
+        # title = f'{mxname}, \n{spars}, \n{walklengths}, \n{windowsize}, \n{attr}'
+        title = f'{walklengths}, {windowsize}, {attr}'
         return title
 
 
@@ -330,22 +485,36 @@ class S2vMxvizEval(S2vCreator):
     '''
     def __init__(self, language):
         super().__init__(language, mode='run')
-        self.el = EmbLoader(self.language, self.file_string, mode='run') # Parameter for run mode
+        self.el = EmbLoader(self.language, self.file_string, mode='run') # Use parameters from run mode
 
 
-    def create_grid_images(self):
+    def create_param_attr_grid(self):
         for network_name in self.nklist:
-            if 'simmel' in network_name: ##################3
-                param_combs =  super().get_param_combinations()
-                print(network_name)
-                combs = [self.get_param_string(x) for x  in param_combs]
-                combs = [f'{network_name}_{x}' for x in combs]
-                for i in combs:
-                    print('comb', i)
-                ig = EmbMxGrid(self.language, combs, 'canon')
+            param_combs =  super().get_param_combinations()
+            print(network_name)
+            combs = [self.get_param_string(x) for x  in param_combs]
+            combs = [f'{network_name}_{x}' for x in combs]
+            ig = EmbMxParamAttrGrid(self.language, combs)
+            ig.visualize(vizname=network_name)
+        
+
+
+    def create_param_grid(self):
+        for network_name in self.nklist:
+            param_combs =  super().get_param_combinations()
+            print(network_name)
+            combs = [self.get_param_string(x) for x  in param_combs]
+            combs = [f'{network_name}_{x}' for x in combs]
+            for attr in ['author', 'canon', 'gender', 'year']:
+                ig = EmbMxParamGrid(self.language, combs, attr)
                 ig.visualize(vizname=network_name)
 
-
+    
+    def stack_attr_grids(self):
+        # Stack grid images for different attributes
+        for network_name in self.nklist:
+            ig = EmbMxAttrGrid(self.language, network_name)
+            ig.visualize()
 
 
 

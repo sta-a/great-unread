@@ -10,6 +10,9 @@ import random
 random.seed(3)
 from itertools import product
 from math import sqrt
+import sys
+sys.path.append("..")
+from utils import DataLoader
 from scipy.stats import pearsonr
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score, accuracy_score, f1_score, balanced_accuracy_score
 from sklearn.utils.class_weight import compute_sample_weight
@@ -56,7 +59,9 @@ def run_gridsearch(gridsearch_dir, language, task, label_type, features, fold, c
         error_score='raise', #np.nan
         return_train_score=False
     )
+    print(f'Fitting gridsearch')
     gridsearch.fit(X_train, y_train.values.ravel())
+    print('Fitted gridsearch.')
 
     cv_results = pd.DataFrame(gridsearch.cv_results_)
     cv_results.insert(0, 'features', features)
@@ -235,11 +240,11 @@ def permute_params(model, **kwargs):
     return all_models
 
 
-def get_labels(language, label_type, canonscores_dir=None, sentiscores_dir=None, metadata_dir=None):
+def get_labels(language, label_type, canonscores_dir=None, sentiscores_dir=None, metadata_dir=None): ############## canonscores_dir
     if label_type == 'canon':
-        canon_file = '210907_regression_predict_02_setp3_FINAL.csv'
-        labels = pd.read_csv(os.path.join(canonscores_dir, canon_file), sep=';')[['file_name', 'm3']]
-        labels = labels.rename(columns={'m3': 'y'})
+        labels = DataLoader(language).prepare_metadata(type='canon')
+        labels = labels.reset_index().rename(columns={'index': 'file_name'})
+        labels = labels.rename(columns={'canon': 'y'})
         labels = labels.sort_values(by='file_name', axis=0, ascending=True, na_position='first')
         
     elif label_type == 'library':
@@ -355,17 +360,39 @@ def upsample_data(df):
 
 
 def get_data(language, task, label_type, features, features_dir, canonscores_dir, sentiscores_dir, metadata_dir):
-    X = pd.read_csv(os.path.join(features_dir, f'{features}_features.csv'))
+    X = pd.read_csv(os.path.join(features_dir, f'{features}.csv')) ########################### features not in filename, cacb.csv
 
-    print(f'Nr chunks for {language}: {X.shape[0]}')
-    print(f'Nr texts for {language}: {len(X.file_name.unique())}')
+
+
+
+    print('\n\n----------------------------------')
+    print('In get_data(), check if ratio of whitespace columns are dropped.')
+    columns_to_drop = [col for col in X.columns if 'whitespace' in col]
+    print(f'In file {features}, columns to be dropped: {columns_to_drop}')
+    X = X.drop(columns=columns_to_drop)
+    print('----------------------------------\n\n')
+    
+
+
+
+
+    print(f'Nr rows in df for {language} {features}: {X.shape[0]}')
+    print(f'Nr unique file names in df for {language} {features}: {len(X.file_name.unique())}')
     y = get_labels(language, label_type, canonscores_dir, sentiscores_dir, metadata_dir)
     # For english regression, 1 label is duplicated
-    print(f'Nr labels for {language} {task}: {y.shape}, \n\n{y.nunique()}')
+    print(f'Nr labels for {language} {task}: {y.shape} (For canonscores, eng and ger texts are in the same file.)')
+    print(f'Nr unique values in y: , \n{y.nunique()}')
+
 
     if 'regression' in task:
         # y_before_merge = set(y['file_name'])
         df = X.merge(right=y, on='file_name', how='inner', validate='many_to_one')
+        print(f'Shape of df after merging X and y: {df.shape}')
+        
+        # Drop rows with missing values (only 2 chunk causes problems with stepwise_distance and intra_textual_variance)
+        df = df.dropna()
+        print(f'Shape of df after dropping columns with NaN: {df.shape}')
+
     else:
         if language == 'eng':
             oldest_reviewed_text = 1771
@@ -617,7 +644,7 @@ def get_task_params(task, testing, language):
     #     columns_list = [columns_list[-1]]
 
 
-    task_params_list = {
+    task_params_dict = {
         'regression-canon': {
             'labels': ['canon'],
             'scoring': score_regression,
@@ -647,21 +674,21 @@ def get_task_params(task, testing, language):
             }
         }
 
-    task_params_list['library'] = deepcopy(task_params_list['binary'])
-    task_params_list['library']['labels'] = ['library']
-    task_params_list['regression-senti'] = deepcopy(task_params_list['regression-canon'])
-    task_params_list['regression-senti']['labels'] = ['sentiart', 'textblob', 'combined']
-    task_params_list['regression-importances'] = deepcopy(task_params_list['regression-canon'])
-    task_params_list['regression-importances']['features'] = ['cacb']
-    task_params_list['regression-importances']['columns_list'] = [['average_sentence_embedding', 'doc2vec_chunk_embedding']]
+    task_params_dict['library'] = deepcopy(task_params_dict['binary'])
+    task_params_dict['library']['labels'] = ['library']
+    task_params_dict['regression-senti'] = deepcopy(task_params_dict['regression-canon'])
+    task_params_dict['regression-senti']['labels'] = ['sentiart', 'textblob', 'combined']
+    task_params_dict['regression-importances'] = deepcopy(task_params_dict['regression-canon'])
+    task_params_dict['regression-importances']['features'] = ['cacb']
+    task_params_dict['regression-importances']['columns_list'] = [['average_sentence_embedding', 'doc2vec_chunk_embedding']]
 
     # Overwrite for testing 
     if testing:
-        task_params_list['regression-canon']['features'] = ['baac']
-        task_params_list['regression-senti']['features'] = ['baac']
-        task_params_list['regression-senti']['labels'] = ['sentiart']
-        task_params_list['binary']['features'] = ['book']
-        task_params_list['library']['features'] = ['book']
-        task_params_list['multiclass']['features'] = ['book']
+        task_params_dict['regression-canon']['features'] = ['baac']
+        task_params_dict['regression-senti']['features'] = ['baac']
+        task_params_dict['regression-senti']['labels'] = ['sentiart']
+        task_params_dict['binary']['features'] = ['book']
+        task_params_dict['library']['features'] = ['book']
+        task_params_dict['multiclass']['features'] = ['book']
 
-    return task_params_list[task]
+    return task_params_dict[task]

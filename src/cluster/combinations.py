@@ -35,7 +35,6 @@ class InfoHandler(DataHandler):
         self.by_author = by_author
         self.mh = MetadataHandler(self.language, by_author=self.by_author)
         self.metadf = self.mh.get_metadata(add_color=self.add_color)
-        self.combinations_path = os.path.join(self.output_dir, f'{self.cmode}_log_combinations.txt')
 
 
     def get_info_path(self, info: str):
@@ -81,9 +80,10 @@ class CombinationsBase(InfoHandler):
     '''
     def __init__(self, language, output_dir='similarity', add_color=False, cmode='nk', by_author=False):
         super().__init__(language, output_dir=output_dir, add_color=add_color, cmode=cmode, by_author=by_author)
+        self.combinations_path = os.path.join(self.output_dir, f'{self.cmode}_log_combinations.txt')
+        self.smallmx_path = os.path.join(self.output_dir, f'{self.cmode}_log_smallmx.txt')
         self.test = False
-
-        self.save_data(data=self.metadf, filename='metadf')
+        self.save_data(data=self.metadf, filename='metadf') ####################
         self.colnames = [col for col in self.metadf.columns if not col.endswith('_color')]
         self.colnames = ['gender', 'author', 'canon', 'year'] ##################3
 
@@ -181,10 +181,10 @@ class CombinationsBase(InfoHandler):
         self.save_info(pinfo)
 
 
-    def check_data(self):
+    def check_data(self, n_features='all'):
         if not os.path.exists(self.combinations_path):
             self.log_combinations()
-        dc = CombDataChecker(language=self.language, cmode=self.cmode, combinations_path=self.combinations_path, by_author=self.by_author, output_dir=self.output_dir)
+        dc = CombDataChecker(language=self.language, cmode=self.cmode, combinations_path=self.combinations_path, by_author=self.by_author, output_dir=self.output_dir, n_features=n_features)
         dc.check()
 
 
@@ -205,6 +205,7 @@ class MxCombinations(CombinationsBase):
                 mxname_old = mx.name
                 s = time.time()
 
+            # When clustering embeddings, isolated nodes are ignored, and matrix of connected nodes can be too small
             if mx.mx.shape[0] > 50:
 
                 sc = MxCluster(self.language, cluster_alg, mx, output_dir=self.output_dir)
@@ -227,15 +228,24 @@ class MxCombinations(CombinationsBase):
 
 
     def log_combinations(self):
+        self.logger.info(f'Writing all combinations to file.')
         mxs_generator = self.load_mxs()
+
         with open(self.combinations_path, 'w') as f:
             for mx, cluster_alg in itertools.product(mxs_generator, MxCluster.ALGS.keys()):
-                sc = MxCluster(self.language, cluster_alg, mx, output_dir=self.output_dir)
-                param_combs = sc.get_param_combinations()
+                print(mx.name, cluster_alg)
+                if mx.mx.shape[0] > 50:
+                    sc = MxCluster(self.language, cluster_alg, mx, output_dir=self.output_dir)
+                    param_combs = sc.get_param_combinations()
 
-                for param_comb in param_combs:
-                    info = CombinationInfo(mxname=mx.name, cluster_alg=cluster_alg, param_comb=param_comb)
-                    f.write(info.as_string() + '\n')
+                    for param_comb in param_combs:
+                        info = CombinationInfo(mxname=mx.name, cluster_alg=cluster_alg, param_comb=param_comb)
+                        print(info.as_string())
+                        f.write(info.as_string() + '\n')
+                else:
+                    # These matrices are too small to run clustering
+                    with open(self.smallmx_path, 'a') as mxf:
+                        mxf.write(info.as_string() + '\n')
 
 
 
@@ -314,11 +324,12 @@ class CombDataChecker(DataHandler):
     eng: 95 features
     ger: 92 features
     '''
-    def __init__(self, language, cmode, combinations_path, by_author, output_dir='similarity'):
+    def __init__(self, language, cmode, combinations_path, by_author, n_features='all', output_dir='similarity'):
         super().__init__(language=language, output_dir=output_dir, data_type='csv')
         self.cmode = cmode
         self.combinations_path = combinations_path
         self.by_author = by_author
+        self.n_features = n_features
 
 
     def check(self):
@@ -380,17 +391,24 @@ class CombDataChecker(DataHandler):
         # Get nr possible combinations
         nlines = self.prepare_comb_log()
 
-        mh = MetadataHandler(self.language, by_author=self.by_author)
-        metadf = mh.get_metadata(add_color=False)
-        nfeatures = metadf.shape[1]
-        print('nfeat', nfeatures)
+        if self.n_features == 'all':
+            mh = MetadataHandler(self.language, by_author=self.by_author)
+            metadf = mh.get_metadata(add_color=False)
+            nfeatures = metadf.shape[1]
+            print('nfeat', nfeatures)
+        else:
+            nfeatures = self.n_features
         npossible = nfeatures * nlines
+        print(f'npossible ({npossible}): the number of logged combinations ({nlines}) (excludeing matrices that were too small) times the number of features ({nfeatures}).')
 
         # Combinations where clustering alg failed
         cdf = self.prepare_clst_log()
         nclst = cdf.shape[0] * nfeatures
+        print(f'nclst ({nclst}): the number of combinations where clustering failed ({cdf.shape[0]}), times the number of features.')
 
         ncreated = cat.shape[0] + cont.shape[0]
+        print(f'ncreated ({ncreated}): the number of combinations in the evaluation files (cat and comb combined).')
 
         print(f'npossible: {npossible}, nclst: {nclst}, ncreated: {ncreated}')
-        print(f'Evaluation files for language: {self.language} mode: {self.cmode} are complete and contain all combinations: {npossible == nclst + ncreated}')
+        print(f'nclst + ncreated, {nclst + ncreated}')
+        print(f'Evaluation files for language: {self.language} mode: {self.cmode} are complete and contain all combinations (npossible == nclst + ncreated): {npossible == nclst + ncreated}')

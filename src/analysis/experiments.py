@@ -83,15 +83,15 @@ class Experiment(DataHandler):
         # Find combinations with highest evaluation scores for interesting attributes
         attrcont = []
         for attr in cont_attrs:
-            dlist = deepcopy(topcont)
-            for d in dlist:
+            for cdict in topcont:
+                d = deepcopy(cdict)
                 d['name'] = d['name'].replace('cont', attr)
                 d['attr'] = attr
                 attrcont.append(d)
         attrcat = []
         for attr in cat_attrs:
-            dlist = deepcopy(topcat)
-            for d in dlist:
+            for cdict in topcat:
+                d = deepcopy(cdict)
                 d['name'] = d['name'].replace('cat', attr)
                 d['attr'] = attr
                 attrcat.append(d)
@@ -113,6 +113,20 @@ class Experiment(DataHandler):
         
         all_top = topcont + topcat + attrcont + attrcat + topcont_emb + topcat_emb
 
+
+        # The same as all_top, but set the minimum and maximum number of clusters
+        # Only for s2v, ignore embmxs
+        def modify_top_nclust(d):
+            d['name'] = f"{d['name']}_nclust"
+            d['min_nclust'] = 4
+            # d['max_clust'] = 
+            # del d['maxsize']
+            # del d['intthresh']
+            # del d['intcol']
+            return d
+        all_top_nclust = deepcopy(topcont + topcat + attrcont + attrcat)
+        all_top_nclust = [modify_top_nclust(x) for x in all_top_nclust]
+        
 
         '''
         Many networks on the same figure.
@@ -166,8 +180,12 @@ class Experiment(DataHandler):
             central[0]['name'] = 'central'
             central[0]['mxname'] = ['burrows'] + embmxs
             
-
-        if select_exp:
+        exps = singleimage + all_nkgrid + sparsgrid + all_attrgrid + all_top + clustconst + central ######################
+        exps = singleimage + all_top
+        exps = all_top_nclust
+        exps = singleimage
+        if select_exp is not None:
+            [print(x['name']) for x in exps]
             exps = [x for x in exps if x['name'] == select_exp]
 
         for e in exps:

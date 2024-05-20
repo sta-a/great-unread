@@ -250,7 +250,7 @@ class SimMxCreatorBase(DataHandler):
 
 class D2vDist(SimMxCreatorBase):
     '''
-    Create similarity matrices based on doc2vec docuement vectors.
+    Create similarity matrices based on doc2vec document vectors.
     '''
     def __init__(self, language, output_dir='similarity', modes=['full', 'both']):
         super().__init__(language, output_dir=output_dir)
@@ -383,7 +383,7 @@ class DistanceMetrics():
     def argamonquadratic(self, row1, row2):
         # Argamon’s Quadratic Delta
         # Follow notation in Stylo and Jannidis2015
-        # Stylo implelentation: euclidean distance between z-scores
+        # Stylo implementation: euclidean distance between z-scores
         # row1 and row2 are already transformed to z-scores
         assert len(row1) == len(row2)
         dist = minkowski(row1, row2, p=2)

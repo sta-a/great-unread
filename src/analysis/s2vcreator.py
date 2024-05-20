@@ -12,44 +12,60 @@ from .embedding_utils import EmbeddingBase
 
 class S2vCreator(EmbeddingBase):
     def __init__(self, language, mode=None):
-        super().__init__(language, output_dir='s2v_test', edgelist_dir='sparsification_edgelists_s2v', mode=mode)
+        super().__init__(language, output_dir='s2v', edgelist_dir='sparsification_edgelists_s2v', mode=mode)
         self.file_string = 's2v'
 
 
-    def get_params_params(self):
+    def get_params_mode_params(self):
         # Return many different parameter combinations for parameter selection
         params = {
             'dimensions': [32, 64, 128],
-            'walk-length': [3, 5, 8, 15],
+            'walk-length': [3, 5, 8, 15, 30],
             'num-walks': [20, 50, 200],
-            'window-size': [3, 5, 10, 15]
+            'window-size': [3, 5, 10, 15, 30],
+            'until-layer': [5, 10],
+            'OPT1': ['True'],
+            'OPT2': ['True'],
+            'OPT3': ['True']
         }
         return params
+
+    # def get_params_mode_params(self):
+    #     # Return many different parameter combinations for parameter selection
+    #     params = {
+    #         'dimensions': [32, 64, 128],
+    #         'walk-length': [3, 5, 8, 15],
+    #         'num-walks': [20, 50, 200],
+    #         'window-size': [3, 5, 10, 15] ###################################
+    #     }
+    #     return params
     
 
-    def get_run_params(self):
+    def get_run_mode_params(self):
         # Return few parameter combinations for creating the embeddings for the actual data
         params = {
             'dimensions': [32],
-            'walk-length': [3, 15],
+            'walk-length': [15, 30],
             'num-walks': [200],
-            'window-size': [3, 15]
+            'window-size': [3, 15, 30],
+            'until-layer': [5],
+            'OPT1': ['True'],
+            'OPT2': ['True'],
+            'OPT3': ['True']
         }
         return params
     
 
     def get_params(self):
         if self.mode == 'params':
-            params = self.get_params_params()
+            params = self.get_params_mode_params()
         elif self.mode == 'run':
-            params = self.get_run_params()
+            params = self.get_run_mode_params()
         return params
     
 
     def create_embeddings(self, edgelist, embedding_path, kwargs):
         edgelist = os.path.join(self.edgelist_dir, edgelist)
-        print('\n\nedgelist in create embeddings', edgelist)
-        print('embedding_path', embedding_path)
 
         parent_dir = os.path.dirname(self.data_dir)
         s2v_dir = os.path.join(parent_dir, 'src', 'struc2vec-master')
@@ -84,8 +100,8 @@ class S2vCreator(EmbeddingBase):
             '--output', embedding_path,
             directed,
             '--weighted',
-            '--iter', str(5),
-            '--workers', str(7)]
+            '--iter', str(5), 
+            '--workers', str(7)]  # 5-7 workers, less too slow, more does not produce output
         
         # Convert kwargs to params list in format [--key, value]
         params = []
@@ -102,4 +118,16 @@ class S2vCreator(EmbeddingBase):
         s = time.time()
         subprocess.run(cmd)
         print(f'{time.time()-s}s to create embeddings for {edgelist}.')
+
+
+
+    def get_param_combinations(self):
+        param_combs =  super().get_param_combinations()
+
+        # Remove combinations that differ only in the value of 'until-layer', except when OPT3 is set to True
+        param_combs = [
+            d for d in param_combs
+            if d.get('OPT3', True) or d['until-layer'] == 5  # Keep dicts with OPT3: True or until-layer: 5
+        ]
+        return param_combs   
 

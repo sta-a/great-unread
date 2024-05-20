@@ -18,7 +18,7 @@ random.seed(9)
 import sys
 sys.path.append("..")
 from utils import DataHandler
-from .analysis_utils import VizBase
+from .analysis_utils import VizBase, NoedgesLoader
 from .nkviz import NkKeyAttrViz
 from cluster.cluster_utils import CombinationInfo
 from cluster.combinations import InfoHandler
@@ -39,6 +39,7 @@ class ImageGrid(DataHandler):
         self.by_author = by_author
         self.imgdir = os.path.join(self.output_dir, imgdir)
         self.select_with_gui = select_with_gui
+        self.key_attrs = ['author', 'canon', 'gender', 'year']
         self.nrow = 3
         self.ncol = 3
         self.imgs = self.load_single_images()
@@ -72,6 +73,8 @@ class ImageGrid(DataHandler):
         self.fig, self.axs = plt.subplots(self.nrow, self.ncol, figsize=(self.ncol*self.img_width, self.nrow*self.img_height))
         if self.nrow == 1:
             self.axs = self.axs.reshape(1, -1) # one row, infer number of cols
+        if self.ncol == 1:
+            self.axs = self.axs.reshape(-1, 1)
         plt.tight_layout(pad=0)
 
 
@@ -79,8 +82,6 @@ class ImageGrid(DataHandler):
     def load_attr_images(self, file_names):
         # Select all file names where the last part before .png seperated by an underscore is equal to attr
         file_names = [fn for fn in file_names if fn.rsplit('.', 1)[0].rsplit('_', 1)[1] == self.attr]
-        for i in file_names:
-            print('attr file name', i)
         return file_names
 
 
@@ -88,7 +89,7 @@ class ImageGrid(DataHandler):
         file_names = [fn for fn in os.listdir(self.imgdir) if fn.endswith('.png')]
         if self.attr is not None:
             file_names = self.load_attr_images(file_names)
-        return file_names
+        return sorted(file_names)
 
 
     def select_image(self, event, imgs):
@@ -126,6 +127,7 @@ class ImageGrid(DataHandler):
                 for j in range(self.ncol):
                     index = i * self.ncol + j
                     if index < len(imgs):
+                        print('Loading image:', imgs[index])
                         img = plt.imread(os.path.join(self.imgdir, imgs[index]))
                         self.axs[i, j].imshow(img)
                         self.axs[i, j].axis('off')
@@ -138,7 +140,7 @@ class ImageGrid(DataHandler):
             
             # bbox_inches because titles are cut off
             self.save_data(data=plt, data_type=self.data_type, file_name=None, file_path=self.vizpath, plt_kwargs={'dpi': 300, 'bbox_inches': 'tight'})
-            # plt.show() ###########################
+            # plt.show()
             plt.close()
 
             if self.select_with_gui:
@@ -265,6 +267,11 @@ class Selector(DataHandler):
         self.imgdir = os.path.join(self.output_dir, 'nk_singleimage')
         self.nr_mxs = 58
         self.nr_spars = 9
+
+
+    def get_noedges_combs(self):
+        n = NoedgesLoader()
+        self.noedges = n.get_noedges_list()
     
 
     def get_mx_and_spars_names(self):
@@ -343,5 +350,7 @@ class Selector(DataHandler):
         all_interesting = self.remove_attr_and_duplicates(all_interesting)
         print(len(all_interesting))
         print(len(canon), len(all_mxnames_interesting_spars), len(interesting_mxnames_all_spars))
+
+        all_interesting = [x for x in all_interesting if not x in self.noedges]
         with open(os.path.join(self.output_dir, 'interesting_networks.csv'), 'w') as f:
             f.write('\n'.join(all_interesting))

@@ -162,7 +162,6 @@ class MxVizBase(VizBase):
 
 
     def get_mds_positions(self):
-        # Store layouts because it takes a lot of time to calculate them
         pkl_path = self.get_mds_path() 
         if os.path.exists(pkl_path):
             with open(pkl_path, 'rb') as f:
@@ -195,7 +194,7 @@ class MxVizBase(VizBase):
     def add_positions_to_metadf(self):
         # Combine positions and metadata
         self.get_metadf()
-        self.df = self.df.merge(self.pos, how='inner', left_index=True, right_index=True, validate='1:1')
+        self.df = self.df.merge(self.pos, how='inner', left_index=True, right_index=True, validate='1:1', suffixes = ['_xsuffix', '_ysuffix']) ###################
 
 
     def draw_mds(self, ix, color_col=None, use_different_shapes=False, s=30, edgecolor='black', linewidth=0.2):
@@ -226,6 +225,16 @@ class MxVizBase(VizBase):
         # Add a color bar to the heatmap for better understanding of the similarity values
         cbar = plt.colorbar(im, ax=ax, fraction=0.045, pad=0.1, location='left')
 
+
+    def adjust_subplots(self):
+        self.fig.subplots_adjust(
+            left=self.ws_left,
+            right=self.ws_right,
+            bottom=self.ws_bottom,
+            top=self.ws_top,
+            wspace=self.ws_wspace,
+            hspace=self.ws_hspace)  
+        
 
 
 class MxKeyAttrViz(MxVizBase):
@@ -263,14 +272,7 @@ class MxKeyAttrViz(MxVizBase):
         for j in range(1, self.nrow):
             self.axs[j, 0].axis('off')
 
-        self.fig.subplots_adjust(
-            left=self.ws_left,
-            right=self.ws_right,
-            bottom=self.ws_bottom,
-            top=self.ws_top,
-            wspace=self.ws_wspace,
-            hspace=self.ws_hspace
-        )
+        self.adjust_subplots()
             
         axs2d = [self.axs[0, 1], self.axs[0, 2], self.axs[0, 3]]
         if self.is_cat:
@@ -441,26 +443,23 @@ class MxAttrGridViz(MxVizBase):
 
 
 
-
-
-class MxSingleViz(MxVizBase):
+class MxSingleViz2D3D(MxVizBase):
     '''
-    Create a single plot per matrix.
+    Create a single plot per matrix, with a 2d and a 3d visualization.
     For each matrix, a seperate plot for each key attribute is created.
     '''
-    def __init__(self, language, output_dir, exp, by_author, mc):
+    def __init__(self, language, output_dir, info, exp, by_author, mc):
         # language, mx, info, plttitle, exp
-        super().__init__(language, output_dir, mx=None, info=None, plttitle=None, exp=exp, by_author=by_author)
+        super().__init__(language, output_dir, mx=None, info=info, plttitle=None, exp=exp, by_author=by_author)
         self.mc = mc # EmbMxCombinations or MxCombinations object
         self.fontsize = 6
         self.markersize = 10
-        print('by author', self.by_author)
-        print(self.key_attrs)
-
-
-    def get_metadf(self):
-        self.mh = MetadataHandler(self.language, by_author=self.by_author)
-        self.df = self.mh.get_metadata(add_color=True)
+        self.ws_left = 0.01
+        self.ws_right = 0.99
+        self.ws_bottom = 0.01
+        self.ws_top = 0.99
+        self.ws_wspace = 0
+        self.ws_hspace = 0
 
 
     def get_figure(self):
@@ -469,6 +468,7 @@ class MxSingleViz(MxVizBase):
         self.axs[0, 0].axis('off')
         self.axs[1, 0].axis('off') # has to come before 3d subplots are created
         self.axs[1, 0] = self.fig.add_subplot(2, 1, 2, projection='3d')
+        self.adjust_subplots()
 
 
     def fill_subplots(self, attr):
@@ -481,8 +481,6 @@ class MxSingleViz(MxVizBase):
             mxname = mx.name
             # Check if plot for last key attr has been created
             vizpath_test = self.get_file_path(f'{mxname}_{self.key_attrs[-1]}', subdir=True)
-            print(mxname, '\n\n', vizpath_test)
-
 
             if not os.path.exists(vizpath_test):
                 self.pos = self.get_mds_positions()
@@ -493,6 +491,39 @@ class MxSingleViz(MxVizBase):
                     self.fill_subplots(curr_attr)
                     self.vizpath = self.get_file_path(f'{mxname}_{curr_attr}', subdir=True)
                     self.save_plot(plt)
-                    # plt.show()
+                    plt.close()
                
                 # self.add_legends_and_titles()
+
+
+class MxSingleViz(MxSingleViz2D3D):
+    '''
+    Create a single plot per matrix, with a 2d visualization.
+    For s2v, the different network positions should be clearly distinguishable in 2D.
+    For each matrix, a seperate plot for each key attribute is created.
+    '''
+    def __init__(self, language, output_dir, info, exp, by_author, mc):
+        super().__init__(language, output_dir, info, exp, by_author, mc)
+        self.markersize = 20
+
+    def get_figure(self):
+        self.fig, self.axs = plt.subplots(1, 1, figsize=(4, 4))
+        self.axs = np.reshape(self.axs, (1, 1))
+        self.axs[0, 0].axis('off')
+        self.adjust_subplots()
+
+
+    def draw_mds(self, ix, color_col=None, use_different_shapes=False, s=30, edgecolor='black', linewidth=0.2):
+        scatter_kwargs = {'s': s, 'edgecolor': edgecolor, 'linewidth': linewidth}
+        color_col = f'{color_col}_color'
+        
+        df = self.df.copy() # Avoid chained assingment warning
+        # Iterate through shapes because only one shape can be passed at a time, no lists
+        if not use_different_shapes:
+            df['clst_shape'] = 'o'
+        shapes = df['clst_shape'].unique()
+
+        for shape in shapes:
+            sdf = df[df['clst_shape'] == shape]
+            kwargs = {'c': sdf[color_col], 'marker': shape, **scatter_kwargs}
+            self.axs[ix[0], ix[1]].scatter(x=sdf['X_mds_2d_0'], y=sdf['X_mds_2d_1'], **kwargs)

@@ -370,6 +370,7 @@ class CorpusBasedFeatureExtractor():
         distances = self.get_corpus_distance(ngram_type='trigram')
         return distances
     
+    
     def get_dependency_labels_distribution(self, docs):
         doc_dist = Counter()
         chunk_dists = []

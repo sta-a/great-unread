@@ -109,8 +109,8 @@ class NkVizBase(VizBase):
                 self.fill_subplots()
 
                 # self.fig.set_constrained_layout(True)
-                # self.save_plot(plt) ##############################################
-                plt.show()
+                self.save_plot(plt)
+                # plt.show()
                 plt.close()
                     
                 calctime = time.time()-start
