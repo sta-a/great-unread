@@ -360,20 +360,10 @@ def upsample_data(df):
 
 
 def get_data(language, task, label_type, features, features_dir, canonscores_dir, sentiscores_dir, metadata_dir):
-    X = pd.read_csv(os.path.join(features_dir, f'{features}.csv')) ########################### features not in filename, cacb.csv
+    X = pd.read_csv(os.path.join(features_dir, f'{features}.csv'))
 
-
-
-
-    print('\n\n----------------------------------')
-    print('In get_data(), check if ratio of whitespace columns are dropped.')
     columns_to_drop = [col for col in X.columns if 'whitespace' in col]
-    print(f'In file {features}, columns to be dropped: {columns_to_drop}')
-    X = X.drop(columns=columns_to_drop)
-    print('----------------------------------\n\n')
-    
-
-
+    X = X.drop(columns=columns_to_drop)   
 
 
     print(f'Nr rows in df for {language} {features}: {X.shape[0]}')
@@ -632,13 +622,11 @@ def get_task_params(task, testing, language):
     # [d.update(constant_param_grid) for d in param_grid]
 
     # Drop different kinds of features
+    # 'passthrough': no columns are dropped ('passthrough is not a substring of any feature column name)
     columns_list = [
+    ['passthrough'],
     ['average_sentence_embedding', 'doc2vec_chunk_embedding'],
     ['average_sentence_embedding', 'doc2vec_chunk_embedding', 'pos']]
-    if language == 'eng':
-        columns_list.extend([
-            ['average_sentence_embedding', 'doc2vec_chunk_embedding', '->'], 
-            ['average_sentence_embedding', 'doc2vec_chunk_embedding', '->', 'pos']])
     # columns_list.extend([['passthrough']])
     # if testing:
     #     columns_list = [columns_list[-1]]

@@ -1,5 +1,5 @@
 
-# ToDo on Cluster: set paths in DH class in utils (2x), activate conda env, nr workers, copy utils into analysis folder
+# ToDo on Cluster: set data dir paths in DH class in utils (2x), activate conda env, nr workers in s2v, copy utils into analysis folder
 
 scp /home/annina/Downloads/node2vec-master.zip stahla@euler.ethz.ch:/cluster/scratch/stahla/src
 scp /home/annina/scripts/great_unread_nlp/src/environments/environment_s2v.yml stahla@euler.ethz.ch:
@@ -10,6 +10,11 @@ scp /home/annina/scripts/great_unread_nlp/src/environments/environment_nlpplus.y
 
 # src dir to cluster
 scp -r /home/annina/scripts/great_unread_nlp/src stahla@euler.ethz.ch:/cluster/scratch/stahla
+scp -r /home/annina/scripts/great_unread_nlp/src_paramimgs stahla@euler.ethz.ch:/cluster/scratch/stahla
+scp -r /home/annina/scripts/great_unread_nlp/src_paramimgs_mds stahla@euler.ethz.ch:/cluster/scratch/stahla
+
+
+scp -r /home/annina/scripts/great_unread_nlp/src_ger stahla@euler.ethz.ch:/cluster/scratch/stahla
 scp -r /home/annina/scripts/great_unread_nlp/src_paramimgs stahla@euler.ethz.ch:/cluster/scratch/stahla
 
 scp -r /home/annina/scripts/great_unread_nlp/src_eng stahla@euler.ethz.ch:/cluster/scratch/stahla
@@ -67,29 +72,46 @@ scp -r /home/annina/scripts/great_unread_nlp/data/similarity/ger/sparsification_
 
 
 # Download s2v dir
-scp stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/eng/embeddings/burrows-500_simmel-5-10* /home/annina/scripts/great_unread_nlp/data/s2v/eng/embeddings/
 scp -r stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/eng/embeddings /home/annina/scripts/great_unread_nlp/data/s2v/eng/
 scp -r stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/ger/embeddings /home/annina/scripts/great_unread_nlp/data/s2v/ger/
-scp -r stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v_params/eng/embeddings /home/annina/scripts/great_unread_nlp/data/s2v/eng/
-scp -r stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v_params/ger/embeddings /home/annina/scripts/great_unread_nlp/data/s2v/ger/
+
+rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/eng/embeddings /home/annina/scripts/great_unread_nlp/data/s2v/eng/
+rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/ger/embeddings /home/annina/scripts/great_unread_nlp/data/s2v/ger/
+
+# Download whole s2v eng dir, excluding subdir simmxs (too big, not needed)
+rsync -avzP --ignore-existing  --exclude 'simmxs' stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/eng /home/annina/scripts/great_unread_nlp/data/s2v/
+rsync -avzP --ignore-existing  --exclude 'simmxs' stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/ger /home/annina/scripts/great_unread_nlp/data/s2v/
+
+
+rsync -av --ignore-existing /home/annina/scripts/great_unread_nlp/data/s2v/eng/embeddings/ stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/eng/embeddings/
+rsync -av --ignore-existing /home/annina/scripts/great_unread_nlp/data/s2v/ger/embeddings/ stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/ger/embeddings/
+
 
 
 scp -r stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/eng/simmxs /home/annina/scripts/great_unread_nlp/data/s2v/eng/
 scp -r stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/ger/simmxs /home/annina/scripts/great_unread_nlp/data/s2v/ger/
 
 # Download single files from cluster
-scp stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/eng/mxeval/*_results.csv /home/annina/scripts/great_unread_nlp/data/s2v/eng/mxeval
-scp stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/ger/mxeval/*_results.csv /home/annina/scripts/great_unread_nlp/data/s2v/ger/mxeval
+scp -r stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/eng/mxeval /home/annina/scripts/great_unread_nlp/data/s2v/eng
+scp stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/ger/mxeval /home/annina/scripts/great_unread_nlp/data/s2v/ger
 scp -r stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/eng/mxcomb /home/annina/scripts/great_unread_nlp/data/s2v/eng
 scp -r stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/ger/mxcomb /home/annina/scripts/great_unread_nlp/data/s2v/ger
 scp stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/eng/mx_log_clst.txt /home/annina/scripts/great_unread_nlp/data/s2v/eng
 scp stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/ger/mx_log_clst.txt /home/annina/scripts/great_unread_nlp/data/s2v/ger
+scp stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/eng/mx_log_combinations.txt /home/annina/scripts/great_unread_nlp/data/s2v/eng
+scp stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/ger/mx_log_combinations.txt /home/annina/scripts/great_unread_nlp/data/s2v/ger
+scp stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/eng/mx_log_smallmx.txt /home/annina/scripts/great_unread_nlp/data/s2v/eng
+scp stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/ger/mx_log_smallmx.txt /home/annina/scripts/great_unread_nlp/data/s2v/ger
 
+scp -r stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v /home/annina/scripts/great_unread_nlp/data
+scp -r stahla@euler.ethz.ch:/cluster/scratch/stahla/data/nested_gridsearch /home/annina/scripts/great_unread_nlp/data
+scp -r stahla@euler.ethz.ch:/cluster/scratch/stahla/data/fold_idxs /home/annina/scripts/great_unread_nlp/data
 
 
 # Download commands that contain cluster commands
 scp stahla@euler.ethz.ch:/cluster/scratch/stahla/embeddings_euler.sh /home/annina/scripts/great_unread_nlp/src/euler
 scp stahla@euler.ethz.ch:/cluster/scratch/stahla/prediction_euler.sh /home/annina/scripts/great_unread_nlp/src/euler
+scp stahla@euler.ethz.ch:/cluster/scratch/stahla/prediction_euler_combinations.py /home/annina/scripts/great_unread_nlp/src/euler
 
 
 

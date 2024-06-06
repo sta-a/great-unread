@@ -33,12 +33,13 @@ from PIL import Image, ImageDraw
 
 
 class ImageGrid(DataHandler):
-    def __init__(self, language, attr=None, by_author=False, output_dir='analysis', imgdir='nk_singleimage', select_with_gui=False):
+    def __init__(self, language, attr=None, by_author=False, output_dir='analysis', imgdir='nk_singleimage', select_with_gui=False, rowmajor=True):
         super().__init__(language, output_dir=output_dir, data_type='png')
         self.attr = attr
         self.by_author = by_author
         self.imgdir = os.path.join(self.output_dir, imgdir)
         self.select_with_gui = select_with_gui
+        self.rowmajor = rowmajor # Order in which images are filled into the grid
         self.key_attrs = ['author', 'canon', 'gender', 'year']
         self.nrow = 3
         self.ncol = 3
@@ -125,9 +126,12 @@ class ImageGrid(DataHandler):
             self.adjust_subplots()
             for i in range(self.nrow):
                 for j in range(self.ncol):
-                    index = i * self.ncol + j
+                    if self.rowmajor:
+                        index = i * self.ncol + j
+                    else:
+                        index = j * self.nrow + i
                     if index < len(imgs):
-                        print('Loading image:', imgs[index])
+                        # print('Loading image:', imgs[index])
                         img = plt.imread(os.path.join(self.imgdir, imgs[index]))
                         self.axs[i, j].imshow(img)
                         self.axs[i, j].axis('off')
@@ -139,9 +143,9 @@ class ImageGrid(DataHandler):
                         self.axs[i, j].axis('off')
             
             # bbox_inches because titles are cut off
+            print(self.vizpath)
             self.save_data(data=plt, data_type=self.data_type, file_name=None, file_path=self.vizpath, plt_kwargs={'dpi': 300, 'bbox_inches': 'tight'})
             # plt.show()
-            plt.close()
 
             if self.select_with_gui:
                 # Add matplotlib plot to tkinter window
@@ -152,6 +156,13 @@ class ImageGrid(DataHandler):
                 # Set select_with_gui to True for selecting networks with mouse click
                 # Run the tkinter event loop
                 tk.mainloop()
+            plt.clf()
+            self.fig.clf()
+            plt.close(self.fig)
+            plt.close('all')
+        plt.close()
+        plt.close('all')
+        print('fig nums', plt.get_fignums())
 
 
 
@@ -214,23 +225,6 @@ class NkNetworkGrid(ImageGrid):
             fndict[name].sort()
 
         return fndict
-
-    # def create_overview_file(self):
-    #     dfpath = os.path.join(self.output_dir, 'nk_visualizations.csv')
-    #     if not os.path.exists(dfpath):
-    #         mxs = self.load_mxnames()
-    #         mxs = [mx.replace('sparsmx-', '') for mx in mxs]
-    #         mxs = [mx.split('.')[0] for mx in mxs]
-    #         mxs =  [mx.split('_') for mx in mxs]
-    #         mxs = sorted(mxs)
-
-    #         df = pd.DataFrame(mxs, columns=['mxname', 'sparsification'])
-
-
-    #         # Add column names to DataFrame with new empty columns
-    #         for col_name in ['from_sparsmethod'] + self.key_attrs:
-    #             df[col_name] = ''
-    #         df.to_csv(dfpath, index=False, header=True)
 
 
     def get_filename(self, figname):

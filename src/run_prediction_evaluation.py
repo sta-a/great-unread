@@ -15,7 +15,6 @@ from prediction.evaluation_functions import *
 from copy import deepcopy
 
 languages = ['eng', 'ger']
-languages = ['ger']
 tasks = ['regression-canon']
 testing = False ###################
 data_dir = '../data'

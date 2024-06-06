@@ -1,6 +1,6 @@
 # %%
-# %load_ext autoreload
-# %autoreload 2
+%load_ext autoreload
+%autoreload 2
 
 import os
 import time
@@ -34,23 +34,13 @@ class FeaturePreparer(DataHandler):
                     item_path = os.path.join(dirpath, item)
                     if os.path.isfile(item_path):
                         os.remove(item_path)
-        remove = False ####################################### delete if needed
-        if remove:
-            chars_path = f'/home/annina/scripts/great_unread_nlp/src/special_chars_{language}.txt'
-            if os.path.exists(chars_path):
-                os.remove(chars_path)
-            annotation_path = f'/home/annina/scripts/great_unread_nlp/src/annotation_words_{language}.txt'
-            if os.path.exists(annotation_path):
-                os.remove(annotation_path)
-            remove_files(f'/home/annina/scripts/great_unread_nlp/data/text_tokenized/{language}')
-            remove_files('/home/annina/scripts/great_unread_nlp/data/preprocess/regex_checks')
 
         t = Tokenizer(self.language)
         t.create_all_data()
 
     def chunker(self):
         c = ChunkHandler(self.language, self.tokens_per_chunk)
-        c.create_all_data()
+        # c.create_all_data()
         c.check_data()
 
 
@@ -103,20 +93,22 @@ class FeaturePreparer(DataHandler):
         sb.process_and_save_data()
         
     def run(self):
-        self.sentence_tokenizer()
-        self.tokenizer()
+        # self.sentence_tokenizer()
+        # self.tokenizer()
         self.chunker()
-        self.ngramcounter()
-        self.ngram_chunkloader()
-        self.ngramshapes()
-        self.mfwextractor()
-        self.d2v()
+        # self.ngramcounter()
+        # self.ngram_chunkloader()
+        # self.ngramshapes()
+        # self.mfwextractor()
+        # self.d2v()
         # self.sbert()
         # self.rewrite_sbert()
 
 
 if __name__ == '__main__':
-    remove = False
     for language in ['eng', 'ger']:
         fp = FeaturePreparer(language=language)
         fp.run()
+
+
+# %%

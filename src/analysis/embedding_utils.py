@@ -1,5 +1,3 @@
-
-
 import sys
 sys.path.append("..")
 import pandas as pd
@@ -20,7 +18,7 @@ class EdgelistHandler(DataHandler):
         '''
         super().__init__(language, output_dir=output_dir, load_doc_paths=False)
         self.mode = mode
-        assert self.mode in [None, 'run', 'params']
+        assert self.mode in [None, 'run', 'params', 'bestparams']
 
         self.edgelist_dir = os.path.join(self.data_dir, 'similarity', self.language, edgelist_dir)
         self.edgelists = [file for file in os.listdir(self.edgelist_dir) if 'index-mapping' not in file and file.endswith('.csv')]
@@ -35,9 +33,9 @@ class EdgelistHandler(DataHandler):
                     'full_threshold-0%95': 'Bronte_Charlotte_Jane-Eyre_1847', 
                     'full_authormin': 'Bronte_Charlotte_Jane-Eyre_1847', 
                     'full_simmel-3-10': 'Bronte_Charlotte_Jane-Eyre_1847', 
-                    'full_simmel-4-6': 'Bronte_Charlotte_Jane-Eyre_1847', 
-                    'full_simmel-5-10': 'Bronte_Charlotte_Jane-Eyre_1847',
-                    'full_simmel-7-10': 'Bronte_Charlotte_Jane-Eyre_1847'
+                    'full_simmel-4-6': 'Shelley_Mary_Frankenstein_1818', 
+                    'full_simmel-5-10': 'Shelley_Mary_Valperga_1823',
+                    'full_simmel-7-10': 'Doyle_Arthur-Conan_The-Red-Headed-League_1891'
                 }
 
                 self.examples = {
@@ -45,7 +43,7 @@ class EdgelistHandler(DataHandler):
                     'cosinedelta-1000_threshold-0%8': 'Kipling_Rudyard_On-the-Strength-of-a-Likeness_1888', 
                     'both_threshold-0%90': 'Dickens_Charles_Barnaby-Rudge_1841', # dot to avoid confusion with 0%95
                     'cosinesim-1000_threshold-0%95': 'Kipling_Rudyard_How-the-Whale-Got-His-Throat_1902', 
-                    'full_authormin': 'Baldwin_Louisa_The-Uncanny-Bairn_1895', 
+                    'eder-2000_authormin': 'Walpole_Horace_Otranto_1764', 
                     'sqeuclidean-500_simmel-3-10': 'James_Henry_What-Maisie-Knew_1897', 
                     'both_simmel-4-6': 'Wells_H-G_Tono-Bungay_1909', 
                     'burrows-500_simmel-5-10': 'Corelli_Marie_The-Sorrows-of-Satan_1895',
@@ -61,10 +59,10 @@ class EdgelistHandler(DataHandler):
                     'full_threshold-0%90': 'Buechner_Georg_Lenz_1839', 
                     'full_threshold-0%95': 'Buechner_Georg_Lenz_1839', 
                     'full_authormin': 'Buechner_Georg_Lenz_1839', 
-                    'full_simmel-3-10': 'Buechner_Georg_Lenz_1839', 
-                    'full_simmel-4-6': 'Buechner_Georg_Lenz_1839', 
-                    'full_simmel-5-10': 'Buechner_Georg_Lenz_1839',
-                    'full_simmel-7-10': 'Buechner_Georg_Lenz_1839'
+                    'full_simmel-3-10': 'Goethe_Johann-Wolfgang_Leiden-des-jungen-Werther_1774', 
+                    'full_simmel-4-6': 'Storm_Theodor_Ein-Doppelgaenger_1887', 
+                    'full_simmel-5-10': 'Lenz_Jakob_Der-Waldbruder_1776',
+                    'full_simmel-7-10': 'Keller_Gottfried_Ursula_1877'
                 }
 
 
@@ -90,7 +88,7 @@ class EdgelistHandler(DataHandler):
                 if any(substring in filename for substring in self.nklist)
             ]
 
-        elif self.mode == 'run':
+        elif self.mode == 'run' or self.mode == 'bestparams':
             intnk_path = os.path.join(self.data_dir, 'analysis', self.language, 'interesting_networks.csv')
             self.nklist = []
             with open(intnk_path, 'r') as f:
@@ -292,11 +290,6 @@ class EmbeddingBase(EdgelistHandler):
         return os.path.join(self.subdir, f'{edgelist}_{param_string}.embeddings')
     
 
-        # def get_noedges_combs(self):
-        # n = NoedgesLoader()
-        # self.noedges = n.get_noedges_list()
-    
-
     def get_all_embedding_paths(self):
         paths = []
         param_combs = self.get_param_combinations()
@@ -321,12 +314,94 @@ class EmbeddingBase(EdgelistHandler):
             yield (edgelist, embedding_path)
 
 
+    def check_embedding_dimensions(self):
+        embedding_dim_log_path = os.path.join(self.output_dir, 'embedding_dimensions_check.csv')
+        embedding_index_log_path = os.path.join(self.output_dir, 'embedding_index_check.csv')
+        with open(embedding_dim_log_path, 'w') as f:
+            f.write(f'edgelist,embedding_path,nrow_embeddings,nrow_firstline,nnodes_edgelist\n')
+
+        param_combs = self.get_param_combinations()
+        for edgelist in self.edgelists:
+            edgelist_path = os.path.join(self.edgelist_dir, edgelist)
+            graph = nx.read_weighted_edgelist(edgelist_path, delimiter=' ')
+            nnodes =  graph.number_of_nodes()
+            
+            
+            for comb in param_combs:
+                # if any(substring in edgelist for substring in self.noedges): ########## keep hardcoded matrix names because importing causes trouble with conda environments
+                if self.language == 'eng' and ('cosinesim-500_simmel-4-6' in edgelist or 'cosinesim-500_simmel-7-10' in edgelist): # have no edges
+                    continue
+                
+                embedding_path = self.get_embedding_path(edgelist, comb)
+
+                if os.path.exists(embedding_path): ###########################
+                    print(embedding_path)
+
+                    with open(embedding_path, 'r') as file:
+                        first_line = file.readline().strip()
+                        nrow_firstline, ndim_firstline = first_line.split()
+                        nrow_firstline = int(nrow_firstline)
+                        ndim_firstline = int(ndim_firstline)
+                    
+                        # First line in embedding file contains number of nodes and number of dimensions, there is no header
+                        # Use the first column with the node ID as index
+                        df = pd.read_csv(embedding_path, skiprows=1, header=None, sep=' ', index_col=0, dtype={0: str})
+                        nrow = df.shape[0]
+                        ncol = df.shape[1]
+
+                        nrow_firstline_equal = nrow == nrow_firstline
+                        ncol_firstline_equal = ncol == ndim_firstline
+                        nrow_nnodes_equal = nrow == nnodes
+
+                        if not nrow_nnodes_equal or not nrow_firstline_equal:
+                            with open(embedding_dim_log_path, 'a') as f:
+                                f.write(f'{edgelist},{embedding_path},{nrow},{nrow_firstline},{nnodes}\n')
+
+
+                        # Check if the index values are a sequence from 1 to len(df) with no gaps
+                        duplicated_index = df.index.duplicated().any()
+                        if duplicated_index:
+                            with open(embedding_index_log_path, 'a') as f:
+                                f.write(f'{embedding_path}\n')
+
+
+
+    def check_single_embedding_dimensions(self, edgelist, embedding_path):
+        edgelist_path = os.path.join(self.edgelist_dir, edgelist)
+        graph = nx.read_weighted_edgelist(edgelist_path, delimiter=' ')
+        nnodes =  graph.number_of_nodes()
+            
+        if os.path.exists(embedding_path):
+
+            with open(embedding_path, 'r') as file:
+                first_line = file.readline().strip()
+                nrow_firstline, ndim_firstline = first_line.split()
+                nrow_firstline = int(nrow_firstline)
+                ndim_firstline = int(ndim_firstline)
+            
+                # First line in embedding file contains number of nodes and number of dimensions, there is no header
+                # Use the first column with the node ID as index
+                df = pd.read_csv(embedding_path, skiprows=1, header=None, sep=' ', index_col=0, dtype={0: str})
+                nrow = df.shape[0]
+                ncol = df.shape[1]
+
+                nrow_firstline_equal = nrow == nrow_firstline
+                ncol_firstline_equal = ncol == ndim_firstline
+                nrow_nnodes_equal = nrow == nnodes
+
+                if not nrow_nnodes_equal or not nrow_firstline_equal:
+                    print(f'edgelist {edgelist}\nembedding_path {embedding_path}\nnrow_embeddings {nrow}\nnrow_firstline {nrow_firstline}\nnnodes_edgelist {nnodes}\n')
+                else:
+                    print(f'embedding_path {embedding_path}: embedding has correct dimensions.')
+        
+
+
     def create_data(self, kwargs={}):
         for edgelist, embedding_path in self.generate_paths(kwargs):
             if not os.path.exists(embedding_path):
                 self.create_embeddings(edgelist, embedding_path, kwargs)
-            else:
-                print('already exists:', embedding_path)
+            # else:
+            #     print('already exists:', embedding_path)
 
 
     def get_param_combinations(self):
@@ -362,6 +437,28 @@ class EmbeddingBase(EdgelistHandler):
             nr_networks = len(self.edgelists)
         nr_comb = nr_param_comb * nr_networks
         return nr_comb
+    
+
+    def check_embeddings(self):
+        # Check nr of files
+        nr_comb = self.count_combinations()
+        print(f'Expected number of combinations: {nr_comb}')
+        nr_embeddings = len(os.listdir(self.subdir))
+        print(f'Nr combinations in subdir: {nr_embeddings}')
+
+        # Check if files exist
+        all_paths = self.get_all_embedding_paths()
+        not_exists_counter = 0
+        for path in all_paths:
+            if not os.path.exists(path):
+                print('Embeddings do not exist:', path)
+                not_exists_counter += 1
+        print(f'Expected Nr. of embeddings for mode {self.mode}: {nr_embeddings}. Nr. of missing embeddings: {not_exists_counter}')
+
+
+
+        self.check_embedding_dimensions()
+
 
 
 # for language in ['eng', 'ger']:

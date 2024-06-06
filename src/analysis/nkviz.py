@@ -96,9 +96,6 @@ class NkVizBase(VizBase):
                 self.get_positions()
                 self.add_positions_to_metadf()
 
-
-
-
                 start = time.time()
                 self.logger.debug(f'Nr edges below cutoff for {self.info.as_string()}. Making visualization.')
 
@@ -117,7 +114,7 @@ class NkVizBase(VizBase):
                 if calctime > 10:
                     print(f'{calctime}s to visualize.')
             else:
-                print('path exists')
+                print('path exists', self.vizpath)
 
 
     def adjust_subplots(self):
@@ -133,6 +130,8 @@ class NkVizBase(VizBase):
     def add_positions_to_metadf(self):
         # Combine positions and metadata
         self.get_metadf()
+        print(self.df.shape)
+        print(len(self.pos))
         self.df['pos'] = self.df.index.map(self.pos)
         self.df[['x', 'y']] = pd.DataFrame(self.df['pos'].tolist(), index=self.df.index)
 

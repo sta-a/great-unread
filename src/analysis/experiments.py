@@ -184,6 +184,7 @@ class Experiment(DataHandler):
         exps = singleimage + all_top
         exps = all_top_nclust
         exps = singleimage
+        exps = all_top + singleimage + all_nkgrid + sparsgrid + all_attrgrid + clustconst + central ######################
         if select_exp is not None:
             [print(x['name']) for x in exps]
             exps = [x for x in exps if x['name'] == select_exp]
@@ -204,8 +205,7 @@ class Experiment(DataHandler):
             if (exp['viztype'] == 'nkgrid') or (exp['viztype'] == 'sparsgrid') or (exp['viztype'] == 'singleimage'):
                 te = None
             else:
-                te = TopEval(self.language, self.mc.output_dir, self.cmode, exp, expdir=self.subdir, by_author=self.by_author)
-
+                te = TopEval(self.language, output_dir=self.mc.output_dir, cmode=self.cmode, exp=exp, expdir=self.subdir, by_author=self.by_author)
             if exp['name'] == 'clustconst':
                 self.run_clustconst(exp, te)
             elif exp['name'] == 'central':
@@ -274,6 +274,9 @@ class Experiment(DataHandler):
         else:
             for topk in te.get_top_combinations():
                 info, plttitle = topk
+                # name of 'threshold-0%9' has changed to 'threshold-0%90' after combinations were run
+                if '0%9.' in info.spmx_path:
+                    info.spmx_path = info.spmx_path.replace('0%9.', '0%90.')
                 if exp['viztype'] == 'attrgrid':
                     # In Topeval, a single combination for each sparsified matrix is chosen, attributes don't matter
                     viz = NkAttrGridViz(self.language, self.output_dir, info, plttitle=plttitle, exp=exp, by_author=self.by_author)    

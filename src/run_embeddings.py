@@ -6,8 +6,8 @@
 # cosinesim-2000_threshold-0%90: name missing
 
 
-# from analysis.s2vcreator import S2vCreator
-from analysis.embedding_eval import ParamEval, EmbMxCombinations, S2vMxvizEval
+from analysis.s2vcreator import S2vCreator
+from analysis.embedding_eval import ParamModeEval, EmbMxCombinations, RunModeEval, BestParamAnalyis
 from analysis.experiments import Experiment
 from analysis.nkselect import Selector
 
@@ -38,6 +38,7 @@ if __name__ == '__main__':
     # Create embeddings for example networks with parameter grid
     # sc = S2vCreator(language=language, mode='params')
     # sc.run_combinations()
+    # sc.check_embeddings()
 
     # sc = S2vCreator(language=language, mode='params')
     # paths = sc.get_all_embedding_paths()
@@ -45,10 +46,9 @@ if __name__ == '__main__':
     #     for i in paths:
     #         f.write(f'{i}\n')
 
-    # # Visualize different parameter combinations
-    pe = ParamEval(language)
-    pe.check_embeddings() ##########################
-    pe.create_single_images()
+    # Visualize different parameter combinations
+    pe = ParamModeEval(language)
+    # pe.create_single_images()
     pe.create_grid_images()
 
 
@@ -56,6 +56,7 @@ if __name__ == '__main__':
     # # Create embeddings with selected parameters for all interesting networks
     # sc = S2vCreator(language=language, mode='run')
     # sc.run_combinations()
+    # sc.check_embeddings()
 
 
     # # Run matrix clustering on embeddigns
@@ -71,12 +72,9 @@ if __name__ == '__main__':
 
 
     # # Collect MDS visualizations for mxs with different parameters
-    # me = S2vMxvizEval(language)
-    # me.create_param_attr_grid()
-# %%
-# from analysis.embedding_eval import ParamEval, EmbMxCombinations
-# language = 'eng'
-# ex = Experiment(language=language, cmode='mx', by_author=False, output_dir='analysis_s2v')
-# ex.run_experiments(select_exp = 'singleimage')
+    # me = RunModeEval(language)
+    # # Create one plot with all 6 images of the different param combinations, for each attr
+    # me.create_param_grid()
 
-
+    # bpa = BestParamAnalyis(language)
+    # bpa.create_attr_grid()

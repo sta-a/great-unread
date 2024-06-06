@@ -23,6 +23,7 @@ from utils import DataHandler
 from .analysis_utils import VizBase
 from cluster.create import SimMx
 from cluster.cluster_utils import Colors, MetadataHandler
+from cluster.combinations import InfoHandler
 import logging
 logging.basicConfig(level=logging.DEBUG)
 
@@ -191,9 +192,10 @@ class MxVizBase(VizBase):
         return df
 
 
-    def add_positions_to_metadf(self):
+    def add_positions_to_metadf(self, load_metadf=True):
         # Combine positions and metadata
-        self.get_metadf()
+        if load_metadf:
+            self.get_metadf()
         self.df = self.df.merge(self.pos, how='inner', left_index=True, right_index=True, validate='1:1', suffixes = ['_xsuffix', '_ysuffix']) ###################
 
 
@@ -448,9 +450,9 @@ class MxSingleViz2D3D(MxVizBase):
     Create a single plot per matrix, with a 2d and a 3d visualization.
     For each matrix, a seperate plot for each key attribute is created.
     '''
-    def __init__(self, language, output_dir, info, exp, by_author, mc):
+    def __init__(self, language, output_dir, exp, by_author, mc):
         # language, mx, info, plttitle, exp
-        super().__init__(language, output_dir, mx=None, info=info, plttitle=None, exp=exp, by_author=by_author)
+        super().__init__(language, output_dir, mx=None, info=None, plttitle=None, exp=exp, by_author=by_author)
         self.mc = mc # EmbMxCombinations or MxCombinations object
         self.fontsize = 6
         self.markersize = 10
@@ -460,6 +462,12 @@ class MxSingleViz2D3D(MxVizBase):
         self.ws_top = 0.99
         self.ws_wspace = 0
         self.ws_hspace = 0
+        self.ih = InfoHandler(language=language, add_color=True, cmode=self.cmode, by_author=by_author)
+
+
+    def get_metadf(self):
+        self.df = deepcopy(self.ih.metadf)
+        self.df['noattr_color'] = 'blue'
 
 
     def get_figure(self):
@@ -475,23 +483,43 @@ class MxSingleViz2D3D(MxVizBase):
         self.draw_mds([0, 0], color_col=attr, use_different_shapes=False, s=self.markersize)
 
 
+    # def visualize(self, vizname='viz'): # vizname for compatibility #########################################
+    #     for mx in tqdm(self.mc.load_mxs()):
+    #         self.mx = mx
+    #         mxname = mx.name
+    #         # Check if plot for last key attr has been created
+    #         vizpath_test = self.get_file_path(f'{mxname}_{self.key_attrs[-1]}', subdir=True)
+
+    #         if not os.path.exists(vizpath_test):
+    #             self.pos = self.get_mds_positions()
+    #             self.add_positions_to_metadf()
+
+    #             for curr_attr in self.key_attrs + ['noattr']:
+    #                 self.get_figure()
+    #                 self.fill_subplots(curr_attr)
+    #                 self.vizpath = self.get_file_path(f'{mxname}_{curr_attr}', subdir=True)
+    #                 self.save_plot(plt)
+    #                 plt.close()
+               
+    #             # self.add_legends_and_titles()
+
+
+
     def visualize(self, vizname='viz'): # vizname for compatibility
         for mx in tqdm(self.mc.load_mxs()):
             self.mx = mx
             mxname = mx.name
             # Check if plot for last key attr has been created
-            vizpath_test = self.get_file_path(f'{mxname}_{self.key_attrs[-1]}', subdir=True)
 
-            if not os.path.exists(vizpath_test):
-                self.pos = self.get_mds_positions()
-                self.add_positions_to_metadf()
+            self.pos = self.get_mds_positions()
+            self.add_positions_to_metadf()
 
-                for curr_attr in self.key_attrs:
-                    self.get_figure()
-                    self.fill_subplots(curr_attr)
-                    self.vizpath = self.get_file_path(f'{mxname}_{curr_attr}', subdir=True)
-                    self.save_plot(plt)
-                    plt.close()
+            for curr_attr in self.key_attrs + ['noattr']:
+                self.get_figure()
+                self.fill_subplots(curr_attr)
+                self.vizpath = self.get_file_path(f'{mxname}_{curr_attr}', subdir=True)
+                self.save_plot(plt)
+                plt.close()
                
                 # self.add_legends_and_titles()
 
@@ -502,8 +530,8 @@ class MxSingleViz(MxSingleViz2D3D):
     For s2v, the different network positions should be clearly distinguishable in 2D.
     For each matrix, a seperate plot for each key attribute is created.
     '''
-    def __init__(self, language, output_dir, info, exp, by_author, mc):
-        super().__init__(language, output_dir, info, exp, by_author, mc)
+    def __init__(self, language, output_dir, exp, by_author, mc):
+        super().__init__(language, output_dir, exp, by_author, mc)
         self.markersize = 20
 
     def get_figure(self):

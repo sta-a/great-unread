@@ -11,6 +11,7 @@ import argparse
 
 from cluster.combinations import MxCombinations, NkCombinations
 from helpers import remove_directories
+from analysis.experiments import Experiment
 
 import logging
 logging.basicConfig(level=logging.DEBUG)
@@ -43,17 +44,21 @@ if __name__ == "__main__":
 
 
 
-    if mode == 'mxc':
-        # remove_directories(['/home/annina/scripts/great_unread_nlp/data/similarity/eng/mxeval'])
-        # remove_directories(['/home/annina/scripts/great_unread_nlp/data/similarity/eng/mxcomb'])
-        mxc = MxCombinations(language=language, add_color=False, by_author=by_author)
-        # mxc.evaluate_all_combinations()
-        mxc.check_data()
+    # if mode == 'mxc':
+    #     # remove_directories(['/home/annina/scripts/great_unread_nlp/data/similarity/eng/mxeval'])
+    #     # remove_directories(['/home/annina/scripts/great_unread_nlp/data/similarity/eng/mxcomb'])
+    #     mxc = MxCombinations(language=language, add_color=False, by_author=by_author)
+    #     # mxc.evaluate_all_combinations()
+    #     mxc.check_data()
         
-    elif mode == 'nkc':
+    if mode == 'nkc':
         # remove_directories(['/home/annina/scripts/great_unread_nlp/data/similarity/eng/nkeval'])
         # remove_directories(['/home/annina/scripts/great_unread_nlp/data/similarity/eng/nkcomb'])
-        nkc = NkCombinations(language=language, add_color=False, by_author=by_author)
+        # nkc = NkCombinations(language=language, add_color=False, by_author=by_author)
         # nkc.evaluate_all_combinations()
-        nkc.check_data()
+        # nkc.check_data()
 
+
+        # output_dir='analysis': eval scores will be taken from similarity dir
+        ex = Experiment(language=language, cmode='nk', by_author=False, output_dir='analysis')
+        ex.run_experiments()

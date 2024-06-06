@@ -14,25 +14,23 @@ from prediction.prediction_functions import get_data, CustomGroupKFold, get_task
 
 
 start = time.time()
-if from_commandline:
-    parser = argparse.ArgumentParser()
-    parser.add_argument('language')
-    parser.add_argument('data_dir')
-    parser.add_argument('tasks', nargs="*", type=str)
-    # If --testing flag is set, testing is set to bool(True). 
-    # If --no-testing flag is set, testing is set to bool(False)
-    parser.add_argument('--testing', action=argparse.BooleanOptionalAction)
-    args = parser.parse_args()
-    language = args.language
-    data_dir = args.data_dir
-    tasks = args.tasks
-    testing = args.testing
-else:
-    # Don't use defaults because VSC interactive mode can't handle command line arguments
-    language = 'eng'
-    data_dir = '../data'
-    tasks = ['regression-importances']
-    testing = True
+parser = argparse.ArgumentParser()
+parser.add_argument('language')
+parser.add_argument('data_dir')
+parser.add_argument('tasks', nargs="*", type=str)
+# If --testing flag is set, testing is set to bool(True). 
+# If --no-testing flag is set, testing is set to bool(False)
+parser.add_argument('--testing', action=argparse.BooleanOptionalAction)
+parser.add_argument('--features', type=str, help='Specify the features to use if you want to run the cv for only one feature.')
+parser.add_argument('--fold', type=int, help='Specify the fold to run (0-based index) if you want to run the cv for only one fold.')
+args = parser.parse_args()
+language = args.language
+data_dir = args.data_dir
+tasks = args.tasks
+testing = args.testing
+features_arg = args.features
+fold_arg = args.fold
+
 print(language, data_dir, tasks, testing )
 n_outer_folds = 5
 
@@ -44,14 +42,44 @@ metadata_dir = os.path.join(data_dir, 'metadata', language)
 canonscores_dir = os.path.join(data_dir, 'canonscores')
 features_dir = os.path.join(data_dir, 'features', language)
 gridsearch_dir = os.path.join(data_dir, 'nested_gridsearch', language)
+idxs_dir = os.path.join(data_dir, 'fold_idxs', language)
 if not os.path.exists(gridsearch_dir):
     os.makedirs(gridsearch_dir, exist_ok=True)
+if not os.path.exists(idxs_dir):
+    os.makedirs(idxs_dir, exist_ok=True)
+
+
+
+
+current_working_dir = os.path.basename(os.getcwd())
+print(current_working_dir)
+def write_idxs_to_file(task, label_type, features, outer_fold, train_idx, test_idx):
+    train_filename = os.path.join(idxs_dir, f'{task}_{label_type}_{features}_fold_{outer_fold}_trainidx.txt')
+    test_filename = os.path.join(idxs_dir, f'{task}_{label_type}_{features}_fold_{outer_fold}_testidx.txt')
+
+    # Write train indices to file
+    with open(train_filename, 'w') as train_file:
+        train_file.write(','.join(map(str, train_idx)))
+
+    # Write test indices to file
+    with open(test_filename, 'w') as test_file:
+        test_file.write(','.join(map(str, test_idx)))
+
+
 
 for task in tasks:
     task_params = get_task_params(task, testing, language)
     print(task_params['param_grid'])
     for label_type in task_params['labels']:
-        for features in task_params['features']:
+
+        if features_arg:
+            # If features are passed as an argument, use them
+            features = [features_arg]
+        else:
+            # Otherwise, use the features from task_params
+            features = task_params['features']
+
+        for features in features:
             print(f'Task: {task}, Label_type: {label_type}, Features: {features}\n')
             X, y = get_data(language, task, label_type, features, features_dir, canonscores_dir, sentiscores_dir, metadata_dir)
 
@@ -62,6 +90,12 @@ for task in tasks:
 
             for outer_fold, (train_idx, test_idx) in enumerate(cv_outer):
                 print('Outer fold: ', outer_fold)
+                write_idxs_to_file(task, label_type, features, outer_fold, train_idx, test_idx)
+
+                # If fold_arg is provided, only run the specified fold
+                if fold_arg is not None and outer_fold != fold_arg:
+                    continue
+
                 X_train_outer, X_test_outer = X_.iloc[train_idx], X_.iloc[test_idx]
                 y_train_outer, y_test_outer = y_.iloc[train_idx], y_.iloc[test_idx]
                 

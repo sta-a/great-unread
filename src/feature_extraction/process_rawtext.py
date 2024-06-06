@@ -202,10 +202,13 @@ class ChunkHandler(DataHandler):
 
                 # Chunks can become longer than tpc
                 # Round up or down to nearer sentence boundary
-                if (cc_len < current_tpc) or (cc_len + len(tokens) - current_tpc <= current_tpc - cc_len):
+                # Add to current chunk if chunk length is below token limit or if 
+                if (cc_len < current_tpc): # or (cc_len + len(tokens) - current_tpc <= current_tpc - cc_len): #############################
+                    # Append to current chunk
                     current_chunk.append(sentence)
                     cc_len += len(tokens)
                 else:
+                    # Make new chunk
                     chunks.append(current_chunk)
                     chunk_count += 1
                     current_chunk = [sentence]
@@ -233,20 +236,22 @@ class ChunkHandler(DataHandler):
             iteration = 1
             chunks = first_chunks
             current_chunk = first_current_chunk
-            while current_chunk is not None and iteration<=50: #  n_inc<=4
+            while current_chunk is not None and iteration<=50:
                 print(f'iteration: {iteration}')
                 n_inc = 1
-                while current_chunk is not None and len(chunks) > n_inc: #  n_inc<=4
+                while current_chunk is not None and len(chunks) > n_inc:
                     # Redistribute sents to chunks
-                    # The first n chunks have an increased length
+                    # Increase the number of chunks that have an increased token limit
                     chunks, current_chunk, _ = distribute(sentences, limit, n_inc=n_inc, iteration=iteration)
                     if current_chunk is None:
                         print('Exiting loop with no chunks left.')
                         return chunks
                     else:
                         n_inc += 1
+                # Increase token limit
                 iteration+=1
             else:
+                # If redistribution has failed after 50 iterations, use initial chunks and add sentences to last chunk or create new shorter chunk
                 print('splitting last chunk')
                 # Make short chunk
                 if first_cc_len >= self.tokens_per_chunk//2:
@@ -330,6 +335,7 @@ class DataChecker(DataHandler):
     '''
     def __init__(self, language, chunks_dir):
         super().__init__(language, output_dir='text_statistics', data_type='svg')
+        # Use svg and not png because png causes problem with bar charts with many bars
         self.chunks_dir = chunks_dir
         self.chunk_paths = get_files_in_dir(self.chunks_dir)
         self.ch = ChunkHandler(language=self.language, tokens_per_chunk=self.tokens_per_chunk)
@@ -439,9 +445,9 @@ class DataChecker(DataHandler):
         
 
         plt.bar(chunk_count_freq.keys(), chunk_count_freq.values(), color='red', width=bar_width)
-        plt.xlabel('Chunk Count')
+        plt.xlabel('Nr. Chunks')
         plt.ylabel('Frequency')
-        plt.title('Chunk Frequency Distribution')
+        # plt.title('Chunk Frequency Distribution')
         plt.xticks(rotation=45)
 
         # Set y-axis ticks to integers
@@ -450,9 +456,9 @@ class DataChecker(DataHandler):
         # plt.tight_layout()
         # plt.show()
         # Set the title string into a box at the top right corner of the plot
-        plt.text(0.95, 0.95, title, transform=plt.gca().transAxes,
-                bbox=dict(facecolor='white', edgecolor='black', alpha=0.7),
-                va='top', ha='right')
+        # plt.text(0.95, 0.95, title, transform=plt.gca().transAxes,
+        #         bbox=dict(facecolor='white', edgecolor='black', alpha=0.7),
+        #         va='top', ha='right')
 
         self.save_data(data=plt, file_name='chunks-per-doc')
         plt.close()
@@ -474,6 +480,7 @@ class DataChecker(DataHandler):
                             
             counts[get_filename_from_path(chunk_path)] = (shortest, longest, average, stddev)
 
+        # self.plot_tokens_per_chunk(counts, nr_chunks_per_doc)
         self.plot_tokens_per_chunk(counts, nr_chunks_per_doc)
 
 
@@ -492,23 +499,34 @@ class DataChecker(DataHandler):
                 indices = np.arange(len(file_names))
 
 
+                asterisk_above = [False] * len(file_names)
+                # Identify texts with very few chunks and mark them for asterisk placement
+                short_texts = [1, 2, 3]  # consider texts with 1-3 chunks
+                for i, fn in enumerate(file_names):
+                    if nr_chunks_per_doc[fn] in short_texts:
+                        asterisk_above[i] = True
+
+
+
                 # Highlight texts with very few chunks
                 short_texts = [1, 2, 3] # consider texts with 1-3 chunks
                 bar_colors = ['b' for _ in file_names]
-                for i, fn in enumerate(file_names):
-                    if nr_chunks_per_doc[fn] in short_texts:
-                        bar_colors[i] = 'g'  # Highlight in green for values 1, 2, and 3
 
 
                 plt.figure(figsize=(12, 6))
                 plt.bar(indices, shortest_lengths, bar_width, label='Shortest', color='r')
-                plt.bar(indices + bar_width, longest_lengths, bar_width, label='Longest', color=bar_colors)
-                # Create a dummy bar for legend entry
-                plt.bar([-1], [0], width=0, label='Fewest Chunks', color='g')
+                bars2 = plt.bar(indices + bar_width, longest_lengths, bar_width, label='Longest', color=bar_colors)
+
+
+                # Add asterisks above bars where required
+                for i, bar in enumerate(bars2):
+                    if asterisk_above[i]:
+                        plt.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 15, '*', ha='center', fontsize=5)
+
 
                 plt.xlabel('Text')
-                plt.ylabel('Tokens per chunk')
-                plt.title('Tokens per chunk (Shortest and Longest)')
+                plt.ylabel('Tokens per Chunk')
+                # plt.title('Tokens per chunk (Shortest and Longest)')
 
                 # legend = plt.legend()
                 # # Find the legend item for 'Fewest Chunks' and change its color to green
@@ -516,9 +534,8 @@ class DataChecker(DataHandler):
                 #     if handle.get_label() == 'Longest':
                 #         handle.set_color('b')
                 legend_patches = [
-                    mpatches.Patch(color='r', label='Shortest'),
-                    mpatches.Patch(color='b', label='Longest'),
-                    mpatches.Patch(color='g', label='Fewest Chunks')
+                    mpatches.Patch(color='b', label='Longest Chunks'),
+                    mpatches.Patch(color='r', label='Shortest Chunks')
                 ]
 
                 # Display the legend with custom legend patches
@@ -539,25 +556,29 @@ class DataChecker(DataHandler):
                 # Second plot
                 plt.figure(figsize=(12, 6))
                 plt.bar(indices, stddev_lengths, bar_width, label='Std. Deviation', color='r')
-                plt.bar(indices + bar_width, average_lengths, bar_width, label='Average', color=bar_colors)
-                # Create a dummy bar for legend entry
-                plt.bar([-1], [0], width=0, label='Fewest Chunks', color='g')
+                bars2 = plt.bar(indices + bar_width, average_lengths, bar_width, label='Average', color=bar_colors)
+
+
+                # Add asterisks above bars where required
+                for i, bar in enumerate(bars2):
+                    if asterisk_above[i]:
+                        plt.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 15, '*', ha='center', fontsize=5)
 
                 plt.xlabel('Text')
-                plt.ylabel('Tokens per chunk')
-                plt.title('Tokens per chunk (Average and Std. Deviation)')
+                plt.ylabel('Tokens per Chunk')
+                # plt.title('Tokens per chunk (Average and Std. Deviation)')
 
                 legend_patches = [
-                    mpatches.Patch(color='r', label='Std. Deviation'),
-                    mpatches.Patch(color='b', label='Average'),
-                    mpatches.Patch(color='g', label='Fewest Chunks')
+                    mpatches.Patch(color='b', label='Average Chunk Length'),
+                    mpatches.Patch(color='r', label='Std. Deviation')
                 ]
 
                 # Display the legend with custom legend patches
                 plt.legend(handles=legend_patches, loc='upper right', bbox_to_anchor=(1.35, 1), facecolor='lightgrey')
 
 
-                ytick_positions = np.arange(0, max(stddev_lengths + average_lengths) + 20, 20)
+                # ytick_positions = np.arange(0, max(stddev_lengths + average_lengths) + 20, 20)
+                ytick_positions = np.arange(0, max(longest_lengths) + 50, 100)
                 plt.yticks(ytick_positions)
 
                 xtick_positions = np.arange(0, len(file_names), 50)
@@ -566,6 +587,8 @@ class DataChecker(DataHandler):
                 
                 plt.tight_layout()
                 self.save_data(data=plt, file_name='tokens-per-chunk-average-stddev')
+
+
 
 
     # def plot_tokens_per_chunk(self, counts, nr_chunks_per_doc):
