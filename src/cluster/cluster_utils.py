@@ -289,6 +289,7 @@ class CombinationInfo:
 
 
     def spars_to_string(self):
+        add_zero_to_str = False
         if hasattr(self, 'sparsmode') and hasattr(self, 'spars_param'):
             if self.spars_param is None:
                 self.sparsmode = self.sparsmode
@@ -298,7 +299,6 @@ class CombinationInfo:
                 # Add trailing 0 to 0.9 (-> 0.90) to avoid naming conflics with 0.95
                 if self.sparsmode == 'threshold' and self.spars_param == 0.9:
                     add_zero_to_str = True
-                    print(f'Add zero to string for {self.sparsmode} {self.spars_param}.')
                 self.sparsmode = f'{self.sparsmode}-{str(self.replace_dot(self.spars_param))}'
                 if add_zero_to_str:
                     self.sparsmode = f'{self.sparsmode}0'

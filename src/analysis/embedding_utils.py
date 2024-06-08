@@ -315,6 +315,7 @@ class EmbeddingBase(EdgelistHandler):
 
 
     def check_embedding_dimensions(self):
+        # Check if embeddings files have the same nuber of nodes as edgelist files
         embedding_dim_log_path = os.path.join(self.output_dir, 'embedding_dimensions_check.csv')
         embedding_index_log_path = os.path.join(self.output_dir, 'embedding_index_check.csv')
         with open(embedding_dim_log_path, 'w') as f:
@@ -329,13 +330,12 @@ class EmbeddingBase(EdgelistHandler):
             
             for comb in param_combs:
                 # if any(substring in edgelist for substring in self.noedges): ########## keep hardcoded matrix names because importing causes trouble with conda environments
-                if self.language == 'eng' and ('cosinesim-500_simmel-4-6' in edgelist or 'cosinesim-500_simmel-7-10' in edgelist): # have no edges
+                if self.language == 'eng' and ('cosinesim-500_simmel-4-6' in edgelist or 'cosinesim-500_simmel-7-10' in edgelist): # don't have edges
                     continue
                 
                 embedding_path = self.get_embedding_path(edgelist, comb)
 
                 if os.path.exists(embedding_path): ###########################
-                    print(embedding_path)
 
                     with open(embedding_path, 'r') as file:
                         first_line = file.readline().strip()

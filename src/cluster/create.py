@@ -84,7 +84,7 @@ class SimMx(DataHandler):
 
     def postprocess_mx(self, **kwargs):
         self.set_diagonal(value=1)
-        self.plot_similarity_distribution(**kwargs)
+        # self.plot_similarity_distribution(**kwargs)
 
         # Sort rows and columns alphabetically
         self.mx = self.mx.sort_index(axis=0)

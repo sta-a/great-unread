@@ -281,8 +281,8 @@ class EmbParamEvalGrid(ImageGrid):
     
 
     def get_title(self, imgname):
-        x = os.path.basename(imgname)
-        mxname, spars, dim, walklengths, numwalks, windowsize, untillayer, opt1, opt2, opt3 = x.split('_')
+        img = os.path.basename(imgname)
+        mxname, spars, dim, walklengths, numwalks, windowsize, untillayer, opt1, opt2, opt3 = img.split('_')
         title = f'{walklengths}, {numwalks}' #, {windowsize}'
         return title
     
@@ -292,14 +292,14 @@ class CombineParamEvalGrids(ImageGrid):
     Combine MDS and network parameter grids into one plot.
     '''
     def __init__(self, language):
-        super().__init__(language, attr=None, by_author=False, output_dir='s2v', imgdir='singleimages', rowmajor=False)
-        self.ncol = 1
-        self.nrow = 2
+        super().__init__(language, attr=None, by_author=False, output_dir='s2v', imgdir='mx_gridimage', rowmajor=False)
+        self.ncol = 2
+        self.nrow = 3
         self.imgs = self.load_single_images()
-        self.fontsize = 6
+        self.fontsize = 5
 
-        self.img_width = 1.92*2 # format of single-network plots stored on file, times 2 to make fig bigger
-        self.img_height = 1.44*2
+        self.img_width = 10
+        self.img_height = 5
 
         # Whitespace
         self.ws_left = 0.01
@@ -309,33 +309,49 @@ class CombineParamEvalGrids(ImageGrid):
         self.ws_wspace = 0.01
         self.ws_hspace = 0.01
 
-        self.add_subdir('gridimages_combined')
+        self.add_subdir('mx_gridimages_combined')
         self.img_name = None
 
 
     def visualize_all(self):
         for img in os.listdir(self.imgdir):
-            self.img_name = img
-            print('imga name', self.img_name)
-            super().visualize()
+            imgs = []
+            print('img', img)
+            if 'dimensions-32' in img and 'untillayer-5' in img:
+                mxname, spars, dim, windowsize, untillayer = img.split('_')
+                # untillayer = untillayer.split('.')[0] # remove 'png' extension
+                print(mxname, spars, dim, windowsize, untillayer)
+                imgs.append(img)
+                img10 = img.replace('untillayer-5', 'untillayer-10')
+                imgs.append(img10)
+                imgs.append(img.replace('dimensions-32', 'dimensions-64'))
+                imgs.append(img10.replace('dimensions-32', 'dimensions-64'))
+                imgs.append(img.replace('dimensions-32', 'dimensions-128'))
+                imgs.append(img10.replace('dimensions-32', 'dimensions-128'))
+                # split to take only value from string 'windowsize-3'
+                super().visualize(vizname=f'{mxname}_{spars}', imgs=imgs, windowsize=windowsize.split('-')[1]) 
 
 
-    def load_single_images(self):
-        imgs = []
-        path =  os.path.join(self.imgdir, self.img_name)
-        imgs.append(path)
-        path = path.replace('singleimages', 'mx_singleimages')
-        imgs.append(path)
-        print('nr images for current grid: ', len(imgs))
-        return imgs
+    # def load_single_images(self):
+    #     imgs = []
+    #     path =  os.path.join(self.imgdir, self.img_name)
+    #     imgs.append(path)
+    #     path = path.replace('singleimages', 'mx_singleimages')
+    #     imgs.append(path)
+    #     print('nr images for current grid: ', len(imgs))
+    #     return imgs
     
 
     def get_file_path(self, vizname, subdir=None, **kwargs):
-        return os.path.join(self.subdir, self.img_name)
+        file_name = f"{vizname}_windowsize-{kwargs['windowsize']}.png"
+        return os.path.join(self.subdir, file_name)
     
 
     def get_title(self, imgname):
-        title = f''
+        img = os.path.basename(imgname)
+        mxname, spars, dim, windowsize, untillayer= img.split('_')
+        title = dim
+        title = imgname ####################
         return title
 
 

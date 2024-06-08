@@ -7,7 +7,7 @@
 
 
 from analysis.s2vcreator import S2vCreator
-from analysis.embedding_eval import ParamModeEval, EmbMxCombinations, RunModeEval, BestParamAnalyis
+from analysis.embedding_eval import ParamModeEval, EmbMxCombinations, RunModeEval, BestParamAnalyis, CombineParamEvalGrids
 from analysis.experiments import Experiment
 from analysis.nkselect import Selector
 
@@ -36,9 +36,14 @@ if __name__ == '__main__':
 
     # Activate s2v conda environment!
     # Create embeddings for example networks with parameter grid
-    # sc = S2vCreator(language=language, mode='params')
+    sc = S2vCreator(language=language, mode='params')
     # sc.run_combinations()
     # sc.check_embeddings()
+
+    # Combine grids for different dimensions into one image
+    cg = CombineParamEvalGrids(language)
+    cg.visualize_all()
+
 
     # sc = S2vCreator(language=language, mode='params')
     # paths = sc.get_all_embedding_paths()
@@ -47,15 +52,15 @@ if __name__ == '__main__':
     #         f.write(f'{i}\n')
 
     # Visualize different parameter combinations
-    pe = ParamModeEval(language)
-    # pe.create_single_images()
-    pe.create_grid_images()
+    # pe = ParamModeEval(language)
+    # # pe.create_single_images()
+    # pe.create_grid_images()
 
 
     # Activate s2v conda environment!
     # # Create embeddings with selected parameters for all interesting networks
     # sc = S2vCreator(language=language, mode='run')
-    # sc.run_combinations()
+    # # sc.run_combinations()
     # sc.check_embeddings()
 
 
@@ -68,7 +73,7 @@ if __name__ == '__main__':
 
     # Create MDS visualizations of embeddings
     # ex = Experiment(language=language, cmode='mx', by_author=False, output_dir='analysis_s2v')
-    # ex.run_experiments()
+    # ex.run_experiments(select_exp='singleimage')
 
 
     # # Collect MDS visualizations for mxs with different parameters

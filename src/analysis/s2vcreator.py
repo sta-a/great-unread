@@ -64,10 +64,10 @@ class S2vCreator(EmbeddingBase):
         # Return few parameter combinations for creating the embeddings for the actual data
         params = {
             'dimensions': [32],
-            'walk-length': [15, 30, 60],
+            'walk-length': [15, 30],
             'num-walks': [200],
             'window-size': [15, 30],
-            'until-layer': [5, 10],
+            'until-layer': [5],
             'OPT1': ['True'],
             'OPT2': ['True'],
             'OPT3': ['True']

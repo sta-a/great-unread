@@ -816,5 +816,5 @@ class NkSingleViz(NkNetworkGridkViz):
                         self.add_nodes_to_ax([i,j], self.df, color_col=curr_attr, use_different_shapes=False)
                         self.vizpath = self.get_file_path(f'{mxname}_{curr_attr}', subdir=True)
                         self.save_plot(plt)
-                plt.show()
+                # plt.show()
                 plt.close()
