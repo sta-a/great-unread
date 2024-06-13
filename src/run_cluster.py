@@ -12,6 +12,7 @@ import argparse
 from cluster.combinations import MxCombinations, NkCombinations, MxCombinationsSpars
 from helpers import remove_directories
 from analysis.experiments import Experiment
+from analysis.nkselect import NkNetworkGrid, SparsGrid, Selector
 
 import logging
 logging.basicConfig(level=logging.DEBUG)
@@ -41,26 +42,46 @@ if __name__ == "__main__":
 
     print(f"Selected language: {language}")
     print(f"Selected mode: {mode}")
+    print(f"Is by_author: {by_author}")
 
 
 
     if mode == 'mxc':
-    #     # remove_directories(['/home/annina/scripts/great_unread_nlp/data/similarity/eng/mxeval'])
-    #     # remove_directories(['/home/annina/scripts/great_unread_nlp/data/similarity/eng/mxcomb'])
-        # 
-        # xc = MxCombinationsSpars(language=language, add_color=False, by_author=by_author)
+        xc = MxCombinationsSpars(language=language, add_color=False, by_author=by_author)
         mxc = MxCombinations(language=language, add_color=False, by_author=by_author)
         mxc.evaluate_all_combinations()
         mxc.check_data()
+
         
     elif mode == 'nkc':
-        # remove_directories(['/home/annina/scripts/great_unread_nlp/data/similarity/eng/nkeval'])
-        # remove_directories(['/home/annina/scripts/great_unread_nlp/data/similarity/eng/nkcomb'])
-        # nkc = NkCombinations(language=language, add_color=False, by_author=by_author)
-        # nkc.evaluate_all_combinations()
-        # nkc.check_data(n_features=4)
+        nkc = NkCombinations(language=language, add_color=False, by_author=by_author)
+        nkc.evaluate_all_combinations()
+        nkc.check_data(n_features=4)
 
 
-        # output_dir='analysis': eval scores will be taken from similarity dir
-        ex = Experiment(language=language, cmode='nk', by_author=False, output_dir='analysis')
+    elif mode == 'mxexp':
+        ex = Experiment(language=language, cmode='mx', by_author=by_author, output_dir='analysis') ########by_author
         ex.run_experiments()
+
+
+    elif mode == 'nkexp':
+        # output_dir='analysis': eval scores will be taken from similarity dir
+        ex = Experiment(language=language, cmode='nk', by_author=by_author, output_dir='analysis') ########by_author
+        ex.run_experiments()
+
+
+    elif mode == 'viz':
+        ig = NkNetworkGrid(language, attr='canon', by_author=by_author)
+        # ig = SparsGrid(language, attr='canon', by_author=False)
+        ig.visualize()
+
+
+    # Combine names of interesting networks into file
+    # s = Selector(language)
+    # s.get_interesting_networks()
+
+    # NkNetworkGrid
+    # s = Selector(language, by_author=True)
+    # s.get_interesting_networks()
+
+

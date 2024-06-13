@@ -99,7 +99,7 @@ rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s
 rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/eng/singleimages /home/annina/scripts/great_unread_nlp/data/s2v/eng
 rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/ger/singleimages /home/annina/scripts/great_unread_nlp/data/s2v/ger
 rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/eng/mx_singleimages /home/annina/scripts/great_unread_nlp/data/s2v/eng
-rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/ger/mx_singleimages /home/annina/scripts/great_unread_nlp/data/s2v/ger
+rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/ger/mx_singleimages /home/annina/scriptsis/great_unread_nlp/data/s2v/ger
 rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/eng/mx_gridimage /home/annina/scripts/great_unread_nlp/data/s2v/eng
 rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/ger/mx_gridimage /home/annina/scripts/great_unread_nlp/data/s2v/ger
 rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/eng/gridimage /home/annina/scripts/great_unread_nlp/data/s2v/eng
@@ -147,7 +147,7 @@ scp stahla@euler.ethz.ch:/cluster/scratch/stahla/prediction_euler_combinations.p
 
 
 
-
+rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data/analysis /home/annina/scripts/great_unread_nlp/data
 rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data/analysis_s2v /home/annina/scripts/great_unread_nlp/data
 rsync -avz --ignore-existing --exclude 'simmxs' stahla@euler.ethz.ch:/cluster/scratch/stahla/data/similarity /home/annina/scripts/great_unread_nlp/data
 

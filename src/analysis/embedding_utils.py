@@ -9,7 +9,7 @@ from itertools import product
 
 
 class EdgelistHandler(DataHandler):
-    def __init__(self, language, output_dir, edgelist_dir='sparsification_edgelists', mode=None):
+    def __init__(self, language, output_dir, edgelist_dir='sparsification_edgelists', mode=None, by_author=False):
         '''
         mode: 
             - if None: embeddings for all networks in edgelist dir
@@ -18,67 +18,124 @@ class EdgelistHandler(DataHandler):
         '''
         super().__init__(language, output_dir=output_dir, load_doc_paths=False)
         self.mode = mode
+        self.by_author = by_author
         assert self.mode in [None, 'run', 'params', 'bestparams']
 
         self.edgelist_dir = os.path.join(self.data_dir, 'similarity', self.language, edgelist_dir)
         self.edgelists = [file for file in os.listdir(self.edgelist_dir) if 'index-mapping' not in file and file.endswith('.csv')]
 
         if self.mode == 'params':
-            if self.language == 'eng':
+            if not self.by_author:
+                if self.language == 'eng':
 
-                self.examples_full = {
-                    'full_authormax': 'Bronte_Charlotte_Jane-Eyre_1847', 
-                    'full_threshold-0%8': 'Bronte_Charlotte_Jane-Eyre_1847', 
-                    'full_threshold-0%90': 'Bronte_Charlotte_Jane-Eyre_1847', 
-                    'full_threshold-0%95': 'Bronte_Charlotte_Jane-Eyre_1847', 
-                    'full_authormin': 'Bronte_Charlotte_Jane-Eyre_1847', 
-                    'full_simmel-3-10': 'Bronte_Charlotte_Jane-Eyre_1847', 
-                    'full_simmel-4-6': 'Shelley_Mary_Frankenstein_1818', 
-                    'full_simmel-5-10': 'Shelley_Mary_Valperga_1823',
-                    'full_simmel-7-10': 'Doyle_Arthur-Conan_The-Red-Headed-League_1891'
-                }
+                    self.examples_full = {
+                        'full_authormax': 'Bronte_Charlotte_Jane-Eyre_1847', 
+                        'full_threshold-0%8': 'Bronte_Charlotte_Jane-Eyre_1847', 
+                        'full_threshold-0%90': 'Bronte_Charlotte_Jane-Eyre_1847', 
+                        'full_threshold-0%95': 'Bronte_Charlotte_Jane-Eyre_1847', 
+                        'full_authormin': 'Bronte_Charlotte_Jane-Eyre_1847', 
+                        'full_simmel-3-10': 'Bronte_Charlotte_Jane-Eyre_1847', 
+                        'full_simmel-4-6': 'Shelley_Mary_Frankenstein_1818', 
+                        'full_simmel-5-10': 'Shelley_Mary_Valperga_1823',
+                        'full_simmel-7-10': 'Doyle_Arthur-Conan_The-Red-Headed-League_1891'
+                    }
 
-                self.examples = {
-                    'cosinesim-5000_authormax': 'James_Henry_The-Turn-of-the-Screw_1898', 
-                    'cosinedelta-1000_threshold-0%8': 'Kipling_Rudyard_On-the-Strength-of-a-Likeness_1888', 
-                    'both_threshold-0%90': 'Dickens_Charles_Barnaby-Rudge_1841', # dot to avoid confusion with 0%95
-                    'cosinesim-1000_threshold-0%95': 'Kipling_Rudyard_How-the-Whale-Got-His-Throat_1902', 
-                    'eder-2000_authormin': 'Walpole_Horace_Otranto_1764', 
-                    'sqeuclidean-500_simmel-3-10': 'James_Henry_What-Maisie-Knew_1897', 
-                    'both_simmel-4-6': 'Wells_H-G_Tono-Bungay_1909', 
-                    'burrows-500_simmel-5-10': 'Corelli_Marie_The-Sorrows-of-Satan_1895',
-                    'eder-5000_simmel-7-10': 'Dickens_Charles_David-Copperfield_1849', 
-                }
+                    self.examples = {
+                        'cosinesim-5000_authormax': 'James_Henry_The-Turn-of-the-Screw_1898', 
+                        'cosinedelta-1000_threshold-0%8': 'Kipling_Rudyard_On-the-Strength-of-a-Likeness_1888', 
+                        'both_threshold-0%90': 'Dickens_Charles_Barnaby-Rudge_1841', # dot to avoid confusion with 0%95
+                        'cosinesim-1000_threshold-0%95': 'Kipling_Rudyard_How-the-Whale-Got-His-Throat_1902', 
+                        'eder-2000_authormin': 'Walpole_Horace_Otranto_1764', 
+                        'sqeuclidean-500_simmel-3-10': 'James_Henry_What-Maisie-Knew_1897', 
+                        'both_simmel-4-6': 'Wells_H-G_Tono-Bungay_1909', 
+                        'burrows-500_simmel-5-10': 'Corelli_Marie_The-Sorrows-of-Satan_1895',
+                        'eder-5000_simmel-7-10': 'Dickens_Charles_David-Copperfield_1849', 
+                    }
+
+
+                else:
+
+                    self.examples_full = {
+                        'full_authormax': 'Buechner_Georg_Lenz_1839', 
+                        'full_threshold-0%8': 'Buechner_Georg_Lenz_1839', 
+                        'full_threshold-0%90': 'Buechner_Georg_Lenz_1839', 
+                        'full_threshold-0%95': 'Buechner_Georg_Lenz_1839', 
+                        'full_authormin': 'Buechner_Georg_Lenz_1839', 
+                        'full_simmel-3-10': 'Goethe_Johann-Wolfgang_Leiden-des-jungen-Werther_1774', 
+                        'full_simmel-4-6': 'Storm_Theodor_Ein-Doppelgaenger_1887', 
+                        'full_simmel-5-10': 'Lenz_Jakob_Der-Waldbruder_1776',
+                        'full_simmel-7-10': 'Keller_Gottfried_Ursula_1877'
+                    }
+
+
+                    self.examples = {
+                        'both_threshold-0%8': 'Gutzkow_Karl_Die-Ritter-vom-Geiste_1850',
+                        'manhattan-2000_threshold-0%90': 'Tieck_Ludwig_Die-Vogelscheuche_1834',
+                        'cosinedelta-1000_threshold-0%95': 'Sacher-Masoch_Leopold_Venus-im-Pelz_1869',
+                        'burrows-5000_authormin': 'Wezel_Johann-Karl_Die-Erziehung-der-Moahi_1777',
+                        'minmax-500_authormax': 'Schlaf_Johannes_Fruehling_1896',
+                        'sqeuclidean-500_simmel-3-10': 'Saar_Ferdinand_Ninon_1892',
+                        'canberra-2000_simmel-4-6': 'Suttner_Bertha-von_Die-Waffen-nieder_1889',
+                        'sqeuclidean-5000_simmel-5-10': 'Dronke_Ernst_Polizeigeschichten_1846',
+                        'edersimple-2000_simmel-7-10': 'Conrad_Michael-Georg_Was-die-Isar-rauscht_1887',
+                    }
+                
+
+
+
 
 
             else:
+                if self.language == 'eng':
 
-                self.examples_full = {
-                    'full_authormax': 'Buechner_Georg_Lenz_1839', 
-                    'full_threshold-0%8': 'Buechner_Georg_Lenz_1839', 
-                    'full_threshold-0%90': 'Buechner_Georg_Lenz_1839', 
-                    'full_threshold-0%95': 'Buechner_Georg_Lenz_1839', 
-                    'full_authormin': 'Buechner_Georg_Lenz_1839', 
-                    'full_simmel-3-10': 'Goethe_Johann-Wolfgang_Leiden-des-jungen-Werther_1774', 
-                    'full_simmel-4-6': 'Storm_Theodor_Ein-Doppelgaenger_1887', 
-                    'full_simmel-5-10': 'Lenz_Jakob_Der-Waldbruder_1776',
-                    'full_simmel-7-10': 'Keller_Gottfried_Ursula_1877'
-                }
+                    self.examples_full = {
+                        'full_threshold-0%8': 'Bronte_Charlotte_all_1850', 
+                        'full_threshold-0%90': 'Bronte_Charlotte_all_1850', 
+                        'full_threshold-0%95': 'Bronte_Charlotte_all_1850',  
+                        'full_simmel-3-10': 'Bronte_Charlotte_all_1850',  
+                        'full_simmel-4-6': 'Shelley_Mary_all_1827', 
+                        'full_simmel-5-10': 'Shelley_Mary_all_1827',
+                        'full_simmel-7-10': 'Doyle_Arthur-Conan_all_1898'
+                    }
+
+                    self.examples = {
+                        'cosinedelta-1000_threshold-0%8': 'Kipling_Rudyard_all_1892', 
+                        'both_threshold-0%90': 'Kipling_Rudyard_all_1892', # dot to avoid confusion with 0%95
+                        'cosinesim-1000_threshold-0%95': 'Kipling_Rudyard_all_1892', 
+                        'sqeuclidean-500_simmel-3-10': 'James_Henry_all_1898', 
+                        'both_simmel-4-6': 'Wells_H-G_all_1903', 
+                        'burrows-500_simmel-5-10': 'Corelli_Marie_all_1895',
+                        'eder-5000_simmel-7-10': 'Kipling_Rudyard_all_1892', 
+                    }
 
 
-                self.examples = {
-                    'both_threshold-0%8': 'Gutzkow_Karl_Die-Ritter-vom-Geiste_1850',
-                    'manhattan-2000_threshold-0%90': 'Tieck_Ludwig_Die-Vogelscheuche_1834',
-                    'cosinedelta-1000_threshold-0%95': 'Sacher-Masoch_Leopold_Venus-im-Pelz_1869',
-                    'burrows-5000_authormin': 'Wezel_Johann-Karl_Die-Erziehung-der-Moahi_1777',
-                    'minmax-500_authormax': 'Schlaf_Johannes_Fruehling_1896',
-                    'sqeuclidean-500_simmel-3-10': 'Saar_Ferdinand_Ninon_1892',
-                    'canberra-2000_simmel-4-6': 'Suttner_Bertha-von_Die-Waffen-nieder_1889',
-                    'sqeuclidean-5000_simmel-5-10': 'Dronke_Ernst_Polizeigeschichten_1846',
-                    'edersimple-2000_simmel-7-10': 'Conrad_Michael-Georg_Was-die-Isar-rauscht_1887',
-                }
+                else:
+
+                    self.examples_full = {
+                        'full_threshold-0%8': 'Buechner_Georg_all_1839', 
+                        'full_threshold-0%90': 'Buechner_Georg_all_1839', 
+                        'full_threshold-0%95': 'Buechner_Georg_all_1839', 
+                        'full_simmel-3-10': 'Goethe_Johann-Wolfgang_all_1799', 
+                        'full_simmel-4-6': 'Storm_Theodor_all_1877', 
+                        'full_simmel-5-10': 'Lenz_Jakob_all_1776',
+                        'full_simmel-7-10': 'Keller_Gottfried_all_1867'
+                    }
+
+
+                    self.examples = {
+                        'both_threshold-0%8': 'Gutzkow_Karl_all_1838',
+                        'manhattan-2000_threshold-0%90': 'Tieck_Ludwig_all_1813',
+                        'cosinedelta-1000_threshold-0%95': 'Sacher-Masoch_Leopold_all_1880',
+                        'sqeuclidean-500_simmel-3-10': 'Saar_Ferdinand_all_1891',
+                        'canberra-2000_simmel-4-6': 'Suttner_Bertha-von_all_1889',
+                        'sqeuclidean-5000_simmel-5-10': 'Dronke_Ernst_all_1846',
+                        'edersimple-2000_simmel-7-10': 'Conrad_Michael-Georg_all_1890',
+                    }
             
+
+
             self.examples.update(self.examples_full)
+
 
 
                 
@@ -89,21 +146,22 @@ class EdgelistHandler(DataHandler):
             ]
 
         elif self.mode == 'run' or self.mode == 'bestparams':
-            intnk_path = os.path.join(self.data_dir, 'analysis', self.language, 'interesting_networks.csv')
-            self.nklist = []
-            with open(intnk_path, 'r') as f:
-                for line in f:
-                    row = line.rstrip()
-                    self.nklist.append(row)
-            # self.nklist = ['cosinesim-2000_threshold-0%90'] ##############################################
+            # intnk_path = os.path.join(self.data_dir, 'analysis', self.language, 'interesting_networks.csv')
+            # self.nklist = []
+            # with open(intnk_path, 'r') as f:
+            #     for line in f:
+            #         row = line.rstrip()
+            #         self.nklist.append(row)
+            # # self.nklist = ['cosinesim-2000_threshold-0%90'] ##############################################
 
-            # Filter edgelist based on nklist
-            filtered_egelists = []
-            for i in self.nklist:
-                el_name = f'{i}.csv'
-                assert el_name in self.edgelists, f'{el_name} not in self.edgelists'
-                filtered_egelists.append(el_name)
-            self.edgelists = filtered_egelists
+            # # Filter edgelist based on nklist
+            # filtered_egelists = []
+            # for i in self.nklist:
+            #     el_name = f'{i}.csv'
+            #     assert el_name in self.edgelists, f'{el_name} not in self.edgelists'
+            #     filtered_egelists.append(el_name)
+            # self.edgelists = filtered_egelists
+            self.edgelists = self.edgelists # use all networks instead of interesting networks
 
             
         self.nr_mxs = 58
@@ -250,8 +308,8 @@ class EmbeddingBase(EdgelistHandler):
     noedges eng: cosinesim-500_simmel-4-6
     cosinesim-500_simmel-7-10
     '''
-    def __init__(self, language, output_dir, edgelist_dir='sparsification_edgelists', mode=None):
-        super().__init__(language, output_dir=output_dir, edgelist_dir=edgelist_dir, mode=mode)
+    def __init__(self, language, output_dir, edgelist_dir='sparsification_edgelists', mode=None, by_author=False):
+        super().__init__(language, output_dir=output_dir, edgelist_dir=edgelist_dir, mode=mode, by_author=by_author)
         self.add_subdir('embeddings')
 
 

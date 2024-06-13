@@ -255,7 +255,11 @@ class MxCombinationsSpars(MxCombinations):
 
     def create_combinations(self):
         mxs_generator = self.load_mxs()
-        for mx, sparsmode in itertools.product(mxs_generator, list(Sparsifier.MODES.keys())):
+        sparsmodes = list(Sparsifier.MODES.keys())
+        if self.by_author:
+            # author-based sparsification makes no sense if by_author
+            sparsmodes = [item for item in sparsmodes if item not in {'authormin', 'authormax'}]
+        for mx, sparsmode in itertools.product(mxs_generator, sparsmodes):
             print(mx.name)
 
             sparsifier = Sparsifier(self.language, mx, sparsmode, output_dir=self.output_dir)

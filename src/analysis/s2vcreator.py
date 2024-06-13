@@ -16,8 +16,8 @@ struc2vec cannot be run several times at the same time because of  random_walks.
 '''
 
 class S2vCreator(EmbeddingBase):
-    def __init__(self, language, mode=None):
-        super().__init__(language, output_dir='s2v', edgelist_dir='sparsification_edgelists_s2v', mode=mode)
+    def __init__(self, language, mode=None, by_author=False):
+        super().__init__(language, output_dir='s2v', edgelist_dir='sparsification_edgelists_s2v', mode=mode, by_author=by_author)
         self.file_string = 's2v'
 
 

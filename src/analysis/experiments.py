@@ -38,10 +38,10 @@ class Experiment(DataHandler):
 
         # Use embeddings
         if 's2v' in self.output_dir:
-            self.mc = EmbMxCombinations(self.language)
+            self.mc = EmbMxCombinations(self.language, by_author=self.by_author)
         # Use distances
         else:
-            self.mc = MxCombinations(self.language)
+            self.mc = MxCombinations(self.language, by_author=self.by_author)
 
 
 

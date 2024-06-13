@@ -290,9 +290,10 @@ class EmbParamEvalGrid(ImageGrid):
 class CombineParamEvalGrids(ImageGrid):
     '''
     Combine MDS and network parameter grids into one plot.
+    Cannot be done with network visualizations because then the nodes are too small to see anything.
     '''
-    def __init__(self, language):
-        super().__init__(language, attr=None, by_author=False, output_dir='s2v', imgdir='mx_gridimage', rowmajor=False)
+    def __init__(self, language, imgdir='mx_gridimage', subdir='mx_gridimages_combined'):
+        super().__init__(language, attr=None, by_author=False, output_dir='s2v', imgdir=imgdir, rowmajor=True)
         self.ncol = 2
         self.nrow = 3
         self.imgs = self.load_single_images()
@@ -309,7 +310,7 @@ class CombineParamEvalGrids(ImageGrid):
         self.ws_wspace = 0.01
         self.ws_hspace = 0.01
 
-        self.add_subdir('mx_gridimages_combined')
+        self.add_subdir(subdir)
         self.img_name = None
 
 
@@ -363,8 +364,8 @@ class ParamModeEval(S2vCreator):
     '''
     Evaluate different parameter settings for s2v by highlighting nodes in network according to their similarity to a selected node in a prominent position.
     '''
-    def __init__(self, language):
-        super().__init__(language, mode='params')
+    def __init__(self, language, by_author=False):
+        super().__init__(language, mode='params', by_author=by_author)
 
 
     def create_single_images(self):

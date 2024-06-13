@@ -175,7 +175,7 @@ class DataHandler():
     '''
     Base class for creating, saving, and loading data.
     '''
-    def __init__(self, language=None, output_dir=None, data_type='csv', modes=None, tokens_per_chunk=1000, data_dir='/home/annina/scripts/great_unread_nlp/data', test=False, load_doc_paths=True):
+    def __init__(self, language=None, output_dir=None, data_type='csv', modes=None, tokens_per_chunk=1000, data_dir='/home/annina/scripts/great_unread_nlp/data_author', test=False, load_doc_paths=True):
 
         self.test = test
         self.language = language
@@ -864,7 +864,7 @@ class DataLoader(DataHandler):
     def __init__(self, language):
         # Data dir is fixed because dfs use file names of single texts
         # There is no author-based version of the metadata files
-        super().__init__(language, output_dir=None, data_type='csv', data_dir='/home/annina/scripts/great_unread_nlp/data')
+        super().__init__(language, output_dir=None, data_type='csv', data_dir='/home/annina/scripts/great_unread_nlp/data') # Cannot be data_author!!
 
 
     def prepare_canon_df(self, fn_mapping):

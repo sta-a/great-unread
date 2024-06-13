@@ -162,7 +162,6 @@ class ImageGrid(DataHandler):
             plt.close('all')
         plt.close()
         plt.close('all')
-        print('fig nums', plt.get_fignums())
 
 
 
@@ -170,8 +169,8 @@ class NkNetworkGrid(ImageGrid):
     '''
     Plot every network for an attribute.
     '''
-    def __init__(self, language, attr=None, by_author=False):
-        super().__init__(language=language, attr=attr, by_author=by_author, select_with_gui=True)
+    def __init__(self, language, attr=None, by_author=False, select_with_gui=True):
+        super().__init__(language=language, attr=attr, by_author=by_author, select_with_gui=select_with_gui)
         self.by_author = by_author
         self.nrow = 2
         self.ncol = 5
@@ -235,8 +234,8 @@ class SparsGrid(NkNetworkGrid):
     '''
     Plot every network per sparsification technique. Attribute "canon" is highlighted.
     '''
-    def __init__(self, language, attr=None, by_author=False):
-        super().__init__(language, attr, by_author)
+    def __init__(self, language, attr=None, by_author=False, select_with_gui=True):
+        super().__init__(language, attr, by_author, select_with_gui=select_with_gui)
         self.nrow = 6 # 58 mxs per figure
         self.ncol = 11
         self.name_index = 1
@@ -256,11 +255,15 @@ class Selector(DataHandler):
     Write names of interesting networks to file
     Interesting networks are networks where canonized texts seem to be non-randomly distributed, or which have an interesting structure, or which are not dependent on the year
     '''
-    def __init__(self, language):
+    def __init__(self, language, by_author=False):
         super().__init__(language, output_dir='analysis', data_type='png')
+        self.by_author = by_author
         self.imgdir = os.path.join(self.output_dir, 'nk_singleimage')
         self.nr_mxs = 58
-        self.nr_spars = 9
+        if self.by_author:
+            self.nr_spars = 7
+        else:
+            self.nr_spars = 9
 
 
     def get_noedges_combs(self):
@@ -314,8 +317,10 @@ class Selector(DataHandler):
         all_mxnames, all_sparsnames = self.get_mx_and_spars_names()
         newlist = []
         for nk in nklist:
+            print(nk)
             nk = nk.split('_')
             assert len(nk) == 2 or len(nk) == 3
+            print(nk[0], nk[1])
             assert nk[0] in all_mxnames
             assert nk[1] in all_sparsnames
             nk = f'{nk[0]}_{nk[1]}'

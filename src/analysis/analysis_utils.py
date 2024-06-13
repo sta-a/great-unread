@@ -297,7 +297,9 @@ def info_to_mx_and_edgelist():
         attributes.to_csv(os.path.join(outdir, f'attributes-{language}-{info.as_string()}.csv'), header=True, index=False)
         index_mapping.to_csv(os.path.join(outdir, f'index-mapping-{language}-{info.as_string()}.csv'), header=True, index=False)
         nx.write_weighted_edgelist(graph, os.path.join(outdir, f'edgelist_{language}-{info.as_string()}.csv'), delimiter=',')
-        
+
+
+
 
 def pklmxs_to_edgelist(params):
     '''
@@ -308,8 +310,10 @@ def pklmxs_to_edgelist(params):
     print(spars_dir, exclude_iso_nodes, sep)
 
     for language in ['eng', 'ger']:
-        indir = f'/home/annina/scripts/great_unread_nlp/data/similarity/{language}/sparsification'
-        outdir = f'/home/annina/scripts/great_unread_nlp/data/similarity/{language}/{spars_dir}'
+        # indir = f'/home/annina/scripts/great_unread_nlp/data/similarity/{language}/sparsification'
+        # outdir = f'/home/annina/scripts/great_unread_nlp/data/similarity/{language}/{spars_dir}'
+        indir = f'/home/annina/scripts/great_unread_nlp/data_author/similarity/{language}/sparsification'
+        outdir = f'/home/annina/scripts/great_unread_nlp/data_author/similarity/{language}/{spars_dir}'
         if not os.path.exists(outdir):
             os.mkdir(outdir)
 
@@ -358,8 +362,8 @@ def pklmxs_to_edgelist(params):
 params = [('sparsification_edgelists_labels', False, False, ',')]
 params = [('sparsification_edgelists', False, True, ','), ('sparsification_edgelists_s2v', True, True, ' ')]
 
-# for p in params:
-#     pklmxs_to_edgelist(p)
+for p in params:
+    pklmxs_to_edgelist(p)
 
 
  # %%
