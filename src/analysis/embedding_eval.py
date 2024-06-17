@@ -126,7 +126,6 @@ class EmbParamEvalSingleMDS(MxSingleViz):
         #     mxname = mx.name
         #     # Check if plot for last key attr has been created
         self.vizpath = self.get_file_path(vizname, subdir=True)
-        print('EmbParamEvalSingleMDS vizpath', '\n\n', self.vizpath)
 
 
         if not os.path.exists(self.vizpath):
@@ -242,10 +241,10 @@ class EmbParamEvalGrid(ImageGrid):
     Different plot for each dimension, windowsize, untillayer.
     Fill images in column major order to align the number of rows and cols with the number of values for walk-length and num-walks.
     '''
-    def __init__(self, language, combs, imgdir='singleimages', subdir_name='gridimage'):
+    def __init__(self, language, combs, imgdir='singleimages', subdir_name='gridimage', by_author=False):
         self.combs = combs
         self.subdir_name = subdir_name
-        super().__init__(language, attr=None, by_author=False, output_dir='s2v', imgdir=imgdir, rowmajor=False)
+        super().__init__(language, attr=None, by_author=by_author, output_dir='s2v', imgdir=imgdir, rowmajor=False)
         self.ncol = 6 # 'walk-length': [3, 5, 8, 15, 30]s
         self.nrow = 3 # 'num-walks': [20, 50, 200]
         self.imgs = self.load_single_images()
@@ -292,8 +291,8 @@ class CombineParamEvalGrids(ImageGrid):
     Combine MDS and network parameter grids into one plot.
     Cannot be done with network visualizations because then the nodes are too small to see anything.
     '''
-    def __init__(self, language, imgdir='mx_gridimage', subdir='mx_gridimages_combined'):
-        super().__init__(language, attr=None, by_author=False, output_dir='s2v', imgdir=imgdir, rowmajor=True)
+    def __init__(self, language, imgdir='mx_gridimage', subdir='mx_gridimages_combined', by_author=False):
+        super().__init__(language, attr=None, by_author=by_author, output_dir='s2v', imgdir=imgdir, rowmajor=True)
         self.ncol = 2
         self.nrow = 3
         self.imgs = self.load_single_images()
@@ -385,17 +384,13 @@ class ParamModeEval(S2vCreator):
             # Draw network edges only once, repeatedly draw nodes
             network = self.network_from_edgelist(os.path.join(self.edgelist_dir, f'{network_name}.csv'), delimiter=' ', nodes_as_str=True, print_info=False)
             info = CombinationInfo(attr='canon') # info with random attr to init class
-            nkviz = EmbParamEvalSingleViz(language=self.language, output_dir=self.output_dir, info=info, exp={'attr': node}, by_author=False, graph=network)
+            nkviz = EmbParamEvalSingleViz(language=self.language, output_dir=self.output_dir, info=info, exp={'attr': node}, by_author=self.by_author, graph=network)
             nkviz.visualize_edges()
     
     
             mxnames = [x for x in all_mxnames if network_name in x]
             for cmxname in mxnames:
                 # Checking paths with class instances is too slow. Instead, create paths directly.
-                # nkviz = EmbParamEvalSingleViz(language=self.language, output_dir=self.output_dir)
-                # nkvizpath = nkviz.get_path(name=cmxname)
-                # mdsviz = EmbParamEvalSingleMDS(language=self.language, output_dir=self.output_dir, exp={'name': 'singleimages'})
-                # mdsvizpath = mdsviz.get_file_path(cmxname, subdir=True)
                 nkvizpath = os.path.join(nkviz_dir, f'{cmxname}.png')
                 mdsvizpath = os.path.join(mdsviz_dir, f'{cmxname}.png')
 
@@ -434,7 +429,7 @@ class ParamModeEval(S2vCreator):
 
                     if not os.path.exists(mdsvizpath):
                         # MDS of similarity matrix
-                        mdsviz = EmbParamEvalSingleMDS(language=self.language, output_dir=self.output_dir, exp={'name': 'singleimages'}, by_author=False, mc=self.el, df=df, attr=node, mx=cmx)
+                        mdsviz = EmbParamEvalSingleMDS(language=self.language, output_dir=self.output_dir, exp={'name': 'singleimages'}, by_author=self.by_author, mc=self.el, df=df, attr=node, mx=cmx)
                         mdsviz.visualize(vizname=cmxname)
 
 
@@ -453,11 +448,11 @@ class ParamModeEval(S2vCreator):
                         ]
                         combs = [self.get_param_string(x) for x  in combs]
                         combs = [f'{network_name}_{x}' for x in combs]
-                        ignk = EmbParamEvalGrid(self.language, combs, imgdir='singleimages', subdir_name='gridimage')
+                        ignk = EmbParamEvalGrid(self.language, combs, imgdir='singleimages', subdir_name='gridimage', by_author=self.by_author)
                         ignk.visualize(vizname=network_name, dimensions=dim, windowsize=ws, untillayer=ul)
                         del ignk
                         gc.collect()  # Explicitly call garbage collection
-                        igmx = EmbParamEvalGrid(self.language, combs, imgdir='mx_singleimages', subdir_name='mx_gridimage')
+                        igmx = EmbParamEvalGrid(self.language, combs, imgdir='mx_singleimages', subdir_name='mx_gridimage', by_author=self.by_author)
                         igmx.visualize(vizname=network_name, dimensions=dim, windowsize=ws, untillayer=ul)
                         del igmx
                         gc.collect()

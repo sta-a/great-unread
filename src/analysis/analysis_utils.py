@@ -4,6 +4,7 @@
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
+import re
 import numpy as np
 from copy import deepcopy
 from typing import List
@@ -352,6 +353,15 @@ def pklmxs_to_edgelist(params):
 
             file_name = os.path.splitext(os.path.basename(spmx_path))[0]
             file_name = file_name.replace('sparsmx-', '')
+            print(file_name)
+
+            # Create the new filename by replacing 0%9 with 0%90
+            pattern = re.compile(r'0%9$')
+            if pattern.search(file_name):
+                file_name = pattern.sub('0%90', file_name)
+                print(file_name)
+                print('\n\n-------------------------')
+
 
             nx.write_weighted_edgelist(graph, os.path.join(outdir, f'{file_name}.csv'), delimiter=sep)
         
@@ -359,11 +369,10 @@ def pklmxs_to_edgelist(params):
             index_mapping.to_csv(os.path.join(outdir, f'index-mapping.csv'), header=True, index=False)
 
 
-params = [('sparsification_edgelists_labels', False, False, ',')]
-params = [('sparsification_edgelists', False, True, ','), ('sparsification_edgelists_s2v', True, True, ' ')]
+params = [('sparsification_edgelists', False, True, ','), ('sparsification_edgelists_s2v', True, True, ' '), ('sparsification_edgelists_labels', False, False, ',')]
 
-for p in params:
-    pklmxs_to_edgelist(p)
+# for p in params:
+#     pklmxs_to_edgelist(p)
 
 
  # %%

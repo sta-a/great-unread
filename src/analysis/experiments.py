@@ -180,11 +180,8 @@ class Experiment(DataHandler):
             central[0]['name'] = 'central'
             central[0]['mxname'] = ['burrows'] + embmxs
             
-        exps = singleimage + all_nkgrid + sparsgrid + all_attrgrid + all_top + clustconst + central ######################
-        exps = singleimage + all_top
-        exps = all_top_nclust
-        exps = singleimage
-        exps = all_top + singleimage + all_nkgrid + sparsgrid + all_attrgrid + clustconst + central ######################
+
+        exps = all_top + singleimage + sparsgrid + all_nkgrid + all_attrgrid + clustconst + central ######################
         if select_exp is not None:
             [print(x['name']) for x in exps]
             exps = [x for x in exps if x['name'] == select_exp]
@@ -194,7 +191,7 @@ class Experiment(DataHandler):
         return exps
 
 
-    def run_experiments(self, select_exp=None, ntop=10):
+    def run_experiments(self, select_exp=None, ntop=30):
         exps = self.get_experiments(select_exp)
         for exp in exps:
             print(f"------------------{exp['name']}-------------------\n")

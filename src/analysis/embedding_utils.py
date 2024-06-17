@@ -93,9 +93,9 @@ class EdgelistHandler(DataHandler):
                         'full_threshold-0%90': 'Bronte_Charlotte_all_1850', 
                         'full_threshold-0%95': 'Bronte_Charlotte_all_1850',  
                         'full_simmel-3-10': 'Bronte_Charlotte_all_1850',  
-                        'full_simmel-4-6': 'Shelley_Mary_all_1827', 
+                        'full_simmel-4-6': 'Haywood_Eliza_all_1735', 
                         'full_simmel-5-10': 'Shelley_Mary_all_1827',
-                        'full_simmel-7-10': 'Doyle_Arthur-Conan_all_1898'
+                        'full_simmel-7-10': 'Richardson_Samuel_all_1747'
                     }
 
                     self.examples = {
@@ -103,7 +103,7 @@ class EdgelistHandler(DataHandler):
                         'both_threshold-0%90': 'Kipling_Rudyard_all_1892', # dot to avoid confusion with 0%95
                         'cosinesim-1000_threshold-0%95': 'Kipling_Rudyard_all_1892', 
                         'sqeuclidean-500_simmel-3-10': 'James_Henry_all_1898', 
-                        'both_simmel-4-6': 'Wells_H-G_all_1903', 
+                        'both_simmel-4-6': 'Fielding_Sarah_all_1752', 
                         'burrows-500_simmel-5-10': 'Corelli_Marie_all_1895',
                         'eder-5000_simmel-7-10': 'Kipling_Rudyard_all_1892', 
                     }
@@ -116,9 +116,9 @@ class EdgelistHandler(DataHandler):
                         'full_threshold-0%90': 'Buechner_Georg_all_1839', 
                         'full_threshold-0%95': 'Buechner_Georg_all_1839', 
                         'full_simmel-3-10': 'Goethe_Johann-Wolfgang_all_1799', 
-                        'full_simmel-4-6': 'Storm_Theodor_all_1877', 
+                        'full_simmel-4-6': 'Hunold_Christian-Friedrich_all_1702', 
                         'full_simmel-5-10': 'Lenz_Jakob_all_1776',
-                        'full_simmel-7-10': 'Keller_Gottfried_all_1867'
+                        'full_simmel-7-10': 'Droste-Huelshoff_Annette_all_1842f'
                     }
 
 
@@ -127,7 +127,7 @@ class EdgelistHandler(DataHandler):
                         'manhattan-2000_threshold-0%90': 'Tieck_Ludwig_all_1813',
                         'cosinedelta-1000_threshold-0%95': 'Sacher-Masoch_Leopold_all_1880',
                         'sqeuclidean-500_simmel-3-10': 'Saar_Ferdinand_all_1891',
-                        'canberra-2000_simmel-4-6': 'Suttner_Bertha-von_all_1889',
+                        'canberra-2000_simmel-4-6': 'Heyse_Paul_all_1877',
                         'sqeuclidean-5000_simmel-5-10': 'Dronke_Ernst_all_1846',
                         'edersimple-2000_simmel-7-10': 'Conrad_Michael-Georg_all_1890',
                     }
@@ -499,19 +499,22 @@ class EmbeddingBase(EdgelistHandler):
 
     def check_embeddings(self):
         # Check nr of files
-        nr_comb = self.count_combinations()
-        print(f'Expected number of combinations: {nr_comb}')
+        # Dont count expected nr of embeddings as nr networks * nr params because some networks have no edges and are excluded
+        # Take nr embedding paths instead
+        # nr_comb = self.count_combinations()
+        # print(f'Expected number of combinations: {nr_comb}')
         nr_embeddings = len(os.listdir(self.subdir))
         print(f'Nr combinations in subdir: {nr_embeddings}')
 
         # Check if files exist
         all_paths = self.get_all_embedding_paths()
+        print('Nr of embedding paths', len(all_paths))
         not_exists_counter = 0
         for path in all_paths:
             if not os.path.exists(path):
                 print('Embeddings do not exist:', path)
                 not_exists_counter += 1
-        print(f'Expected Nr. of embeddings for mode {self.mode}: {nr_embeddings}. Nr. of missing embeddings: {not_exists_counter}')
+        print(f'Nr. of missing embeddings: {not_exists_counter}')
 
 
 

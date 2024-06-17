@@ -364,6 +364,17 @@ class MxAttrGridViz(MxVizBase):
         self.save_data(data=df, subdir=True, file_name='visual-assessment.csv', data_type='csv')
 
 
+    def get_feature_columns(self, df):
+        df = deepcopy(df)
+        special_cols = ['cluster', 'clst_shape', 'gender_cluster', 'author_cluster']
+        # Get list of attributes in interesting order
+        if self.expname == 'attrviz':
+            cols = self.key_attrs + [col for col in df.columns if col not in self.key_attrs and col not in special_cols and ('_color' not in col)]
+        else:
+            cols = self.key_attrs
+        return cols
+
+
     def visualize(self, vizname='viz'): # vizname for compatibility
         all_cols = self.get_feature_columns(self.info.metadf)
         nfields = self.nrow * self.ncol # fields per plot

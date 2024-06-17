@@ -44,6 +44,9 @@ class MetadataHandler(DataHandler):
         gender['gender'] = gender['gender'].map({'m': 0, 'f': 1, 'a': 2, 'b': 3})
 
         canon = DataLoader(self.language).prepare_metadata(type='canon')
+        # canon['canon-ascat'] = canon['canon'].apply(lambda x: 0 if x < 0.33 else 1 if x < 0.66 else 2)
+        print(canon)
+
 
         if self.by_author:
             output_dir = self.create_output_dir(output_dir='title_mapping')

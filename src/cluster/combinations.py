@@ -128,10 +128,14 @@ class CombinationsBase(InfoHandler):
         # Delta distance mxs
         delta = Delta(self.language)
         all_delta = delta.load_all_data(use_kwargs_for_fn='mode', subdir=True)
+        for i in all_delta:
+            print(i)
 
         # D2v distance mxs
         d2v = D2vDist(language=self.language)
         all_d2v = d2v.load_all_data(use_kwargs_for_fn='mode', file_string=d2v.file_string, subdir=True)
+        for i in all_d2v:
+            print(i)
 
         mxs = {**all_delta, **all_d2v}
 

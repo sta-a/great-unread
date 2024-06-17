@@ -175,7 +175,7 @@ class DataHandler():
     '''
     Base class for creating, saving, and loading data.
     '''
-    def __init__(self, language=None, output_dir=None, data_type='csv', modes=None, tokens_per_chunk=1000, data_dir='/home/annina/scripts/great_unread_nlp/data_author', test=False, load_doc_paths=True):
+    def __init__(self, language=None, output_dir=None, data_type='csv', modes=None, tokens_per_chunk=1000, data_dir='/home/annina/scripts/great_unread_nlp/data', test=False, load_doc_paths=True):
 
         self.test = test
         self.language = language
@@ -960,16 +960,16 @@ class DataLoader(DataHandler):
 
                 # Set anonymous values to 'a'
                 mask = df['file_name'].str.contains('anonymous_anonymous', case=False)
-                # Set the value 'Female' in the 'Gender' column for the matched rows
                 df.loc[mask, 'gender'] = 'a' # a for anonymous
 
 
                 # Find gender of collaborating authors (easier to do by hand)
-                # self.set_gender_collaborations(df, authors)
+                # collabdf = self.set_gender_collaborations(df, authors)
+                # print(collabdf)
 
                 # collaboration_rows = df[df['author_viaf'].astype(str).str.contains(r'\|', na=False, regex=True)]
                 # for fn in collaboration_rows['file_name'].to_list():
-                #     print(fn)
+                #     print('collab row', fn)
 
 
                 if self.language == 'ger':

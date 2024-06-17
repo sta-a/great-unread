@@ -537,6 +537,7 @@ class Delta(SimMxCreatorBase):
         all_data = {}
         # If load_all is False, only load data for mxs that are not duplicated
         modes = [x for x in self.modes if self.metrics.is_duplicated(f'{x.split("-")[0]}') is False]
+        print('modes', modes)
         for mode in modes:
             data  = self.load_data(load=True, mode=mode, **kwargs)
             all_data[mode] = data

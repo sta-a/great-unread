@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import pandas as pd
 import numpy as np
+from copy import deepcopy
 import pickle
 from collections import Counter
 from scipy.stats import skew
@@ -20,6 +21,41 @@ import os
 from utils import DataHandler, get_filename_from_path, get_files_in_dir, DataLoader, TextsByAuthor
 from cluster.cluster_utils import MetadataHandler
 #from hpo_functions import get_data, ColumnTransformer
+
+class MetadataStats(DataHandler):
+    def __init__(self, language):
+        super().__init__(language, output_dir='text_statistics', data_type='svg')
+
+
+    def get_stats(self):
+        print(f'-------Language: {self.language}----------------------------\n')
+        # df = DataLoader(self.language).prepare_features(scale=True)
+        mh = MetadataHandler(self.language)
+        df = mh.get_metadata(add_color=False)
+        # Get the counts of gender
+        gender_counts = df['gender'].value_counts()
+        print("Gender counts:")
+        print(gender_counts)
+
+        # Get the number of different authors 
+        num_authors = df['author'].nunique()
+        print(f"\nNumber of different authors: {num_authors}")
+
+
+        # Group the data by gender and count the distinct authors
+        author_counts = df.groupby('gender')['author'].nunique()
+        # Print the result
+        print(author_counts)
+
+
+        max_year = df['year'].max()
+        print(f"The highest year is: {max_year}")
+
+        # Find the minimum (lowest) value in the 'year' column
+        min_year = df['year'].min()
+        print(f"The lowest year is: {min_year}")
+
+
 
 class TextStatistics(DataHandler):
     def __init__(self, language):
@@ -76,7 +112,7 @@ class TextStatistics(DataHandler):
 
 
 
-class PlotCanonscores(DataHandler):
+class PlotCanonscoresBarChart(DataHandler):
     def __init__(self, language):
         super().__init__(language, output_dir='text_statistics', data_type='svg')
         self.df = DataLoader(self.language).prepare_metadata(type='canon')
@@ -146,7 +182,7 @@ class PlotFeatureDist(DataHandler):
 
 class PlotCanonScoresPerAuthor(DataHandler):
     def __init__(self, language):
-        super().__init__(language, output_dir='text_statistics', data_type='svg')
+        super().__init__(language, output_dir='text_statistics', data_type='png', data_dir='/home/annina/scripts/great_unread_nlp/data')
 
 
     def make_plot(self):
@@ -186,7 +222,7 @@ class PlotCanonScoresPerAuthor(DataHandler):
 
         ax.set_xlabel('Author')
         ax.set_ylabel('Canon Score')
-        ax.set_title('Canon Scores by Author')
+        # ax.set_title('Canon Scores by Author')
 
 
         ax.set_xticks(range(len(self.sorted_authors)))
@@ -200,8 +236,12 @@ class PlotCanonScoresPerAuthor(DataHandler):
 
 
 class PlotCanonScoresPerAuthorByYearAndGender(PlotCanonScoresPerAuthor):
+    '''
+    Plot earliest publication year.
+    '''
     def __init__(self, language):
         super().__init__(language)
+        self.fontsize = 18
 
     def get_sorted_authors(self):
         self.df['min_year'] = self.df.groupby('author')['year'].transform('min')
@@ -232,7 +272,7 @@ class PlotCanonScoresPerAuthorByYearAndGender(PlotCanonScoresPerAuthor):
 
 
     def plot(self):
-        fig, ax = plt.subplots(figsize=(25, 8))
+        fig, ax = plt.subplots(figsize=(18, 6))
         for author, group in self.df.groupby('author'):
             x_position = group['author_position'].iloc[0]  # Take the x-position from the first row of the group
             color = group['gender_color']
@@ -244,13 +284,22 @@ class PlotCanonScoresPerAuthorByYearAndGender(PlotCanonScoresPerAuthor):
             # ax.text(x_position, max_canon, author, ha='center', va='bottom', fontsize=3, rotation=45)
 
 
-        ax.set_xlabel('Year of first publication by author')
-        ax.set_ylabel('Canon Score')
-        ax.set_title('Canon Scores by Author, Year and Gender')
+        ax.set_xlabel('Year of first publication by author', fontsize=self.fontsize)
+        ax.set_ylabel('Canon Score', fontsize=self.fontsize)
+        # ax.set_title('Canon Scores by Author, Year and Gender')
 
-        ax.set_xticks(self.df['author_position'])
-        ax.set_xticklabels(self.df['author_min_year'], rotation=45, ha='right', fontsize=1) # Position labels at the bottom
-        # ax.set_xticklabels(self.df['min_year'], rotation=45, ha='right', fontsize=5)
+        # ax.set_xticks(self.df['author_position'])
+        # ax.set_xticklabels(self.df['author_min_year'], rotation=45, ha='right', fontsize=1) # Position labels at the bottom
+
+
+        # Generate x-ticks every 50 years
+        min_year = int(self.df['min_year'].min())
+        max_year = int(self.df['min_year'].max())
+        ax.set_xticks(range(min_year, max_year + 1, 50))
+
+        # Change the font size of the x and y tick labels
+        ax.tick_params(axis='both', which='major', labelsize=self.fontsize)  # Adjust the value of labelsize as desired
+
 
         # Adjust layout to prevent clipping of labels
         plt.tight_layout()
@@ -259,50 +308,66 @@ class PlotCanonScoresPerAuthorByYearAndGender(PlotCanonScoresPerAuthor):
 
 
 
-class PlotYear(DataHandler):
+class PlotYearAndCanon(DataHandler):
     def __init__(self, language):
-        super().__init__(language, output_dir='text_statistics', data_type='svg', data_dir='/home/annina/scripts/great_unread_nlp/data',)
+        super().__init__(language, output_dir='text_statistics', data_type='png')
 
     def plot(self):
         # df = DataLoader(self.language).prepare_features(scale=True)
-        mh = MetadataHandler(self.language)
-        df = mh.get_metadata(add_color=True)[['author', 'year']]
-        df = df.sort_values(by='year', ascending=True)
 
-        fig, ax = plt.subplots(figsize=(25, 8))
-        ax.scatter(df.index, df['year'])
+        by_author = False
+        if not by_author:
+            plotlist =  [('year', 'Publication Year'), ('canon', 'Canonization Score')]
+        else:
+            plotlist =  [('year', 'Publication Year'), ('canon', 'Canonization Score'), ('canon-min', 'Canonization Score'), ('canon-max', 'Canonization Score')]
 
-        ax.set_xlabel('Text')
-        ax.set_ylabel('Year')
-        ax.set_title('Publication Years')
+        for attr, yaxis_title in plotlist:
+            mh = MetadataHandler(self.language, by_author=by_author)
+            metadf = mh.get_metadata(add_color=False)
+            print(metadf.shape)
+            df = metadf.sort_values(by=attr, ascending=True)
 
-        # Remove x-axis labels
-        ax.tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)
+            fig, ax = plt.subplots(figsize=(6, 4))
+            ax.scatter(df.index, df[attr], s=3)
+
+            ax.set_xlabel('Number of Texts')
+            ax.set_ylabel(yaxis_title)
+            ax.grid(True, linestyle='--', alpha=0.5)
+            # ax.set_title('Publication Years')
+
+            # Remove x-axis labels
+            # ax.tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)
+            max_text_index = len(df)
+            text_ticks = list(range(0, max_text_index + 1, 100))
+            ax.set_xticks(text_ticks)
+            ax.set_xticklabels([str(t) for t in text_ticks])
 
 
-        self.save_data(data=plt, file_name='year')
+            self.save_data(data=plt, file_name=f'{attr}_byauthor-{by_author}')
 
 
+for language in ['eng', 'ger']:
+    print('Text Statistics:')
 
-# for language in ['eng', 'ger']:
+    pyac = PlotYearAndCanon(language)
+    pyac.plot()
+    # mdstats = MetadataStats(language)
+    # mdstats.get_stats()
 #     # ts = TextStatistics(language)
 #     # ts.get_longest_shortest_text()
 
-#     # pc = PlotCanonscores(language)
+#     # pc = PlotCanonscoresBarChart(language)
 #     # pc.plot()
 
 #     # pfd = PlotFeatureDist(language)
 #     # pfd.plot()
 
-#     # py = PlotYear(language)
-#     # py.plot()
 
-#     # pcspa = PlotCanonScoresPerAuthor(language)
-#     # pcspa.make_plot()
+    # pcspa = PlotCanonScoresPerAuthor(language)
+    # pcspa.make_plot()
 
-#     p = PlotCanonScoresPerAuthorByYearAndGender(language)
-#     p.make_plot()
-
+    # p = PlotCanonScoresPerAuthorByYearAndGender(language)
+    # p.make_plot()
 
 
 
