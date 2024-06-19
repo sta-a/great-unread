@@ -45,12 +45,12 @@ if __name__ == '__main__':
 
 
     # # Visualize different parameter combinations
-    pe = ParamModeEval(language, by_author=by_author)
-    # pe.create_single_images()
-    pe.create_grid_images()
-    # # Combine grids for different dimensions into one image
-    cg = CombineParamEvalGrids(language=language, by_author=by_author)
-    cg.visualize_all()
+    # pe = ParamModeEval(language, by_author=by_author)
+    # # pe.create_single_images()
+    # pe.create_grid_images()
+    # # # Combine grids for different dimensions into one image
+    # cg = CombineParamEvalGrids(language=language, by_author=by_author)
+    # cg.visualize_all()
 
 
     # # Activate s2v conda environment!
@@ -74,9 +74,9 @@ if __name__ == '__main__':
 
 
     # # Collect MDS visualizations for mxs with different parameters
-    # me = RunModeEval(language)
-    # # Create one plot with all 6 images of the different param combinations, for each attr
-    # me.create_param_grid()
+    me = RunModeEval(language)
+    # Create one plot with all 6 images of the different param combinations, for each attr
+    me.create_param_grid()
 
 
     # # Place all MDS plots for the same matrix with different s2v params on top of each other, and different attributes next to each other.

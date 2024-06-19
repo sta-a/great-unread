@@ -18,8 +18,9 @@ from matplotlib.cm import ScalarMappable
 
 
 from utils import DataHandler
-from .mxviz import MxAttrGridViz, MxSingleViz, MxKeyAttrViz
-from .nkviz import NkKeyAttrViz, NkAttrGridViz, NkNetworkGridkViz, SparsGridkViz, NkSingleViz
+from .mxviz import MxAttrGridViz, MxSingleViz, MxKeyAttrViz, MxSingleVizCluster
+from .nkviz import NkKeyAttrViz, NkAttrGridViz, NkNetworkGridkViz, SparsGridkViz, NkSingleViz, NkSingleVizCluster
+from .viz_utils import ClusterAuthorGrid
 from .embedding_eval import EmbMxCombinations
 from .topeval import TopEval
 from cluster.network import NXNetwork
@@ -56,7 +57,7 @@ class Experiment(DataHandler):
         else:
             int_evalcol = 'modularity'
         cont_attrs = ['canon', 'year']
-        cat_attrs = ['gender', 'author']
+        cat_attrs = ['gender', 'author', 'canon-ascat', 'year-ascat']
         by_author_attrs = ['canon-max', 'canon-min']
         if self.by_author:
             cont_attrs = cont_attrs + by_author_attrs
@@ -169,6 +170,13 @@ class Experiment(DataHandler):
         sparsgrid = [{'name': 'sparsgrid', 'viztype': 'sparsgrid', 'attr': 'canon'}]
         singleimage = [{'name': 'singleimage', 'viztype': 'singleimage', 'attr': 'canon'}]
 
+        # Make single images where clusters are highlighted
+        # cat df, author attr don't matter, one combination is chosen
+        #  'intthresh': 0.3: don't filter, create all images first
+        singleimage_cluster = [{'name': 'singleimage_cluster', 'viztype': 'singleimage_cluster',  'dfs': ['cat'], 'attr': 'author', 'maxsize': maxsize}]
+        top_cluster = [{'name': 'top_cluster', 'viztype': 'top_cluster',  'dfs': ['cat'], 'attr': 'author', 'maxsize': maxsize, 'evalcol': int_evalcol}] # sort vy evalcol
+
+
         '''
         Consistent clusters and centralities
         '''
@@ -181,7 +189,7 @@ class Experiment(DataHandler):
             central[0]['mxname'] = ['burrows'] + embmxs
             
 
-        exps = all_top + singleimage + sparsgrid + all_nkgrid + all_attrgrid + clustconst + central ######################
+        exps = top_cluster + all_top + singleimage + singleimage_cluster  # sparsgrid + all_nkgrid + all_attrgrid + clustconst + central ######################
         if select_exp is not None:
             [print(x['name']) for x in exps]
             exps = [x for x in exps if x['name'] == select_exp]
@@ -199,15 +207,23 @@ class Experiment(DataHandler):
                 exp['ntop'] = ntop
 
             self.add_subdir(f"{self.cmode}_{exp['name']}")
+
             if (exp['viztype'] == 'nkgrid') or (exp['viztype'] == 'sparsgrid') or (exp['viztype'] == 'singleimage'):
                 te = None
             else:
                 te = TopEval(self.language, output_dir=self.mc.output_dir, cmode=self.cmode, exp=exp, expdir=self.subdir, by_author=self.by_author)
+
             if exp['name'] == 'clustconst':
                 self.run_clustconst(exp, te)
             elif exp['name'] == 'central':
                 if self.cmode == 'nk':
                     self.run_central(exp, te)
+                    
+            # Visualization is independent of cmode
+            elif exp['name'] == 'top_cluster':
+                print(self.subdir)
+                viz = ClusterAuthorGrid(self.language, cmode=self.cmode, exp=exp, te=te, by_author=self.by_author, output_dir=self.output_dir, subdir=self.subdir)
+                viz.visualize() #######################
             else:
                 self.visualize(exp, te)
 
@@ -236,8 +252,6 @@ class Experiment(DataHandler):
         # viztypes: 'attrgrid', 'nkgrid' 'keyattr'
         if exp['viztype'] == 'nkgrid':
             pass
-            # viz = NkNetworkGridkViz(self.language, self.output_dir, exp, self.by_author)
-            # viz.visualize()
         elif exp['viztype'] == 'sparsgrid':
             pass
         elif exp['viztype'] == 'singleimage':
@@ -252,6 +266,9 @@ class Experiment(DataHandler):
                 info.add('order', 'olo')
                 if exp['viztype'] == 'attrgrid':
                     viz = MxAttrGridViz(self.language, self.output_dir, mx, info, plttitle=plttitle, exp=exp)
+                elif exp['viztype'] == 'singleimage_cluster':
+                    print(info.as_string())
+                    viz = MxSingleVizCluster(self.language, self.output_dir, mx, info, plttitle=plttitle, exp=exp, by_author=self.by_author)
                 else:
                     viz = MxKeyAttrViz(self.language, self.output_dir, mx, info, plttitle=plttitle, exp=exp, by_author=self.by_author)
                 viz.visualize(vizname)
@@ -273,10 +290,17 @@ class Experiment(DataHandler):
                 info, plttitle = topk
                 # name of 'threshold-0%9' has changed to 'threshold-0%90' after combinations were run
                 if '0%9.' in info.spmx_path:
-                    info.spmx_path = info.spmx_path.replace('0%9.', '0%90.')
+                    info.spmx_path = info.spmx_path.replace('0%9.', '0%90.') ##################
+                cluster_path_string = '/cluster/scratch/stahla/data'
+                if cluster_path_string in info.spmx_path:
+                    info.spmx_path = info.spmx_path.replace(cluster_path_string, '/home/annina/scripts/great_unread_nlp/data')
                 if exp['viztype'] == 'attrgrid':
                     # In Topeval, a single combination for each sparsified matrix is chosen, attributes don't matter
-                    viz = NkAttrGridViz(self.language, self.output_dir, info, plttitle=plttitle, exp=exp, by_author=self.by_author)    
+                    viz = NkAttrGridViz(self.language, self.output_dir, info, plttitle=plttitle, exp=exp, by_author=self.by_author)
+                elif exp['viztype'] == 'singleimage_cluster': 
+                    print('info', info.as_string(), 'plttitle', plttitle, info.spmx_path)
+                    if not 'nospars' in info.spmx_path: ###############################
+                        viz = NkSingleVizCluster(self.language, self.output_dir, info, plttitle=plttitle, exp=exp, by_author=self.by_author)
                 else:
                     viz = NkKeyAttrViz(self.language, self.output_dir, info, plttitle=plttitle, exp=exp, by_author=self.by_author)
                 viz.visualize()

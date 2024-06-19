@@ -9,7 +9,7 @@ sys.path.append("..")
 import os
 import argparse
 
-from cluster.combinations import MxCombinations, NkCombinations, MxCombinationsSpars
+from cluster.combinations import MxCombinations, NkCombinations
 from helpers import remove_directories
 from analysis.experiments import Experiment
 from analysis.nkselect import NkNetworkGrid, SparsGrid, Selector
@@ -47,27 +47,28 @@ if __name__ == "__main__":
 
 
     if mode == 'mxc':
-        # xc = MxCombinationsSpars(language=language, add_color=False, by_author=by_author)
         mxc = MxCombinations(language=language, add_color=False, by_author=by_author)
-        # mxc.evaluate_all_combinations()
+        mxc.evaluate_all_combinations()
         mxc.check_data()
 
         
     elif mode == 'nkc':
         nkc = NkCombinations(language=language, add_color=False, by_author=by_author)
-        # nkc.evaluate_all_combinations()
+        nkc.evaluate_all_combinations()
         nkc.check_data()
 
 
     elif mode == 'mxexp':
         ex = Experiment(language=language, cmode='mx', by_author=by_author, output_dir='analysis')
-        ex.run_experiments()
+        ex.run_experiments('singleimage_cluster')
+        # ex.run_experiments()
 
 
     elif mode == 'nkexp':
         # output_dir='analysis': eval scores will be taken from similarity dir
         ex = Experiment(language=language, cmode='nk', by_author=by_author, output_dir='analysis')
-        ex.run_experiments()
+        ex.run_experiments('singleimage_cluster')
+        # ex.run_experiments()
 
 
     elif mode == 'viz':

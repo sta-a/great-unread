@@ -1,25 +1,18 @@
 
 # %%
 
-import matplotlib.pyplot as plt
 import pandas as pd
 import os
 import re
-import numpy as np
-from copy import deepcopy
-from typing import List
 import networkx as nx
 import pickle
 import pandas as pd
 
-import matplotlib.lines as mlines
-import textwrap
 from tqdm import tqdm
 
 import sys
 sys.path.append("..")
 from utils import DataHandler
-from cluster.cluster_utils import Colors
 from cluster.combinations import InfoHandler
 from cluster.network import NXNetwork
 import logging
@@ -49,144 +42,7 @@ class NoedgesLoader(DataHandler):
                 print(i)
 
         return unique_lines
-    
 
-class VizBase(DataHandler):
-    def __init__(self, language, output_dir='analysis', cmode='nk', info=None, plttitle=None, exp=None, by_author=False):
-        super().__init__(language, output_dir=output_dir, data_type='png')
-        self.cmode = cmode
-        self.info = info
-        self.plttitle = plttitle
-        self.exp = exp
-        self.by_author = by_author
-        self.fontsize = 12
-        self.add_custom_subdir()
-
-        self.special_cols = ['cluster', 'clst_shape', 'gender_cluster', 'author_cluster', 'x', 'y', 'pos']
-        self.key_attrs = ['author', 'gender', 'year', 'canon']
-        self.cat_attrs = ['gender', 'author']
-
-        self.by_author_attrs = ['canon-max', 'canon-min']
-        if self.by_author:
-            self.key_attrs.remove('author')
-            self.key_attrs.extend(self.by_author_attrs)
-
-        self.is_cat = False
-        if (self.info is not None) and (self.info.attr in self.cat_attrs):
-            self.is_cat = True
-
-        self.needs_cbar = self.check_cbar()
-
-
-    def add_custom_subdir(self):
-        self.add_subdir(f"{self.cmode}_{self.exp['name']}")
-
-
-    def get_metadf(self):
-        self.df = deepcopy(self.info.metadf)
-
-
-    def check_cbar(self):
-        # Check if any continuous attributes are shown.
-        # If yes, a cbar is necessary.
-        cbar = False
-        if not self.is_cat:
-            cbar = True
-        return cbar
-
-
-    def add_text(self, ax, x=0, y=0, width=30):  
-        ax.text(x=x, y=y, s=textwrap.fill(self.plttitle, width), fontsize=self.fontsize)
-
-
-    def save_plot(self, plt):
-        self.save_data(data=plt, data_type=self.data_type, file_name=None, file_path=self.vizpath, plt_kwargs={'dpi': 300})
-
-
-    def get_path(self, name='viz', omit: List[str]=[], data_type=None):
-        if data_type is None:
-            data_type = self.data_type
-        file_name = f'{name}-{self.info.as_string(omit=omit)}.{data_type}'
-        return self.get_file_path(file_name, subdir=True)
-    
-
-    def add_cbar(self, ax):
-        # Create a color bar from a color map
-        # The color map is not used in any matplotlib functions (like for a heatmap), therefore the bar has to be created manually.
-        # Create a ScalarMappable with the color map
-        cmap = Colors.CMAP
-        norm = plt.Normalize(vmin=0, vmax=1)
-        sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
-        sm.set_array([])
-
-        # Create a color bar using the ScalarMappable
-        cbar = plt.colorbar(sm, ax=ax, shrink=0.8, location='left')
-        cbar.ax.tick_params(axis='both', which='major', labelsize=self.fontsize)
-
-        # Set a label for the color bar
-        # cbar.set_label('Color Bar Label', rotation=270, labelpad=15)
-
-        # Remove ticks from the color bar
-        # cbar.set_ticks([])
-
-        # Adjust the layout to make room for the color bar
-        # fig_cbar.tight_layout()        
-
-
-    def add_legend(self, fig_or_ax, attr, label='size', use_shapes=False, loc='upper right', boxx=1.05, boxy=1, boxwidth=0.2, boxheight=0.4, fontsize=None, markersize=8):
-        bbox_to_anchor = (boxx, boxy, boxwidth, boxheight)
-        if fontsize is None:
-            fontsize = self.fontsize
-
-        mapping = {}
-        self.df[attr] = self.df[attr].astype(str) # Enforce that gender column is treated as string
-        for unique_attr in self.df[attr].unique().tolist():
-            cdf = self.df[self.df[attr] == unique_attr]
-            attribute = cdf.iloc[0][f'{attr}_color']
-            if use_shapes:
-                shape = cdf.iloc[0]['clst_shape']
-            else:
-                shape = 'o'
-
-            if len(cdf) > 1:
-                mapping[unique_attr] = (attribute, shape, len(cdf))
-
-        # Keep the 10 most frequent elements
-        mapping = dict(sorted(mapping.items(), key=lambda item: item[1][2], reverse=True))
-        mapping = {k: v for k, v in list(mapping.items())[:10]}
-
-
-        # Create legend patches
-        legend_patches = []
-        for unique_attr, (attribute, shape, count) in mapping.items():
-            if label == 'size':
-                clabel = f'{count}'
-            elif label == 'attr':
-                # Underscores cannot be used in labels because they increase the space between the labels in the legend
-                # This causes the two legends to not be aligned
-                
-                # If attr is author name, get only the first letter of the first name to keep legend short
-                if '_' in unique_attr:
-                    name_parts = unique_attr.split("_")
-                    clabel = f'{name_parts[0]}{name_parts[1][0]} ({count})'
-                else:
-                    clabel = f'{unique_attr} ({count})'
-                
-            legend_patches.append(mlines.Line2D([], [], color=attribute, marker=shape, label=clabel, linestyle='None', markersize=markersize))
-
-        fig_or_ax.legend(handles=legend_patches, labelspacing=0.5, loc=loc, bbox_to_anchor=bbox_to_anchor, fontsize=fontsize)
-
-
-    def get_ax(self, ix):
-        return self.axs[ix[0], ix[1]]
-
-
-    def add_subtitles(self, attrix, clstix, shapeix, combix=None):
-        self.get_ax(attrix).set_title(f'Attribute: {self.info.attr}', fontsize=self.fontsize)
-        self.get_ax(clstix).set_title('Clusters', fontsize=self.fontsize)
-        self.get_ax(shapeix).set_title('Attribute (color) and clusters (shapes)', fontsize=self.fontsize)
-        if combix is not None:
-            self.get_ax(combix).set_title('Attribute and clusters (combined)', fontsize=self.fontsize)
 
 
 def main_attributes_crosstable():
@@ -273,6 +129,12 @@ def info_to_mx_and_edgelist():
         print(info.as_string())
         attributes = ih.metadf['canon']
         attributes = pd.DataFrame({'index': attributes.index, 'canon': attributes.values})
+
+
+        cluster_path_string = '/cluster/scratch/stahla/data'
+        if cluster_path_string in info.spmx_path:
+            info.spmx_path = info.spmx_path.replace(cluster_path_string, '/home/annina/scripts/great_unread_nlp/data')
+
 
         spmx_path = info.spmx_path
         network = NXNetwork(language=language, path=spmx_path)

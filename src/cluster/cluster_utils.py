@@ -29,7 +29,7 @@ class MetadataHandler(DataHandler):
     def __init__(self, language, by_author=False):
         super().__init__(language, output_dir=None, data_type='png')
         self.by_author = by_author
-        self.cat_attrs = ['gender', 'author']
+        self.cat_attrs = ['gender', 'author', 'canon-ascat', 'year-ascat']
 
 
     def add_title_mapping(self, tmap, df):
@@ -44,9 +44,9 @@ class MetadataHandler(DataHandler):
         gender['gender'] = gender['gender'].map({'m': 0, 'f': 1, 'a': 2, 'b': 3})
 
         canon = DataLoader(self.language).prepare_metadata(type='canon')
-        # canon['canon-ascat'] = canon['canon'].apply(lambda x: 0 if x < 0.33 else 1 if x < 0.66 else 2)
-        print(canon)
-
+        canon['canon-ascat'] = canon['canon'].apply(lambda x: 0 if x < 0.333 else 1 if x < 0.666 else 2)
+        # value_counts = canon['canon-ascat'].value_counts()
+        # print(value_counts)
 
         if self.by_author:
             output_dir = self.create_output_dir(output_dir='title_mapping')
@@ -62,8 +62,10 @@ class MetadataHandler(DataHandler):
             
             # Average over canon scores of individual texts
             canon = self.add_title_mapping(tmap, canon)
+            canon_ascat_col = canon['canon-ascat']
             canon = canon.groupby('new_file_name')['canon'].agg(['mean', 'max', 'min'])
             canon.columns = ['canon', 'canon-max', 'canon-min']
+            canon['canon-ascat'] = canon['canon'].apply(lambda x: 0 if x < 0.333 else 1 if x < 0.666 else 2)
 
         # Load features scaled to range between 0 and 1
         features = FeaturesLoader(self.language).prepare_features(scale=True)
@@ -80,7 +82,9 @@ class MetadataHandler(DataHandler):
         year = pd.DataFrame({'file_name': fn})
         year['year'] = year['file_name'].str[-4:].astype(int)
         year = year.set_index('file_name', inplace=False)
-
+        year['year-ascat'] = year['year'].apply(lambda x: 0 if x < 1800 else 1 if x < 1850 else 2 if x < 1900 else 3)
+        # value_counts = year['year-ascat'].value_counts()
+        # print(value_counts)
 
         # Merge dataframes based on their indices
         df_list = [gender, author, year, canon, features]
@@ -221,7 +225,7 @@ class ColorMap(Colors):
         super().__init__()
         self.metadf = metadf
         self.pgv = pgv
-        self.cat_attrs = ['gender', 'author']
+        self.cat_attrs = ['gender', 'author', 'canon-ascat', 'year-ascat']
         self.cat_attrs_combined = [f'{cattr}_cluster' for cattr in self.cat_attrs]
 
 

@@ -19,7 +19,7 @@ random.seed(9)
 import sys
 sys.path.append("..")
 from utils import DataHandler
-from .analysis_utils import VizBase
+from .viz_utils import VizBase
 from cluster.cluster_utils import CombinationInfo
 from cluster.combinations import InfoHandler
 import logging
@@ -50,6 +50,10 @@ class NkVizBase(VizBase):
 
         if info is not None:
             if self.graph is None:
+                cluster_path_string = '/cluster/scratch/stahla/data'
+                if cluster_path_string in info.spmx_path:
+                    info.spmx_path = info.spmx_path.replace(cluster_path_string, '/home/annina/scripts/great_unread_nlp/data')
+                print(info.spmx_path)
                 self.network = NXNetwork(self.language, path=info.spmx_path)
                 self.graph = self.network.graph
 
@@ -194,8 +198,9 @@ class NkVizBase(VizBase):
             graph = deepcopy(self.graph)
         
         # Subgraphs with two nodes
-        self.graphs_two = [graph.subgraph(comp).copy() for comp in nx.connected_components(graph) if len(comp) == 2]
-        nodes_two = [node for subgraph in self.graphs_two for node in subgraph.nodes()]
+        nodes_two = []
+        # self.graphs_two = [graph.subgraph(comp).copy() for comp in nx.connected_components(graph) if len(comp) == 2]
+        # nodes_two = [node for subgraph in self.graphs_two for node in subgraph.nodes()]
 
         # Isolated nodes
         self.nodes_iso = list(nx.isolates(self.graph))
@@ -287,12 +292,12 @@ class NkKeyAttrViz(NkVizBase):
             self.draw_edges(self.graph_con, self.pos, ix)
 
         # Two nodes
-        if self.nodes_removed:
-            for ix in self.subplots:
-                if ix is not None:
-                    ix = [ix[0]+1, ix[1]]
-                    for curr_g in self.graphs_two:
-                        self.draw_edges(curr_g, self.pos, ix)
+        # if self.nodes_removed:
+        #     for ix in self.subplots:
+        #         if ix is not None:
+        #             ix = [ix[0]+1, ix[1]]
+        #             for curr_g in self.graphs_two:
+        #                 self.draw_edges(curr_g, self.pos, ix)
 
 
     def add_nodes_to_ax(self, ix, df, color_col, use_different_shapes=False):
@@ -368,7 +373,6 @@ class NkKeyAttrViz(NkVizBase):
             self.third_ext_ix = [0,3]
             if self.by_author:
                 self.fourth_ext_ix = [2,3]
-
         self.subplots = [self.attrix, self.clstix, self.shapeix, self.combix, self.first_ext_ix, self.second_ext_ix, self.third_ext_ix]
         if self.by_author:
             self.subplots.extend([self.fourth_ext_ix])
@@ -465,24 +469,6 @@ class NkAttrGridViz(NkVizBase):
         self.ws_top = 0.99
         self.ws_wspace = 0
         self.ws_hspace = 0
-
-
-    # def create_logfile(self, all_cols, nfields):
-    #     df = pd.DataFrame({'feature': all_cols})
-
-    #     df['cmode'] = self.cmode
-    #     df['mxname'] = self.info.mxname
-    #     df['sparsmode'] = self.info.sparsmode
-    #     df['distinctive'] = ''
-
-    #     # Nr of plot that contains feature
-    #     viznr_values = []
-    #     for i in range(len(df)):
-    #         viznr_values.append(i // nfields)
-    #     df['viznr'] = viznr_values
-
-    #     df = df[['cmode', 'mxname', 'sparsmode', 'viznr', 'feature', 'distinctive']]
-    #     self.save_data(data=df, subdir=True, file_name='visual-assessment.csv', data_type='csv')
 
 
     def visualize(self, vizname='viz'):
@@ -599,23 +585,6 @@ class NkNetworkGridkViz(NkKeyAttrViz):
         self.figsize = (self.ncol*2, self.nrow*2 + 1)
 
 
-    def create_overview_file(self):
-        dfpath = os.path.join(self.output_dir, 'nk_visualizations.csv')
-        if not os.path.exists(dfpath):
-            mxs = self.load_mxnames()
-            mxs = [mx.replace('sparsmx-', '') for mx in mxs]
-            mxs = [mx.split('.')[0] for mx in mxs]
-            mxs =  [mx.split('_') for mx in mxs]
-            mxs = sorted(mxs)
-
-            df = pd.DataFrame(mxs, columns=['mxname', 'sparsification'])
-
-            # Add column names to DataFrame with new empty columns
-            for col_name in ['from_sparsmethod'] + self.key_attrs:
-                df[col_name] = ''
-            df.to_csv(dfpath, index=False, header=True)
-
-
     def load_mxnames(self):
         mxs = [filename for filename in os.listdir(self.mxdir) if filename.startswith('sparsmx')]
         if self.by_author:
@@ -705,7 +674,6 @@ class NkNetworkGridkViz(NkKeyAttrViz):
 
 
     def visualize(self, vizname='viz'): # vizname for compatibility
-        self.create_overview_file()
         mxdict = self.create_filenames_list()
 
         for figname, mxlist in mxdict.items():
@@ -818,3 +786,76 @@ class NkSingleViz(NkNetworkGridkViz):
                         self.save_plot(plt)
                 # plt.show()
                 plt.close()
+
+
+class NkSingleVizCluster(NkKeyAttrViz):
+    '''
+    Make single images where clusters are highlighted. Isolated nodes are not shown.
+    '''
+    def __init__(self, language, output_dir, info, plttitle, exp, by_author):
+        super().__init__(language, output_dir, info=info, plttitle=plttitle, exp=exp, by_author=by_author)
+        self.fontsize = 10
+        self.markersize = self.fontsize
+
+
+    def get_figure(self):
+        self.fig, self.axs = plt.subplots(1, 1, figsize=(4, 4))
+        self.axs = np.reshape(self.axs, (1, 1)) 
+        self.axs[0, 0].axis('off')
+        self.adjust_subplots()
+        self.subplots = [[0, 0]]
+        print('axs shape', self.axs.shape)
+
+
+    def fill_subplots(self):
+        self.add_nodes_to_ax([0,0], self.df, color_col='cluster', use_different_shapes=False)
+
+
+    # Overwrite method to remove 'viz' from file name
+    def get_path(self, omit: List[str]=[], data_type=None):
+        if data_type is None:
+            data_type = self.data_type
+        file_name = f'{self.info.as_string(omit=omit)}.{data_type}'
+        return self.get_file_path(file_name, subdir=True)
+
+
+    def visualize(self, vizname='viz', omit=[]):
+        if not self.too_many_edges:
+            self.vizpath = self.get_path(omit=['attr'])
+            print('NkSingleVizCluster', self.vizpath)
+            if not os.path.exists(self.vizpath):
+                self.get_graphs() ####################################delete
+                self.get_positions()
+                self.add_positions_to_metadf()
+
+                self.get_figure()
+                self.adjust_subplots()
+                self.add_edges()
+
+                self.fill_subplots()
+                self.save_plot(plt)
+                # plt.show()
+                plt.close()
+
+    # def get_ax(self, ix):
+    #     return self.axs[0, 0]
+    
+    def get_figure(self):
+        ncol = 1
+        width_ratios = (ncol-1)*[7] + [1]
+
+        self.fig, self.axs = plt.subplots(2, ncol, figsize=(4,4), gridspec_kw={'height_ratios': [7, 0.5], 'width_ratios': width_ratios})      
+        self.axs = np.reshape(self.axs, (2, 1)) 
+        print(self.axs.shape)
+
+        # for row in self.axs: 
+        #     for ax in row:
+        #         ax.axis('off')
+        self.axs[0,0].axis('off')
+        self.axs[1,0].axis('off')
+
+        self.attrix = [0,0]
+        self.subplots = [self.attrix]
+
+
+

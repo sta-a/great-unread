@@ -11,14 +11,13 @@ import time
 import gc
 
 from .embedding_utils import EmbeddingBase
-from .nkselect import ImageGrid
+from .viz_utils import ImageGrid
 from .nkviz import NkVizBase
 from .mxviz import MxSingleViz
 from cluster.combinations import MxCombinations
 from cluster.combinations import InfoHandler
 from cluster.create import D2vDist
 from cluster.cluster_utils import MetadataHandler, CombinationInfo
-# from .n2vcreator import N2vCreator
 from .s2vcreator import S2vCreator
 from copy import deepcopy
 
@@ -457,38 +456,7 @@ class ParamModeEval(S2vCreator):
                         del igmx
                         gc.collect()
 
-
-class EmbMxAttrGrid(ImageGrid):
-    '''
-    Stack the plots in the gridimage dir on top of each other.
-    '''
-    def __init__(self, language, network_name):
-        self.network_name = network_name
-        super().__init__(language, by_author=False, output_dir='analysis_s2v', imgdir='gridimage')
-        self.nrow = 2 
-        self.ncol = 2
-        self.img_width = 2.882*2
-        self.img_height = 1.615*2
-
-        self.add_subdir('gridimage_allattr')
-
-
-    def get_file_path(self, vizname, subdir=None, **kwargs):
-        file_name = f"{self.network_name}.png"
-        return os.path.join(self.subdir, file_name)
-
-
-    def get_title(self, imgname):
-        return ''
-    
-    
-    def load_single_images(self):
-        imgs = []
-        for attr in self.key_attrs:
-            path =  os.path.join(self.imgdir, f'{self.network_name}_{attr}.png')
-            imgs.append(path)
-        return imgs
-    
+   
 
 class RunModeParamGridPerAttr(ImageGrid):
     '''
@@ -498,7 +466,7 @@ class RunModeParamGridPerAttr(ImageGrid):
         self.combs = combs
         super().__init__(language, attr=attr, by_author=False, output_dir='analysis_s2v', imgdir='mx_singleimage')
         self.nrow = 2
-        self.ncol = 3
+        self.ncol = 2
         assert len(self.combs) == self.nrow * self.ncol
         self.imgs = self.load_single_images()
         self.fontsize = 6
@@ -614,9 +582,10 @@ class RunModeEval(S2vCreator):
 
     def create_param_grid(self):
         # Combine different params, ignore attrs
-        for network_name in self.nklist:
+        for network_name in self.edgelists:
+            network_name, extension = network_name.split('.')
+            print(network_name, extension)
             param_combs =  super().get_param_combinations()
-            print(network_name)
             combs = [self.get_param_string(x) for x  in param_combs]
             combs = [f'{network_name}_{x}' for x in combs]
             # for attr in ['author', 'canon', 'gender', 'year']:
@@ -624,19 +593,9 @@ class RunModeEval(S2vCreator):
             ig.visualize(vizname=network_name)
             plt.close('all')
 
-    
-    # def stack_attr_grids(self): ################3
-    #     # Stack grid images of different params for different attributes
-    #     for network_name in self.nklist:
-    #         ig = EmbMxAttrGrid(self.language, network_name)
-    #         ig.visualize()
-
-
 
 class BestParamAnalyis(S2vCreator):
-    '''
-    Combine all images that have the same matrix name and sparsification method but different parameter settings into one image.
-    '''
+    
     def __init__(self, language):
         super().__init__(language, mode='bestparams')
         self.el = EmbLoader(self.language, self.file_string, mode='bestparams') # Use parameters from run mode
@@ -644,7 +603,9 @@ class BestParamAnalyis(S2vCreator):
 
     def create_attr_grid(self):
         # Combine different params and attrs in one plot
-        for network_name in self.nklist:
+        for network_name in self.edgelists:
+            network_name, extension = network_name.split('.')
+            print(extension)
             param_combs =  super().get_param_combinations()
             print(network_name)
             combs = [self.get_param_string(x) for x  in param_combs]

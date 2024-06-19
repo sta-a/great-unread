@@ -100,7 +100,7 @@ class ExtEval(DataHandler):
         self.cmode = cmode
         self.info = info
         self.inteval = inteval
-        self.cat_attrs = ['gender', 'author']
+        self.cat_attrs = ['gender', 'author', 'canon-ascat', 'year-ascat']
 
         self.add_subdir(f'{self.cmode}eval')
         self.file_paths = self.get_file_paths()
@@ -121,6 +121,10 @@ class ExtEval(DataHandler):
                 self.eval_method = self.eval_gender
             elif self.info.attr == 'author':
                 self.eval_method = self.eval_author
+            elif self.info.attr == 'canon-ascat':
+                self.eval_method = self.eval_canon_ascat
+            elif self.info.attr == 'year-ascat':
+                self.eval_method = self.eval_year_ascat
 
         else:
             self.scale = 'cont'
@@ -237,6 +241,18 @@ class ExtEval(DataHandler):
         df = {'ARI': ari_score, 'nmi': nmi_score, 'fmi': fmi_score, 'mean_purity': purity}
         return df
 
+
+    def eval_canon_ascat(self):
+        df = self.info.metadf.copy(deep=True)
+        scores = self.get_categorical_scores(df['canon-ascat'])
+        return scores
+    
+    def eval_year_ascat(self):
+        df = self.info.metadf.copy(deep=True)
+        scores = self.get_categorical_scores(df['year-ascat'])
+        return scores
+    
+    
 
     def eval_author(self):
         df = self.info.metadf.copy(deep=True)

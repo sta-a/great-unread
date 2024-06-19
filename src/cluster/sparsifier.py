@@ -26,7 +26,6 @@ class Sparsifier(DataHandler):
             'simmel': [(5, 10), (3, 10), (4,6), (7, 10)],
             'authormax': [None],
             'authormin': [None],
-            'nospars': [None],
             }
       
       def __init__(self, language=None, mx=None, mode=None, output_dir='similarity'):
@@ -70,9 +69,6 @@ class Sparsifier(DataHandler):
                         mx = self.filter_simmelian(mx, spars_param)
                         simmx = SimMx(self.language, name=self.mx.name, mx=mx, normalized=True, is_sim=True, is_directed=True)
                         self.logger.info(f'{self.mode} sparsification: matrix is directed') # Directed with conditioned=True
-
-                  elif self.mode == 'nospars':
-                        simmx = self.mx
 
                   with open(spmx_path, 'wb') as f:
                         pickle.dump(simmx, f)

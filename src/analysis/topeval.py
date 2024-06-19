@@ -28,7 +28,7 @@ class TopEval(InfoHandler):
         self.ntop = self.exp['ntop']
         self.df = df
         if self.df is None:
-            self.df = self.load_data()
+            self.df = self.create_data()
 
 
     def get_file_path(self, file_name): # file_name for compatibility
@@ -216,10 +216,10 @@ class TopEval(InfoHandler):
                 df = df[df['attr'] == self.exp['attr']]
             if 'mxname' in self.exp:
                 df = self.filter_columns_substring(df, 'mxname')
-            if 'intthresh' in self.exp:
-                df = self.filter_inteval(df)
             if (self.exp['viztype'] == 'attrgrid' or self.exp['viztype'] == 'nkgrid'):
                 df = self.filter_unique_mxs(df)
+            if 'intthresh' in self.exp:
+                df = self.filter_inteval(df)
             self.dfs[self.scale] = df
     
 
@@ -236,6 +236,7 @@ class TopEval(InfoHandler):
         
         df = self.make_plttitle(df)
         self.save_data(data=df)
+        return df
 
 
     def plot_cols(self, df):

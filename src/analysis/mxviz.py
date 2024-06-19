@@ -20,10 +20,12 @@ from scipy.spatial.distance import squareform
 import sys
 sys.path.append("..")
 from utils import DataHandler
-from .analysis_utils import VizBase
+from .viz_utils import VizBase
 from cluster.create import SimMx
 from cluster.cluster_utils import Colors, MetadataHandler
 from cluster.combinations import InfoHandler
+from typing import List
+
 import logging
 logging.basicConfig(level=logging.DEBUG)
 
@@ -368,7 +370,7 @@ class MxAttrGridViz(MxVizBase):
         df = deepcopy(df)
         special_cols = ['cluster', 'clst_shape', 'gender_cluster', 'author_cluster']
         # Get list of attributes in interesting order
-        if self.expname == 'attrviz':
+        if self.exp['name'] == 'attrviz':
             cols = self.key_attrs + [col for col in df.columns if col not in self.key_attrs and col not in special_cols and ('_color' not in col)]
         else:
             cols = self.key_attrs
@@ -479,6 +481,8 @@ class MxSingleViz2D3D(MxVizBase):
     def get_metadf(self):
         self.df = deepcopy(self.ih.metadf)
         self.df['noattr_color'] = 'blue'
+        for i in self.df.columns:
+            print(i)
 
 
     def get_figure(self):
@@ -566,3 +570,53 @@ class MxSingleViz(MxSingleViz2D3D):
             sdf = df[df['clst_shape'] == shape]
             kwargs = {'c': sdf[color_col], 'marker': shape, **scatter_kwargs}
             self.axs[ix[0], ix[1]].scatter(x=sdf['X_mds_2d_0'], y=sdf['X_mds_2d_1'], **kwargs)
+
+
+class MxSingleVizCluster(MxVizBase):
+    def __init__(self, language, output_dir, mx, info, plttitle, exp, by_author):
+        super().__init__(language, output_dir, mx=mx, info=info, plttitle=plttitle, exp=exp, by_author=by_author)
+        self.attr = 'cluster'
+        self.markersize = 20
+
+
+    def get_figure(self):
+        self.fig, self.axs = plt.subplots(1, 1, figsize=(4, 4))
+        self.axs = np.reshape(self.axs, (1, 1))
+        self.axs[0, 0].axis('off')
+        self.adjust_subplots()
+
+    def fill_subplots(self):
+        self.draw_mds([0, 0], color_col=self.attr, use_different_shapes=False, s=self.markersize)
+
+    def draw_mds(self, ix, color_col=None, use_different_shapes=False, s=30, edgecolor='black', linewidth=0.2):
+        scatter_kwargs = {'s': s, 'edgecolor': edgecolor, 'linewidth': linewidth}
+        color_col = f'{color_col}_color'
+        
+        df = self.df.copy() # Avoid chained assingment warning
+        # Iterate through shapes because only one shape can be passed at a time, no lists
+        if not use_different_shapes:
+            df['clst_shape'] = 'o'
+        shapes = df['clst_shape'].unique()
+
+        for shape in shapes:
+            sdf = df[df['clst_shape'] == shape]
+            kwargs = {'c': sdf[color_col], 'marker': shape, **scatter_kwargs}
+            self.axs[ix[0], ix[1]].scatter(x=sdf['X_mds_2d_0'], y=sdf['X_mds_2d_1'], **kwargs)
+
+
+    # Overwrite method to remove 'viz' from file name
+    def get_path(self, omit: List[str]=[], data_type=None):
+        if data_type is None:
+            data_type = self.data_type
+        file_name = f'{self.info.as_string(omit=omit)}.{data_type}'
+        return self.get_file_path(file_name, subdir=True)
+
+    def visualize(self, vizname='viz', omit=[]):
+        self.vizpath = self.get_path(omit=['attr'])
+        if not os.path.exists(self.vizpath):
+            self.pos = self.get_mds_positions()
+            self.add_positions_to_metadf()
+            self.get_figure()
+            self.fill_subplots()
+            self.save_plot(plt)
+            # plt.show()

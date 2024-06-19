@@ -1,173 +1,22 @@
-import pandas as pd
-import itertools
-import numpy as np
-from matplotlib import pyplot as plt
-import networkx as nx
-import pickle
-from copy import deepcopy
 import os
-import matplotlib.gridspec as gridspec
-import time
 import random
-import textwrap
-from typing import List
-from cluster.network import NXNetwork
 random.seed(9)
 
 
 import sys
 sys.path.append("..")
 from utils import DataHandler
-from .analysis_utils import VizBase, NoedgesLoader
-from .nkviz import NkKeyAttrViz
-from cluster.cluster_utils import CombinationInfo
-from cluster.combinations import InfoHandler
+from .analysis_utils import NoedgesLoader
+from .viz_utils import ImageGrid
 import logging
 logging.basicConfig(level=logging.DEBUG)
 
-
-import tkinter as tk
-from matplotlib import pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from PIL import Image, ImageDraw
-
-
-class ImageGrid(DataHandler):
-    def __init__(self, language, attr=None, by_author=False, output_dir='analysis', imgdir='nk_singleimage', select_with_gui=False, rowmajor=True):
-        super().__init__(language, output_dir=output_dir, data_type='png')
-        self.attr = attr
-        self.by_author = by_author
-        self.imgdir = os.path.join(self.output_dir, imgdir)
-        self.select_with_gui = select_with_gui
-        self.rowmajor = rowmajor # Order in which images are filled into the grid
-        self.key_attrs = ['author', 'canon', 'gender', 'year']
-        self.nrow = 3
-        self.ncol = 3
-        self.imgs = self.load_single_images()
-        self.fontsize = 6
-
-        self.img_width = 1.8 # format of single-network plots stored on file
-        self.img_height = 2.1
-        self.nr_mxs = 58
-        self.nr_spars = 9
-
-        # Whitespace
-        self.ws_left = 0.01
-        self.ws_right = 0.99
-        self.ws_bottom = 0.01
-        self.ws_top = 0.99
-        self.ws_wspace = 0.01
-        self.ws_hspace = 0.01
-
-
-    def adjust_subplots(self):
-        self.fig.subplots_adjust(
-            left=self.ws_left,
-            right=self.ws_right,
-            bottom=self.ws_bottom,
-            top=self.ws_top,
-            wspace=self.ws_wspace,
-            hspace=self.ws_hspace)  
-
-
-    def get_figure(self):
-        self.fig, self.axs = plt.subplots(self.nrow, self.ncol, figsize=(self.ncol*self.img_width, self.nrow*self.img_height))
-        if self.nrow == 1:
-            self.axs = self.axs.reshape(1, -1) # one row, infer number of cols
-        if self.ncol == 1:
-            self.axs = self.axs.reshape(-1, 1)
-        plt.tight_layout(pad=0)
-
-
-
-    def load_attr_images(self, file_names):
-        # Select all file names where the last part before .png seperated by an underscore is equal to attr
-        file_names = [fn for fn in file_names if fn.rsplit('.', 1)[0].rsplit('_', 1)[1] == self.attr]
-        return file_names
-
-
-    def load_single_images(self):
-        file_names = [fn for fn in os.listdir(self.imgdir) if fn.endswith('.png')]
-        if self.attr is not None:
-            file_names = self.load_attr_images(file_names)
-        return sorted(file_names)
-
-
-    def select_image(self, event, imgs):
-        # Select images via mouse click, write their name to file
-        path = os.path.join(self.subdir, f'selected_{self.attr}.txt')
-        with open(path, 'a') as f:
-            for i in range(self.nrow):
-                for j in range(self.ncol):
-                    index = i * self.ncol + j
-                    if event.inaxes == self.axs[i, j]:
-                        f.write(imgs[index] + '\n')
-                        break
-
-
-    def get_title(self, imgname):
-        return '_'.join(imgname.split('_')[:2])
-
-        
-    def visualize(self, vizname='viz', imgs=None, **kwargs):
-        self.vizpath = self.get_file_path(vizname, subdir=True, **kwargs)
-
-        if imgs is None:
-            imgs = self.imgs
-
-        if not os.path.exists(self.vizpath):
-            if self.select_with_gui:
-                # Create tkinter window
-                root = tk.Tk()
-                root.title(vizname)
-
-            # Display images in grid layout
-            self.get_figure()
-            self.adjust_subplots()
-            for i in range(self.nrow):
-                for j in range(self.ncol):
-                    if self.rowmajor:
-                        index = i * self.ncol + j
-                    else:
-                        index = j * self.nrow + i
-                    if index < len(imgs):
-                        # print('Loading image:', imgs[index])
-                        img = plt.imread(os.path.join(self.imgdir, imgs[index]))
-                        self.axs[i, j].imshow(img)
-                        self.axs[i, j].axis('off')
-                        title = self.get_title(imgs[index])
-                        self.axs[i, j].set_title(title, fontsize=self.fontsize)
-                        self.axs[i, j].figure.canvas.mpl_connect('button_press_event', lambda event, imgs=imgs: self.select_image(event, imgs))
-                    else:
-                        self.axs[i, j].clear()
-                        self.axs[i, j].axis('off')
-            
-            # bbox_inches because titles are cut off
-            print(self.vizpath)
-            self.save_data(data=plt, data_type=self.data_type, file_name=None, file_path=self.vizpath, plt_kwargs={'dpi': 300, 'bbox_inches': 'tight'})
-            # plt.show()
-
-            if self.select_with_gui:
-                # Add matplotlib plot to tkinter window
-                canvas = FigureCanvasTkAgg(self.fig, master=root)
-                canvas.draw()
-                canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
-
-                # Set select_with_gui to True for selecting networks with mouse click
-                # Run the tkinter event loop
-                tk.mainloop()
-            plt.clf()
-            self.fig.clf()
-            plt.close(self.fig)
-            plt.close('all')
-        plt.close()
-        plt.close('all')
 
 
 
 class NkNetworkGrid(ImageGrid):
     '''
-    Plot every network for an attribute.
+    Plot every network for an attribute. Select interesting networks by mouse click.
     '''
     def __init__(self, language, attr=None, by_author=False, select_with_gui=True):
         super().__init__(language=language, attr=attr, by_author=by_author, select_with_gui=select_with_gui)

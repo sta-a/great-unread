@@ -85,10 +85,12 @@ class CombinationsBase(InfoHandler):
         self.test = False
         self.save_data(data=self.metadf, filename='metadf') ####################
         self.colnames = [col for col in self.metadf.columns if not col.endswith('_color')]
-        self.colnames = ['gender', 'author', 'canon', 'year'] ##################3
+        self.colnames = ['gender', 'author', 'canon', 'year', 'canon-ascat', 'year-ascat'] 
+        if self.by_author:
+            self.colnames = self.colnames + ['canon-min', 'canon-max']
 
         if self.test:
-            self.colnames = ['gender', 'author', 'canon', 'year']
+            self.colnames = ['gender', 'author', 'canon', 'year', 'canon-ascat', 'year-ascat']
             MxCluster.ALGS = {
                 'hierarchical': {
                     'nclust': [2],
@@ -247,70 +249,6 @@ class MxCombinations(CombinationsBase):
                     with open(self.smallmx_path, 'a') as mxf:
                         mxf.write(info.as_string() + '\n')
 
-
-
-class MxCombinationsSpars(MxCombinations):
-    '''
-    Cluster on original and sparsified distance matrices
-    '''
-    def __init__(self, language, output_dir='similarity', add_color=False, by_author=False):
-        super().__init__(language, output_dir=output_dir, add_color=add_color, by_author=by_author)
-
-
-    def create_combinations(self):
-        mxs_generator = self.load_mxs()
-        sparsmodes = list(Sparsifier.MODES.keys())
-        if self.by_author:
-            # author-based sparsification makes no sense if by_author
-            sparsmodes = [item for item in sparsmodes if item not in {'authormin', 'authormax'}]
-        for mx, sparsmode in itertools.product(mxs_generator, sparsmodes):
-            print(mx.name)
-
-            sparsifier = Sparsifier(self.language, mx, sparsmode, output_dir=self.output_dir)
-            spars_params = Sparsifier.MODES[sparsmode]
-            
-            for spars_param in spars_params:
-                mx, filtered_nr_edges, spmx_path = sparsifier.sparsify(spars_param)
-                mx.mx.to_csv(f'{mx.name}-{sparsmode}-{spars_param}.csv')
-                if filtered_nr_edges != 0:
-                    for cluster_alg in  MxCluster.ALGS.keys():
-                        sc = MxCluster(self.language, cluster_alg, mx, output_dir=self.output_dir)
-                        param_combs = sc.get_param_combinations()
-                        
-                        for param_comb in param_combs:
-                            info = CombinationInfo(mxname=mx.name, sparsmode=sparsmode, spars_param=spars_param, cluster_alg=cluster_alg, param_comb=param_comb, spmx_path=spmx_path)
-                            if os.path.exists(self.get_pickle_path(info.as_string())):
-                                continue
-                            clusters = sc.cluster(info, param_comb)
-
-                            if clusters is not None:
-                                # print(info.as_string())
-                                metadf = self.merge_dfs(self.metadf, clusters.df)
-                                info.add('metadf', metadf)
-                                info.add('clusterdf', clusters.df)
-                                combination = [mx, clusters, info] 
-
-                                yield combination
-
-
-    def log_combinations(self):
-        mxs_generator = self.load_mxs()
-        with open(self.combinations_path, 'w') as f:
-            for mx, sparsmode in itertools.product(mxs_generator, Sparsifier.MODES.keys()):
-                sparsifier = Sparsifier(self.language, mx, sparsmode, output_dir=self.output_dir)
-                spars_params = Sparsifier.MODES[sparsmode]
-                
-                for spars_param in spars_params:
-                    mx, filtered_nr_edges, spmx_path = sparsifier.sparsify(spars_param)
-                    if filtered_nr_edges != 0: # ignore if no edges
-
-                        for cluster_alg in  MxCluster.ALGS.keys():
-                            sc = MxCluster(self.language, cluster_alg, mx, output_dir=self.output_dir)
-                            param_combs = sc.get_param_combinations()
-                            
-                            for param_comb in param_combs:
-                                info = CombinationInfo(mxname=mx.name, sparsmode=sparsmode, spars_param=spars_param, cluster_alg=cluster_alg, param_comb=param_comb, spmx_path=spmx_path)
-                                f.write(info.as_string() + '\n')
 
 
 class NkCombinations(CombinationsBase):

@@ -346,11 +346,11 @@ class PlotYearAndCanon(DataHandler):
             self.save_data(data=plt, file_name=f'{attr}_byauthor-{by_author}')
 
 
-for language in ['eng', 'ger']:
-    print('Text Statistics:')
+# for language in ['eng', 'ger']:
+#     print('Text Statistics:')
 
-    pyac = PlotYearAndCanon(language)
-    pyac.plot()
+#     pyac = PlotYearAndCanon(language)
+#     pyac.plot()
     # mdstats = MetadataStats(language)
     # mdstats.get_stats()
 #     # ts = TextStatistics(language)
