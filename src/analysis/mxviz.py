@@ -20,7 +20,8 @@ from scipy.spatial.distance import squareform
 import sys
 sys.path.append("..")
 from utils import DataHandler
-from .viz_utils import VizBase
+from .viz_utils import VizBase, ImageGrid
+from .nkviz import NkSingleVizCluster
 from cluster.create import SimMx
 from cluster.cluster_utils import Colors, MetadataHandler
 from cluster.combinations import InfoHandler
@@ -620,3 +621,77 @@ class MxSingleVizCluster(MxVizBase):
             self.fill_subplots()
             self.save_plot(plt)
             # plt.show()
+
+
+class S2vKeyAttrViz(ImageGrid):
+    '''
+    First row: original network
+    Second row: S2v MDS
+    (Third row: S2v MDS 3d)
+    '''
+
+    def __init__(self, language, mx, info, plttitle, exp, by_author, subdir=None):
+        self.mx = mx
+        self.info = info
+        print('info', self.info.as_string())
+        self.plttitle = plttitle
+        self.exp = exp
+        self.colnames = ['cluster', 'canon', 'author', 'gender', 'year']
+
+        self.subdir = subdir #
+        super().__init__(language=language, by_author=by_author, output_dir='analysis_s2v', rowmajor=False, imgs_as_paths=True, subdir=self.subdir) # load_single_images is called in ImageGrid.__init__
+        # self.subdir = subdir
+        print('subdir after init', self.subdir)
+
+        self.nrow = 2
+        self.ncol = len(self.colnames)
+
+
+    def get_file_path(self, vizname, subdir, **kwargs):
+        print('new vizpath', os.path.join(self.subdir, f'{vizname}-{self.info.as_string(omit=["attr"])}.{self.data_type}'))
+        return os.path.join(self.subdir, f'{vizname}-{self.info.as_string(omit=["attr"])}.{self.data_type}')
+
+
+    def load_single_images(self):
+        mxname, spars = self.info.as_string().split('_')[:2]
+        self.info.spmx_path = os.path.join(self.data_dir, 'similarity', self.language, 'sparsification', f'sparsmx-{mxname}_{spars}.pkl')
+        self.nk_attr_dir = os.path.join(self.data_dir, 'analysis', self.language, 'nk_singleimage')
+        self.mds_attr_dir = os.path.join(self.output_dir, 'mx_singleimage')
+        self.nk_cluster_dir = os.path.join(self.output_dir, 'nk_singleimage_cluster')
+        self.mds_cluster_dir = os.path.join(self.output_dir, 'mx_singleimage_cluster')
+
+        print('info name', self.info.mxname)
+        imgs = []
+        for attr in self.colnames:
+            self.info.attr = attr
+            if attr == 'cluster':
+                nkclust = NkSingleVizCluster(self.language, self.output_dir, self.info, plttitle=self.plttitle, exp=self.exp, by_author=self.by_author)
+                nkclust_path = nkclust.get_path(omit=['attr'])
+                print(nkclust_path)
+                if not os.path.exists(nkclust_path):
+                    nkclust.visualize()
+                imgs.append(nkclust_path)
+
+
+                mdsclust = MxSingleVizCluster(self.language, self.output_dir, self.mx, self.info, self.plttitle, self.exp, self.by_author)
+                mxclust_path = mdsclust.get_path(omit=['attr'])
+                print(mxclust_path)
+                if not os.path.exists(mxclust_path):
+                    mdsclust.visualize()
+                imgs.append(mxclust_path)
+
+            else:
+                nkpath = os.path.join(self.nk_attr_dir, f'{mxname}_{spars}_{attr}.png')
+                print(nkpath)
+                mdspath = os.path.join(self.mds_attr_dir, f'{self.info.mxname}_{attr}.png')
+                print(mdspath)
+                imgs.extend([nkpath, mdspath])
+        return imgs
+
+    def get_title(self, imgpath):
+        basename = os.path.splitext(os.path.basename(imgpath))[0]
+        attr = basename.split('_')[-1]
+        if '-' in attr: # cluster file name has different format
+            attr = 'cluster'
+        return attr
+    

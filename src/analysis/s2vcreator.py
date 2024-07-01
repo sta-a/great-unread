@@ -17,14 +17,14 @@ struc2vec cannot be run several times at the same time because of  random_walks.
 
 class S2vCreator(EmbeddingBase):
     def __init__(self, language, mode=None, by_author=False):
-        super().__init__(language, output_dir='s2v', edgelist_dir='sparsification_edgelists_s2v', mode=mode, by_author=by_author)
+        super().__init__(language=language, output_dir='s2v', edgelist_dir='sparsification_edgelists_s2v', mode=mode, by_author=by_author)
         self.file_string = 's2v'
 
 
     def get_params_mode_params(self):
         # Return many different parameter combinations for parameter selection
         params = {
-            'dimensions': [32, 64, 128],
+            'dimensions': [3, 5, 8, 16, 32, 64, 128],
             'walk-length': [3, 5, 8, 15, 30, 60],
             'num-walks': [20, 50, 200],
             'window-size': [3, 5, 10, 15, 30],
@@ -63,7 +63,7 @@ class S2vCreator(EmbeddingBase):
     def get_run_mode_params(self):
         # Return few parameter combinations for creating the embeddings for the actual data
         params = {
-            'dimensions': [32],
+            'dimensions': [16, 32],
             'walk-length': [15, 30],
             'num-walks': [200],
             'window-size': [15, 30],
@@ -131,8 +131,9 @@ class S2vCreator(EmbeddingBase):
 
     def delete_dirs(self, src_dir, s2v_dir, s2v_zip_path, s2v_pkl):
         # Delete the unzipped dir
-        shutil.rmtree(s2v_dir)
-        print(f'Deleted the zip file at path {s2v_dir}')
+        if os.path.exists(s2v_dir):
+            shutil.rmtree(s2v_dir)
+            print(f'Deleted the zip file at path {s2v_dir}')
 
         # Unzip the file
         with zipfile.ZipFile(s2v_zip_path, 'r') as zip_ref:

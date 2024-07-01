@@ -187,7 +187,7 @@ class CombinationsBase(InfoHandler):
         self.save_info(pinfo)
 
 
-    def check_data(self, n_features='all'):
+    def check_data(self, n_features=6):
         if not os.path.exists(self.combinations_path):
             self.log_combinations()
         dc = CombDataChecker(language=self.language, cmode=self.cmode, combinations_path=self.combinations_path, by_author=self.by_author, output_dir=self.output_dir, n_features=n_features)
@@ -354,7 +354,7 @@ class CombDataChecker(DataHandler):
         '''
         Identify duplicated rows based on the "file_info" column.
         Duplicated rows can occur when evaluation is cancelled and restarted.
-        Combinations that were evaluated but not saved to picked in the first call are reevaluated.
+        Combinations that were evaluated but not stored as pickle in the first call are reevaluated.
         '''
         duplicated_rows = df[df.duplicated(subset=['file_info'], keep=False)]
         print("Duplicated Rows:")
@@ -365,7 +365,7 @@ class CombDataChecker(DataHandler):
         return df
 
 
-    def prepare_comb_log(self):
+    def prepare_possible_combs(self):
         unique_lines = set()
 
         with open(self.combinations_path, 'r') as file:
@@ -389,9 +389,38 @@ class CombDataChecker(DataHandler):
         return cdf
     
 
+    def remove_overlap_between_clst_log_and_eval_files(self, cdf, cat, cont):
+        '''
+        Check if any combinations endet up in cluster log files and evaluation files
+        This can happend if program is restarted and clustering was once cancelled due to timeout but successful the other time.
+        '''
+        cdf_set = set(cdf['info'])
+        combs_in_cat = set(cat['file_info'].str.rsplit('_', n=1).str[0])
+        combs_in_cont = set(cont['file_info'].str.rsplit('_', n=1).str[0])
+
+        for cset in [combs_in_cat, combs_in_cont]:
+            overlap = cdf_set.intersection(cset)
+            if overlap:
+                print(f"There is overlap between 'info' column and unique_file_info: {len(overlap)} combinations.")
+                print(overlap)
+
+                rows_before = len(cdf)
+                cdf = cdf[~cdf['info'].isin(overlap)]
+                rows_after = len(cdf)
+                print(rows_before, rows_after)
+
+            else:
+                print("There is no overlap between evaluation and cluster log files.")
+        
+        return cdf
+
     def check_completeness(self, cat, cont):
+        # Get combinations in cluster log file
+        cdf = self.prepare_clst_log()
+        cdf = self.remove_overlap_between_clst_log_and_eval_files(cdf, cat, cont)
+
         # Get nr possible combinations
-        nlines = self.prepare_comb_log()
+        npossible_combs = self.prepare_possible_combs()
 
         if self.n_features == 'all':
             mh = MetadataHandler(self.language, by_author=self.by_author)
@@ -400,11 +429,10 @@ class CombDataChecker(DataHandler):
             print('nfeat', nfeatures)
         else:
             nfeatures = self.n_features
-        npossible = nfeatures * nlines
-        print(f'npossible ({npossible}): the number of logged combinations ({nlines}) (excludeing matrices that were too small) times the number of features ({nfeatures}).')
+        npossible = nfeatures * npossible_combs
+        print(f'npossible ({npossible}): the number of logged combinations ({npossible_combs}) (excludeing matrices that were too small) times the number of features ({nfeatures}).')
 
         # Combinations where clustering alg failed
-        cdf = self.prepare_clst_log()
         nclst = cdf.shape[0] * nfeatures
         print(f'nclst ({nclst}): the number of combinations where clustering failed ({cdf.shape[0]}), times the number of features.')
 

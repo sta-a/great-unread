@@ -45,11 +45,12 @@ class EmbDist(D2vDist):
 
 
 class EmbLoader():
-    def __init__(self, language, file_string, mode=None, files_substring=None):
+    def __init__(self, language, file_string, mode=None, files_substring=None, ec=None):
         self.language = language
         self.file_string = file_string
         self.mode = mode
-        self.files_substring = files_substring
+        self.ec = ec # Embedding creator class, use S2vCreator by default or pass object of custom class
+        self.files_substring = files_substring ####### useless? delete
         self.filter_embedding_files()
 
 
@@ -66,7 +67,8 @@ class EmbLoader():
         # if self.file_string == 'n2v':
         #     self.ec = N2vCreator(self.language, mode=self.mode)
         # else:
-        self.ec = S2vCreator(self.language, mode=self.mode)
+        if self.ec is None:
+            self.ec = S2vCreator(self.language, mode=self.mode)
 
         all_embedding_paths = self.ec.get_all_embedding_paths()
         all_embedding_paths = [os.path.basename(x) for x in all_embedding_paths]
@@ -143,8 +145,9 @@ class EmbParamEvalSingleViz(NkVizBase):
     '''
     Visualize each parameter combination in a seperate plot, ignore isolated nodes
     '''
-    def __init__(self, language, output_dir, info=None, plttitle=None, exp=None, by_author=False, graph=None): ###############True
+    def __init__(self, language, output_dir, info=None, plttitle=None, exp=None, by_author=False, graph=None, ignore_nodes_removed=True): ###############True
         super().__init__(language=language, output_dir=output_dir, info=info, plttitle=plttitle, exp=exp, by_author=by_author, graph=graph)
+        self.ignore_nodes_removed = ignore_nodes_removed 
         self.ws_left = 0.01
         self.ws_right = 0.99
         self.ws_bottom = 0.01
@@ -154,7 +157,6 @@ class EmbParamEvalSingleViz(NkVizBase):
         self.markersize = 7
         # Infohandler to load metadf
         self.ih = InfoHandler(language=self.language, add_color=True, cmode=self.cmode, by_author=self.by_author)
-
 
     def get_metadf(self):
         # InfoHanlder metadf contains all texts, graph only contains non-isolated nodes used for embeddings
@@ -173,13 +175,16 @@ class EmbParamEvalSingleViz(NkVizBase):
         self.add_subdir('singleimages')
 
     def get_graphs(self):
-        # nx.connected_components is only implemented for undirected graphs
-        if nx.is_directed(self.graph):
-            graph = self.graph.to_undirected()
+        if self.ignore_nodes_removed:
+            # nx.connected_components is only implemented for undirected graphs
+            if nx.is_directed(self.graph):
+                graph = self.graph.to_undirected()
+            else:
+                graph = deepcopy(self.graph)
+            self.graph_con = self.graph
+            self.nodes_removed = []
         else:
-            graph = deepcopy(self.graph)
-        self.graph_con = self.graph
-        self.nodes_removed = []
+            super().get_graphs()
 
     def add_edges(self):
         # Main plot
@@ -199,7 +204,6 @@ class EmbParamEvalSingleViz(NkVizBase):
     def get_path(self, name, omit=None):
         return os.path.join(self.subdir, f'{name}.{self.data_type}')
     
-
     def visualize_edges(self, ):
         # Split super().visualize method into two parts to draw edges and nodes seperately
         # if not self.too_many_edges:
@@ -217,8 +221,6 @@ class EmbParamEvalSingleViz(NkVizBase):
         if calctime > 10:
             print(f'{calctime}s to visualize.')
         print(f'{calctime}s to draw edges.')
-
-
 
     def visualize_nodes(self, vizname='viz', omit=[]):
         self.vizpath = self.get_path(name=vizname, omit=omit)
@@ -363,7 +365,7 @@ class ParamModeEval(S2vCreator):
     Evaluate different parameter settings for s2v by highlighting nodes in network according to their similarity to a selected node in a prominent position.
     '''
     def __init__(self, language, by_author=False):
-        super().__init__(language, mode='params', by_author=by_author)
+        super().__init__(language=language, mode='params', by_author=by_author)
 
 
     def create_single_images(self):

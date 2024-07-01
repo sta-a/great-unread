@@ -175,7 +175,7 @@ class DataHandler():
     '''
     Base class for creating, saving, and loading data.
     '''
-    def __init__(self, language=None, output_dir=None, data_type='csv', modes=None, tokens_per_chunk=1000, data_dir='/home/annina/scripts/great_unread_nlp/data_author', test=False, load_doc_paths=True):
+    def __init__(self, language=None, output_dir=None, data_type='csv', modes=None, tokens_per_chunk=1000, data_dir='/home/annina/scripts/great_unread_nlp/data', test=False, load_doc_paths=True, subdir=False):
 
         self.test = test
         self.language = language
@@ -202,8 +202,12 @@ class DataHandler():
             self.doc_paths = get_doc_paths(self.text_raw_dir)
         self.data_types = ('.npz', '.csv', '.pkl', '.txt', '.svg', '.png', '.graphml')
         self.separator = 'ƒ'
-        self.subdir = None
 
+        if isinstance(subdir, str):
+            self.subdir = subdir
+        else:
+            self.subdir = None
+            
         if self.language == 'eng':
             self.nr_texts = 605
         else:

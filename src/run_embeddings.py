@@ -49,8 +49,8 @@ if __name__ == '__main__':
     # # pe.create_single_images()
     # pe.create_grid_images()
     # # # Combine grids for different dimensions into one image
-    # cg = CombineParamEvalGrids(language=language, by_author=by_author)
-    # cg.visualize_all()
+    cg = CombineParamEvalGrids(language=language, by_author=by_author)
+    cg.visualize_all()
 
 
     # # Activate s2v conda environment!
@@ -63,20 +63,20 @@ if __name__ == '__main__':
     # # Run matrix clustering on embeddigns
     # emc = EmbMxCombinations(language, output_dir='s2v', add_color=False, by_author=by_author)
     # print(emc.combinations_path)
-    # emc.evaluate_all_combinations()
-    # emc.check_data(n_features=4)
+    # # emc.evaluate_all_combinations()
+    # emc.check_data(n_features=6)
 
 
     # # Create MDS visualizations of embeddings
     # ex = Experiment(language=language, cmode='mx', by_author=by_author, output_dir='analysis_s2v')
-    # ex.run_experiments(select_exp='singleimage') # run first
+    # ex.run_experiments(select_exp='topcanon') # run first
     # ex.run_experiments()
 
 
     # # Collect MDS visualizations for mxs with different parameters
-    me = RunModeEval(language)
-    # Create one plot with all 6 images of the different param combinations, for each attr
-    me.create_param_grid()
+    # me = RunModeEval(language)
+    # # Create one plot with all 6 images of the different param combinations, for each attr
+    # me.create_param_grid()
 
 
     # # Place all MDS plots for the same matrix with different s2v params on top of each other, and different attributes next to each other.

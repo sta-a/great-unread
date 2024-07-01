@@ -111,7 +111,6 @@ class NkVizBase(VizBase):
 
                 # self.fig.set_constrained_layout(True)
                 self.save_plot(plt)
-                # plt.show()
                 plt.close()
                     
                 calctime = time.time()-start
@@ -151,6 +150,7 @@ class NkVizBase(VizBase):
 
         if node_size is None:
             node_size = self.markersize
+
 
         for shape in shapes:
             sdf = df[df['clst_shape'] == shape]
@@ -309,6 +309,7 @@ class NkKeyAttrViz(NkVizBase):
 
 
         iso_node_size = round(0.3 * self.markersize)
+        # iso_node_size = self.markersize
         ax = self.axs[ix[0]+1, ix[1]]
 
 
@@ -330,9 +331,9 @@ class NkKeyAttrViz(NkVizBase):
         if use_different_shapes:
             for shape in df_iso['clst_shape'].unique():
                 sdf = df_iso[df_iso['clst_shape'] == shape]
-                ax.scatter(sdf['x'], sdf['y'], c=sdf[color_col], marker=shape, s=iso_node_size, edgecolors=None, clip_on=False)
+                ax.scatter(sdf['x'], sdf['y'], c=sdf[color_col], marker=shape, s=iso_node_size, edgecolors='black', clip_on=False, linewidths=0.3*0.2)
         else:
-            ax.scatter(df_iso['x'], df_iso['y'], c=df_iso[color_col], marker='o', s=iso_node_size, edgecolors=None, clip_on=False)
+            ax.scatter(df_iso['x'], df_iso['y'], c=df_iso[color_col], marker='o', s=iso_node_size, edgecolors='black', clip_on=False, linewidths=0.3*0.2)
     
 
     def get_figure(self):
@@ -731,7 +732,6 @@ class SparsGridkViz(NkNetworkGridkViz):
         return f"gridviz_{figname}"
 
 
-
 class NkSingleViz(NkNetworkGridkViz):
     '''
     Create a single plot per matrix.
@@ -791,6 +791,7 @@ class NkSingleViz(NkNetworkGridkViz):
 class NkSingleVizCluster(NkKeyAttrViz):
     '''
     Make single images where clusters are highlighted. Isolated nodes are not shown.
+    Not possible to create all of them because there are too many combinations.
     '''
     def __init__(self, language, output_dir, info, plttitle, exp, by_author):
         super().__init__(language, output_dir, info=info, plttitle=plttitle, exp=exp, by_author=by_author)

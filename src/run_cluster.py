@@ -48,27 +48,25 @@ if __name__ == "__main__":
 
     if mode == 'mxc':
         mxc = MxCombinations(language=language, add_color=False, by_author=by_author)
-        mxc.evaluate_all_combinations()
-        mxc.check_data()
+        # mxc.evaluate_all_combinations()
+        mxc.check_data(n_features=6) # 6 features: 'gender', 'author', 'canon', 'year', 'canon-ascat', 'year-ascat'
 
         
     elif mode == 'nkc':
         nkc = NkCombinations(language=language, add_color=False, by_author=by_author)
-        nkc.evaluate_all_combinations()
-        nkc.check_data()
+        # nkc.evaluate_all_combinations()
+        nkc.check_data(n_features=6)
 
 
     elif mode == 'mxexp':
         ex = Experiment(language=language, cmode='mx', by_author=by_author, output_dir='analysis')
-        ex.run_experiments('singleimage_cluster')
-        # ex.run_experiments()
+        ex.run_experiments()
 
 
     elif mode == 'nkexp':
         # output_dir='analysis': eval scores will be taken from similarity dir
         ex = Experiment(language=language, cmode='nk', by_author=by_author, output_dir='analysis')
-        ex.run_experiments('singleimage_cluster')
-        # ex.run_experiments()
+        ex.run_experiments()
 
 
     elif mode == 'viz':

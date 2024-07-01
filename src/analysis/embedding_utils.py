@@ -118,7 +118,7 @@ class EdgelistHandler(DataHandler):
                         'full_simmel-3-10': 'Goethe_Johann-Wolfgang_all_1799', 
                         'full_simmel-4-6': 'Hunold_Christian-Friedrich_all_1702', 
                         'full_simmel-5-10': 'Lenz_Jakob_all_1776',
-                        'full_simmel-7-10': 'Droste-Huelshoff_Annette_all_1842f'
+                        'full_simmel-7-10': 'Droste-Huelshoff_Annette_all_1842'
                     }
 
 

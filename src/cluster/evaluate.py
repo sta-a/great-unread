@@ -15,8 +15,7 @@ random.seed(9)
 
 from scipy.stats import f_oneway, kruskal
 
-from sklearn.metrics import silhouette_score, normalized_mutual_info_score, fowlkes_mallows_score
-from sklearn.metrics import adjusted_rand_score, accuracy_score, balanced_accuracy_score
+from sklearn.metrics import silhouette_score, normalized_mutual_info_score, fowlkes_mallows_score, homogeneity_completeness_v_measure, adjusted_rand_score, accuracy_score, balanced_accuracy_score, davies_bouldin_score, calinski_harabasz_score
 from sklearn.linear_model import LogisticRegression
 
 from .cluster_utils import CombinationInfo
@@ -227,18 +226,15 @@ class ExtEval(DataHandler):
     
     def get_categorical_scores(self, attrcol):
         df = self.info.metadf.copy(deep=True)
-        # assert len(attrcol) == self.nr_texts ####################################
+        # assert len(attrcol) == self.nr_texts
         # assert len(df['cluster'] == self.nr_texts)
 
-        # confusion_table = pd.crosstab(df[self.info.attr], df['cluster'], margins=True, margins_name='Total')
-        # print('\n\n-----------------------------\n', confusion_table, '\n-----------------------------------------\n\n')
-
         purity = self.get_purity()
-
-        ari_score = adjusted_rand_score(attrcol, df['cluster'] )
-        nmi_score = normalized_mutual_info_score(attrcol, df['cluster'] )
-        fmi_score = fowlkes_mallows_score(attrcol, df['cluster'] )
-        df = {'ARI': ari_score, 'nmi': nmi_score, 'fmi': fmi_score, 'mean_purity': purity}
+        ari_score = adjusted_rand_score(attrcol, df['cluster'])
+        nmi_score = normalized_mutual_info_score(attrcol, df['cluster'])
+        fmi_score = fowlkes_mallows_score(attrcol, df['cluster'])
+        homogeneity, completeness, vmeasure = homogeneity_completeness_v_measure(labels_true=attrcol, labels_pred=df['cluster'])
+        df = {'ARI': ari_score, 'nmi': nmi_score, 'fmi': fmi_score, 'mean_purity': purity, 'homogeneity': homogeneity, 'completeness': completeness, 'vmeasure': vmeasure}
         return df
 
 
@@ -253,7 +249,6 @@ class ExtEval(DataHandler):
         return scores
     
     
-
     def eval_author(self):
         df = self.info.metadf.copy(deep=True)
         # Create a mapping dictionary
@@ -300,11 +295,24 @@ class ExtEval(DataHandler):
             y_true = df['cluster'].values.ravel()
             logreg_acc, logrec_acc_balanced = self.logreg(X, y_true)
 
+            sc = self.get_ext_attr_silhouette(X, y_true)
+            dbs = self.get_ext_davies_bouldin_score(X, y_true)
+            chs = self.get_ext_calinski_harabasz_score(X, y_true)
+            avg_variance, weighted_avg_variance, smallest_variance = self.get_ext_attr_variance()
+            wcss = self.get_wcss()
+
             # Create a list of arrays for each unique integer in 'cluster'
             cluster_groups = self.get_cluster_groups(df)
             anova = self.anova(cluster_groups)
             kw_statistic, kw_pval = self.kruskal(cluster_groups)
             cont_scores = {
+                'ext_silhouette': sc,
+                'ext_davies_bouldin': dbs,
+                'ext_calinski_harabasz': chs,
+                'avg_variance': avg_variance,
+                'weighted_avg_variance': weighted_avg_variance,
+                'smallest_variance': smallest_variance,
+                'ext_wcss': wcss,
                 'anova_pval': anova, 
                 'logreg_acc': logreg_acc, 
                 'logreg_acc_balanced': logrec_acc_balanced, 
@@ -316,6 +324,13 @@ class ExtEval(DataHandler):
             self.logger.info(f'Invalid clustering after filtering attr col for nan: {self.info.as_string()}')
             i = np.nan
             cont_scores = {
+                'ext_silhouette': i,
+                'ext_davies_bouldin': i,
+                'ext_calinski_harabasz': i,
+                'avg_variance': i,
+                'weighted_avg_variance': i,
+                'smallest_variance': i,
+                'ext_wcss': i,
                 'anova_pval': i, 
                 'logreg_acc': i, 
                 'logreg_acc_balanced': i, 
@@ -327,6 +342,7 @@ class ExtEval(DataHandler):
     
 
     def get_cluster_groups(self, df):
+        # Returns list of arrays, where each array contains the values of the attr for a particular cluster
         cluster_groups = [group[self.info.attr].values for _, group in df.groupby('cluster')]
         return cluster_groups
     
@@ -393,3 +409,76 @@ class ExtEval(DataHandler):
         return accuracy_score(y_true=y_true, y_pred=y_pred), balanced_accuracy_score(y_true=y_true, y_pred=y_pred)
     
 
+    def get_ext_attr_silhouette(self, X, y_true):
+        sc = silhouette_score(X=X, labels=y_true)
+        return sc
+    
+    def get_ext_davies_bouldin_score(self, X, y_true):
+        return davies_bouldin_score(X, y_true)
+    
+    def get_ext_calinski_harabasz_score(self, X, y_true):
+        return calinski_harabasz_score(X, y_true)
+
+
+    def get_ext_attr_variance(self):
+        min_points = 1 # consider only clusters that have more than 1 element
+        mdf = self.info.metadf.copy(deep=True)
+
+        # Get the size of each cluster
+        cluster_sizes = mdf.groupby('cluster').size()
+
+        # Initialize lists to store variance and number of points for valid clusters
+        valid_variances = []
+        valid_num_points = []
+
+        # Iterate through clusters
+        for cluster_label, size in cluster_sizes.items():
+            if size > min_points:
+                # Filter dataframe for current cluster
+                cluster_df = mdf[mdf['cluster'] == cluster_label]
+
+                # Calculate variance for current cluster
+                variance = cluster_df[self.info.attr].var()
+                valid_variances.append(variance)
+                valid_num_points.append(size)
+
+                # Print variance and number of points for current cluster (optional)
+                print(f'Cluster {cluster_label}: Variance = {variance}, Number of Points = {size}')
+
+        # Convert lists to Series for further analysis
+        variances_series = pd.Series(valid_variances, index=cluster_sizes.index[cluster_sizes > min_points])
+        num_points_series = pd.Series(valid_num_points, index=cluster_sizes.index[cluster_sizes > min_points])
+
+        # Calculate weighted average of variances
+        weighted_avg_variance = (variances_series * num_points_series).sum() / num_points_series.sum()
+
+        # Nonweighted average
+        avg_variance = variances_series.mean()
+
+        # Find the smallest variance
+        smallest_variance = variances_series.min()
+
+
+        return avg_variance, weighted_avg_variance, smallest_variance
+
+
+
+    def get_wcss(self):
+        mdf = self.info.metadf.copy(deep=True)
+
+        # Calculate cluster means
+        cluster_means = mdf.groupby('cluster')[self.info.attr].mean()
+        
+        wcss_value = 0
+        
+        # Iterate over each cluster
+        for cluster_id, cluster_mean in cluster_means.items():
+            # Select attr values for the current cluster
+            cluster_values = mdf[mdf['cluster'] == cluster_id][self.info.attr]
+            # Compute squared differences for the current cluster
+            squared_diffs = ((cluster_values - cluster_mean) ** 2).sum()
+            
+            # Add to WCSS
+            wcss_value += squared_diffs
+        
+        return wcss_value

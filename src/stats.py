@@ -6,6 +6,8 @@
 Functions and classes for calculating and plotting essential metrics of the corpus.
 '''
 
+import numpy as np
+from scipy.stats import linregress
 
 import logging
 logging.getLogger("matplotlib.font_manager").setLevel(logging.ERROR)
@@ -311,18 +313,20 @@ class PlotCanonScoresPerAuthorByYearAndGender(PlotCanonScoresPerAuthor):
 class PlotYearAndCanon(DataHandler):
     def __init__(self, language):
         super().__init__(language, output_dir='text_statistics', data_type='png')
+        self.by_author = False
+        self.yeartup = ('year', 'Publication Year')
+        self.canontup = ('canon', 'Canonization Score')
+        self.canonmin_tup = ('canon-min', 'Canonization Score')
+        self.canonmax_tup = ('canon-max', 'Canonization Score')
 
-    def plot(self):
-        # df = DataLoader(self.language).prepare_features(scale=True)
-
-        by_author = False
-        if not by_author:
-            plotlist =  [('year', 'Publication Year'), ('canon', 'Canonization Score')]
+    def plot_single_var(self):
+        if not self.by_author:
+            plotlist =  [self.yeartup, self.canontup]
         else:
-            plotlist =  [('year', 'Publication Year'), ('canon', 'Canonization Score'), ('canon-min', 'Canonization Score'), ('canon-max', 'Canonization Score')]
+            plotlist =  [self.yeartup, self.canontup, self.canonmin_tup , self.canonmax_tup]
 
         for attr, yaxis_title in plotlist:
-            mh = MetadataHandler(self.language, by_author=by_author)
+            mh = MetadataHandler(self.language, by_author=self.by_author)
             metadf = mh.get_metadata(add_color=False)
             print(metadf.shape)
             df = metadf.sort_values(by=attr, ascending=True)
@@ -343,24 +347,98 @@ class PlotYearAndCanon(DataHandler):
             ax.set_xticklabels([str(t) for t in text_ticks])
 
 
-            self.save_data(data=plt, file_name=f'{attr}_byauthor-{by_author}')
+            self.save_data(data=plt, file_name=f'{attr}_byauthor-{self.by_author}')
+
+    def plot_two_vars(self):
+        yearattr, yeartitle = self.yeartup
+        canonlist = [self.canontup]
+        if self.by_author:
+            canonlist.extend([self.canonmin_tup, self.canonmax_tup])
+
+        for canonattr, canontitle in canonlist:
+            self.make_plot(xattr=yearattr, yattr=canonattr, xaxis_title=yeartitle, yaxis_title=canontitle)
+            self.make_plot(yattr=yearattr, xattr=canonattr, yaxis_title=yeartitle, xaxis_title=canontitle)
+
+
+
+    # def make_plot(self, xattr, yattr, xaxis_title, yaxis_title):
+    #     mh = MetadataHandler(self.language, by_author=self.by_author)
+    #     metadf = mh.get_metadata(add_color=False)
+    #     print(metadf.shape)
+    #     df = metadf.sort_values(by=xattr, ascending=True)
+
+    #     fig, ax = plt.subplots(figsize=(6, 4))
+    #     ax.scatter(df[xattr], df[yattr], s=3)
+
+    #     ax.set_xlabel(xaxis_title)
+    #     ax.set_ylabel(yaxis_title)
+    #     ax.grid(True, linestyle='--', alpha=0.5)
+
+    #     self.save_data(data=plt, file_name=f'{xattr}-{yattr}_byauthor-{self.by_author}')
+
+
+    def make_plot(self, xattr, yattr, xaxis_title, yaxis_title):
+        mh = MetadataHandler(self.language, by_author=self.by_author)
+        metadf = mh.get_metadata(add_color=False)
+        print(metadf.shape)
+        df = metadf.sort_values(by=xattr, ascending=True)
+
+        # Perform linear regression
+        x = df[xattr].values
+        y = df[yattr].values
+        slope, intercept, r_value, p_value, std_err = linregress(x, y)
+        regression_line = slope * x + intercept
+
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.scatter(x, y, s=3, label='Data points')
+        ax.plot(x, regression_line, color='red', label=f'Regression line: y={slope:.2f}x+{intercept:.2f}')
+
+        ax.set_xlabel(xaxis_title)
+        ax.set_ylabel(yaxis_title)
+        ax.grid(True, linestyle='--', alpha=0.5)
+        # ax.legend()
+
+        # Save the figure
+        self.save_data(data=plt, file_name=f'{xattr}-{yattr}_byauthor-{self.by_author}')
+
+        # Print regression details
+        print(f'Regression line: y = {slope:.2f}x + {intercept:.2f}')
+        print(f'R-squared: {r_value**2:.2f}')
+        print(f'P-value: {p_value:.2e}')
+        print(f'Standard error: {std_err:.2f}')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 # for language in ['eng', 'ger']:
 #     print('Text Statistics:')
 
 #     pyac = PlotYearAndCanon(language)
-#     pyac.plot()
+#     pyac.plot_single_var()
+#     pyac.plot_two_vars()
     # mdstats = MetadataStats(language)
     # mdstats.get_stats()
-#     # ts = TextStatistics(language)
-#     # ts.get_longest_shortest_text()
+    # ts = TextStatistics(language)
+    # ts.get_longest_shortest_text()
 
-#     # pc = PlotCanonscoresBarChart(language)
-#     # pc.plot()
+    # pc = PlotCanonscoresBarChart(language)
+    # pc.plot()
 
-#     # pfd = PlotFeatureDist(language)
-#     # pfd.plot()
+    # pfd = PlotFeatureDist(language)
+    # pfd.plot()
 
 
     # pcspa = PlotCanonScoresPerAuthor(language)
