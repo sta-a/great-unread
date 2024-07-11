@@ -1,4 +1,3 @@
-
 import pandas as pd
 import itertools
 import numpy as np
@@ -21,7 +20,7 @@ import sys
 sys.path.append("..")
 from utils import DataHandler
 from .viz_utils import VizBase, ImageGrid
-from .nkviz import NkSingleVizCluster
+from .nkviz import NkSingleVizAttr
 from cluster.create import SimMx
 from cluster.cluster_utils import Colors, MetadataHandler
 from cluster.combinations import InfoHandler
@@ -189,6 +188,7 @@ class MxVizBase(VizBase):
                 })
             
             df.index = self.mx.dmx.index
+            df.index = df.index.astype(str)
 
             with open(pkl_path, 'wb') as f:
                 pickle.dump(df, f)
@@ -464,9 +464,9 @@ class MxSingleViz2D3D(MxVizBase):
     Create a single plot per matrix, with a 2d and a 3d visualization.
     For each matrix, a seperate plot for each key attribute is created.
     '''
-    def __init__(self, language, output_dir, exp, by_author, mc):
+    def __init__(self, language, output_dir, exp, by_author, mc, info=None):
         # language, mx, info, plttitle, exp
-        super().__init__(language, output_dir, mx=None, info=None, plttitle=None, exp=exp, by_author=by_author)
+        super().__init__(language, output_dir, mx=None, info=info, plttitle=None, exp=exp, by_author=by_author)
         self.mc = mc # EmbMxCombinations or MxCombinations object
         self.fontsize = 6
         self.markersize = 10
@@ -476,14 +476,13 @@ class MxSingleViz2D3D(MxVizBase):
         self.ws_top = 0.99
         self.ws_wspace = 0
         self.ws_hspace = 0
-        self.ih = InfoHandler(language=language, add_color=True, cmode=self.cmode, by_author=by_author)
+        if info is None:
+            self.ih = InfoHandler(language=language, add_color=True, cmode=self.cmode, by_author=by_author)
 
 
     def get_metadf(self):
         self.df = deepcopy(self.ih.metadf)
         self.df['noattr_color'] = 'blue'
-        for i in self.df.columns:
-            print(i)
 
 
     def get_figure(self):
@@ -539,6 +538,39 @@ class MxSingleViz2D3D(MxVizBase):
                
                 # self.add_legends_and_titles()
 
+class MxSingleViz2d3dSingleAttr(MxSingleViz2D3D):
+    '''
+    The same as MxSingleViz2D3D, but visualize only the attribute that is passed as 'info.attr'. Don't iterate over all matrices but only use the one passed as 'mx'.
+    '''
+    def __init__(self, language, output_dir, exp, by_author, mc, info, mx):
+        super().__init__(language, output_dir, exp, by_author, mc, info)
+        self.attr = self.info.attr
+        self.mx = mx
+        self.add_subdir('mx_singleimage_s2v')
+        self.markersize = 15 # size of scatter points
+        self.fontsize = 10
+
+
+    def get_file_path(self):
+        return super().get_file_path(f'{self.mx.name}_{self.attr}', subdir=True)
+    
+    def get_metadf(self):
+        self.df = deepcopy(self.info.metadf)
+
+
+    def visualize(self, vizname=''): # vizname for compatibility
+        self.vizpath = self.get_file_path()
+        if not os.path.exists(self.vizpath):
+            self.pos = self.get_mds_positions()
+            self.add_positions_to_metadf()
+
+            for curr_attr in [self.attr]:
+                self.get_figure()
+                self.fill_subplots(curr_attr)
+                self.save_plot(plt)
+                plt.close()
+
+
 
 class MxSingleViz(MxSingleViz2D3D):
     '''
@@ -573,11 +605,13 @@ class MxSingleViz(MxSingleViz2D3D):
             self.axs[ix[0], ix[1]].scatter(x=sdf['X_mds_2d_0'], y=sdf['X_mds_2d_1'], **kwargs)
 
 
+
 class MxSingleVizCluster(MxVizBase):
     def __init__(self, language, output_dir, mx, info, plttitle, exp, by_author):
         super().__init__(language, output_dir, mx=mx, info=info, plttitle=plttitle, exp=exp, by_author=by_author)
         self.attr = 'cluster'
         self.markersize = 20
+        self.add_subdir('MxSingleVizCluster_delete')
 
 
     def get_figure(self):
@@ -615,6 +649,8 @@ class MxSingleVizCluster(MxVizBase):
     def visualize(self, vizname='viz', omit=[]):
         self.vizpath = self.get_path(omit=['attr'])
         if not os.path.exists(self.vizpath):
+
+            print('################\n', self.vizpath, '\n##################3\n')
             self.pos = self.get_mds_positions()
             self.add_positions_to_metadf()
             self.get_figure()
@@ -633,65 +669,69 @@ class S2vKeyAttrViz(ImageGrid):
     def __init__(self, language, mx, info, plttitle, exp, by_author, subdir=None):
         self.mx = mx
         self.info = info
-        print('info', self.info.as_string())
         self.plttitle = plttitle
         self.exp = exp
-        self.colnames = ['cluster', 'canon', 'author', 'gender', 'year']
+        self.by_author = by_author
+        self.colnames = ['cluster', 'gender', 'year', 'year-ascat', 'canon', 'canon-ascat'] 
+        if self.by_author:
+            self.colnames = self.colnames + ['canon-min', 'canon-max']
+        else: 
+            self.colnames = self.colnames + ['author']
 
         self.subdir = subdir #
         super().__init__(language=language, by_author=by_author, output_dir='analysis_s2v', rowmajor=False, imgs_as_paths=True, subdir=self.subdir) # load_single_images is called in ImageGrid.__init__
-        # self.subdir = subdir
-        print('subdir after init', self.subdir)
-
         self.nrow = 2
         self.ncol = len(self.colnames)
 
+        self.img_width = 4
+        self.img_height = 6 # img_height * 2 rows = 12 for 3 subplots with height 4 (2d3d are in one image)
+        self.fontsize = 12
 
-    def get_file_path(self, vizname, subdir, **kwargs):
-        print('new vizpath', os.path.join(self.subdir, f'{vizname}-{self.info.as_string(omit=["attr"])}.{self.data_type}'))
-        return os.path.join(self.subdir, f'{vizname}-{self.info.as_string(omit=["attr"])}.{self.data_type}')
+
+    def get_file_path(self, vizname=None, subdir=None, **kwargs):
+        return os.path.join(self.subdir, f'{self.info.as_string(omit=["attr"])}.{self.data_type}')
 
 
     def load_single_images(self):
         mxname, spars = self.info.as_string().split('_')[:2]
         self.info.spmx_path = os.path.join(self.data_dir, 'similarity', self.language, 'sparsification', f'sparsmx-{mxname}_{spars}.pkl')
-        self.nk_attr_dir = os.path.join(self.data_dir, 'analysis', self.language, 'nk_singleimage')
-        self.mds_attr_dir = os.path.join(self.output_dir, 'mx_singleimage')
-        self.nk_cluster_dir = os.path.join(self.output_dir, 'nk_singleimage_cluster')
-        self.mds_cluster_dir = os.path.join(self.output_dir, 'mx_singleimage_cluster')
+        # self.nk_attr_dir = os.path.join(self.data_dir, 'analysis', self.language, 'nk_singleimage')
+        # self.mds_attr_dir = os.path.join(self.output_dir, 'mx_singleimage')
 
-        print('info name', self.info.mxname)
         imgs = []
         for attr in self.colnames:
             self.info.attr = attr
-            if attr == 'cluster':
-                nkclust = NkSingleVizCluster(self.language, self.output_dir, self.info, plttitle=self.plttitle, exp=self.exp, by_author=self.by_author)
-                nkclust_path = nkclust.get_path(omit=['attr'])
-                print(nkclust_path)
-                if not os.path.exists(nkclust_path):
-                    nkclust.visualize()
-                imgs.append(nkclust_path)
 
 
-                mdsclust = MxSingleVizCluster(self.language, self.output_dir, self.mx, self.info, self.plttitle, self.exp, self.by_author)
-                mxclust_path = mdsclust.get_path(omit=['attr'])
-                print(mxclust_path)
-                if not os.path.exists(mxclust_path):
-                    mdsclust.visualize()
-                imgs.append(mxclust_path)
+            nkclust = NkSingleVizAttr(self.language, self.output_dir, self.info, plttitle=self.plttitle, exp=self.exp, by_author=self.by_author)
+            nkclust_path = nkclust.get_path()
+            nkclust.visualize()
+            imgs.append(nkclust_path)
 
-            else:
-                nkpath = os.path.join(self.nk_attr_dir, f'{mxname}_{spars}_{attr}.png')
-                print(nkpath)
-                mdspath = os.path.join(self.mds_attr_dir, f'{self.info.mxname}_{attr}.png')
-                print(mdspath)
-                imgs.extend([nkpath, mdspath])
+
+            # Just for comparison , delete ·##################################
+            mdsclust = MxSingleVizCluster(self.language, self.output_dir, self.mx, self.info, self.plttitle, self.exp, self.by_author)
+            mxclust_path = mdsclust.get_path(omit=['attr'])
+            if not os.path.exists(mxclust_path):
+                mdsclust.visualize()
+
+
+            mdsclust = MxSingleViz2d3dSingleAttr(self.language, self.output_dir, self.exp, self.by_author, mc=None, info=self.info, mx=self.mx)
+            mdsclust.visualize()
+            mxclust_path = mdsclust.get_file_path()
+            imgs.append(mxclust_path)
+
+
         return imgs
 
     def get_title(self, imgpath):
-        basename = os.path.splitext(os.path.basename(imgpath))[0]
-        attr = basename.split('_')[-1]
-        if '-' in attr: # cluster file name has different format
-            attr = 'cluster'
-        return attr
+        if 'mx_singleimage_s2v' in imgpath:
+            title = ''
+        else:
+            basename = os.path.splitext(os.path.basename(imgpath))[0]
+            title = basename.split('_')[-1] # attr
+        return title
     
+    def get_figure(self):
+        self.fig, self.axs = plt.subplots(self.nrow, self.ncol, figsize=(self.ncol*self.img_width, self.nrow*self.img_height), gridspec_kw={'height_ratios': [1, 2]})
+        plt.tight_layout(pad=0)

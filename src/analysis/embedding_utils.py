@@ -7,6 +7,46 @@ from utils import DataHandler
 from tqdm import tqdm
 from itertools import product
 
+class MirroredEdgelistCreator(DataHandler):
+    def __init__(self, language, output_dir, edgelist_dir):
+        super().__init__(language, output_dir=output_dir, load_doc_paths=False)
+        self.edgelist_dir = edgelist_dir
+        self.index_mapping = pd.read_csv(os.path.join(edgelist_dir, 'index-mapping.csv'), delimiter=',')
+
+
+    def create_data(self, distname, nodename):
+        # Find index of highlighted node
+        bridge_node = self.index_mapping.loc[self.index_mapping['original_index'] == nodename, 'new_index']
+        bridge_node = bridge_node.iloc[0] # Get value only
+
+
+        original_edgelist_path = os.path.join(self.edgelist_dir, f'{distname}.csv')
+        mirror_edgelist_path = os.path.join(self.edgelist_dir, f'{distname}-mirror.csv')
+        with open(original_edgelist_path, 'r') as infile, open(mirror_edgelist_path, 'w') as outfile:
+            for line in infile:
+                # Strip any extra whitespace from the line and split it into parts
+                parts = line.strip().split()
+                if len(parts) != 3:
+                    print('Irregular format: ', line)
+                
+                # Extract the components
+                first_number = parts[0]
+                second_number = parts[1]
+                third_number = parts[2]
+                
+                # Create the modified version of the line
+                modified_line = f'{first_number}000 {second_number}000 {third_number}\n'
+                
+                # Write the original and modified lines to the output file
+                outfile.write(line)
+                outfile.write(modified_line)
+
+            # Add edge for bridge node
+            bridge_line = f'{bridge_node} {bridge_node}000 1'
+            outfile.write(bridge_line)
+
+
+
 
 class EdgelistHandler(DataHandler):
     def __init__(self, language, output_dir, edgelist_dir='sparsification_edgelists', mode=None, by_author=False):
@@ -19,12 +59,12 @@ class EdgelistHandler(DataHandler):
         super().__init__(language, output_dir=output_dir, load_doc_paths=False)
         self.mode = mode
         self.by_author = by_author
-        assert self.mode in [None, 'run', 'params', 'bestparams']
+        assert self.mode in [None, 'run', 'params', 'bestparams', 'mirror']
 
         self.edgelist_dir = os.path.join(self.data_dir, 'similarity', self.language, edgelist_dir)
         self.edgelists = [file for file in os.listdir(self.edgelist_dir) if 'index-mapping' not in file and file.endswith('.csv')]
 
-        if self.mode == 'params':
+        if self.mode == 'params' or self.mode == 'mirror':
             if not self.by_author:
                 if self.language == 'eng':
 
@@ -136,14 +176,20 @@ class EdgelistHandler(DataHandler):
 
             self.examples.update(self.examples_full)
 
+            if self.mode == 'mirror':
+                for distname, nodename in self.examples.items():
+                    edgelist_path = os.path.join(self.edgelist_dir, f'{distname}-mirror.csv')
+                    if not os.path.exists(edgelist_path):
+                        mec = MirroredEdgelistCreator(self.language, self.output_dir, self.edgelist_dir)
+                        mec.create_data(distname, nodename)
+                self.examples = {f'{key}-mirror': value for key, value in self.examples.items()}
 
-
-                
             self.nklist = self.examples.keys()
             self.edgelists = [
                 filename for filename in self.edgelists
                 if any(substring in filename for substring in self.nklist)
             ]
+
 
         elif self.mode == 'run' or self.mode == 'bestparams':
             # intnk_path = os.path.join(self.data_dir, 'analysis', self.language, 'interesting_networks.csv')
@@ -313,7 +359,7 @@ class EmbeddingBase(EdgelistHandler):
         self.add_subdir('embeddings')
 
 
-    def load_embeddings(self, file_name):
+    def load_embeddings(self, file_name, map_nodeids_to_names=True):
         '''
         Map embeddings to string node names.
         '''
@@ -327,11 +373,12 @@ class EmbeddingBase(EdgelistHandler):
         # Rename columns as col1, col2, ...
         df.columns = [f'col{i}' for i in range(1, len(df.columns) + 1)]
 
-        # Map int IDs to file names
-        df = df.merge(self.index_mapping, left_index=True, right_on='new_index', validate='1:1')
-        df = df.set_index('original_index')
-        df = df.drop('new_index', axis=1)
-        df.index = df.index.rename('file_name')
+        if map_nodeids_to_names:
+            # Map int IDs to file names
+            df = df.merge(self.index_mapping, left_index=True, right_on='new_index', validate='1:1')
+            df = df.set_index('original_index')
+            df = df.drop('new_index', axis=1)
+            df.index = df.index.rename('file_name')
 
         return df
     

@@ -98,6 +98,8 @@ class S2vCreator(EmbeddingBase):
             params = self.get_run_mode_params()
         elif self.mode == 'bestparams':
             params = self.get_bestparams_mode_params()
+        elif self.mode == 'mirror':
+            params = self.get_run_mode_params() # run only with reduced params
         return params
     
 

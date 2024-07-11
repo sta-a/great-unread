@@ -214,6 +214,9 @@ class TopEval(InfoHandler):
             if 'attr' in self.exp:
                 # df = self.filter_attribute(df)
                 df = df[df['attr'] == self.exp['attr']]
+            if 'sparsmode' in self.exp: # select rows for sparsmode
+                assert self.cmode == 'nk'
+                df = df[df['sparsmode'] == self.exp['sparsmode']]
             if 'mxname' in self.exp:
                 df = self.filter_columns_substring(df, 'mxname')
             if (self.exp['viztype'] == 'attrgrid' or self.exp['viztype'] == 'nkgrid'):

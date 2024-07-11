@@ -97,10 +97,10 @@ rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data_a
 rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/s2v/ger/mxcomb /home/annina/scripts/great_unread_nlp/data_author/s2v/ger
 
 
-rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/s2v/eng/singleimages /home/annina/scripts/great_unread_nlp/data_author/s2v/eng
-rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/s2v/ger/singleimages /home/annina/scripts/great_unread_nlp/data_author/s2v/ger
-rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/s2v/eng/mx_singleimages /home/annina/scripts/great_unread_nlp/data_author/s2v/eng
-rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/s2v/ger/mx_singleimages /home/annina/scripts/great_unread_nlp/data_author/s2v/ger
+rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/s2v/eng/singleimage /home/annina/scripts/great_unread_nlp/data_author/s2v/eng
+rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/s2v/ger/singleimage /home/annina/scripts/great_unread_nlp/data_author/s2v/ger
+rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/s2v/eng/mx_singleimage /home/annina/scripts/great_unread_nlp/data_author/s2v/eng
+rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/s2v/ger/mx_singleimage /home/annina/scripts/great_unread_nlp/data_author/s2v/ger
 rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/s2v/eng/mx_gridimage /home/annina/scripts/great_unread_nlp/data_author/s2v/eng
 rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/s2v/ger/mx_gridimage /home/annina/scripts/great_unread_nlp/data_author/s2v/ger
 rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/s2v/eng/gridimage /home/annina/scripts/great_unread_nlp/data_author/s2v/eng
@@ -151,6 +151,7 @@ scp stahla@euler.ethz.ch:/cluster/scratch/stahla/prediction_euler_combinations.p
 
 
 rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/analysis /home/annina/scripts/great_unread_nlp/data_author
+rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/analysis/eng /home/annina/scripts/great_unread_nlp/data_author/analysis
 rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/analysis_s2v /home/annina/scripts/great_unread_nlp/data_author
 rsync -avz --ignore-existing --exclude 'simmxs' stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/similarity /home/annina/scripts/great_unread_nlp/data_author
 rsync -avz --ignore-existing --exclude 'simmxs' stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/s2v /home/annina/scripts/great_unread_nlp/data_author
@@ -165,8 +166,8 @@ scp /home/annina/scripts/great_unread_nlp/src/analysis/s2vcreator.py stahla@eule
 
 
 # Gridimages
-rsync -avz --ignore-existing --exclude 'simmxs' --exclude 'embeddings' --exclude 'singleimages' --exclude 'mx_singleimages' stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/s2v/eng /home/annina/scripts/great_unread_nlp/data_author/s2v                 
-rsync -avz --ignore-existing --exclude 'simmxs' --exclude 'embeddings' --exclude 'singleimages' --exclude 'mx_singleimages' stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/s2v/ger /home/annina/scripts/great_unread_nlp/data_author/s2v                 
+rsync -avz --ignore-existing --exclude 'simmxs' --exclude 'embeddings' --exclude 'singleimage' --exclude 'mx_singleimage' stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/s2v/eng /home/annina/scripts/great_unread_nlp/data_author/s2v                 
+rsync -avz --ignore-existing --exclude 'simmxs' --exclude 'embeddings' --exclude 'singleimage' --exclude 'mx_singleimage' stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/s2v/ger /home/annina/scripts/great_unread_nlp/data_author/s2v                 
 
 
 

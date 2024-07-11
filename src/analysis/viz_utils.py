@@ -40,14 +40,18 @@ class VizBase(DataHandler):
         self.fontsize = 12
         self.add_custom_subdir()
 
-        self.special_cols = ['cluster', 'clst_shape', 'gender_cluster', 'author_cluster', 'x', 'y', 'pos']
-        self.key_attrs = ['author', 'gender', 'year', 'canon']
-        self.cat_attrs = ['gender', 'author', 'canon-ascat', 'year-ascat']
+        self.special_cols = ['cluster', 'clst_shape', 'gender_cluster', 'author_cluster', 'x', 'y', 'pos']     
 
-        self.by_author_attrs = ['canon-max', 'canon-min']
+
+        self.key_attrs = ['gender', 'canon', 'year', 'canon-ascat', 'year-ascat']
         if self.by_author:
-            self.key_attrs.remove('author')
-            self.key_attrs.extend(self.by_author_attrs)
+            self.key_attrs = self.key_attrs + ['canon-min', 'canon-max']
+        else: 
+            self.key_attrs = ['author'] + self.key_attrs
+            
+        self.cat_attrs = ['gender', 'canon-ascat', 'year-ascat']
+        if not self.by_author:
+            self.cat_attrs = ['author'] + self.cat_attrs
 
         self.is_cat = False
         if (self.info is not None) and (self.info.attr in self.cat_attrs):
@@ -77,8 +81,8 @@ class VizBase(DataHandler):
         ax.text(x=x, y=y, s=textwrap.fill(self.plttitle, width), fontsize=self.fontsize)
 
 
-    def save_plot(self, plt):
-        self.save_data(data=plt, data_type=self.data_type, file_name=None, file_path=self.vizpath, plt_kwargs={'dpi': 300})
+    def save_plot(self, plt, plt_kwargs={'dpi': 100}):
+        self.save_data(data=plt, data_type=self.data_type, file_name=None, file_path=self.vizpath, plt_kwargs=plt_kwargs)
 
 
     def get_path(self, name='viz', omit: List[str]=[], data_type=None):

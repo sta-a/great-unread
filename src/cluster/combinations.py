@@ -82,29 +82,13 @@ class CombinationsBase(InfoHandler):
         super().__init__(language, output_dir=output_dir, add_color=add_color, cmode=cmode, by_author=by_author)
         self.combinations_path = os.path.join(self.output_dir, f'{self.cmode}_log_combinations.txt')
         self.smallmx_path = os.path.join(self.output_dir, f'{self.cmode}_log_smallmx.txt')
-        self.test = False
-        self.save_data(data=self.metadf, filename='metadf') ####################
-        self.colnames = [col for col in self.metadf.columns if not col.endswith('_color')]
-        self.colnames = ['gender', 'author', 'canon', 'year', 'canon-ascat', 'year-ascat'] 
+        self.save_data(data=self.metadf, filename='metadf')
+        # self.colnames = [col for col in self.metadf.columns if not col.endswith('_color')]
+        self.colnames = ['gender', 'canon', 'year', 'canon-ascat', 'year-ascat'] # Don't use all features from metadf, just most important ones
         if self.by_author:
             self.colnames = self.colnames + ['canon-min', 'canon-max']
-
-        if self.test:
-            self.colnames = ['gender', 'author', 'canon', 'year', 'canon-ascat', 'year-ascat']
-            MxCluster.ALGS = {
-                'hierarchical': {
-                    'nclust': [2],
-                    'method': ['single'],
-                },
-            }
-            NkCluster.ALGS = {
-                'louvain': {
-                    'resolution': [1],
-                    },
-            }
-            Sparsifier.MODES = {
-                'threshold': [0.9],
-            }
+        else: 
+            self.colnames = self.colnames + ['author']
 
 
     # def load_mxs(self):

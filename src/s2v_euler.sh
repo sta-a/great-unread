@@ -4,9 +4,10 @@
 scp /home/annina/Downloads/node2vec-master.zip stahla@euler.ethz.ch:/cluster/scratch/stahla/src
 scp /home/annina/scripts/great_unread_nlp/src/environments/environment_s2v.yml stahla@euler.ethz.ch:
 scp /home/annina/scripts/great_unread_nlp/src/environments/environment_network.yml stahla@euler.ethz.ch:
-
-
 scp /home/annina/scripts/great_unread_nlp/src/environments/environment_nlpplus.yml stahla@euler.ethz.ch:
+scp stahla@euler.ethz.ch:/cluster/home/stahla/environment-cluster_network.yml /home/annina/scripts/great_unread_nlp/src/environments
+scp stahla@euler.ethz.ch:/cluster/home/stahla/environment-cluster_nlpplus_updated.yml /home/annina/scripts/great_unread_nlp/src/environments
+
 
 # src dir to cluster
 scp -r /home/annina/scripts/great_unread_nlp/src stahla@euler.ethz.ch:/cluster/scratch/stahla
@@ -64,8 +65,12 @@ scp /home/annina/scripts/great_unread_nlp/src/analysis/experiments.py stahla@eul
 scp /home/annina/scripts/great_unread_nlp/src/analysis/analysis_utils.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src_eval_byauthor/analysis
 
 scp /home/annina/scripts/great_unread_nlp/src/analysis/experiments.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src_runimgs/analysis
-scp /home/annina/scripts/great_unread_nlp/src/analysis/analysis_utils.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src_runimgs/analysis
 scp /home/annina/scripts/great_unread_nlp/src/analysis/experiments.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src_runimgs_byauthor/analysis
+scp /home/annina/scripts/great_unread_nlp/src/analysis/nkviz.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src_runimgs/analysis
+scp /home/annina/scripts/great_unread_nlp/src/analysis/nkviz.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src_runimgs_byauthor/analysis
+scp /home/annina/scripts/great_unread_nlp/src/analysis/topeval.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src_runimgs/analysis
+scp /home/annina/scripts/great_unread_nlp/src/analysis/topeval.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src_runimgs_byauthor/analysis
+scp /home/annina/scripts/great_unread_nlp/src/analysis/analysis_utils.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src_runimgs/analysis
 scp /home/annina/scripts/great_unread_nlp/src/analysis/analysis_utils.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src_runimgs_byauthor/analysis
 
 
@@ -125,8 +130,8 @@ rsync -avzP --ignore-existing  --exclude 'simmxs' stahla@euler.ethz.ch:/cluster/
 rsync -avzP --ignore-existing  --exclude 'simmxs' stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/ger /home/annina/scripts/great_unread_nlp/data/s2v/
 
 # Grid images only
-rsync -avz --ignore-existing --exclude 'simmxs' --exclude 'embeddings' --exclude 'singleimages' --exclude 'mx_singleimages' stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/eng /home/annina/scripts/great_unread_nlp/data/s2v                 
-rsync -avz --ignore-existing --exclude 'simmxs' --exclude 'embeddings' --exclude 'singleimages' --exclude 'mx_singleimages' stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/ger /home/annina/scripts/great_unread_nlp/data/s2v                 
+rsync -avz --ignore-existing --exclude 'simmxs' --exclude 'embeddings' --exclude 'singleimage' --exclude 'mx_singleimage' stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/eng /home/annina/scripts/great_unread_nlp/data/s2v                 
+rsync -avz --ignore-existing --exclude 'simmxs' --exclude 'embeddings' --exclude 'singleimage' --exclude 'mx_singleimage' stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/ger /home/annina/scripts/great_unread_nlp/data/s2v                 
 
 
 
@@ -139,10 +144,10 @@ rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s
 rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/ger/mxcomb /home/annina/scripts/great_unread_nlp/data/s2v/ger
 
 
-rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/eng/singleimages /home/annina/scripts/great_unread_nlp/data/s2v/eng
-rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/ger/singleimages /home/annina/scripts/great_unread_nlp/data/s2v/ger
-rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/eng/mx_singleimages /home/annina/scripts/great_unread_nlp/data/s2v/eng
-rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/ger/mx_singleimages /home/annina/scriptsis/great_unread_nlp/data/s2v/ger
+rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/eng/singleimage /home/annina/scripts/great_unread_nlp/data/s2v/eng
+rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/ger/singleimage /home/annina/scripts/great_unread_nlp/data/s2v/ger
+rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/eng/mx_singleimage /home/annina/scripts/great_unread_nlp/data/s2v/eng
+rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/ger/mx_singleimage /home/annina/scriptsis/great_unread_nlp/data/s2v/ger
 rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/eng/mx_gridimage /home/annina/scripts/great_unread_nlp/data/s2v/eng
 rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/ger/mx_gridimage /home/annina/scripts/great_unread_nlp/data/s2v/ger
 rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/eng/gridimage /home/annina/scripts/great_unread_nlp/data/s2v/eng
@@ -196,15 +201,16 @@ scp stahla@euler.ethz.ch:/cluster/scratch/stahla/prediction_euler_combinations.p
 
 
 rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data/analysis /home/annina/scripts/great_unread_nlp/data
+rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data/analysis/eng /home/annina/scripts/great_unread_nlp/data/analysis
 rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data/analysis_s2v /home/annina/scripts/great_unread_nlp/data
 rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v /home/annina/scripts/great_unread_nlp/data
 rsync -avz --ignore-existing --exclude 'simmxs' stahla@euler.ethz.ch:/cluster/scratch/stahla/data/similarity /home/annina/scripts/great_unread_nlp/data
-rsync -avz --ignore-existing --exclude 'simmxs' --exclude 'embeddings' --exclude 'singleimages' --exclude 'mx_gridimage' stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/eng /home/annina/scripts/great_unread_nlp/data/s2v                  
-rsync -avz --ignore-existing --exclude 'simmxs' --exclude 'embeddings' --exclude 'singleimages' --exclude 'mx_gridimage' stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/ger /home/annina/scripts/great_unread_nlp/data/s2v
+rsync -avz --ignore-existing --exclude 'simmxs' --exclude 'embeddings' --exclude 'singleimage' --exclude 'mx_gridimage' stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/eng /home/annina/scripts/great_unread_nlp/data/s2v                  
+rsync -avz --ignore-existing --exclude 'simmxs' --exclude 'embeddings' --exclude 'singleimage' --exclude 'mx_gridimage' stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/ger /home/annina/scripts/great_unread_nlp/data/s2v
 
 
 # This command will recursively search for and delete all directories named mydir from the current directory and all its subdirectories.
-find . -type d -name "*_backup" # find all subdirs
+find . -type d -name "mxcomb" # find all subdirs
 find . -type d -name "*singleimage_cluster" -exec rm -rv {} +
 find . -maxdepth 1 -type d ! -name "*singleimage*" ! -name "." -exec rm -rf {} + # delete all dirs that dont have singleimage in their name
 find . -type d -name "mxcomb" -exec rm -rv {} +
@@ -219,31 +225,25 @@ find . -type f -name "nk_log*.txt" -delete
 find . -type f -name "nk_noedges.txt" -delete
 
 
-# Add canon-ascat
+# Add canon-ascat 
+scp /home/annina/scripts/great_unread_nlp/src/analysis/topeval.py /home/annina/scripts/great_unread_nlp/src/analysis/mxviz.py /home/annina/scripts/great_unread_nlp/src/analysis/experiments.py /home/annina/scripts/great_unread_nlp/src/analysis/viz_utils.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src_paramimgs/analysis
+scp /home/annina/scripts/great_unread_nlp/src/analysis/topeval.py /home/annina/scripts/great_unread_nlp/src/analysis/mxviz.py /home/annina/scripts/great_unread_nlp/src/analysis/experiments.py /home/annina/scripts/great_unread_nlp/src/analysis/viz_utils.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src_paramimgs_byauthor/analysis
+scp /home/annina/scripts/great_unread_nlp/src/analysis/topeval.py /home/annina/scripts/great_unread_nlp/src/analysis/mxviz.py /home/annina/scripts/great_unread_nlp/src/analysis/experiments.py /home/annina/scripts/great_unread_nlp/src/analysis/viz_utils.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src_runimgs/analysis
+scp /home/annina/scripts/great_unread_nlp/src/analysis/topeval.py /home/annina/scripts/great_unread_nlp/src/analysis/mxviz.py /home/annina/scripts/great_unread_nlp/src/analysis/experiments.py /home/annina/scripts/great_unread_nlp/src/analysis/viz_utils.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src_runimgs_byauthor/analysis
 
-scp /home/annina/scripts/great_unread_nlp/src/analysis/mxviz.py /home/annina/scripts/great_unread_nlp/src/analysis/experiments.py /home/annina/scripts/great_unread_nlp/src/analysis/viz_utils.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src_paramimgs/analysis
-scp /home/annina/scripts/great_unread_nlp/src/analysis/mxviz.py /home/annina/scripts/great_unread_nlp/src/analysis/experiments.py /home/annina/scripts/great_unread_nlp/src/analysis/viz_utils.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src_paramimgs_byauthor/analysis
-scp /home/annina/scripts/great_unread_nlp/src/analysis/mxviz.py /home/annina/scripts/great_unread_nlp/src/analysis/experiments.py /home/annina/scripts/great_unread_nlp/src/analysis/viz_utils.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src_runimgs/analysis
-scp /home/annina/scripts/great_unread_nlp/src/analysis/mxviz.py /home/annina/scripts/great_unread_nlp/src/analysis/experiments.py /home/annina/scripts/great_unread_nlp/src/analysis/viz_utils.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src_runimgs_byauthor/analysis
-
-scp /home/annina/scripts/great_unread_nlp/src/analysis/mxviz.py /home/annina/scripts/great_unread_nlp/src/analysis/experiments.py /home/annina/scripts/great_unread_nlp/src/analysis/viz_utils.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src/analysis
-scp /home/annina/scripts/great_unread_nlp/src/analysis/mxviz.py /home/annina/scripts/great_unread_nlp/src/analysis/experiments.py /home/annina/scripts/great_unread_nlp/src/analysis/viz_utils.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src_byauthor/analysis
-scp /home/annina/scripts/great_unread_nlp/src/analysis/mxviz.py /home/annina/scripts/great_unread_nlp/src/analysis/experiments.py /home/annina/scripts/great_unread_nlp/src/analysis/viz_utils.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src_eval/analysis
-scp /home/annina/scripts/great_unread_nlp/src/analysis/mxviz.py /home/annina/scripts/great_unread_nlp/src/analysis/experiments.py /home/annina/scripts/great_unread_nlp/src/analysis/viz_utils.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src_eval_byauthor/analysis
-
-
-# replace cluster_path_string
-
-
-
-
-
+scp /home/annina/scripts/great_unread_nlp/src/analysis/topeval.py /home/annina/scripts/great_unread_nlp/src/analysis/mxviz.py /home/annina/scripts/great_unread_nlp/src/analysis/experiments.py /home/annina/scripts/great_unread_nlp/src/analysis/viz_utils.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src/analysis
+scp /home/annina/scripts/great_unread_nlp/src/analysis/topeval.py /home/annina/scripts/great_unread_nlp/src/analysis/mxviz.py /home/annina/scripts/great_unread_nlp/src/analysis/experiments.py /home/annina/scripts/great_unread_nlp/src/analysis/viz_utils.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src_byauthor/analysis
+scp /home/annina/scripts/great_unread_nlp/src/analysis/topeval.py /home/annina/scripts/great_unread_nlp/src/analysis/mxviz.py /home/annina/scripts/great_unread_nlp/src/analysis/experiments.py /home/annina/scripts/great_unread_nlp/src/analysis/viz_utils.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src_eval/analysis
+scp /home/annina/scripts/great_unread_nlp/src/analysis/topeval.py /home/annina/scripts/great_unread_nlp/src/analysis/mxviz.py /home/annina/scripts/great_unread_nlp/src/analysis/experiments.py /home/annina/scripts/great_unread_nlp/src/analysis/viz_utils.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src_eval_byauthor/analysis
 
 
 scp /home/annina/scripts/great_unread_nlp/src/analysis/experiments.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src_paramimgs/analysis
 scp /home/annina/scripts/great_unread_nlp/src/analysis/experiments.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src_paramimgs_byauthor/analysis
 scp /home/annina/scripts/great_unread_nlp/src/analysis/experiments.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src_runimgs/analysis
 scp /home/annina/scripts/great_unread_nlp/src/analysis/experiments.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src_runimgs_byauthor/analysis
+scp /home/annina/scripts/great_unread_nlp/src/analysis/* stahla@euler.ethz.ch:/cluster/scratch/stahla/src_runimgs/analysis
+scp /home/annina/scripts/great_unread_nlp/src/analysis/* stahla@euler.ethz.ch:/cluster/scratch/stahla/src_runimngs_byauthor/analysis
+
 
 scp /home/annina/scripts/great_unread_nlp/src/analysis/experiments.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src/analysis
 scp /home/annina/scripts/great_unread_nlp/src/analysis/experiments.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src_byauthor/analysis
@@ -253,8 +253,14 @@ scp /home/annina/scripts/great_unread_nlp/src/analysis/experiments.py stahla@eul
 
 
 
-
-
+scp /home/annina/scripts/great_unread_nlp/src/run_embeddings.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src_eng_mirror
+scp /home/annina/scripts/great_unread_nlp/src/run_embeddings.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src_ger_mirror
+scp /home/annina/scripts/great_unread_nlp/src/run_embeddings.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src_eng_mirror_byauthor
+scp /home/annina/scripts/great_unread_nlp/src/run_embeddings.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src_ger_mirror_byauthor
+scp /home/annina/scripts/great_unread_nlp/src/analysis/mxviz.py /home/annina/scripts/great_unread_nlp/src/analysis/nkviz.py /home/annina/scripts/great_unread_nlp/src/analysis/viz_utils.py /home/annina/scripts/great_unread_nlp/src/analysis/embedding_utils.py /home/annina/scripts/great_unread_nlp/src/analysis/embedding_eval.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src_eng_mirror/analysis
+scp /home/annina/scripts/great_unread_nlp/src/analysis/mxviz.py /home/annina/scripts/great_unread_nlp/src/analysis/nkviz.py /home/annina/scripts/great_unread_nlp/src/analysis/viz_utils.py /home/annina/scripts/great_unread_nlp/src/analysis/embedding_utils.py /home/annina/scripts/great_unread_nlp/src/analysis/embedding_eval.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src_ger_mirror/analysis
+scp /home/annina/scripts/great_unread_nlp/src/analysis/mxviz.py /home/annina/scripts/great_unread_nlp/src/analysis/nkviz.py /home/annina/scripts/great_unread_nlp/src/analysis/viz_utils.py /home/annina/scripts/great_unread_nlp/src/analysis/embedding_utils.py /home/annina/scripts/great_unread_nlp/src/analysis/embedding_eval.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src_eng_mirror_byauthor/analysis
+scp /home/annina/scripts/great_unread_nlp/src/analysis/mxviz.py /home/annina/scripts/great_unread_nlp/src/analysis/nkviz.py /home/annina/scripts/great_unread_nlp/src/analysis/viz_utils.py /home/annina/scripts/great_unread_nlp/src/analysis/embedding_utils.py /home/annina/scripts/great_unread_nlp/src/analysis/embedding_eval.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src_ger_mirror_byauthor/analysis
 
 
 
@@ -272,15 +278,17 @@ scp /home/annina/scripts/great_unread_nlp/src/cluster/combinations.py /home/anni
 scp  /home/annina/scripts/great_unread_nlp/src/utils.py stahla@euler.ethz.ch:/cluster/scratch/stahla
 
 
-scp -r /home/annina/scripts/great_unread_nlp/src/analysis stahla@euler.ethz.ch:/cluster/scratch/stahla/src_paramimgs/analysis
-scp -r /home/annina/scripts/great_unread_nlp/src/analysis stahla@euler.ethz.ch:/cluster/scratch/stahla/src_paramimgs_byauthor/analysis
-scp -r /home/annina/scripts/great_unread_nlp/src/analysis stahla@euler.ethz.ch:/cluster/scratch/stahla/src_runimgs/analysis
-scp -r /home/annina/scripts/great_unread_nlp/src/analysis stahla@euler.ethz.ch:/cluster/scratch/stahla/src_runimgs_byauthor/analysis
+scp -r /home/annina/scripts/great_unread_nlp/src/analysis stahla@euler.ethz.ch:/cluster/scratch/stahla/src_paramimgs
+scp -r /home/annina/scripts/great_unread_nlp/src/analysis stahla@euler.ethz.ch:/cluster/scratch/stahla/src_paramimgs_byauthor
+scp -r /home/annina/scripts/great_unread_nlp/src/analysis stahla@euler.ethz.ch:/cluster/scratch/stahla/src_runimgs
+scp -r /home/annina/scripts/great_unread_nlp/src/analysis stahla@euler.ethz.ch:/cluster/scratch/stahla/src_runimgs_byauthor
 
-scp -r /home/annina/scripts/great_unread_nlp/src/analysis stahla@euler.ethz.ch:/cluster/scratch/stahla/src/analysis
-scp -r /home/annina/scripts/great_unread_nlp/src/analysis stahla@euler.ethz.ch:/cluster/scratch/stahla/src_byauthor/analysis
-scp -r /home/annina/scripts/great_unread_nlp/src/analysis stahla@euler.ethz.ch:/cluster/scratch/stahla/src_eval/analysis
-scp -r /home/annina/scripts/great_unread_nlp/src/analysis stahla@euler.ethz.ch:/cluster/scratch/stahla/src_eval_byauthor/analysis
+scp -r /home/annina/scripts/great_unread_nlp/src/analysis stahla@euler.ethz.ch:/cluster/scratch/stahla/src
+scp -r /home/annina/scripts/great_unread_nlp/src/analysis stahla@euler.ethz.ch:/cluster/scratch/stahla/src_byauthor
+scp -r /home/annina/scripts/great_unread_nlp/src/analysis stahla@euler.ethz.ch:/cluster/scratch/stahla/src_eval
+scp -r /home/annina/scripts/great_unread_nlp/src/analysis stahla@euler.ethz.ch:/cluster/scratch/stahla/src_eval_byauthor
+scp -r /home/annina/scripts/great_unread_nlp/src/analysis stahla@euler.ethz.ch:/cluster/scratch/stahla/src_runimgs
+scp -r /home/annina/scripts/great_unread_nlp/src/analysis stahla@euler.ethz.ch:/cluster/scratch/stahla/src_runimgs_byauthor
 
 
 # Download s2v dir
@@ -289,24 +297,59 @@ rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s
 rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/s2v/eng/embeddings /home/annina/scripts/great_unread_nlp/data_author/s2v/eng/
 rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/s2v/ger/embeddings /home/annina/scripts/great_unread_nlp/data_author/s2v/ger/
 
-# To Harddrive
 
-## From Cluster
-rsync -avz --ignore-existing --exclude 'simmxs' stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/eng /media/annina/MyBook/back-to-computer-240615/data/s2v 
-rsync -avz --ignore-existing --exclude 'simmxs' stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/ger /media/annina/MyBook/back-to-computer-240615/data/s2v  
-## From Computer
-rsync -avz --ignore-existing --exclude 'simmxs' /home/annina/scripts/great_unread_nlp/data/s2v/eng /media/annina/MyBook/back-to-computer-240615/data/s2v 
-rsync -avz --ignore-existing --exclude 'simmxs' /home/annina/scripts/great_unread_nlp/data/s2v/ger /media/annina/MyBook/back-to-computer-240615/data/s2v  
-rsync -avz --ignore-existing --exclude 'simmxs' /home/annina/scripts/great_unread_nlp/data_author/s2v/eng /media/annina/MyBook/back-to-computer-240615/data_author/s2v 
-rsync -avz --ignore-existing --exclude 'simmxs' /home/annina/scripts/great_unread_nlp/data_author/s2v/ger /media/annina/MyBook/back-to-computer-240615/data_author/s2v 
+rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/eng/embeddings/*mirror* /home/annina/scripts/great_unread_nlp/data/s2v/eng/embeddings
+rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/ger/embeddings/*mirror* /home/annina/scripts/great_unread_nlp/data/s2v/ger/embeddings
+rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/s2v/eng/embeddings/*mirror* /home/annina/scripts/great_unread_nlp/data_author/s2v/eng/embeddings
+rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/s2v/ger/embeddings/*mirror* /home/annina/scripts/great_unread_nlp/data_author/s2v/ger/embeddings
 
 
-# Back to computer
+
+## From Cluster to harddrive
+rsync -avz --ignore-existing --exclude 'simmxs' --exclude 'mds' stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/eng /media/annina/MyBook/back-to-computer-240615/data/s2v 
+rsync -avz --ignore-existing --exclude 'simmxs' --exclude 'mds' stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/ger /media/annina/MyBook/back-to-computer-240615/data/s2v
+rsync -avz --ignore-existing --exclude 'simmxs' --exclude 'mds' stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/s2v/eng /media/annina/MyBook/back-to-computer-240615/data_author/s2v 
+rsync -avz --ignore-existing --exclude 'simmxs' --exclude 'mds' stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/s2v/ger /media/annina/MyBook/back-to-computer-240615/data_author/s2v
+
+rsync -avz --ignore-existing --exclude 'simmxs' --exclude 'mds' stahla@euler.ethz.ch:/cluster/scratch/stahla/data/analysis/eng /media/annina/MyBook/back-to-computer-240615/data/analysis 
+rsync -avz --ignore-existing --exclude 'simmxs' --exclude 'mds' stahla@euler.ethz.ch:/cluster/scratch/stahla/data/analysis/ger /media/annina/MyBook/back-to-computer-240615/data/analysis 
+rsync -avz --ignore-existing --exclude 'simmxs' --exclude 'mds' stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/analysis/eng /media/annina/MyBook/back-to-computer-240615/data_author/analysis 
+rsync -avz --ignore-existing --exclude 'simmxs' --exclude 'mds' stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/analysis/ger /media/annina/MyBook/back-to-computer-240615/data_author/analysis 
+
+rsync -avz --ignore-existing --exclude 'mds' --exclude 'MxSingleVizCluster_delete' stahla@euler.ethz.ch:/cluster/scratch/stahla/data/analysis_s2v/eng /media/annina/MyBook/back-to-computer-240615/data/analysis_s2v 
+rsync -avz --ignore-existing --exclude 'mds' --exclude 'MxSingleVizCluster_delete' stahla@euler.ethz.ch:/cluster/scratch/stahla/data/analysis_s2v/ger /media/annina/MyBook/back-to-computer-240615/data/analysis_s2v 
+rsync -avz --ignore-existing --exclude 'mds' --exclude 'MxSingleVizCluster_delete' stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/analysis_s2v/eng /media/annina/MyBook/back-to-computer-240615/data_author/analysis_s2v 
+rsync -avz --ignore-existing --exclude 'mds' --exclude 'MxSingleVizCluster_delete' stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/analysis_s2v/ger /media/annina/MyBook/back-to-computer-240615/data_author/analysis_s2v 
+
+
+rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data/analysis_s2v/eng/mx_topcanon_smallest_variance* /home/annina/scripts/great_unread_nlp/data/analysis_s2v/eng
+
+
+## From Computer to harddrive
+rsync -avz --ignore-existing /home/annina/scripts/great_unread_nlp/data/s2v/eng /media/annina/MyBook/back-to-computer-240615/data/s2v 
+rsync -avz --ignore-existing /home/annina/scripts/great_unread_nlp/data/s2v/ger /media/annina/MyBook/back-to-computer-240615/data/s2v  
+rsync -avz --ignore-existing /home/annina/scripts/great_unread_nlp/data_author/s2v/eng /media/annina/MyBook/back-to-computer-240615/data_author/s2v 
+rsync -avz --ignore-existing /home/annina/scripts/great_unread_nlp/data_author/s2v/ger /media/annina/MyBook/back-to-computer-240615/data_author/s2v 
+rsync -avz --ignore-existing /home/annina/scripts/great_unread_nlp/data/analysis/eng /media/annina/MyBook/back-to-computer-240615/data/analysis 
+rsync -avz --ignore-existing /home/annina/scripts/great_unread_nlp/data/analysis/ger /media/annina/MyBook/back-to-computer-240615/data/analysis  
+rsync -avz --ignore-existing /home/annina/scripts/great_unread_nlp/data_author/analysis/eng /media/annina/MyBook/back-to-computer-240615/data_author/analysis 
+rsync -avz --ignore-existing /home/annina/scripts/great_unread_nlp/data_author/analysis/ger /media/annina/MyBook/back-to-computer-240615/data_author/analysis 
+
+# From harddrive to computer
 rsync -avz --ignore-existing /media/annina/MyBook/back-to-computer-240615/data/s2v/eng/embeddings /home/annina/scripts/great_unread_nlp/data/s2v/eng
 rsync -avz --ignore-existing /media/annina/MyBook/back-to-computer-240615/data/s2v/ger/embeddings /home/annina/scripts/great_unread_nlp/data/s2v/ger
 rsync -avz --ignore-existing /media/annina/MyBook/back-to-computer-240615/data_author/s2v/eng/embeddings /home/annina/scripts/great_unread_nlp/data_author/s2v/eng
 rsync -avz --ignore-existing /media/annina/MyBook/back-to-computer-240615/data_author/s2v/ger/embeddings /home/annina/scripts/great_unread_nlp/data_author/s2v/ger
+rsync -avz --ignore-existing /media/annina/MyBook/back-to-computer-240615/data/analysis/eng /home/annina/scripts/great_unread_nlp/data/analysis
 
+rsync -avz /media/annina/MyBook/back-to-computer-240615/data/s2v/eng/mirror_singleimage /home/annina/scripts/great_unread_nlp/data/s2v/eng
+rsync -avz /media/annina/MyBook/back-to-computer-240615/data/s2v/eng/mx_mirror_singleimage /home/annina/scripts/great_unread_nlp/data/s2v/eng
+rsync -avz /media/annina/MyBook/back-to-computer-240615/data/s2v/ger/mirror_singleimage /home/annina/scripts/great_unread_nlp/data/s2v/ger
+rsync -avz /media/annina/MyBook/back-to-computer-240615/data/s2v/ger/mx_mirror_singleimage /home/annina/scripts/great_unread_nlp/data/s2v/ger
+rsync -avz /media/annina/MyBook/back-to-computer-240615/data_author/s2v/eng/mirror_singleimage /home/annina/scripts/great_unread_nlp/data_author/s2v/eng
+rsync -avz /media/annina/MyBook/back-to-computer-240615/data_author/s2v/eng/mx_mirror_singleimage /home/annina/scripts/great_unread_nlp/data_author/s2v/eng
+rsync -avz /media/annina/MyBook/back-to-computer-240615/data_author/s2v/ger/mirror_singleimage /home/annina/scripts/great_unread_nlp/data_author/s2v/ger
+rsync -avz /media/annina/MyBook/back-to-computer-240615/data_author/s2v/ger/mx_mirror_singleimage /home/annina/scripts/great_unread_nlp/data_author/s2v/ger
 
 # Harddrive to Cluster
 rsync -avz --ignore-existing /home/annina/scripts/great_unread_nlp/data/s2v/eng/embeddings stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/eng
@@ -314,10 +357,20 @@ rsync -avz --ignore-existing /home/annina/scripts/great_unread_nlp/data/s2v/ger/
 rsync -avz --ignore-existing /home/annina/scripts/great_unread_nlp/data_author/s2v/eng/embeddings stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/s2v/eng
 rsync -avz --ignore-existing /home/annina/scripts/great_unread_nlp/data_author/s2v/ger/embeddings stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/s2v/ger
 
-scp -r /home/annina/scripts/great_unread_nlp/src/struc2vec-master_rwpath stahla@euler.ethz.ch:/cluster/scratch/stahla/src
-scp /home/annina/scripts/great_unread_nlp/src/struc2vec-master_rwpath.zip stahla@euler.ethz.ch:/cluster/scratch/stahla/src_eng_params
-scp /home/annina/scripts/great_unread_nlp/src/struc2vec-master_rwpath.zip stahla@euler.ethz.ch:/cluster/scratch/stahla/src_ger_params
+rsync -avz --ignore-existing /media/annina/MyBook/back-to-computer-240615/data/s2v/eng/mxcomb stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/eng
+rsync -avz --ignore-existing /media/annina/MyBook/back-to-computer-240615/data/s2v/ger/mxcomb stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/ger
+rsync -avz --ignore-existing /media/annina/MyBook/back-to-computer-240615/data_author/s2v/eng/mxcomb stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/s2v/eng
+rsync -avz --ignore-existing /media/annina/MyBook/back-to-computer-240615/data_author/s2v/ger/mxcomb stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/s2v/ger
 
 
+
+
+
+
+
+
+
+# Reupload src files if they have been deleted by cluster
+rsync -avz --ignore-existing --exclude 'networks_to_embeddings' --exclude 'struc2vec-master_rwpath' --exclude 'struc2vec-master_improved_paths'  /home/annina/scripts/great_unread_nlp/src/* stahla@euler.ethz.ch:/cluster/scratch/stahla/src_eng_mirror
 
 

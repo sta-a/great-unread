@@ -66,7 +66,8 @@ if __name__ == "__main__":
     elif mode == 'nkexp':
         # output_dir='analysis': eval scores will be taken from similarity dir
         ex = Experiment(language=language, cmode='nk', by_author=by_author, output_dir='analysis')
-        ex.run_experiments()
+        exps = ex.get_experiments()
+        # ex.run_experiments()
 
 
     elif mode == 'viz':

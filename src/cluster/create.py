@@ -94,8 +94,8 @@ class SimMx(DataHandler):
         assert self.mx.equals(self.mx.T) # Check symmetry
         # Check if 1 is only on the diagonal
         # assert not np.any((self.mx.values != np.eye(len(self.mx))) & (self.mx.values == 1))
-        print('self.mx.isnull().values.any()', self.mx.isnull().values.any())
-        print('self.mx.all().all()', self.mx.all().all()) # Check if all values are True
+        # print('self.mx.isnull().values.any()', self.mx.isnull().values.any())
+        # print('self.mx.all().all()', self.mx.all().all()) # Check if all values are True
 
 
     def find_zero_elements(self):
@@ -105,11 +105,11 @@ class SimMx(DataHandler):
         rows_with_zeros = self.mx.index[zero_indices[0]]
         cols_with_zeros = self.mx.columns[zero_indices[1]]
         # Print the results
-        if len(rows_with_zeros) > 0 or len(cols_with_zeros) > 0:
-            print("\nRow and Column names for Elements that are 0:")
-            for row, col in zip(rows_with_zeros, cols_with_zeros):
-                print(f"Row: {row}, Column: {col}")
-            print('--------------------------------')
+        # if len(rows_with_zeros) > 0 or len(cols_with_zeros) > 0:
+        #     print("\nRow and Column names for Elements that are 0:")
+        #     for row, col in zip(rows_with_zeros, cols_with_zeros):
+        #         print(f"Row: {row}, Column: {col}")
+        #     print('--------------------------------')
 
 
     def min_max_normalization(self):
@@ -119,7 +119,7 @@ class SimMx(DataHandler):
             min_val = mx.min().min()
             max_val = mx.max().max()
             mx = (mx - min_val) / (max_val - min_val)
-            print(f'After normalization: Max similarity: {mx.max().max()}. Min similarity: {mx.min().min()}.')
+            # print(f'After normalization: Max similarity: {mx.max().max()}. Min similarity: {mx.min().min()}.')
             self.normalized = True
         self.mx = mx
 
@@ -182,7 +182,7 @@ class SimMx(DataHandler):
         _, counts = np.unique(vals, return_counts=True)
         ind = np.argmax(counts)
 
-        print(f'Minimum {self.name}: {min(vals)}. Maximum {self.name}: {max(vals)}. Most common {self.name}: {vals[ind]}.')
+        # print(f'Minimum {self.name}: {min(vals)}. Maximum {self.name}: {max(vals)}. Most common {self.name}: {vals[ind]}.')
 
         fig = plt.figure(figsize=(20,6), dpi=300)
         ax = fig.add_subplot(111)

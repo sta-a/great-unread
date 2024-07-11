@@ -59,8 +59,8 @@ class ParamModeEvalTest(S2vCreatorWithIsoNodes):
         s2vobj = S2vCreatorWithIsoNodes(self.language, self.mode, self.by_author)
         self.el = EmbLoader(self.language, file_string=self.file_string, mode='params', ec=s2vobj)
 
-        nkviz_dir = os.path.join(self.output_dir, 'singleimages')
-        mdsviz_dir = os.path.join(self.output_dir, 'mx_singleimages')
+        nkviz_dir = os.path.join(self.output_dir, 'singleimage')
+        mdsviz_dir = os.path.join(self.output_dir, 'mx_singleimage')
 
 
         for network_name, node in self.examples.items():
@@ -111,13 +111,13 @@ class ParamModeEvalTest(S2vCreatorWithIsoNodes):
                 # nkviz.df = df
                 # nkviz.info = info
                 # nkviz.visualize_nodes(vizname=cmxname)
-                nkviz = NkSingleVizS2vTest(self.language, output_dir=self.output_dir, exp={'name': 'mx_singleimages'}, by_author=self.by_author, network=network, name=cmxname, colorcol=f'{node}', vizpath=nkvizpath, df=df)
+                nkviz = NkSingleVizS2vTest(self.language, output_dir=self.output_dir, exp={'name': 'mx_singleimage'}, by_author=self.by_author, network=network, name=cmxname, colorcol=f'{node}', vizpath=nkvizpath, df=df)
                 nkviz.visualize()
 
 
 
                 # MDS of similarity matrix
-                mdsviz = EmbParamEvalSingleMDS(language=self.language, output_dir=self.output_dir, exp={'name': 'singleimages'}, by_author=self.by_author, mc=self.el, df=df, attr=node, mx=cmx)
+                mdsviz = EmbParamEvalSingleMDS(language=self.language, output_dir=self.output_dir, exp={'name': 'singleimage'}, by_author=self.by_author, mc=self.el, df=df, attr=node, mx=cmx)
                 mdsviz.visualize(vizname=cmxname)
 
 

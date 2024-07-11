@@ -56,13 +56,14 @@ class Experiment(DataHandler):
             int_evalcol = 'silhouette_score'
         else:
             int_evalcol = 'modularity'
-        cont_attrs = ['canon', 'year']
-        cat_attrs = ['gender', 'author', 'canon-ascat', 'year-ascat']
-        by_author_attrs = ['canon-max', 'canon-min']
-        if self.by_author:
-            cont_attrs = cont_attrs + by_author_attrs
-            cat_attrs.remove('author')
 
+
+        cont_attrs = ['canon', 'year']
+        cat_attrs = ['gender', 'canon-ascat', 'year-ascat']
+        if self.by_author:
+            cont_attrs = cont_attrs + ['canon-max', 'canon-min']
+        else:
+            cat_attrs = ['author'] + cat_attrs
 
 
         '''
@@ -152,6 +153,23 @@ class Experiment(DataHandler):
         all_top = topcont + topcat + attrcont + attrcat + topcont_emb + topcat_emb
 
 
+        sparsmethods = ['threshold-0%8', 'threshold-0%90', 'threshold-0%95', 'simmel-5-10', 'simmel-3-10', 'simmel-4-6', 'simmel-7-10', 'authormax', 'authormin']
+        if self.cmode == 'nk' or (self.cmode == 'mx' and 's2v' in self.output_dir):
+            newdicts = []
+            for spars in sparsmethods:
+                for cdict in all_top:
+                    d = deepcopy(cdict)
+                    d['name'] = d['name'] + f'_{spars}'
+                    if self.cmode == 'mx' and 's2v' in self.output_dir:
+                        d['mxname'] = spars # spars method is a substring of the mxname
+                    else:
+                        d['sparsmode'] = spars # spars method is its own field in the eval df
+                    newdicts.append(d)
+            all_top = newdicts + all_top
+
+
+
+
         # The same as all_top, but set the minimum and maximum number of clusters
         # Only for s2v, ignore embmxs
         def modify_top_nclust(d): #################################
@@ -226,20 +244,22 @@ class Experiment(DataHandler):
             
 
         # exps = top_cluster + all_top + singleimage
-        exps = all_top + singleimage # sparsgrid + all_nkgrid + all_attrgrid + clustconst + central ######################
+        # singleimage needs to be run first, because grid viz (for s2v) rely on the generated images ###################
+        exps = all_top # sparsgrid + all_nkgrid + all_attrgrid + clustconst + central ######################
+        
         if select_exp is not None:
-            [print(x['name']) for x in exps]
             exps = [x for x in exps if x['name'] == select_exp]
 
         for e in exps:
             print(e['name'])
+
         return exps
 
 
     def run_experiments(self, select_exp=None, ntop=30):
         exps = self.get_experiments(select_exp)
         for exp in exps:
-            print(f"------------------{exp['name']}-------------------\n")
+            print(f"------------------{self.cmode}, {exp['name']}-------------------\n")
             if 'ntop' not in exp:
                 exp['ntop'] = ntop
 
@@ -328,7 +348,7 @@ class Experiment(DataHandler):
                 if '0%9.' in info.spmx_path:
                     info.spmx_path = info.spmx_path.replace('0%9.', '0%90.') ##################
                 cluster_path_string = '/cluster/scratch/stahla/data'
-                if cluster_path_string in info.spmx_path:
+                if (cluster_path_string in info.spmx_path) and ('cluster/scratch/stahla' not in os.getcwd()):
                     info.spmx_path = info.spmx_path.replace(cluster_path_string, '/home/annina/scripts/great_unread_nlp/data')
                 if exp['viztype'] == 'attrgrid':
                     # In Topeval, a single combination for each sparsified matrix is chosen, attributes don't matter

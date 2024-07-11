@@ -132,7 +132,7 @@ def info_to_mx_and_edgelist():
 
 
         cluster_path_string = '/cluster/scratch/stahla/data'
-        if cluster_path_string in info.spmx_path:
+        if (cluster_path_string in info.spmx_path) and ('cluster/scratch/stahla' not in os.getcwd()):
             info.spmx_path = info.spmx_path.replace(cluster_path_string, '/home/annina/scripts/great_unread_nlp/data')
 
 

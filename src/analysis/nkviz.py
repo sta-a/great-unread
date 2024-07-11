@@ -51,9 +51,8 @@ class NkVizBase(VizBase):
         if info is not None:
             if self.graph is None:
                 cluster_path_string = '/cluster/scratch/stahla/data'
-                if cluster_path_string in info.spmx_path:
+                if (cluster_path_string in info.spmx_path) and ('cluster/scratch/stahla' not in os.getcwd()):
                     info.spmx_path = info.spmx_path.replace(cluster_path_string, '/home/annina/scripts/great_unread_nlp/data')
-                print(info.spmx_path)
                 self.network = NXNetwork(self.language, path=info.spmx_path)
                 self.graph = self.network.graph
 
@@ -133,8 +132,6 @@ class NkVizBase(VizBase):
     def add_positions_to_metadf(self):
         # Combine positions and metadata
         self.get_metadf()
-        print(self.df.shape)
-        print(len(self.pos))
         self.df['pos'] = self.df.index.map(self.pos)
         self.df[['x', 'y']] = pd.DataFrame(self.df['pos'].tolist(), index=self.df.index)
 
@@ -788,15 +785,22 @@ class NkSingleViz(NkNetworkGridkViz):
                 plt.close()
 
 
-class NkSingleVizCluster(NkKeyAttrViz):
+class NkSingleVizAttr(NkKeyAttrViz):
     '''
     Make single images where clusters are highlighted. Isolated nodes are not shown.
     Not possible to create all of them because there are too many combinations.
     '''
     def __init__(self, language, output_dir, info, plttitle, exp, by_author):
         super().__init__(language, output_dir, info=info, plttitle=plttitle, exp=exp, by_author=by_author)
-        self.fontsize = 10
+        self.fontsize = 15
         self.markersize = self.fontsize
+        self.add_subdir('nk_singleimage_s2v')
+        self.ws_left = 0.01
+        self.ws_right = 0.99
+        self.ws_bottom = 0.01
+        self.ws_top = 0.99
+        self.ws_wspace = 0
+        self.ws_hspace = 0
 
 
     def get_figure(self):
@@ -809,34 +813,37 @@ class NkSingleVizCluster(NkKeyAttrViz):
 
 
     def fill_subplots(self):
-        self.add_nodes_to_ax([0,0], self.df, color_col='cluster', use_different_shapes=False)
+        self.add_nodes_to_ax([0,0], self.df, color_col=self.info.attr, use_different_shapes=False)
 
 
-    # Overwrite method to remove 'viz' from file name
     def get_path(self, omit: List[str]=[], data_type=None):
+        # Cluster alg and params are only necessary for cluster
         if data_type is None:
             data_type = self.data_type
-        file_name = f'{self.info.as_string(omit=omit)}.{data_type}'
+
+        if self.info.attr == 'cluster':
+            file_name = f'{self.info.as_string(omit=omit)}.{data_type}'
+        else:
+            file_name = f"{self.info.as_string(omit=['clst_alg_params'])}.{data_type}"
         return self.get_file_path(file_name, subdir=True)
 
 
     def visualize(self, vizname='viz', omit=[]):
-        if not self.too_many_edges:
-            self.vizpath = self.get_path(omit=['attr'])
-            print('NkSingleVizCluster', self.vizpath)
-            if not os.path.exists(self.vizpath):
-                self.get_graphs() ####################################delete
-                self.get_positions()
-                self.add_positions_to_metadf()
+        # if not self.too_many_edges:
+        self.vizpath = self.get_path()
+        if not os.path.exists(self.vizpath):
+            self.get_graphs() ####################################delete
+            self.get_positions()
+            self.add_positions_to_metadf()
 
-                self.get_figure()
-                self.adjust_subplots()
-                self.add_edges()
+            self.get_figure()
+            self.adjust_subplots()
+            self.add_edges()
 
-                self.fill_subplots()
-                self.save_plot(plt)
-                # plt.show()
-                plt.close()
+            self.fill_subplots()
+            self.save_plot(plt)
+            # plt.show()
+            plt.close()
 
     # def get_ax(self, ix):
     #     return self.axs[0, 0]
