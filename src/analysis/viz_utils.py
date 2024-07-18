@@ -81,7 +81,7 @@ class VizBase(DataHandler):
         ax.text(x=x, y=y, s=textwrap.fill(self.plttitle, width), fontsize=self.fontsize)
 
 
-    def save_plot(self, plt, plt_kwargs={'dpi': 100}):
+    def save_plot(self, plt, plt_kwargs={'dpi': 200}):
         self.save_data(data=plt, data_type=self.data_type, file_name=None, file_path=self.vizpath, plt_kwargs=plt_kwargs)
 
 

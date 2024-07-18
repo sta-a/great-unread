@@ -29,9 +29,10 @@ from copy import deepcopy
 # use network env
 
 class EmbDist(D2vDist):
-    def __init__(self, language, output_dir, modes):
+    def __init__(self, language, output_dir, modes, map_nodeids_to_names=True):
         super().__init__(language, output_dir=output_dir, modes=modes)
         self.file_string = output_dir
+        self.map_nodeids_to_names = map_nodeids_to_names
         self.eb = EmbeddingBase(self.language, output_dir=output_dir)
 
 
@@ -40,25 +41,26 @@ class EmbDist(D2vDist):
         Load embeddings of a single network (mode) in format {node_name: embedding}
         '''
         emb_dict = {}
-        df = self.eb.load_embeddings(mode, map_nodeids_to_names=False)
+        df = self.eb.load_embeddings(mode, map_nodeids_to_names=self.map_nodeids_to_names)
         for file_name, row in df.iterrows():
             emb_dict[file_name] = np.array(row)
         return emb_dict
     
 
 class EmbLoader():
-    def __init__(self, language, file_string, mode=None, files_substring=None, ec=None, by_author=False):
+    def __init__(self, language, file_string, mode=None, files_substring=None, ec=None, by_author=False, map_nodeids_to_names=True):
         self.language = language
         self.file_string = file_string
         self.mode = mode
         self.ec = ec # Embedding creator class, use S2vCreator by default or pass object of custom class
         self.by_author = by_author
+        self.map_nodeids_to_names = map_nodeids_to_names
         self.files_substring = files_substring ####### useless? delete
         self.filter_embedding_files()
 
 
     def load_single_mx(self, mxname):
-        emdist = EmbDist(language=self.language, output_dir=self.file_string, modes=self.embedding_files)
+        emdist = EmbDist(language=self.language, output_dir=self.file_string, modes=self.embedding_files, map_nodeids_to_names=self.map_nodeids_to_names)
         mx = emdist.load_data(load=True, mode=mxname, use_kwargs_for_fn='mode', file_string=self.file_string, subdir=True)
         return mx
 
@@ -95,7 +97,7 @@ class EmbLoader():
 
     def load_mxs(self):
         # Load similarity matrices. If they don't exist, they are created
-        emdist = EmbDist(language=self.language, output_dir=self.file_string, modes=self.embedding_files)
+        emdist = EmbDist(language=self.language, output_dir=self.file_string, modes=self.embedding_files, map_nodeids_to_names=self.map_nodeids_to_names)
 
 
         total_iterations = len(self.embedding_files)
@@ -103,6 +105,8 @@ class EmbLoader():
             mx = emdist.load_data(load=True, mode=embedding_file, use_kwargs_for_fn='mode', file_string=self.file_string, subdir=True)
             iteration_number = i + 1
             mx.name = embedding_file
+            if self.mode == 'run' and 'mirror' in embedding_file:
+                print('"mirror" in wrong directory.')
 
             # Print every 100th file
             if iteration_number % 100 == 0 or iteration_number == total_iterations:
@@ -677,12 +681,12 @@ class EmbMxCombinations(EmbLoader, MxCombinations):
     '''
     Adapt matrix clustering on similarity matrices created from text distance measures to similarity matrices created from embeddings.
     '''
-    def __init__(self, language, output_dir='s2v', add_color=False, by_author=False):
+    def __init__(self, language, output_dir='s2v', add_color=False, by_author=False, eval_only=False):
         self.file_string = output_dir # 'n2v' or 's2v'
         # Inherit 'load_mxs' method
         EmbLoader.__init__(self, language=language, file_string=self.file_string, mode='run', by_author=by_author)
         # Inherit everything else
-        MxCombinations.__init__(self, language=language, output_dir=output_dir, add_color=add_color, by_author=by_author)
+        MxCombinations.__init__(self, language=language, output_dir=output_dir, add_color=add_color, by_author=by_author, eval_only=eval_only)
 
 
 
@@ -751,12 +755,13 @@ class MirrorViz(S2vCreator):
         all_emb_paths = self.get_all_embedding_paths()
         all_mxnames = [os.path.basename(x) for x in all_emb_paths]
         all_mxnames = [x.split('.')[0] for x in all_mxnames]
+        print('embs paths', len(all_emb_paths), 'all mxsnames', len(all_mxnames))
         return all_mxnames
 
 
     def create_single_images(self):
         all_mxnames = self.get_all_mxnames()
-        self.el = EmbLoader(self.language, file_string=self.file_string, mode='mirror', by_author=self.by_author)
+        self.el = EmbLoader(self.language, file_string=self.file_string, mode='mirror', by_author=self.by_author, map_nodeids_to_names=False)
 
         nkviz_dir = os.path.join(self.output_dir, 'mirror_singleimage')
         mdsviz_dir = os.path.join(self.output_dir, 'mx_mirror_singleimage')
@@ -834,13 +839,14 @@ class MirrorViz(S2vCreator):
                             expected_col = f'{idx}000'
                             expected_col_value = row[expected_col]
 
+                            # if and not elif to check every threshold
                             if expected_col_value < 0.99:
                                 threshold_counters['99'] += 1
-                            elif expected_col_value < 0.95:
+                            if expected_col_value < 0.95:
                                 threshold_counters['95'] += 1
-                            elif expected_col_value < 0.90:
+                            if expected_col_value < 0.90:
                                 threshold_counters['90'] += 1
-                            elif expected_col_value < 0.80:
+                            if expected_col_value < 0.80:
                                 threshold_counters['80'] += 1
 
                             # Second most similar node is always mirror node
@@ -887,7 +893,8 @@ class MirrorViz(S2vCreator):
 
 
         for k, v in threshold_counters.items():
-            print(f'Percent rows below 0.{k}: {v/row_counter}')
+            print(f'Percent rows below 0.{k}: {v/row_counter}, Total number: {v}')
+        print(f'Total nr. rows: {row_counter}')
 
 
 class MirrorSingleViz(EmbParamEvalSingleViz):

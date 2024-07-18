@@ -17,7 +17,11 @@ struc2vec cannot be run several times at the same time because of  random_walks.
 
 class S2vCreator(EmbeddingBase):
     def __init__(self, language, mode=None, by_author=False):
-        super().__init__(language=language, output_dir='s2v', edgelist_dir='sparsification_edgelists_s2v', mode=mode, by_author=by_author)
+        if mode == 'mirror':
+            edgelist_dir='sparsification_edgelists_s2v_mirror'
+        else:
+            edgelist_dir='sparsification_edgelists_s2v'
+        super().__init__(language=language, output_dir='s2v', edgelist_dir=edgelist_dir, mode=mode, by_author=by_author)
         self.file_string = 's2v'
 
 
@@ -60,7 +64,8 @@ class S2vCreator(EmbeddingBase):
     #     }
     #     return params
 
-    def get_run_mode_params(self):
+
+    def get_mirror_mode_params(self):
         # Return few parameter combinations for creating the embeddings for the actual data
         params = {
             'dimensions': [16, 32],
@@ -74,15 +79,14 @@ class S2vCreator(EmbeddingBase):
         }
         return params
 
-    
-
-    def get_bestparams_mode_params(self):
+# dimensions-16_walklength-30_numwalks-200_windowsize-15_untillayer-5
+    def get_run_mode_params(self):
         # Return few parameter combinations for creating the embeddings for the actual data
         params = {
-            'dimensions': [32],
+            'dimensions': [16],
             'walk-length': [30],
             'num-walks': [200],
-            'window-size': [30],
+            'window-size': [15],
             'until-layer': [5],
             'OPT1': ['True'],
             'OPT2': ['True'],
@@ -97,9 +101,9 @@ class S2vCreator(EmbeddingBase):
         elif self.mode == 'run':
             params = self.get_run_mode_params()
         elif self.mode == 'bestparams':
-            params = self.get_bestparams_mode_params()
+            params = self.get_run_mode_params()
         elif self.mode == 'mirror':
-            params = self.get_run_mode_params() # run only with reduced params
+            params = self.get_mirror_mode_params() # run only with reduced params
         return params
     
 

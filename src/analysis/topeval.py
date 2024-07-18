@@ -97,8 +97,9 @@ class TopEval(InfoHandler):
             df = self.add_rank(df)
             general = ['rank'] + general
 
+
         if self.scale == 'cat':
-            cols = ['ARI', 'nmi', 'fmi', 'mean_purity', 'silhouette_score']
+            cols = ['ARI', 'nmi', 'fmi', 'mean_purity', 'silhouette_score', 'ad_nmi']
         else:
             cols = ['logreg_acc', 'logreg_acc_balanced', 'anova_pval', 'kruskal_pval', 'silhouette_score']
 
@@ -119,8 +120,8 @@ class TopEval(InfoHandler):
         Duplicated rows can occur when evaluation is cancelled and restarted.
         Combinations that were evaluated but not saved to picked in the first call are reevaluated.
         '''
-        duplicated_rows = df[df.duplicated(subset=['file_info'], keep=False)] ###############################
-        duplicated_rows.to_csv(f'{self.cmode}-duplicated-rows.csv', header=True, index=True)
+        duplicated_rows = df[df.duplicated(subset=['file_info'], keep=False)]
+        # duplicated_rows.to_csv(f'{self.cmode}-duplicated-rows.csv', header=True, index=True)
 
         # Keep only the first occurrence of each duplicated content in 'file_info'
         df = df.drop_duplicates(subset=['file_info'], keep='first')
@@ -132,7 +133,7 @@ class TopEval(InfoHandler):
         dfna = df[df.isna().any(axis=1)]
         df = df.dropna()
         assert nrow == len(dfna) + len(df)
-        dfna.to_csv(f'{self.cmode}-na-rows.csv', header=True, index=True)
+        # dfna.to_csv(f'{self.cmode}-na-rows.csv', header=True, index=True)
         return df
     
 
@@ -149,7 +150,12 @@ class TopEval(InfoHandler):
         df = df.loc[mask]
 
         df[evalcol] = pd.to_numeric(df[evalcol], errors='raise')
-        df = df.nlargest(n=nrow, columns=evalcol, keep='all')
+
+        assert 'high_is_best' in self.exp
+        if self.exp['high_is_best']:
+            df = df.nlargest(n=nrow, columns=evalcol, keep='all')
+        else:
+            df = df.nsmallest(n=nrow, columns=evalcol, keep='all')
         return df 
         
 
@@ -189,10 +195,10 @@ class TopEval(InfoHandler):
     
 
     def filter_nclust(self, df):
-        if 'min_nclust' in self.exp:
-            df = df[df['nclust'] >= self.exp['min_nclust']]
-        if 'max_nclust' in self.exp:
-            df = df[df['nclust'] <= self.exp['max_nclust']]
+        if 'nclust_min' in self.exp:
+            df = df[df['nclust'] >= self.exp['nclust_min']]
+        if 'nclust_max' in self.exp:
+            df = df[df['nclust'] <= self.exp['nclust_max']]
         return df
     
     
@@ -223,6 +229,8 @@ class TopEval(InfoHandler):
                 df = self.filter_unique_mxs(df)
             if 'intthresh' in self.exp:
                 df = self.filter_inteval(df)
+            if 'nclust_min' in self.exp:
+                df = self.filter_nclust(df)
             self.dfs[self.scale] = df
     
 
@@ -232,13 +240,17 @@ class TopEval(InfoHandler):
             df = self.dfs[self.scale]
 
         if 'evalcol' in self.exp:
-            df = df.sort_values(by=self.exp['evalcol'], ascending=False)
+            if self.exp['high_is_best']:
+                df = df.sort_values(by=self.exp['evalcol'], ascending=False)
+            else:
+                df = df.sort_values(by=self.exp['evalcol'], ascending=True)
 
         # if 'evalcol' in self.exp and 'intcol' in self.exp: ###################################
         #     self.plot_cols(df)
         
         df = self.make_plttitle(df)
-        self.save_data(data=df)
+        df_subset = df.head(1000) # save only 1000 rows
+        self.save_data(data=df_subset)
         return df
 
 

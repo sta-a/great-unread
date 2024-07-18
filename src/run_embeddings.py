@@ -61,9 +61,8 @@ if __name__ == '__main__':
 
 
     # # Run matrix clustering on embeddigns
-    # emc = EmbMxCombinations(language, output_dir='s2v', add_color=False, by_author=by_author)
-    # print(emc.combinations_path)
-    # # emc.evaluate_all_combinations()
+    # emc = EmbMxCombinations(language, output_dir='s2v', add_color=False, by_author=by_author, eval_only=False)
+    # emc.evaluate_all_combinations()
 
     # '''
     # old code: 6 attrs for normal, 8 for by author
@@ -74,9 +73,9 @@ if __name__ == '__main__':
 
 
     # # Create MDS visualizations of embeddings
-    # ex = Experiment(language=language, cmode='mx', by_author=by_author, output_dir='analysis_s2v')
+    ex = Experiment(language=language, cmode='mx', by_author=by_author, output_dir='analysis_s2v')
     # exps = ex.get_experiments()
-    # ex.run_experiments()
+    ex.run_experiments(select_exp='singleimage_analysis')
 
 
     # # Collect MDS visualizations for mxs with different parameters
@@ -95,8 +94,9 @@ if __name__ == '__main__':
     # sc.run_combinations()
     # sc.check_embeddings()
 
-    pe = MirrorViz(language, by_author=by_author)
-    # pe.create_single_images()
-    pe.check_mirror_node_similarity() # Check how similar mirror node is to original node
+    # pe = MirrorViz(language, by_author=by_author)
+    # # pe.create_single_images()
+    # pe.check_mirror_node_similarity() # Check how similar mirror node is to original node
     # mmg = MirrorMDSGrid(language=language, by_author=by_author) # Combine single images into grid
     # mmg.visualize_all()
+# %%

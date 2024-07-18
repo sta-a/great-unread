@@ -18,7 +18,7 @@ from matplotlib.cm import ScalarMappable
 
 
 from utils import DataHandler
-from .mxviz import MxAttrGridViz, MxSingleViz, MxKeyAttrViz, S2vKeyAttrViz
+from .mxviz import MxAttrGridViz, MxSingleViz, MxKeyAttrViz, S2vKeyAttrViz, MxSingleViz2D3D, MxSingleViz2D3DHorizontal, MxSingleViz2D3DHzAnalysis
 from .nkviz import NkKeyAttrViz, NkAttrGridViz, NkNetworkGridkViz, SparsGridkViz, NkSingleViz
 from .viz_utils import ClusterAuthorGrid
 from .embedding_eval import EmbMxCombinations
@@ -70,27 +70,39 @@ class Experiment(DataHandler):
         Top: Find combinations with highest evaluation scores
         '''
         # Different evaluation metrics for external continuous attribute
-        cont_ext_evalcols = [
-            'ext_silhouette',
-            'ext_davies_bouldin',
-            'ext_calinski_harabasz',
-            'avg_variance',
-            'weighted_avg_variance',
-            'smallest_variance',
-            'ext_wcss']
+        # The boolean value indicates if high values of this metric indicate good clustering
+        cont_ext_evalcols = {
+            # 'ext_silhouette': True,
+            # 'ext_davies_bouldin': False,
+            # 'ext_calinski_harabasz': True,
+            # 'avg_variance': False,
+            'weighted_avg_variance': False,
+            # 'smallest_variance': False,
+            # 'ext_wcss': False
+            }
             # 'anova_pval',
             # 'kruskal_statistic',
             # 'kruskal_pval'] # logreg
 
         # Different evaluation metrics for external categorical attribute
-        cat_ext_evalcols = [
-            'ARI',
-            'nmi',
-            'fmi',
-            'mean_purity',
-            'homogeneity',
-            'completeness',
-            'vmeasure']
+        cat_ext_evalcols = {
+            # 'ARI': True,
+            # 'nmi': True,
+            # 'fmi': True,
+            # 'mean_purity': True,
+            # 'homogeneity': True,
+            # 'completeness': True,
+            # 'vmeasure': True,
+            'ad_nmi': True, # not in evaluation files
+            }
+        
+        nclust_dict = {
+            # min and max nr clusters that are allowed
+            None: None,
+            2: 2,
+            3: 3,
+            4: 10
+        }
 
         def add_to_top(d):
             d['maxsize'] = maxsize
@@ -99,25 +111,44 @@ class Experiment(DataHandler):
             d['viztype'] = 'keyattr'
             return d
         
-        def add_evalcols(evalcols_list, basic_dict):
+        def add_evalcols(evalcols_dict, basic_dict):
             newlist = []
-            for evalcol in evalcols_list:
+            for evalcol, high_is_best in evalcols_dict.items():
                 d = deepcopy(basic_dict)
                 d['evalcol'] = evalcol
                 d['name'] = f"{d['name']}_{evalcol}"
+                d['high_is_best'] = high_is_best
                 newlist.append(d)
             return newlist
+        
+
+        def add_nclust_dict(nclust_dict, list_of_dicts):
+            newlist = []
+            for cdict in list_of_dicts:
+                for cmin, cmax in nclust_dict.items():
+                    d = deepcopy(cdict)
+                    if cmin is not None:
+                        d['nclust_min'] = cmin
+                        d['nclust_max'] = cmax
+                        d['name'] = f"{d['name']}_nclust-{cmin}-{cmax}"
+                    newlist.append(d)
+            return newlist
+        
 
         # Highest scores over all attributes
         topcont_dict = {'name': 'topcont', 'dfs': ['cont']}
         topcont_dict = add_to_top(topcont_dict)
-        topcont = add_evalcols(cont_ext_evalcols, topcont_dict)
+        topcont_list = add_evalcols(cont_ext_evalcols, topcont_dict)
+        topcont_list = add_nclust_dict(nclust_dict, topcont_list)
+        topcont = topcont_list # rename
 
         topcat_dict = {'name': 'topcat', 'dfs': ['cat']}
         topcat_dict = add_to_top(topcat_dict)
-        topcat = add_evalcols(cat_ext_evalcols, topcat_dict)
-
-
+        topcat_list = add_evalcols(cat_ext_evalcols, topcat_dict)
+        topcat_list = add_nclust_dict(nclust_dict, topcat_list)
+        topcat = topcat_list
+        
+        
 
         # Find combinations with highest evaluation scores for interesting attributes
         attrcont = []
@@ -168,22 +199,6 @@ class Experiment(DataHandler):
             all_top = newdicts + all_top
 
 
-
-
-        # The same as all_top, but set the minimum and maximum number of clusters
-        # Only for s2v, ignore embmxs
-        def modify_top_nclust(d): #################################
-            d['name'] = f"{d['name']}_nclust"
-            d['min_nclust'] = 4
-            # d['max_clust'] = 
-            # del d['maxsize']
-            # del d['intthresh']
-            # del d['intcol']
-            return d
-        all_top_nclust = deepcopy(topcont + topcat + attrcont + attrcat)
-        all_top_nclust = [modify_top_nclust(x) for x in all_top_nclust]
-        
-
         '''
         Many networks on the same figure.
         '''
@@ -196,34 +211,35 @@ class Experiment(DataHandler):
         all_attrgrid = attrgrid + attrgrid_int
 
         # One attribute, all networks
-        nkgridcont = []
-        for x in attrcont:
-            d = deepcopy(x)
-            d['name'] = d['name'].replace('top', 'nkgrid')
-            d['viztype'] = 'nkgrid'
-            del d['evalcol']
-            del d['dfs']
-            del d['maxsize']
-            del d['intthresh']
-            del d['intcol']
-            nkgridcont.append(d)
-        nkgridcat = []
-        for x in attrcat:
-            d = deepcopy(x)
-            d['name'] = d['name'].replace('top', 'nkgrid')
-            d['viztype'] = 'nkgrid'
-            del d['evalcol']
-            del d['dfs']
-            del d['maxsize']
-            del d['intthresh']
-            del d['intcol']
-            nkgridcat.append(d)
+        # nkgridcont = []
+        # for x in attrcont:
+        #     d = deepcopy(x)
+        #     d['name'] = d['name'].replace('top', 'nkgrid')
+        #     d['viztype'] = 'nkgrid'
+        #     del d['evalcol']
+        #     del d['dfs']
+        #     del d['maxsize']
+        #     del d['intthresh']
+        #     del d['intcol']
+        #     nkgridcont.append(d)
+        # nkgridcat = []
+        # for x in attrcat:
+        #     d = deepcopy(x)
+        #     d['name'] = d['name'].replace('top', 'nkgrid')
+        #     d['viztype'] = 'nkgrid'
+        #     del d['evalcol']
+        #     del d['dfs']
+        #     del d['maxsize']
+        #     del d['intthresh']
+        #     del d['intcol']
+        #     nkgridcat.append(d)
 
         
-        all_nkgrid = nkgridcat + nkgridcont
+        # all_nkgrid = nkgridcat + nkgridcont
 
         sparsgrid = [{'name': 'sparsgrid', 'viztype': 'sparsgrid', 'attr': 'canon'}]
         singleimage = [{'name': 'singleimage', 'viztype': 'singleimage', 'attr': 'canon'}]
+        singleimage_analysis = [{'name': 'singleimage_analysis', 'viztype': 'singleimage_analysis', 'attr': 'canon', 'select': True}]
 
         # Make single images where clusters are highlighted
         # cat df, author attr don't matter, one combination is chosen
@@ -243,9 +259,9 @@ class Experiment(DataHandler):
             central[0]['mxname'] = ['burrows'] + embmxs
             
 
-        # exps = top_cluster + all_top + singleimage
-        # singleimage needs to be run first, because grid viz (for s2v) rely on the generated images ###################
-        exps = all_top # sparsgrid + all_nkgrid + all_attrgrid + clustconst + central ######################
+        # exps = all_top  + top_cluster # sparsgrid + all_nkgrid + all_attrgrid + clustconst + central
+        exps = singleimage_analysis
+        exps = singleimage + all_top  + singleimage_analysis
         
         if select_exp is not None:
             exps = [x for x in exps if x['name'] == select_exp]
@@ -265,7 +281,7 @@ class Experiment(DataHandler):
 
             self.add_subdir(f"{self.cmode}_{exp['name']}")
 
-            if (exp['viztype'] == 'nkgrid') or (exp['viztype'] == 'sparsgrid') or (exp['viztype'] == 'singleimage'):
+            if (exp['viztype'] == 'nkgrid') or (exp['viztype'] == 'sparsgrid') or (exp['viztype'] == 'singleimage') or (exp['viztype'] == 'singleimage_analysis'):
                 te = None
             else:
                 te = TopEval(self.language, output_dir=self.mc.output_dir, cmode=self.cmode, exp=exp, expdir=self.subdir, by_author=self.by_author)
@@ -311,7 +327,11 @@ class Experiment(DataHandler):
         elif exp['viztype'] == 'sparsgrid':
             pass
         elif exp['viztype'] == 'singleimage':
-            viz = MxSingleViz(self.language, self.output_dir, exp, self.by_author, self.mc)
+            # viz = MxSingleViz(self.language, self.output_dir, exp, self.by_author, self.mc)
+            viz = MxSingleViz2D3DHorizontal(self.language, self.output_dir, exp, self.by_author, self.mc)
+            viz.visualize()
+        elif exp['viztype'] == 'singleimage_analysis':
+            viz = MxSingleViz2D3DHzAnalysis(self.language, self.output_dir, exp, self.by_author, self.mc)
             viz.visualize()
         else:
             for topk in te.get_top_combinations():

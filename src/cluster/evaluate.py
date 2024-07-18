@@ -15,7 +15,7 @@ random.seed(9)
 
 from scipy.stats import f_oneway, kruskal
 
-from sklearn.metrics import silhouette_score, normalized_mutual_info_score, fowlkes_mallows_score, homogeneity_completeness_v_measure, adjusted_rand_score, accuracy_score, balanced_accuracy_score, davies_bouldin_score, calinski_harabasz_score
+from sklearn.metrics import silhouette_score, normalized_mutual_info_score, adjusted_mutual_info_score, fowlkes_mallows_score, homogeneity_completeness_v_measure, adjusted_rand_score, accuracy_score, balanced_accuracy_score, davies_bouldin_score, calinski_harabasz_score
 from sklearn.linear_model import LogisticRegression
 
 from .cluster_utils import CombinationInfo
@@ -84,7 +84,7 @@ class NkIntEval():
         if 'resolution' in self.param_comb:
             res = self.param_comb['resolution']
         else:
-            res = 1 ######################3
+            res = 1
         mod = modularity(self.network.graph, self.clusters.initial_clusts, resolution=res)
         return mod
 
@@ -200,16 +200,13 @@ class ExtEval(DataHandler):
 
     def get_purity(self):
         purities = []
+        weights = []
         mdf = self.info.metadf.copy(deep=True)
 
         # Find the most common label in the cluster
         for cluster in mdf['cluster'].unique():
             df = mdf[mdf['cluster'] == cluster]
             nelements = len(df)
-
-            # Ignore clusters of length 1 for ARI calculation
-            if nelements == 1:
-                continue
 
             # Count occurrences of each true label in the cluster
             label_counts = Counter(df[self.info.attr])
@@ -220,8 +217,12 @@ class ExtEval(DataHandler):
             # Calculate purity for the current cluster
             cluster_purity = label_counts[most_frequent_label] / nelements
             purities.append(cluster_purity)
+            weights.append(nelements)
 
-        return np.mean(purities)
+        # Calculate weighted purity
+        weighted_purity = np.average(purities, weights=weights)
+
+        return weighted_purity
     
     
     def get_categorical_scores(self, attrcol):
@@ -232,9 +233,10 @@ class ExtEval(DataHandler):
         purity = self.get_purity()
         ari_score = adjusted_rand_score(attrcol, df['cluster'])
         nmi_score = normalized_mutual_info_score(attrcol, df['cluster'])
+        ad_nmi_score = adjusted_mutual_info_score(attrcol, df['cluster'])
         fmi_score = fowlkes_mallows_score(attrcol, df['cluster'])
         homogeneity, completeness, vmeasure = homogeneity_completeness_v_measure(labels_true=attrcol, labels_pred=df['cluster'])
-        df = {'ARI': ari_score, 'nmi': nmi_score, 'fmi': fmi_score, 'mean_purity': purity, 'homogeneity': homogeneity, 'completeness': completeness, 'vmeasure': vmeasure}
+        df = {'ARI': ari_score, 'nmi': nmi_score, 'ad_nmi': ad_nmi_score, 'fmi': fmi_score, 'mean_purity': purity, 'homogeneity': homogeneity, 'completeness': completeness, 'vmeasure': vmeasure}
         return df
 
 
@@ -421,7 +423,7 @@ class ExtEval(DataHandler):
 
 
     def get_ext_attr_variance(self):
-        min_points = 1 # consider only clusters that have more than 1 element
+        min_points = 2 # consider only clusters that have more than 2 element
         mdf = self.info.metadf.copy(deep=True)
 
         # Get the size of each cluster
@@ -442,15 +444,15 @@ class ExtEval(DataHandler):
                 valid_variances.append(variance)
                 valid_num_points.append(size)
 
-                # Print variance and number of points for current cluster (optional)
-                print(f'Cluster {cluster_label}: Variance = {variance}, Number of Points = {size}')
-
         # Convert lists to Series for further analysis
         variances_series = pd.Series(valid_variances, index=cluster_sizes.index[cluster_sizes > min_points])
         num_points_series = pd.Series(valid_num_points, index=cluster_sizes.index[cluster_sizes > min_points])
 
         # Calculate weighted average of variances
         weighted_avg_variance = (variances_series * num_points_series).sum() / num_points_series.sum()
+
+        # weighed with penalty for number clusters
+        # penalized_weighted_avg_variance = weighted_avg_variance + penalty_factor * k
 
         # Nonweighted average
         avg_variance = variances_series.mean()

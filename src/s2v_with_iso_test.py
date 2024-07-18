@@ -4,9 +4,6 @@ Create embeddings for a single distance and parameter combination that includes 
 '''
 import os
 from analysis.s2vcreator import S2vCreator
-from analysis.nkviz import NkSingleViz
-from matplotlib import pyplot as plt
-
 
 class S2vCreatorWithIsoNodes(S2vCreator):
     '''
@@ -15,8 +12,9 @@ class S2vCreatorWithIsoNodes(S2vCreator):
     def __init__(self, language, mode, by_author=False):
         print(language, mode, by_author)
         super().__init__(language=language, mode=mode, by_author=by_author)
-        self.edgelist_dir = '/home/annina/scripts/great_unread_nlp/data/similarity/eng/sparsification_edgelists_noisotest' # edgelist with isolated nodes, spaces instead of commas for s2v compatibility
-        self.edgelists = ['both_simmel-4-6.csv']
+        self.edgelist_dir = '/home/annina/scripts/great_unread_nlp/data/similarity/eng/sparsification_edgelists_withiso' # edgelist with isolated nodes, spaces instead of commas for s2v compatibility
+        # self.edgelists = ['both_simmel-4-6.csv']
+        self.edgelists = ['full_simmel-7-10.csv']
         self.remove_iso = False
 
 
@@ -24,15 +22,30 @@ class S2vCreatorWithIsoNodes(S2vCreator):
         if '.csv' in edgelist:
             edgelist = os.path.splitext(edgelist)[0]
         param_string = self.get_param_string(kwargs)
-        return os.path.join(self.subdir, f'{edgelist}_{param_string}-noisonodes.embeddings')
+        return os.path.join(self.subdir, f'{edgelist}_{param_string}-withisonodes.embeddings')
     
+    # def get_params_mode_params(self):
+    #     # Return many different parameter combinations for parameter selection
+    #     params = {
+    #         'dimensions': [5],
+    #         'walk-length': [3],
+    #         'num-walks': [20],
+    #         'window-size': [3],
+    #         'until-layer': [5],
+    #         'OPT1': ['True'],
+    #         'OPT2': ['True'],
+    #         'OPT3': ['True']
+    #     }
+    #     return params
+
+
     def get_params_mode_params(self):
         # Return many different parameter combinations for parameter selection
         params = {
-            'dimensions': [5],
-            'walk-length': [3],
-            'num-walks': [20],
-            'window-size': [3],
+            'dimensions': [16],
+            'walk-length': [30],
+            'num-walks': [200],
+            'window-size': [15],
             'until-layer': [5],
             'OPT1': ['True'],
             'OPT2': ['True'],
@@ -40,6 +53,31 @@ class S2vCreatorWithIsoNodes(S2vCreator):
         }
         return params
     
+# Create embedding
+# sc = S2vCreatorWithIsoNodes(language='eng', mode='params', by_author=False)
+# paths = sc.get_all_embedding_paths()
+# for p in paths:
+#     print(p)
+# sc.run_combinations()
+
+
+############################################################################################
+
+
+
+
+
+
+
+
+# Create visualizations
+from analysis.embedding_eval import ParamModeEval, EmbLoader, EmbParamEvalSingleViz, EmbParamEvalSingleMDS
+from cluster.cluster_utils import CombinationInfo, MetadataHandler
+import pandas as pd
+import networkx as nx
+import shutil
+from analysis.nkviz import NkSingleViz
+from matplotlib import pyplot as plt
 
 class ParamModeEvalTest(S2vCreatorWithIsoNodes):
     '''
@@ -48,7 +86,8 @@ class ParamModeEvalTest(S2vCreatorWithIsoNodes):
     def __init__(self, language, by_author=False):
         super().__init__(language=language, mode='params', by_author=by_author)
         self.examples = {
-            'both_simmel-4-6': 'Wells_H-G_Tono-Bungay_1909', 
+            # 'both_simmel-4-6': 'Wells_H-G_Tono-Bungay_1909', 
+            'full_simmel-7-10': 'Doyle_Arthur-Conan_The-Red-Headed-League_1891'
         }
         self.remove_iso = False
 
@@ -68,10 +107,12 @@ class ParamModeEvalTest(S2vCreatorWithIsoNodes):
             # Draw network edges only once, repeatedly draw nodes
             network = self.network_from_edgelist(os.path.join(self.edgelist_dir, f'{network_name}.csv'), delimiter=' ', nodes_as_str=True, print_info=False)
             isolates = list(nx.isolates(network))
-            # print('nr isolates', len(isolates), nx.number_of_isolates(network))
-            # for i in isolates[:5]:
-            #     print(i)
-            # print('nr nodes', network.number_of_nodes(), 'niso', network.number_of_isolates())
+            for i in network.nodes():
+                print(i)
+            print('nr isolates', len(isolates), nx.number_of_isolates(network))
+            for i in isolates[:5]:
+                print(i)
+            print('nr nodes', network.number_of_nodes(), 'niso', nx.number_of_isolates(network))
             info = CombinationInfo(attr='canon') # info with random attr to init class
             # nkviz = EmbParamEvalSingleViz(language=self.language, output_dir=self.output_dir, info=info, exp={'attr': node}, by_author=self.by_author, graph=network, ignore_nodes_removed=False)
             # nkviz.visualize_edges()
@@ -92,6 +133,7 @@ class ParamModeEvalTest(S2vCreatorWithIsoNodes):
 
 
                 # Select all col with all distances to 'node'
+                print(cmx.mx.shape,cmx.mx)
                 df = cmx.mx.loc[[node]]
                 # Exclude the entry for 'node' from the df so that scaling for color is not affected by similarity=1
                 row_without_node = df.drop(columns=[node])
@@ -101,8 +143,10 @@ class ParamModeEvalTest(S2vCreatorWithIsoNodes):
 
                 mh = MetadataHandler(self.language)
                 df = mh.add_color_column(metadf=df, colname=node, use_skewed_colormap=False)
-                df.loc[node, f'{node}_color'] = 'lime'
                 df.loc[df.index.isin(isolates), f'{node}_color'] = 'gold'
+                df.loc[node, f'{node}_color'] = 'lime'
+                df.loc[~df.index.isin(isolates), f'{node}_color'] = 'blue' # all nodes that are not isolated are blue
+                print('node',node)
                 assert len(df) == len(cmx.mx)
                 
 
@@ -163,14 +207,14 @@ class NkSingleVizS2vTest(NkSingleViz):
 
 # def get_iso_nodes():
 # Compare embeddings for iso nodes, does not work
-#     path = '/home/annina/scripts/great_unread_nlp/data/similarity/eng/sparsification_edgelists_noisotest/both_simmel-4-6.csv'
+#     path = '/home/annina/scripts/great_unread_nlp/data/similarity/eng/sparsification_edgelists_withiso/both_simmel-4-6.csv'
 #     df = pd.read_csv(path, header=None, sep=' ')
 #     isonodes = [row[0] for _, row in df.iterrows() if row[0] == row[1] and row[2] == 1]
 #     isonodes = list(set(isonodes))
 #     isonodes = [str(int(x)) for x in isonodes] #############3all nodes have selfloop 
 #     print(isonodes)
 
-#     embpath = '/home/annina/scripts/great_unread_nlp/data/s2v/eng/embeddings/both_simmel-4-6_dimensions-5_walklength-3_numwalks-20_windowsize-3_untillayer-5_OPT1-True_OPT2-True_OPT3-True-noisonodes.embeddings'
+#     embpath = '/home/annina/scripts/great_unread_nlp/data/s2v/eng/embeddings/both_simmel-4-6_dimensions-5_walklength-3_numwalks-20_windowsize-3_untillayer-5_OPT1-True_OPT2-True_OPT3-True-withisonodes.embeddings'
 #     df = pd.read_csv(embpath, skiprows=1, header=None, sep=' ', index_col=0, dtype={0: str})
     
 #     print(df.index.isin(isonodes))
@@ -179,24 +223,11 @@ class NkSingleVizS2vTest(NkSingleViz):
 
 
 
-# Create embedding
-# sc = S2vCreatorWithIsoNodes(language='eng', mode='params', by_author=False)
-# paths = sc.get_all_embedding_paths()
-# for p in paths:
-#     print(p)
-# sc.run_combinations()
-
-
-
-# Create visualizations
-from analysis.embedding_eval import ParamModeEval, EmbLoader, EmbParamEvalSingleViz, EmbParamEvalSingleMDS
-from cluster.cluster_utils import CombinationInfo, MetadataHandler
-import pandas as pd
-import networkx as nx
-import shutil
-source_dir = '/home/annina/scripts/great_unread_nlp/data/s2v/eng/embeddings_noiso'
-dest_dir = '/home/annina/scripts/great_unread_nlp/data/s2v/eng/embeddings'
-filename = 'both_simmel-4-6_dimensions-5_walklength-3_numwalks-20_windowsize-3_untillayer-5_OPT1-True_OPT2-True_OPT3-True-noisonodes.embeddings'
+# Copy file because it is stored in the wrong directory so that it is not mixed with the actual data
+dest_dir = '/home/annina/scripts/great_unread_nlp/data/s2v/eng/embeddings_withiso'
+source_dir = '/home/annina/scripts/great_unread_nlp/data/s2v/eng/embeddings'
+# filename = 'both_simmel-4-6_dimensions-5_walklength-3_numwalks-20_windowsize-3_untillayer-5_OPT1-True_OPT2-True_OPT3-True-withisonodes.embeddings'
+filename = 'full_simmel-7-10_dimensions-16_walklength-30_numwalks-200_windowsize-15_untillayer-5_OPT1-True_OPT2-True_OPT3-True-withisonodes.embeddings'
 
 # Construct full file paths
 source_file = os.path.join(source_dir, filename)
@@ -211,6 +242,6 @@ paths = pe.get_all_embedding_paths()
 #     print(p)
 pe.create_single_images()
 # get_iso_nodes()
-os.remove(dest_file)
+# os.remove(source_file)
 
 # %%

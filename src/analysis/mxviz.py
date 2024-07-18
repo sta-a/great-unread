@@ -1,7 +1,9 @@
 import pandas as pd
 import itertools
 import numpy as np
-from matplotlib import pyplot as plt
+import matplotlib
+matplotlib.use('TkAgg')  # or 'Qt5Agg', 'Gtk3Agg', etc.
+import matplotlib.pyplot as plt
 import pickle
 from copy import deepcopy
 from sklearn.manifold import MDS
@@ -458,7 +460,6 @@ class MxAttrGridViz(MxVizBase):
                         self.axs[i, j].set_title(self.cols[index])
 
 
-
 class MxSingleViz2D3D(MxVizBase):
     '''
     Create a single plot per matrix, with a 2d and a 3d visualization.
@@ -478,6 +479,7 @@ class MxSingleViz2D3D(MxVizBase):
         self.ws_hspace = 0
         if info is None:
             self.ih = InfoHandler(language=language, add_color=True, cmode=self.cmode, by_author=by_author)
+        self.add_subdir('MxSingleViz2D3D')
 
 
     def get_metadf(self):
@@ -498,45 +500,220 @@ class MxSingleViz2D3D(MxVizBase):
         self.draw_mds([0, 0], color_col=attr, use_different_shapes=False, s=self.markersize)
 
 
-    # def visualize(self, vizname='viz'): # vizname for compatibility #########################################
-    #     for mx in tqdm(self.mc.load_mxs()):
-    #         self.mx = mx
-    #         mxname = mx.name
-    #         # Check if plot for last key attr has been created
-    #         vizpath_test = self.get_file_path(f'{mxname}_{self.key_attrs[-1]}', subdir=True)
-
-    #         if not os.path.exists(vizpath_test):
-    #             self.pos = self.get_mds_positions()
-    #             self.add_positions_to_metadf()
-
-    #             for curr_attr in self.key_attrs + ['noattr']:
-    #                 self.get_figure()
-    #                 self.fill_subplots(curr_attr)
-    #                 self.vizpath = self.get_file_path(f'{mxname}_{curr_attr}', subdir=True)
-    #                 self.save_plot(plt)
-    #                 plt.close()
-               
-    #             # self.add_legends_and_titles()
-
-
-
-    def visualize(self, vizname='viz'): # vizname for compatibility
+    def visualize(self, vizname='viz'): # vizname for compatibility #########################################
         for mx in tqdm(self.mc.load_mxs()):
             self.mx = mx
             mxname = mx.name
             # Check if plot for last key attr has been created
+            vizpath_test = self.get_file_path(f'{mxname}_{self.key_attrs[-1]}', subdir=True)
 
-            self.pos = self.get_mds_positions()
-            self.add_positions_to_metadf()
+            if not os.path.exists(vizpath_test):
+                print(vizpath_test)
+                self.pos = self.get_mds_positions()
+                self.add_positions_to_metadf()
 
-            for curr_attr in self.key_attrs + ['noattr']:
-                self.get_figure()
-                self.fill_subplots(curr_attr)
-                self.vizpath = self.get_file_path(f'{mxname}_{curr_attr}', subdir=True)
-                self.save_plot(plt)
-                plt.close()
+                for curr_attr in self.key_attrs: # + ['noattr']:
+                    self.get_figure()
+                    self.fill_subplots(curr_attr)
+                    self.vizpath = self.get_file_path(f'{mxname}_{curr_attr}', subdir=True)
+                    self.save_plot(plt)
+                    plt.close()
                
                 # self.add_legends_and_titles()
+
+
+
+    # def visualize(self, vizname='viz'): # vizname for compatibility
+    #     for mx in tqdm(self.mc.load_mxs()):
+    #         self.mx = mx
+    #         mxname = mx.name
+    #         # Check if plot for last key attr has been created
+
+    #         self.pos = self.get_mds_positions()
+    #         self.add_positions_to_metadf()
+
+    #         for curr_attr in self.key_attrs + ['noattr']:
+    #             self.get_figure()
+    #             self.fill_subplots(curr_attr)
+    #             self.vizpath = self.get_file_path(f'{mxname}_{curr_attr}', subdir=True)
+    #             self.save_plot(plt)
+    #             plt.close()
+               
+                # self.add_legends_and_titles()
+
+
+class MxSingleViz2D3DHorizontal(MxSingleViz2D3D):
+    '''
+    The same as MxSingleViz2D3D, but the two plots are aligned in one row.
+    '''
+    def __init__(self, language, output_dir, exp, by_author, mc, info=None):
+        super().__init__(language, output_dir, exp, by_author, mc, info=None)
+        self.add_subdir('MxSingleViz2D3DHorizontal')
+
+    def get_figure(self):
+        self.fig, self.axs = plt.subplots(1, 2, figsize=(8, 4))
+        self.axs = self.axs.reshape((1, 2))
+        self.axs[0, 0].axis('off')
+        self.axs[0, 1].axis('off')  # has to come before 3d subplots are created
+        self.axs[0, 1] = self.fig.add_subplot(1, 2, 2, projection='3d')
+        self.adjust_subplots()
+
+    def draw_mds(self, ix, color_col=None, use_different_shapes=False, s=30, edgecolor='black', linewidth=0.2):
+        scatter_kwargs = {'s': s, 'edgecolor': edgecolor, 'linewidth': linewidth}
+        color_col = f'{color_col}_color'
+        
+        df = self.df.copy() # Avoid chained assingment warning
+        # Iterate through shapes because only one shape can be passed at a time, no lists
+        if not use_different_shapes:
+            df['clst_shape'] = 'o'
+        shapes = df['clst_shape'].unique()
+
+        for shape in shapes:
+            sdf = df[df['clst_shape'] == shape]
+            kwargs = {'c': sdf[color_col], 'marker': shape, **scatter_kwargs}
+            self.axs[ix[0], ix[1]].scatter(x=sdf['X_mds_2d_0'], y=sdf['X_mds_2d_1'], **kwargs)
+            self.axs[ix[0], ix[1]+1].scatter(sdf['X_mds_3d_0'], sdf['X_mds_3d_1'], sdf['X_mds_3d_2'], **kwargs)
+
+
+
+class MxSingleViz2D3DHzAnalysis(MxSingleViz2D3DHorizontal):
+    def __init__(self, language, output_dir, exp, by_author, mc, info=None):
+        self.get_nocolor_metadf(language, by_author) # prepare metadata with no colors or positions to write to file
+        super().__init__(language, output_dir, exp, by_author, mc, info=None)
+        self.add_subdir('MxSingleViz2D3DHzAnalysisSelect')
+        self.results_path = os.path.join(self.subdir, 'results.txt')
+        self.markersize = 20
+        self.get_metadf()
+        self.key_attrs = ['canon']
+
+    def get_nocolor_metadf(self, language, by_author):
+        self.ih = InfoHandler(language=language, add_color=False, cmode='mx', by_author=by_author)
+        self.simple_df = deepcopy(self.ih.metadf)
+
+
+    def draw_mds(self, ix, color_col=None, use_different_shapes=False, s=30, edgecolor='black', linewidth=0.2):
+        scatter_kwargs = {'s': s, 'edgecolor': edgecolor, 'linewidth': linewidth}
+        color_col = f'{color_col}_color'
+        
+        df = self.df.copy() # Avoid chained assingment warning
+        # Iterate through shapes because only one shape can be passed at a time, no lists
+        if not use_different_shapes:
+            df['clst_shape'] = 'o'
+        shapes = df['clst_shape'].unique()
+
+
+        if not self.exp['select']:
+            for shape in shapes:
+                sdf = df[df['clst_shape'] == shape]
+                kwargs = {'c': sdf[color_col], 'marker': shape, **scatter_kwargs}
+                
+                # 2D plot
+                self.axs[ix[0], ix[1]].scatter(x=sdf['X_mds_2d_0'], y=sdf['X_mds_2d_1'], **kwargs)
+                for i, row in sdf.iterrows():
+                    label_color = sdf[color_col].loc[i]  # Get the color for the label
+                    self.axs[ix[0], ix[1]].annotate(str(i), (row['X_mds_2d_0'], row['X_mds_2d_1']), 
+                                                    fontsize=0.5, ha='right', color=label_color)
+
+                # 3D plot
+                ax_3d = self.axs[ix[0], ix[1]+1]
+                ax_3d.scatter(sdf['X_mds_3d_0'], sdf['X_mds_3d_1'], sdf['X_mds_3d_2'], **kwargs)
+                for i, row in sdf.iterrows():
+                    label_color = sdf[color_col].loc[i]  # Get the color for the label
+                    ax_3d.text(row['X_mds_3d_0'], row['X_mds_3d_1'], row['X_mds_3d_2'], str(i), 
+                            fontsize=0.5, ha='center', color=label_color)
+
+
+        else:
+            import mplcursors ######################
+
+            def write_labels_to_file(label, row, dim):
+                with open(self.results_path, 'a') as f:
+                    f.write(f"{self.mxname},,{self.curr_attr},{dim},{label},{','.join(map(str, row))}\n") # extra comma for comment column
+
+            for shape in shapes:
+                sdf = df[df['clst_shape'] == shape]
+                kwargs = {'c': sdf[color_col], 'marker': shape, **scatter_kwargs}
+                
+                # 2D plot
+                scatter_2d = self.axs[ix[0], ix[1]].scatter(x=sdf['X_mds_2d_0'], y=sdf['X_mds_2d_1'], **kwargs)
+                cursor_2d = mplcursors.cursor(scatter_2d, hover=False)
+                
+                @cursor_2d.connect('add')
+                def on_add_2d(sel):
+                    i = sel.index
+                    label = sdf.index[i]
+                    row = self.simple_df.loc[label].values.tolist() 
+                    write_labels_to_file(label, row, dim='2d')
+                    sel.annotation.set(text=label, fontsize=8, ha='right', color=sdf[color_col].iloc[i])
+                
+                # 3D plot
+                ax_3d = self.axs[ix[0], ix[1] + 1]
+                scatter_3d = ax_3d.scatter(sdf['X_mds_3d_0'], sdf['X_mds_3d_1'], sdf['X_mds_3d_2'], **kwargs)
+                cursor_3d = mplcursors.cursor(scatter_3d, hover=False)
+                
+                @cursor_3d.connect('add')
+                def on_add_3d(sel):
+                    i = sel.index
+                    label = sdf.index[i]
+                    row = self.simple_df.loc[label].values.tolist()
+                    write_labels_to_file(label, row, dim='3d')
+                    sel.annotation.set(text=label, fontsize=8, ha='center', color=sdf[color_col].iloc[i])
+
+            # create a non-maximized window with the size of a maximized one
+            mng = plt.get_current_fig_manager()
+            mng.resize(*mng.window.maxsize())
+
+
+            def on_close(event):
+                comment = input('Enter a comment. It must not contain any commas! ') # commas used as sep
+                self.write_comment_to_file(comment)
+
+            # Pop up window can be closed with ctrl+Q+Q
+            plt.gcf().canvas.mpl_connect('close_event', on_close)
+
+            self.fig.suptitle(self.mxname)
+            self.save_plot(plt, plt_kwargs={'dpi': 700}) # save before show to avoid empty plot
+            plt.show()
+
+
+    def write_comment_to_file(self, comment=','):
+        with open(self.results_path, 'a') as f:
+            ncols = self.simple_df.shape[1]
+            commas = (ncols+2) * ','
+            f.write(f'{self.mxname},{comment}{commas}\n')
+
+    def write_header(self):
+        if not os.path.exists(self.results_path):
+            with open(self.results_path, 'w') as f:
+                f.write(f"mxname,comment,curr_attr,dim,label,{','.join(self.simple_df.columns)}\n")
+
+
+    def visualize(self, vizname='viz'):
+        # Method is copied to change dpi
+        for mx in tqdm(self.mc.load_mxs()):
+            self.mx = mx
+            self.mxname = mx.name
+            # Check if plot for last key attr has been created
+            vizpath_test = self.get_file_path(f'{self.mxname}_{self.key_attrs[-1]}', subdir=True)
+
+            if not os.path.exists(vizpath_test):
+                print(vizpath_test)
+                self.pos = self.get_mds_positions()
+                self.add_positions_to_metadf()
+                self.write_header()
+
+                for curr_attr in self.key_attrs: # + ['noattr']:
+                    self.curr_attr = curr_attr
+                    self.vizpath = self.get_file_path(f'{self.mxname}_{self.curr_attr}', subdir=True)
+                    print(f'mxname, {self.mxname}, curr_attr, {self.curr_attr}\n')
+                    # write line with mxname to file to keep track of mxs where no point was selected
+                    self.write_comment_to_file(comment=',')
+
+                    self.get_figure()
+                    self.fill_subplots(self.curr_attr)
+                    self.save_plot(plt, plt_kwargs={'dpi': 700})
+                    plt.close()
+
 
 class MxSingleViz2d3dSingleAttr(MxSingleViz2D3D):
     '''
@@ -552,8 +729,13 @@ class MxSingleViz2d3dSingleAttr(MxSingleViz2D3D):
 
 
     def get_file_path(self):
-        return super().get_file_path(f'{self.mx.name}_{self.attr}', subdir=True)
+        if self.attr == 'cluster':
+            file_name = f'{self.info.as_string(omit=["attr"])}.png'
+        else:
+            file_name = f'{self.mx.name}_{self.attr}'
+        return super().get_file_path(file_name, subdir=True)
     
+
     def get_metadf(self):
         self.df = deepcopy(self.info.metadf)
 
@@ -567,7 +749,7 @@ class MxSingleViz2d3dSingleAttr(MxSingleViz2D3D):
             for curr_attr in [self.attr]:
                 self.get_figure()
                 self.fill_subplots(curr_attr)
-                self.save_plot(plt)
+                self.save_plot(plt, plt_kwargs={'dpi': 200})
                 plt.close()
 
 
@@ -663,7 +845,6 @@ class S2vKeyAttrViz(ImageGrid):
     '''
     First row: original network
     Second row: S2v MDS
-    (Third row: S2v MDS 3d)
     '''
 
     def __init__(self, language, mx, info, plttitle, exp, by_author, subdir=None):
@@ -672,7 +853,7 @@ class S2vKeyAttrViz(ImageGrid):
         self.plttitle = plttitle
         self.exp = exp
         self.by_author = by_author
-        self.colnames = ['cluster', 'gender', 'year', 'year-ascat', 'canon', 'canon-ascat'] 
+        self.colnames = ['cluster', 'year-ascat', 'year', 'gender', 'canon-ascat', 'canon'] 
         if self.by_author:
             self.colnames = self.colnames + ['canon-min', 'canon-max']
         else: 
@@ -710,10 +891,10 @@ class S2vKeyAttrViz(ImageGrid):
 
 
             # Just for comparison , delete ·##################################
-            mdsclust = MxSingleVizCluster(self.language, self.output_dir, self.mx, self.info, self.plttitle, self.exp, self.by_author)
-            mxclust_path = mdsclust.get_path(omit=['attr'])
-            if not os.path.exists(mxclust_path):
-                mdsclust.visualize()
+            # mdsclust = MxSingleVizCluster(self.language, self.output_dir, self.mx, self.info, self.plttitle, self.exp, self.by_author)
+            # mxclust_path = mdsclust.get_path(omit=['attr'])
+            # if not os.path.exists(mxclust_path):
+            #     mdsclust.visualize()
 
 
             mdsclust = MxSingleViz2d3dSingleAttr(self.language, self.output_dir, self.exp, self.by_author, mc=None, info=self.info, mx=self.mx)

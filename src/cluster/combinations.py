@@ -37,12 +37,12 @@ class InfoHandler(DataHandler):
         self.metadf = self.mh.get_metadata(add_color=self.add_color)
 
 
-    def get_info_path(self, info: str):
+    def get_pickle_path(self, info: str):
         return os.path.join(self.subdir, f'info-{info}.pkl')
     
 
     def load_info(self, comb_info):
-        pickle_path = self.get_info_path(comb_info)              
+        pickle_path = self.get_pickle_path(comb_info)              
         with open(pickle_path, 'rb') as pickle_file:
             info = pickle.load(pickle_file)
         
@@ -59,10 +59,6 @@ class InfoHandler(DataHandler):
         # Combine file names, attributes, and cluster assignments
         metadf = pd.merge(metadf, clusterdf, left_index=True, right_index=True, validate='1:1')
         return metadf     
-
-
-    def get_pickle_path(self, info: str):
-        return os.path.join(self.subdir, f'info-{info}.pkl')
     
         
     def save_info(self, info):
@@ -78,8 +74,11 @@ class CombinationsBase(InfoHandler):
     This class runs all combinations of distance measures, sparsification algorithms, clustering algorithms, parameters, and evaluates the result for all attributes.
     Performed for both MDS and networks.
     '''
-    def __init__(self, language, output_dir='similarity', add_color=False, cmode='nk', by_author=False):
+    def __init__(self, language, output_dir='similarity', add_color=False, cmode='nk', by_author=False, eval_only=False):
         super().__init__(language, output_dir=output_dir, add_color=add_color, cmode=cmode, by_author=by_author)
+        self.eval_only = eval_only
+      
+
         self.combinations_path = os.path.join(self.output_dir, f'{self.cmode}_log_combinations.txt')
         self.smallmx_path = os.path.join(self.output_dir, f'{self.cmode}_log_smallmx.txt')
         self.save_data(data=self.metadf, filename='metadf')
@@ -90,6 +89,16 @@ class CombinationsBase(InfoHandler):
         else: 
             self.colnames = self.colnames + ['author']
 
+
+        if self.eval_only:
+            if self.cmode == 'nk':
+                raise NotImplementedError('eval_only is has not been implemented for "nk".')
+            else:
+                raise NotImplementedError('eval_only is only partially implemented for "mx". modularity expects different format for clusters than df.')
+        if self.eval_only:
+            dc = CombDataChecker(language=self.language, cmode=self.cmode, combinations_path=self.combinations_path, by_author=self.by_author, output_dir=self.output_dir)
+            cdf = dc.prepare_clst_log()
+            self.cluster_log_info = set(cdf['info'])
 
     # def load_mxs(self):
     #     # Delta distance mxs
@@ -114,20 +123,17 @@ class CombinationsBase(InfoHandler):
         # Delta distance mxs
         delta = Delta(self.language)
         all_delta = delta.load_all_data(use_kwargs_for_fn='mode', subdir=True)
-        for i in all_delta:
-            print(i)
 
         # D2v distance mxs
         d2v = D2vDist(language=self.language)
         all_d2v = d2v.load_all_data(use_kwargs_for_fn='mode', file_string=d2v.file_string, subdir=True)
-        for i in all_d2v:
-            print(i)
 
         mxs = {**all_delta, **all_d2v}
 
         for name, mx in mxs.items():
+            if 'mirror' in name:
+                print('"mirror" was contained in the wrong subdir')
             mx.name = name
-            print(name)
             yield mx
 
 
@@ -180,16 +186,14 @@ class CombinationsBase(InfoHandler):
 
 
 class MxCombinations(CombinationsBase):
-    def __init__(self, language, output_dir='similarity', add_color=False, by_author=False):
-        super().__init__(language, output_dir=output_dir, add_color=add_color, cmode='mx', by_author=by_author)
+    def __init__(self, language, output_dir='similarity', add_color=False, by_author=False, eval_only=False):
+        super().__init__(language, output_dir=output_dir, add_color=add_color, cmode='mx', by_author=by_author, eval_only=eval_only)
 
 
     def create_combinations(self):
         s = time.time()
         mxs_generator = self.load_mxs()
         for mx, cluster_alg in itertools.product(mxs_generator, MxCluster.ALGS.keys()):
-            print(mx.name)
-
 
             # When clustering embeddings, isolated nodes are ignored, and matrix of connected nodes can be too small
             if mx.mx.shape[0] > 50:
@@ -199,18 +203,29 @@ class MxCombinations(CombinationsBase):
 
                 for param_comb in param_combs:
                     info = CombinationInfo(mxname=mx.name, cluster_alg=cluster_alg, param_comb=param_comb)
-                    if os.path.exists(self.get_pickle_path(info.as_string())):
-                        continue
-                    clusters = sc.cluster(info, param_comb)
 
-                    if clusters is not None:
-                        # print(info.as_string())
-                        metadf = self.merge_dfs(self.metadf, clusters.df)
-                        info.add('metadf', metadf)
-                        info.add('clusterdf', clusters.df)
-                        combination = [mx, clusters, info] 
+                    if self.eval_only:
+                        if info.as_string() in self.cluster_log_info:
+                            continue
+                        else:
+                            info = self.load_info(info.as_string())
+                            metadf = self.merge_dfs(self.metadf, info['clusterdf'])
+                            info.add('metadf', metadf)
+                            combination = [None, None, info]
+                    else:
+                        pickle_path = self.get_pickle_path(info.as_string())              
+                        if os.path.exists(pickle_path):
+                            continue
+                        clusters = sc.cluster(info, param_comb)
 
-                        yield combination
+                        if clusters is not None:
+                            metadf = self.merge_dfs(self.metadf, clusters.df)
+                            print(metadf.shape[0], mx.mx.shape[0])
+                            assert metadf.shape[0] == mx.mx.shape[0]
+                            info.add('metadf', metadf)
+                            info.add('clusterdf', clusters.df)
+                            combination = [mx, clusters, info]
+                            yield combination
 
 
     def log_combinations(self):

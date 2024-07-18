@@ -31,7 +31,7 @@ warnings.filterwarnings("ignore", category=RuntimeWarning, module="pygraphviz") 
 
 class NkVizBase(VizBase):
 
-    def __init__(self, language, output_dir, info=None, plttitle=None, exp=None, by_author=False, graph=None):
+    def __init__(self, language, output_dir, info=None, plttitle=None, exp=None, by_author=False, graph=None, ignore_too_many_edges=True):
         self.cmode = 'nk'
         super().__init__(language, output_dir, self.cmode, info, plttitle, exp, by_author)
         # Visualization parameters
@@ -55,14 +55,16 @@ class NkVizBase(VizBase):
                     info.spmx_path = info.spmx_path.replace(cluster_path_string, '/home/annina/scripts/great_unread_nlp/data')
                 self.network = NXNetwork(self.language, path=info.spmx_path)
                 self.graph = self.network.graph
+                # print(f'Loaded graph from sparsmatrix at {info.spmx_path}')
 
             self.global_vmax, self.global_vmin = self.get_cmap_params()
             # If graph has too many edges, it cannot be drawn
             self.noviz_path = self.get_file_path(file_name=f'{self.cmode}_log-noviz.txt', subdir=True)
-            self.too_many_edges, edges_info = self.check_nr_edges()
-            if self.too_many_edges:
-                self.write_noviz(edges_info)
-                print('Too many edges.')
+            if not ignore_too_many_edges: # too many edges is only relevant if network is drawn repeatedly and is too slow, drawing it once is ok
+                self.too_many_edges, edges_info = self.check_nr_edges()
+                if self.too_many_edges:
+                    self.write_noviz(edges_info)
+                    print('Too many edges.')
 
             self.too_many_edges = False  ############################
             # if not self.too_many_edges:
@@ -131,6 +133,7 @@ class NkVizBase(VizBase):
 
     def add_positions_to_metadf(self):
         # Combine positions and metadata
+        print('call get metadf')
         self.get_metadf()
         self.df['pos'] = self.df.index.map(self.pos)
         self.df[['x', 'y']] = pd.DataFrame(self.df['pos'].tolist(), index=self.df.index)
@@ -298,6 +301,7 @@ class NkKeyAttrViz(NkVizBase):
 
 
     def add_nodes_to_ax(self, ix, df, color_col, use_different_shapes=False):
+        print('df start', df.shape)
         color_col = f'{color_col}_color'
         # Draw connected components with more than 2 nodes
         df_con = df[~df.index.isin(self.nodes_removed)]
@@ -306,7 +310,7 @@ class NkKeyAttrViz(NkVizBase):
 
 
         iso_node_size = round(0.3 * self.markersize)
-        # iso_node_size = self.markersize
+        iso_node_size = self.markersize
         ax = self.axs[ix[0]+1, ix[1]]
 
 
@@ -324,7 +328,8 @@ class NkKeyAttrViz(NkVizBase):
 
 
         # Isolated nodes
-        df_iso = df[df.index.isin(self.nodes_removed)] #########33iso/removed
+        counter = 0
+        df_iso = df[df.index.isin(self.nodes_removed)]
         if use_different_shapes:
             for shape in df_iso['clst_shape'].unique():
                 sdf = df_iso[df_iso['clst_shape'] == shape]
@@ -740,7 +745,6 @@ class NkSingleViz(NkNetworkGridkViz):
         self.ncol = 1
         self.fontsize = 6
         self.markersize = 25
-        print('by author', self.by_author)
         print(self.key_attrs)
         
         
@@ -788,7 +792,6 @@ class NkSingleViz(NkNetworkGridkViz):
 class NkSingleVizAttr(NkKeyAttrViz):
     '''
     Make single images where clusters are highlighted. Isolated nodes are not shown.
-    Not possible to create all of them because there are too many combinations.
     '''
     def __init__(self, language, output_dir, info, plttitle, exp, by_author):
         super().__init__(language, output_dir, info=info, plttitle=plttitle, exp=exp, by_author=by_author)
@@ -802,14 +805,22 @@ class NkSingleVizAttr(NkKeyAttrViz):
         self.ws_wspace = 0
         self.ws_hspace = 0
 
+    def get_metadf(self):
+        '''
+        Graph comes from spmx (all nodes). info.df comes from s2v edgelist (only non-iso nodes).
+        Iso nodes are missing from metadata.
+        '''
+        # metadata for iso nodes
+        self.ih = InfoHandler(language=self.language, add_color=True, cmode=self.cmode, by_author=self.by_author)
+        metadf = self.ih.metadf
+        metadf = metadf[metadf.index.isin(self.nodes_removed)]
 
-    def get_figure(self):
-        self.fig, self.axs = plt.subplots(1, 1, figsize=(4, 4))
-        self.axs = np.reshape(self.axs, (1, 1)) 
-        self.axs[0, 0].axis('off')
-        self.adjust_subplots()
-        self.subplots = [[0, 0]]
-        print('axs shape', self.axs.shape)
+        # df from info for connected nodes, contains cluster column
+        df = deepcopy(self.info.metadf)
+        df = pd.concat([metadf, df], axis=0, ignore_index=False, join='outer')
+        df = df.fillna('lightgray')
+        assert df.shape[0] == self.nr_texts
+        self.df = df
 
 
     def fill_subplots(self):
@@ -832,7 +843,7 @@ class NkSingleVizAttr(NkKeyAttrViz):
         # if not self.too_many_edges:
         self.vizpath = self.get_path()
         if not os.path.exists(self.vizpath):
-            self.get_graphs() ####################################delete
+            self.get_graphs()
             self.get_positions()
             self.add_positions_to_metadf()
 
@@ -845,16 +856,13 @@ class NkSingleVizAttr(NkKeyAttrViz):
             # plt.show()
             plt.close()
 
-    # def get_ax(self, ix):
-    #     return self.axs[0, 0]
-    
+   
     def get_figure(self):
         ncol = 1
         width_ratios = (ncol-1)*[7] + [1]
 
-        self.fig, self.axs = plt.subplots(2, ncol, figsize=(4,4), gridspec_kw={'height_ratios': [7, 0.5], 'width_ratios': width_ratios})      
+        self.fig, self.axs = plt.subplots(2, ncol, figsize=(4,4), gridspec_kw={'height_ratios': [7, 2], 'width_ratios': width_ratios})      
         self.axs = np.reshape(self.axs, (2, 1)) 
-        print(self.axs.shape)
 
         # for row in self.axs: 
         #     for ax in row:
@@ -864,6 +872,3 @@ class NkSingleVizAttr(NkKeyAttrViz):
 
         self.attrix = [0,0]
         self.subplots = [self.attrix]
-
-
-
