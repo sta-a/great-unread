@@ -209,6 +209,13 @@ class NkVizBase(VizBase):
         # Main graph
         self.graph_con = self.graph.subgraph([node for node in self.graph.nodes if node not in self.nodes_removed])
     
+    def get_pos_path(self):
+        pos_dir = os.path.join(self.output_dir, 'nkpos')
+        if not os.path.exists(pos_dir):
+            self.create_dir(pos_dir)
+        self.pos_path = os.path.join(pos_dir, f'{self.info.mxname}.pkl')
+        print('pos path', os.path.join(pos_dir, f'{self.info.mxname}.pkl'))
+
 
     def get_positions(self):
         '''
@@ -217,29 +224,36 @@ class NkVizBase(VizBase):
         If layout programs are used on whole graph, isolated nodes are randomly distributed.
         To adress this, connected (2 nodes that are only connected to each other) and isolated nodes are visualized separately.
         '''
-        # Calculate node positions for main graph and removed nodes
-        nodes_per_line = 40
-        num_rows = (len(self.nodes_removed) // nodes_per_line) + 1 
-        if len(self.nodes_removed) % nodes_per_line != 0:
-                num_rows += 1
-        # num_rows += 2 # top and bottom line to be left empty
-        row_height = 1/num_rows
-        
-        # Compress the x-coordinates to the range between 0.1 and 0.9
-        x_min = 0.1
-        x_max = 0.9
-        scaling = 10
-        x_range = scaling*(x_max - x_min)
-        
-        normalized_x_values = [(i % nodes_per_line)/nodes_per_line for i, node in enumerate(self.nodes_removed)]
-        compressed_x_values = [x_min + value * x_range for value in normalized_x_values]
-        pos_removed = {node: (compressed_x_values[i], -((i) // nodes_per_line) * row_height) for i, node in enumerate(self.nodes_removed)}
+        self.get_pos_path()
+        if os.path.exists(self.pos_path):
+            with open(self.pos_path, 'rb') as file:
+                self.pos = pickle.load(file)
 
+        else:
+            # Calculate node positions for main graph and removed nodes
+            nodes_per_line = 40
+            num_rows = (len(self.nodes_removed) // nodes_per_line) + 1 
+            if len(self.nodes_removed) % nodes_per_line != 0:
+                    num_rows += 1
+            # num_rows += 2 # top and bottom line to be left empty
+            row_height = 1/num_rows
+            
+            # Compress the x-coordinates to the range between 0.1 and 0.9
+            x_min = 0.1
+            x_max = 0.9
+            scaling = 10
+            x_range = scaling*(x_max - x_min)
+            
+            normalized_x_values = [(i % nodes_per_line)/nodes_per_line for i, node in enumerate(self.nodes_removed)]
+            compressed_x_values = [x_min + value * x_range for value in normalized_x_values]
+            pos_removed = {node: (compressed_x_values[i], -((i) // nodes_per_line) * row_height) for i, node in enumerate(self.nodes_removed)}
 
+            pos_con = nx.nx_agraph.graphviz_layout(self.graph_con, self.prog)
 
-        pos_con = nx.nx_agraph.graphviz_layout(self.graph_con, self.prog)
+            self.pos = {**pos_removed, **pos_con}
+            with open(self.pos_path, 'wb') as file:
+                pickle.dump(self.pos, file)
 
-        self.pos = {**pos_removed, **pos_con}
 
 
     def count_visible_edges(self):
@@ -791,7 +805,7 @@ class NkSingleViz(NkNetworkGridkViz):
 
 class NkSingleVizAttr(NkKeyAttrViz):
     '''
-    Make single images where clusters are highlighted. Isolated nodes are not shown.
+    Make single images where clusters are highlighted. Isolated nodes are shown.
     '''
     def __init__(self, language, output_dir, info, plttitle, exp, by_author):
         super().__init__(language, output_dir, info=info, plttitle=plttitle, exp=exp, by_author=by_author)

@@ -92,7 +92,7 @@ class EmbLoader():
         if self.files_substring is not None:
             all_embedding_paths = [x for x in all_embedding_paths if self.files_substring in x]
 
-        self.embedding_files = all_embedding_paths
+        self.embedding_files = sorted(all_embedding_paths)
 
 
     def load_mxs(self):

@@ -317,6 +317,10 @@ rsync -avz --ignore-existing --exclude 'simmxs' --exclude 'mds' --exclude 'mxeva
 rsync -avz --ignore-existing --exclude 'simmxs' --exclude 'mds' --exclude 'mxeval_paramcomb'  stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/s2v/eng /media/annina/MyBook/back-to-computer-240615/data_author/s2v 
 rsync -avz --ignore-existing --exclude 'simmxs' --exclude 'mds' --exclude 'mxeval_paramcomb'  stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/s2v/ger /media/annina/MyBook/back-to-computer-240615/data_author/s2v
 
+rsync -avz --ignore-existing --exclude 'simmxs' stahla@euler.ethz.ch:/cluster/scratch/stahla/data/similarity/eng /media/annina/MyBook/back-to-computer-240615/data/similarity
+rsync -avz --ignore-existing --exclude 'simmxs' stahla@euler.ethz.ch:/cluster/scratch/stahla/data/similarity/ger /media/annina/MyBook/back-to-computer-240615/data/similarity
+rsync -avz --ignore-existing --exclude 'simmxs' stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/similarity/eng /media/annina/MyBook/back-to-computer-240615/data_author/similarity
+rsync -avz --ignore-existing --exclude 'simmxs' stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/similarity/ger /media/annina/MyBook/back-to-computer-240615/data_author/similarity
 rsync -avz --ignore-existing --exclude 'simmxs' --exclude 'mds' stahla@euler.ethz.ch:/cluster/scratch/stahla/data/analysis/eng /media/annina/MyBook/back-to-computer-240615/data/analysis 
 rsync -avz --ignore-existing --exclude 'simmxs' --exclude 'mds' stahla@euler.ethz.ch:/cluster/scratch/stahla/data/analysis/ger /media/annina/MyBook/back-to-computer-240615/data/analysis 
 rsync -avz --ignore-existing --exclude 'simmxs' --exclude 'mds' stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/analysis/eng /media/annina/MyBook/back-to-computer-240615/data_author/analysis 
@@ -354,10 +358,10 @@ rsync -avz --ignore-existing /home/annina/scripts/great_unread_nlp/data/analysis
 rsync -avz --ignore-existing /home/annina/scripts/great_unread_nlp/data_author/analysis/eng /media/annina/MyBook/back-to-computer-240615/data_author/analysis 
 rsync -avz --ignore-existing /home/annina/scripts/great_unread_nlp/data_author/analysis/ger /media/annina/MyBook/back-to-computer-240615/data_author/analysis 
 
-rsync -avz --ignore-existing --exclude 'simmxs' --exclude 'sparsification*' /home/annina/scripts/great_unread_nlp/data/similarity/eng /media/annina/MyBook/back-to-computer-240615/data/similarity
-rsync -avz --ignore-existing --exclude 'simmxs' --exclude 'sparsification*' /home/annina/scripts/great_unread_nlp/data/similarity/ger /media/annina/MyBook/back-to-computer-240615/data/similarity
-rsync -avz --ignore-existing --exclude 'simmxs' --exclude 'sparsification*' /home/annina/scripts/great_unread_nlp/data_author/similarity/eng /media/annina/MyBook/back-to-computer-240615/data_author/similarity
-rsync -avz --ignore-existing --exclude 'simmxs' --exclude 'sparsification*' /home/annina/scripts/great_unread_nlp/data_author/similarity/ger /media/annina/MyBook/back-to-computer-240615/data_author/similarity
+rsync -avz --ignore-existing --exclude 'simmxs' /home/annina/scripts/great_unread_nlp/data/similarity/eng /media/annina/MyBook/back-to-computer-240615/data/similarity
+rsync -avz --ignore-existing --exclude 'simmxs' /home/annina/scripts/great_unread_nlp/data/similarity/ger /media/annina/MyBook/back-to-computer-240615/data/similarity
+rsync -avz --ignore-existing --exclude 'simmxs' /home/annina/scripts/great_unread_nlp/data_author/similarity/eng /media/annina/MyBook/back-to-computer-240615/data_author/similarity
+rsync -avz --ignore-existing --exclude 'simmxs' /home/annina/scripts/great_unread_nlp/data_author/similarity/ger /media/annina/MyBook/back-to-computer-240615/data_author/similarity
 
 # From harddrive to computer
 rsync -avz --ignore-existing /media/annina/MyBook/back-to-computer-240615/data/s2v/eng/embeddings /home/annina/scripts/great_unread_nlp/data/s2v/eng
