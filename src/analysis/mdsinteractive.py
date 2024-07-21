@@ -9,8 +9,11 @@ from matplotlib.widgets import Button
 from tqdm import tqdm
 from typing import List
 import mplcursors
-from utils import DataHandler
+from matplotlib.widgets import LassoSelector
+from matplotlib.path import Path
+import numpy as np
 
+from utils import DataHandler
 from .mxviz import NkSingleVizAttr
 from cluster.combinations import InfoHandler
 from cluster.cluster_utils import CombinationInfo
@@ -49,6 +52,7 @@ class NkSingleVizAttrAnalysis(NkSingleVizAttr):
             self.add_edges()
 
             self.fill_subplots()
+            print('Nr edges: ', self.graph.number_of_edges())
             self.save_plot(plt)
             plt.show()
             # plt.close()
@@ -116,18 +120,14 @@ class MxSingleViz2D3DHzAnalysis(MxSingleViz2D3DHorizontal):
         df_nk = self.map_colors_to_nested_list(df_nk)
 
         for sublist in self.labels:
-            print(f'Colors for sublist {sublist}:')
             for item in sublist:
                 color = df_nk.loc[item, 'label_color']
-                print(f'  {item}: {color}')
 
         self.df = self.map_colors_to_nested_list(self.df)
 
         for sublist in self.labels:
-            print(f'Colors for sublist {sublist}:')
             for item in sublist:
                 color = self.df.loc[item, 'label_color']
-                print(f'  {item}: {color}')
         return df_nk
 
             
@@ -135,6 +135,7 @@ class MxSingleViz2D3DHzAnalysis(MxSingleViz2D3DHorizontal):
         self.labels = []
         self.labels2d = []
         self.labels3d = []
+        self.class_counter = 0
         self.get_interactive_plots(ix, color_col, use_different_shapes, s, edgecolor, linewidth)
 
         if 'label_color' not in self.df.columns:
@@ -158,31 +159,26 @@ class MxSingleViz2D3DHzAnalysis(MxSingleViz2D3DHorizontal):
     def get_interactive_plots(self, ix, color_col, use_different_shapes, s, edgecolor, linewidth):
 
         def on_button_click(event):
-            for i in self.labels2d:
-                print(i)
-            for j in self.labels3d:
-                print(j)
             self.labels.append(list(set(self.labels2d + self.labels3d))) # combine lists
-            for sublist in self.labels:
-                print(sublist)
             self.get_networks()
 
         def on_class_button_click(event):
-            for i in self.labels2d:
-                print('lbl 2d', i)
-            for i in self.labels3d:
-                print('lbl 3d', i)
-            print('\n\n---------------listset', list(set(self.labels2d + self.labels3d)))
             self.labels.append(list(set(self.labels2d + self.labels3d)))
-            for sublist in self.labels:
-                print('sublist', sublist)
             self.labels2d = []
             self.labels3d = []
-            print('new button################')
+            self.class_counter += 1
+
+        def on_reset_button_click(event):
+            self.labels = []
+            self.labels2d = []
+            self.labels3d = []
+            os.remove(self.results_path)
+
 
         def write_labels_to_file(label, row, dim):
             with open(self.results_path, 'a') as f:
-                f.write(f"{self.mxname},,{self.curr_attr},{dim},{label},{','.join(map(str, row))}\n") # extra comma for comment column
+                # add class counter to keep track of which points is in which cluster
+                f.write(f"{self.mxname},,{self.curr_attr},{dim},{self.class_counter},{label},{','.join(map(str, row))}\n") # extra comma for comment column
 
         def on_close(event):
             # If points were selected, write a comment
@@ -200,16 +196,36 @@ class MxSingleViz2D3DHzAnalysis(MxSingleViz2D3DHorizontal):
         
         # 2D plot
         scatter_2d = self.axs[ix[0], ix[1]].scatter(x=sdf['X_mds_2d_0'], y=sdf['X_mds_2d_1'], **kwargs)
-        cursor_2d = mplcursors.cursor(scatter_2d, hover=False)
-        @cursor_2d.connect('add')
-        def on_add_2d(sel):
-            i = sel.index
-            label = sdf.index[i]
-            if label not in self.labels2d:
-                self.labels2d.append(label)
-                row = self.df_nocolor.loc[label].values.tolist() 
-                write_labels_to_file(label, row, dim='2d')
-            sel.annotation.set(text=label, fontsize=8, ha='right', color=sdf[color_col].iloc[i])
+        # cursor_2d = mplcursors.cursor(scatter_2d, hover=False)
+        
+        # @cursor_2d.connect('add')
+        # def on_add_2d(sel):
+        #     i = sel.index
+        #     label = sdf.index[i]
+        #     if label not in self.labels2d:
+        #         self.labels2d.append(label)
+        #         row = self.df_nocolor.loc[label].values.tolist() 
+        #         write_labels_to_file(label, row, dim='2d')
+        #     sel.annotation.set(text=label, fontsize=8, ha='right', color=sdf[color_col].iloc[i])
+
+
+
+
+        # Lasso selector for selecting multiple points
+        def on_select_2d(verts):
+            path = Path(verts)
+            ind = np.nonzero(path.contains_points(sdf[['X_mds_2d_0', 'X_mds_2d_1']]))[0]
+            for i in ind:
+                label = sdf.index[i]
+                if label not in self.labels2d:
+                    self.labels2d.append(label)
+                    row = self.df_nocolor.loc[label].values.tolist()
+                    write_labels_to_file(label, row, dim='2d')
+                    print(f'Selected: {label}')
+
+        print('Lasso selector for 2D plots. Make sure line is closed!')
+        lasso_2d = LassoSelector(self.axs[ix[0], ix[1]], on_select_2d)
+
         
         # 3D plot
         ax_3d = self.axs[ix[0], ix[1] + 1]
@@ -232,9 +248,13 @@ class MxSingleViz2D3DHzAnalysis(MxSingleViz2D3DHorizontal):
         button = Button(ax_button, 'Generate Network')
         button.on_clicked(on_button_click)
 
-        ax_class_button = plt.axes([0.81, 0.09, 0.1, 0.075])  # position: [left, bottom, width, height]
+        ax_class_button = plt.axes([0.81, 0.09, 0.1, 0.075])
         button_class = Button(ax_class_button, 'New')
         button_class.on_clicked(on_class_button_click)
+
+        ax_reset_button = plt.axes([0, 0.01, 0.02, 0.03])
+        button_reset = Button(ax_reset_button, 'Reset')
+        button_reset.on_clicked(on_reset_button_click)
 
         # create a non-maximized window with the size of a maximized one
         mng = plt.get_current_fig_manager()
@@ -253,7 +273,7 @@ class MxSingleViz2D3DHzAnalysis(MxSingleViz2D3DHorizontal):
         comment = comment.replace(',', '.') # replace commas because they are used as seperators in the csv
         with open(self.results_path, 'a') as f:
             ncols = self.df_nocolor.shape[1]
-            commas = (ncols+2) * ','
+            commas = (ncols+3) * ','
             f.write(f'{self.mxname},{comment}{commas}\n')
 
     def write_header(self):
@@ -269,6 +289,7 @@ class MxSingleViz2D3DHzAnalysis(MxSingleViz2D3DHorizontal):
         for mx in self.mc.load_mxs():
             self.mx = mx
             self.mxname = mx.name
+            print('mxname', self.mxname)
             print('mx dimensions', self.mx.mx.shape)
             # Check if results for last key attr has been created
             # This is faster than adding the positions and then checking the paths

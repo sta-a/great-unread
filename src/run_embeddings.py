@@ -77,7 +77,6 @@ if __name__ == '__main__':
     # exps = ex.get_experiments()
     ex.run_experiments(select_exp='singleimage_analysis')
 
-
     # # Collect MDS visualizations for mxs with different parameters
     # me = RunModeEval(language)
     # # Create one plot with all 6 images of the different param combinations, for each attr

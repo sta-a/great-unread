@@ -439,10 +439,11 @@ rsync -avz --ignore-existing /home/annina/scripts/great_unread_nlp/data/similari
 rsync -avz --ignore-existing --exclude 'networks_to_embeddings' --exclude 'struc2vec-master_rwpath' --exclude 'struc2vec-master_improved_paths'  /home/annina/scripts/great_unread_nlp/src/* stahla@euler.ethz.ch:/cluster/scratch/stahla/src
 
 
-# Synchronize harddrives
+# Synchronize harddrives /media/annina/MyBook/back-to-computer-240615/data_author/analysis_s2v/eng/MxNkAnalysis
 rsync -avz --ignore-existing /media/annina/MyBook/back-to-computer-240615 /media/annina/elements
 rsync -avz --ignore-existing /media/annina/MyBook/back-to-computer-240615/data/s2v /media/annina/elements/back-to-computer-240615/data
 rsync -avz --ignore-existing /media/annina/MyBook/back-to-computer-240615/data_author/s2v /media/annina/elements/back-to-computer-240615/data_author
+rsync -avz --ignore-existing /media/annina/MyBook/back-to-computer-240615/data_author/analysis_s2v/eng/MxNkAnalysis /media/annina/elements/back-to-computer-240615/data_author/analysis_s2v/eng
 
 
 
