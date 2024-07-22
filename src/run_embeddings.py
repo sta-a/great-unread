@@ -73,7 +73,11 @@ if __name__ == '__main__':
 
 
     # # Create MDS visualizations of embeddings
-    ex = Experiment(language=language, cmode='mx', by_author=by_author, output_dir='analysis_s2v')
+    # ex = Experiment(language=language, cmode='mx', by_author=by_author, output_dir='analysis_s2v')
+    # exps = ex.get_experiments()
+    # ex.run_experiments(select_exp='singleimage_analysis')
+
+    ex = Experiment(language=language, cmode='nk', by_author=by_author, output_dir='analysis_s2v')
     # exps = ex.get_experiments()
     ex.run_experiments(select_exp='singleimage_analysis')
 

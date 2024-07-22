@@ -32,8 +32,8 @@ warnings.filterwarnings("ignore", category=RuntimeWarning, module="pygraphviz") 
 class NkVizBase(VizBase):
 
     def __init__(self, language, output_dir, info=None, plttitle=None, exp=None, by_author=False, graph=None, ignore_too_many_edges=True):
+        super().__init__(language=language, output_dir=output_dir, info=info, exp=exp, by_author=by_author)
         self.cmode = 'nk'
-        super().__init__(language, output_dir, self.cmode, info, plttitle, exp, by_author)
         # Visualization parameters
         self.graph = graph
         self.prog = 'neato'
@@ -210,11 +210,26 @@ class NkVizBase(VizBase):
         self.graph_con = self.graph.subgraph([node for node in self.graph.nodes if node not in self.nodes_removed])
     
     def get_pos_path(self):
-        pos_dir = os.path.join(self.output_dir, 'nkpos')
-        if not os.path.exists(pos_dir):
-            self.create_dir(pos_dir)
-        self.pos_path = os.path.join(pos_dir, f'{self.info.mxname}.pkl')
-        print('pos path', os.path.join(pos_dir, f'{self.info.mxname}.pkl'))
+        if self.info is None:
+            print('Cannot save network positions to file because info is None and mxname is missing.')
+            return None
+        else:
+            pos_dir = os.path.join(self.output_dir, 'nkpos')
+            if not os.path.exists(pos_dir):
+                self.create_dir(pos_dir)
+
+            # Save only distance_spars, remove parameter string
+            parts = self.info.mxname.split('_')
+            # Check if there are more than two parts
+            if len(parts) > 2:
+                # Combine the first two parts with an underscore
+                mxname_tmp = '_'.join(parts[:2])
+            else:
+                mxname_tmp = self.info.mxname
+                
+            pos_path = os.path.join(pos_dir, f'{mxname_tmp}.pkl')
+            print('pos path', os.path.join(pos_dir, f'{mxname_tmp}.pkl'))
+            return pos_path
 
 
     def get_positions(self):
@@ -224,9 +239,9 @@ class NkVizBase(VizBase):
         If layout programs are used on whole graph, isolated nodes are randomly distributed.
         To adress this, connected (2 nodes that are only connected to each other) and isolated nodes are visualized separately.
         '''
-        self.get_pos_path()
-        if os.path.exists(self.pos_path):
-            with open(self.pos_path, 'rb') as file:
+        pos_path = self.get_pos_path()
+        if pos_path is not None and os.path.exists(pos_path):
+            with open(pos_path, 'rb') as file:
                 self.pos = pickle.load(file)
 
         else:
@@ -251,8 +266,9 @@ class NkVizBase(VizBase):
             pos_con = nx.nx_agraph.graphviz_layout(self.graph_con, self.prog)
 
             self.pos = {**pos_removed, **pos_con}
-            with open(self.pos_path, 'wb') as file:
-                pickle.dump(self.pos, file)
+            if pos_path is not None:
+                with open(pos_path, 'wb') as file:
+                    pickle.dump(self.pos, file)
 
 
 
@@ -294,7 +310,7 @@ class NkKeyAttrViz(NkVizBase):
     Plot main attribute (including clustering) plus key attributes
     '''
     def __init__(self, language, output_dir, info, plttitle, exp, by_author=False):
-        super().__init__(language, output_dir, info, plttitle, exp, by_author)
+        super().__init__(language=language, output_dir=output_dir, info=info, plttitle=plttitle, exp=exp, by_author=by_author)
         if info is not None:
             if self.info.attr in self.key_attrs:
                 self.key_attrs.remove(self.info.attr)
@@ -575,7 +591,7 @@ class NkNetworkGridkViz(NkKeyAttrViz):
     Plot every network for an attribute.
     '''
     def __init__(self, language, output_dir, exp, by_author=False):
-        super().__init__(language, output_dir, info=None, plttitle=None, exp=exp, by_author=by_author)
+        super().__init__(language=language, output_dir=output_dir, info=None, plttitle=None, exp=exp, by_author=by_author)
         self.ih = InfoHandler(language=language, add_color=True, cmode=self.cmode, by_author=by_author)
 
         self.nr_mxs = 58
@@ -754,7 +770,8 @@ class NkSingleViz(NkNetworkGridkViz):
     For each matrix, a seperate plot for each key attribute is created.
     '''
     def __init__(self, language, output_dir, exp, by_author):
-        super().__init__(language, output_dir, exp, by_author)
+        print('nksingleviz', language, output_dir, exp, by_author)
+        super().__init__(language=language, output_dir=output_dir, exp=exp, by_author=by_author)
         self.nrow = 1
         self.ncol = 1
         self.fontsize = 6

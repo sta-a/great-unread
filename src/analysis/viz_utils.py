@@ -30,8 +30,8 @@ from PIL import Image, ImageDraw
 
 
 class VizBase(DataHandler):
-    def __init__(self, language, output_dir='analysis', cmode='nk', info=None, plttitle=None, exp=None, by_author=False):
-        super().__init__(language, output_dir=output_dir, data_type='png')
+    def __init__(self, language='eng', output_dir='analysis', cmode='nk', info=None, plttitle=None, exp=None, by_author=False):
+        super().__init__(language=language, output_dir=output_dir, data_type='png')
         self.cmode = cmode
         self.info = info
         self.plttitle = plttitle

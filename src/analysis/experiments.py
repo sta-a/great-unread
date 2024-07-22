@@ -20,7 +20,7 @@ from matplotlib.cm import ScalarMappable
 from utils import DataHandler
 from .mxviz import MxAttrGridViz, MxSingleViz, MxKeyAttrViz, S2vKeyAttrViz, MxSingleViz2D3D, MxSingleViz2D3DHorizontal
 from .nkviz import NkKeyAttrViz, NkAttrGridViz, NkNetworkGridkViz, SparsGridkViz, NkSingleViz
-from .mdsinteractive import MxSingleViz2D3DHzAnalysis
+from .mdsinteractive import MxSingleViz2D3DHzAnalysis, NkSingleVizAnalysis
 from .viz_utils import ClusterAuthorGrid
 from .embedding_eval import EmbMxCombinations
 from .topeval import TopEval
@@ -361,6 +361,10 @@ class Experiment(DataHandler):
             viz.visualize()
         elif exp['viztype'] == 'singleimage':
             viz = NkSingleViz(self.language, self.output_dir, exp, self.by_author)
+            viz.visualize()
+        elif exp['viztype'] == 'singleimage_analysis':
+            print(self.language, self.output_dir, exp, self.by_author)
+            viz = NkSingleVizAnalysis(language=self.language, output_dir=self.output_dir, exp=exp, by_author=self.by_author, mc=self.mc)
             viz.visualize()
         else:
             for topk in te.get_top_combinations():
