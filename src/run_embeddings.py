@@ -72,14 +72,13 @@ if __name__ == '__main__':
     # emc.check_data(n_features=8)
 
 
-    # # Create MDS visualizations of embeddings
-    # ex = Experiment(language=language, cmode='mx', by_author=by_author, output_dir='analysis_s2v')
-    # exps = ex.get_experiments()
-    # ex.run_experiments(select_exp='singleimage_analysis')
-
-    ex = Experiment(language=language, cmode='nk', by_author=by_author, output_dir='analysis_s2v')
-    # exps = ex.get_experiments()
+    # # Create interactive MDS visualizations of embeddings
+    ex = Experiment(language=language, cmode='mx', by_author=by_author, output_dir='analysis_s2v')
     ex.run_experiments(select_exp='singleimage_analysis')
+
+    # Create interactive networks
+    # ex = Experiment(language=language, cmode='nk', by_author=by_author, output_dir='analysis_s2v')
+    # ex.run_experiments(select_exp='singleimage_analysis')
 
     # # Collect MDS visualizations for mxs with different parameters
     # me = RunModeEval(language)

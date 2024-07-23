@@ -29,7 +29,7 @@ class NkSingleVizAttrAnalysis(NkSingleVizAttr):
         self.cmode = cmode
         self.markersize = 20
         self.subdir = subdir
-        print('NkSingleVizAttrAnalysis subdir', self.subdir)
+        print('created NkSingleVizAttrAnalysis')
 
     def get_metadf(self):
         df = self.info.metadf
@@ -46,8 +46,8 @@ class NkSingleVizAttrAnalysis(NkSingleVizAttr):
     def visualize(self, vizname='viz', omit=[]):
         # if not self.too_many_edges:
         self.vizpath = self.get_path()
+        print('vizpath', self.vizpath)
         if not os.path.exists(self.vizpath):
-            print('vizpath', self.vizpath)
             self.get_graphs()
             self.get_positions()
             self.add_positions_to_metadf()
@@ -60,9 +60,9 @@ class NkSingleVizAttrAnalysis(NkSingleVizAttr):
             self.save_plot(plt)
             # Not interesting when in network mode
             # if self.cmode == 'mx':
-            #     plt.show()
-            print('saved network')
+            plt.show()
             # plt.close()
+            print('generated network')
 
 
 class MxSingleViz2D3DHzAnalysis(MxSingleViz2D3DHorizontal):
@@ -74,15 +74,6 @@ class MxSingleViz2D3DHzAnalysis(MxSingleViz2D3DHorizontal):
         self.key_attrs = ['canon']
         ih = InfoHandler(language=self.language, add_color=False, cmode='mx', by_author=self.by_author)
         self.df_nocolor = deepcopy(ih.metadf) # Df with all nodes, self.df has only nodes with positions (no iso nodes)
-        self.get_colors_list()
-
-
-    def get_colors_list(self):
-        self.colors_list = [
-            'red', 'green', 'blue', 'yellow', 'orange', 'purple', 'pink', 'brown',
-            'mediumvioletred', 'white', 'crimson', 'cyan', 'magenta', 'rosybrown', 'lime', 'navy',
-            'teal', 'olive', 'gold', 'silver', 'darkgoldenrod', 'coral', 'darkred', 'lightseagreen',
-            'turquoise', 'lavender', 'indigo', 'violet', 'salmon', 'darkseagreen']
 
 
     def get_metadf(self):
@@ -246,6 +237,7 @@ class MxSingleViz2D3DHzAnalysis(MxSingleViz2D3DHorizontal):
 
     def on_button_click(self, event):
         self.labels.append(list(set(self.labels2d + self.labels3d))) # combine lists
+        print('clicked button network')
         self.get_networks()
 
     def on_class_button_click(self, event):
@@ -316,88 +308,6 @@ class MxSingleViz2D3DHzAnalysis(MxSingleViz2D3DHorizontal):
 
 
 
-class MdsResults(DataHandler):
-    def __init__(self, language, output_dir='analysis_s2v', by_author=False):
-        super().__init__(language, output_dir=output_dir)
-        self.by_author = by_author
-        self.add_subdir('MxSingleViz2D3DHzAnalysisSelect')
-        self.results_path = os.path.join(self.subdir, 'results.txt')
-        self.idcols = ['mxname', 'curr_attr', 'dim'] # columns that 
-        self.df = self.load_data()
-        print(self.df)
-        # self.get_nocolor_metadf()
-
-    # only needed if metadata is not already added during selection
-    # def get_nocolor_metadf(self):
-    #     self.ih = InfoHandler(language=self.language, add_color=False, cmode='mx', by_author=self.by_author)
-    #     self.metadf = deepcopy(self.ih.metadf)
-    #     print(self.metadf)
-
-
-    def load_data(self):
-        df = pd.read_csv(self.results_path, header=0, index_col=None, sep=',')
-        print('df original', df.shape)
-
-        # Split the df into a df with the labels and one with the remaining mxnames and comments
-        df_comment = df[df['label'].isna()]
-        print("DataFrame with NaN in 'label' column:")
-        print(df_comment.shape)
-        df_comment = df_comment[['mxname', 'comment']] # keep only one column
-        df_comment = df_comment.dropna(subset=['comment']) # Drop rows where comment column is empty
-        assert not df_comment['mxname'].duplicated().any() # Assert that there is only one comment per mxname
-
-        df = df[~df['label'].isna()]
-        print("\nDataFrame without NaN in 'label' column:")
-        print(df.shape)
-        # Drop duplicated rows, which means that a data point was clicked multiple times
-        df = df.drop_duplicates(subset=self.idcols + ['label'])
-        assert df['comment'].isna().all()
-        df = df.drop(columns=['comment']) # drop empty column
-
-        # Merge comment df and label df so that each row with a label has the comment
-        nrows_before_merge = df.shape[0]
-        df = df.merge(df_comment, on='mxname', validate='m:1', how='outer')
-        assert df.shape[0] == nrows_before_merge
-
-        # df = df.merge(self.metadf, left_on='mxname', right_index=True, validate='1:1')
-        # assert df.shape[0] == nrows_before_merge
-        return df
-
-
-    # def get_networks(self):
-    #     grouped = self.df.groupby(self.idcols)
-    #     for group_key, group_df in grouped:
-    #         # Extract the list of values in the 'label' column for the current group
-    #         labels_list = group_df['label'].tolist()
-    #         parts = group_df.loc[0, 'mxname'].split('_', maxsplit=2)
-    #         mxname, spars = parts[:2]
-    #         spmx_path = os.path.join(self.output_dir, 'similarity', self.language, 'sparsification', f'sparsmx-{mxname}_{spars}.pkl')
-    #         print(mxname, spars, spmx_path)
-    #         info = CombinationInfo(mxname=mxname, sparsmode=spars, spmx_path=spmx_path)
-
-# m = MdsResults('eng', by_author=True)
-# m.get_networks()# %%
-
-# %%
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 class NkSingleVizAnalysis(NkSingleViz):
     '''
@@ -412,23 +322,6 @@ class NkSingleVizAnalysis(NkSingleViz):
         self.key_attrs = ['canon']
         ih = InfoHandler(language=self.language, add_color=False, cmode='nk', by_author=self.by_author)
         self.df_nocolor = deepcopy(ih.metadf) # Df with all nodes, self.df has only nodes with positions (no iso nodes)
-        self.get_colors_list()
-
-
-    def check_preselected(self):
-        counter = 0
-        dirpath = '/media/annina/MyBook/back-to-computer-240615/data_author/analysis_s2v/eng/nk_singleimage/canon_work_ok'
-        filenames = []
-        for file in os.listdir(dirpath):
-            counter += 1
-            name, _ = os.path.splitext(file)
-            parts = name.split('_')
-            name = f'{parts[0]}_{parts[1]}'
-            # Append the name without extension to the list
-            filenames.append(name)
-            print('preselected', name, counter)
-
-        self.filenames = filenames
 
 
     def get_metadf(self):
@@ -437,7 +330,6 @@ class NkSingleVizAnalysis(NkSingleViz):
         
 
     def visualize(self, vizname='viz'): # vizname for compatibility
-        # self.check_preselected() ###################################
         mxs = self.load_mxnames()
         mxs = sorted(mxs)
         for mxname in mxs:
@@ -446,18 +338,11 @@ class NkSingleVizAnalysis(NkSingleViz):
             print('mxname', self.mxname)
             # Check if plot for last key attr has been created
             self.get_results_path(self.mxname, self.key_attrs[-1])
-            print('results path', self.results_path)
             if os.path.exists(self.results_path):
                 print('results already exist')
             else:
                 self.get_metadf()
                 self.info = CombinationInfo(mxname=self.mxname)
-
-                # if not self.mxname in self.filenames:
-                #     with open(self.results_path, 'w') as f:
-                #         pass  # Create an empty file
-                #     continue
-
 
                 i = 0
                 j = 0
@@ -552,14 +437,6 @@ class NkSingleVizAnalysis(NkSingleViz):
         # Check if the 'n' key is pressed
         if event.key == 'n':
             self.on_class_button_click(event)
-
-
-    def get_colors_list(self):
-        self.colors_list = [
-            'red', 'green', 'blue', 'yellow', 'orange', 'purple', 'pink', 'brown',
-            'mediumvioletred', 'white', 'crimson', 'cyan', 'magenta', 'rosybrown', 'lime', 'navy',
-            'teal', 'olive', 'gold', 'silver', 'darkgoldenrod', 'coral', 'darkred', 'lightseagreen',
-            'turquoise', 'lavender', 'indigo', 'violet', 'salmon', 'darkseagreen']
 
 
     def get_metadf(self):

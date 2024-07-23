@@ -24,6 +24,53 @@ from utils import DataHandler, get_filename_from_path, get_files_in_dir, DataLoa
 from cluster.cluster_utils import MetadataHandler
 #from hpo_functions import get_data, ColumnTransformer
 
+
+
+class ColorBarChart(DataHandler):
+    '''
+    Create a histogram of the canon scores. 
+    Highlight the bars in the corresponding colors with which the values are represented in the network and MDS plots.
+    The left and right edge of the buckets are not exaxtly 0, 0.1 ... because min and max values are not 0 and 1.
+    '''
+    def __init__(self, language, by_author):
+        super().__init__(language, output_dir='text_statistics', data_type='png')
+        self.by_author = by_author
+
+    def make_plots(self):
+        mh = MetadataHandler(self.language, by_author=self.by_author)
+        df = mh.get_metadata(add_color=False)# [['canon', 'gender', 'year']]
+
+        print('min canon: ', min(df['canon']))
+        print('max canon: ', max(df['canon']))
+
+        # Create histogram with 10 bins
+        num_bins = 10
+        counts, bins = np.histogram(df['canon'], bins=num_bins)
+        cmap = plt.get_cmap('seismic')
+
+        # Normalize the bin ranges to use with the colormap
+        norm = plt.Normalize(vmin=bins.min(), vmax=bins.max())
+        colors = cmap(norm(bins))
+
+        # Plotting the histogram
+        fig, ax = plt.subplots()
+
+        for i in range(num_bins):
+            ax.bar(bins[i], counts[i], width=(bins[1] - bins[0]), color=colors[i], edgecolor='black', align='edge')
+
+        ax.set_xlabel('Canon Score')
+        ax.set_ylabel('Frequency')
+        # ax.set_title('Histogram of Canon Scores with Colormap')
+
+        # Adjust x-axis ticks to align with bin edges
+        # ax.set_xticks(bins)
+        # ax.set_xlim([bins[0], bins[-1]])
+
+
+        self.save_data(data=plt, file_name=f'histogram-with-colormaps_byauthor-{self.by_author}.png')
+
+
+
 class MetadataStats(DataHandler):
     def __init__(self, language):
         super().__init__(language, output_dir='text_statistics', data_type='svg')
@@ -390,8 +437,8 @@ class PlotYearAndCanon(DataHandler):
         regression_line = slope * x + intercept
 
         fig, ax = plt.subplots(figsize=(6, 4))
-        ax.scatter(x, y, s=3, label='Data points')
-        ax.plot(x, regression_line, color='red', label=f'Regression line: y={slope:.2f}x+{intercept:.2f}')
+        ax.scatter(x, y, s=3, label='Data points',)
+        ax.plot(x, regression_line, color='black', label=f'Regression line: y={slope:.2f}x+{intercept:.2f}')
 
         ax.set_xlabel(xaxis_title)
         ax.set_ylabel(yaxis_title)
@@ -411,41 +458,34 @@ class PlotYearAndCanon(DataHandler):
 
 
 
+if __name__ == '__main__':
+
+    for language in ['eng', 'ger']:
+        print('Text Statistics:')
+        by_author = True
+        
+        cbc = ColorBarChart(language, by_author)
+        cbc.make_plots()
+        # pyac = PlotYearAndCanon(language)
+        # pyac.plot_single_var()
+        # pyac.plot_two_vars()
+        # mdstats = MetadataStats(language)
+        # mdstats.get_stats()
+        # ts = TextStatistics(language)
+        # ts.get_longest_shortest_text()
+
+        # pc = PlotCanonscoresBarChart(language)
+        # pc.plot()
+
+        # pfd = PlotFeatureDist(language)
+        # pfd.plot()
 
 
+        # pcspa = PlotCanonScoresPerAuthor(language)
+        # pcspa.make_plot()
 
-
-
-
-
-
-
-
-
-
-# for language in ['eng', 'ger']:
-#     print('Text Statistics:')
-
-#     pyac = PlotYearAndCanon(language)
-#     pyac.plot_single_var()
-#     pyac.plot_two_vars()
-    # mdstats = MetadataStats(language)
-    # mdstats.get_stats()
-    # ts = TextStatistics(language)
-    # ts.get_longest_shortest_text()
-
-    # pc = PlotCanonscoresBarChart(language)
-    # pc.plot()
-
-    # pfd = PlotFeatureDist(language)
-    # pfd.plot()
-
-
-    # pcspa = PlotCanonScoresPerAuthor(language)
-    # pcspa.make_plot()
-
-    # p = PlotCanonScoresPerAuthorByYearAndGender(language)
-    # p.make_plot()
+        # p = PlotCanonScoresPerAuthorByYearAndGender(language)
+        # p.make_plot()
 
 
 
