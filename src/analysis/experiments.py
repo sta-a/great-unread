@@ -20,7 +20,7 @@ from matplotlib.cm import ScalarMappable
 from utils import DataHandler
 from .mxviz import MxAttrGridViz, MxSingleViz, MxKeyAttrViz, S2vKeyAttrViz, MxSingleViz2D3D, MxSingleViz2D3DHorizontal
 from .nkviz import NkKeyAttrViz, NkAttrGridViz, NkNetworkGridkViz, SparsGridkViz, NkSingleViz
-from .mdsinteractive import MxSingleViz2D3DHzAnalysis, NkSingleVizAnalysis
+from .interactive_viz import MxSingleViz2D3DHzAnalysis, NkSingleVizAnalysis
 from .viz_utils import ClusterAuthorGrid
 from .embedding_eval import EmbMxCombinations
 from .topeval import TopEval
@@ -240,7 +240,7 @@ class Experiment(DataHandler):
 
         sparsgrid = [{'name': 'sparsgrid', 'viztype': 'sparsgrid', 'attr': 'canon'}]
         singleimage = [{'name': 'singleimage', 'viztype': 'singleimage', 'attr': 'canon'}]
-        singleimage_analysis = [{'name': 'singleimage_analysis', 'viztype': 'singleimage_analysis', 'attr': 'canon'}]
+        singleimage_analysis = [{'name': 'singleimage_analysis', 'viztype': 'singleimage_analysis', 'attr': 'canon'}] # interactively select points in plot
 
         # Make single images where clusters are highlighted
         # cat df, author attr don't matter, one combination is chosen
@@ -261,11 +261,13 @@ class Experiment(DataHandler):
             
 
         # exps = all_top  + top_cluster # sparsgrid + all_nkgrid + all_attrgrid + clustconst + central
-        exps = all_top  + singleimage + singleimage_analysis
-        exps = singleimage_analysis
+        exps = all_top  + singleimage
         
         if select_exp is not None:
-            exps = [x for x in exps if x['name'] == select_exp]
+            if select_exp == 'singleimage_analysis': # no others are run at the same time
+                exps = singleimage_analysis
+            else:
+                exps = [x for x in exps if x['name'] == select_exp]
 
         for e in exps:
             print(e['name'])

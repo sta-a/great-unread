@@ -120,7 +120,8 @@ scp -r /home/annina/scripts/great_unread_nlp/data/similarity/ger/sparsification_
 
 
 
-
+rsync -avzP --ignore-existing /home/annina/scripts/great_unread_nlp/data/features stahla@euler.ethz.ch:/cluster/home/stahla/data
+rsync -avzP --ignore-existing /home/annina/scripts/great_unread_nlp/data_author/features stahla@euler.ethz.ch:/cluster/home/stahla/data_author
 
 
 
@@ -197,6 +198,10 @@ scp -r stahla@euler.ethz.ch:/cluster/scratch/stahla/data/fold_idxs /home/annina/
 scp stahla@euler.ethz.ch:/cluster/scratch/stahla/embeddings_euler.sh /home/annina/scripts/great_unread_nlp/src/euler
 scp stahla@euler.ethz.ch:/cluster/scratch/stahla/prediction_euler.sh /home/annina/scripts/great_unread_nlp/src/euler
 scp stahla@euler.ethz.ch:/cluster/scratch/stahla/prediction_euler_combinations.py /home/annina/scripts/great_unread_nlp/src/euler
+
+scp /home/annina/scripts/great_unread_nlp/src/euler/prediction_euler.sh stahla@euler.ethz.ch:/cluster/scratch/stahla
+scp /home/annina/scripts/great_unread_nlp/src/euler/prediction_euler_combinations.py stahla@euler.ethz.ch:/cluster/scratch/stahla
+scp /home/annina/scripts/great_unread_nlp/src/euler/prediction_euler_combinations_byauthor.py stahla@euler.ethz.ch:/cluster/scratch/stahla
 
 
 

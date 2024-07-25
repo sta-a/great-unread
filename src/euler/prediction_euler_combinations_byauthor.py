@@ -8,10 +8,10 @@ folds = [0, 1, 2, 3, 4]
 
 # Define the base command components
 conda_env = 'nlpplus_updated'
-script_path = '/cluster/scratch/stahla/src/run_prediction.py'
-data_dir = '/cluster/scratch/stahla/data'
-output_template = 'output_{language}_{task}_{features}_fold{fold}.txt'
-error_template = 'errors_{language}_{task}_{features}_fold{fold}.txt'
+script_path = '/cluster/scratch/stahla/src_byauthor/run_prediction.py'
+data_dir = '/cluster/scratch/stahla/data_author'
+output_template = 'output_{language}_{task}_{features}_fold{fold}_byauthor.txt'
+error_template = 'errors_{language}_{task}_{features}_fold{fold}_byauthor.txt'
 
 
 print('-------------------conda nlpplus--------')

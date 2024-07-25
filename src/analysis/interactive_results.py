@@ -265,16 +265,3 @@ class InteractiveResults(DataHandler):
     #         info = CombinationInfo(mxname=mxname, sparsmode=spars, spmx_path=spmx_path)
 
 
-# subdirs = ['MxNkAnalysis', 'NkAnalysis']
-# for language in ['eng']:
-#     for subdir in ['MxNkAnalysis']:
-#         ir = InteractiveResults(language=language, subdir=subdir, by_author=True)
-#         ir.filter_df()
-
-
-
-ir = InteractiveResults(language='eng', subdir='NkAnalysis', by_author=True)
-ir.filter_df()
-
-
-# %%

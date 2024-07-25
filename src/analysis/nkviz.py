@@ -12,7 +12,6 @@ import time
 import random
 import textwrap
 from typing import List
-from cluster.network import NXNetwork
 random.seed(9)
 
 
@@ -20,6 +19,7 @@ import sys
 sys.path.append("..")
 from utils import DataHandler
 from .viz_utils import VizBase
+from cluster.network import NXNetwork
 from cluster.cluster_utils import CombinationInfo
 from cluster.combinations import InfoHandler
 import logging
