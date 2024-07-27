@@ -34,6 +34,12 @@ fold_arg = args.fold
 print(language, data_dir, tasks, testing )
 n_outer_folds = 5
 
+if 'data_author' in data_dir:
+    by_author = True
+else:
+    by_author = False
+print('by author', by_author)
+
 
 
 # Use full features set for classification to avoid error with underrepresented classes
@@ -81,7 +87,7 @@ for task in tasks:
 
         for features in features:
             print(f'Task: {task}, Label_type: {label_type}, Features: {features}\n')
-            X, y = get_data(language, task, label_type, features, features_dir, canonscores_dir, sentiscores_dir, metadata_dir)
+            X, y = get_data(language, task, label_type, features, features_dir, canonscores_dir, sentiscores_dir, metadata_dir, by_author)
 
             # Run grid search for nested cv
             cv_outer = CustomGroupKFold(n_splits=5, stratified=task_params['stratified']).split(X, y.values.ravel())

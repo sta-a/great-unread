@@ -179,7 +179,7 @@ class DataHandler():
     /media/annina/MyBook/back-to-computer-240615/data
     /home/annina/scripts/great_unread_nlp/data
     '''
-    def __init__(self, language=None, output_dir=None, data_type='csv', modes=None, tokens_per_chunk=1000, data_dir='/media/annina/MyBook/back-to-computer-240615/data_author', test=False, load_doc_paths=True, subdir=False):
+    def __init__(self, language=None, output_dir=None, data_type='csv', modes=None, tokens_per_chunk=1000, data_dir='/media/annina/MyBook/back-to-computer-240615/data', test=False, load_doc_paths=True, subdir=False):
 
         self.test = test
         self.language = language

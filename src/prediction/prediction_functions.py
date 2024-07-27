@@ -28,6 +28,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
 from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
 from sklearn.preprocessing import StandardScaler
+from cluster.cluster_utils import MetadataHandler
 
 
 def run_gridsearch(gridsearch_dir, language, task, label_type, features, fold, columns_list, task_params, X_train, y_train):
@@ -240,9 +241,12 @@ def permute_params(model, **kwargs):
     return all_models
 
 
-def get_labels(language, label_type, canonscores_dir=None, sentiscores_dir=None, metadata_dir=None): ############## canonscores_dir
+def get_labels(language, label_type, canonscores_dir=None, sentiscores_dir=None, metadata_dir=None, by_author=False): ############## canonscores_dir
     if label_type == 'canon':
-        labels = DataLoader(language).prepare_metadata(type='canon')
+        mh = MetadataHandler(language, by_author=by_author)
+        labels = mh.get_metadata()
+        labels = labels[['canon']]
+        # labels = DataLoader(language).prepare_metadata(type='canon')
         labels = labels.reset_index().rename(columns={'index': 'file_name'})
         labels = labels.rename(columns={'canon': 'y'})
         labels = labels.sort_values(by='file_name', axis=0, ascending=True, na_position='first')
@@ -359,7 +363,8 @@ def upsample_data(df):
     return upsampled_data
 
 
-def get_data(language, task, label_type, features, features_dir, canonscores_dir, sentiscores_dir, metadata_dir):
+def get_data(language, task, label_type, features, features_dir, canonscores_dir, sentiscores_dir, metadata_dir, by_author=False):
+    print('features dir', features_dir )
     X = pd.read_csv(os.path.join(features_dir, f'{features}.csv'))
 
     columns_to_drop = [col for col in X.columns if 'whitespace' in col]
@@ -368,7 +373,7 @@ def get_data(language, task, label_type, features, features_dir, canonscores_dir
 
     print(f'Nr rows in df for {language} {features}: {X.shape[0]}')
     print(f'Nr unique file names in df for {language} {features}: {len(X.file_name.unique())}')
-    y = get_labels(language, label_type, canonscores_dir, sentiscores_dir, metadata_dir)
+    y = get_labels(language, label_type, canonscores_dir, sentiscores_dir, metadata_dir, by_author)
     # For english regression, 1 label is duplicated
     print(f'Nr labels for {language} {task}: {y.shape} (For canonscores, eng and ger texts are in the same file.)')
     print(f'Nr unique values in y: , \n{y.nunique()}')

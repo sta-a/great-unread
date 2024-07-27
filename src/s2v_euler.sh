@@ -317,6 +317,9 @@ rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data_a
 
 
 ## From Cluster to harddrive
+rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data/nested_gridsearch /media/annina/MyBook/back-to-computer-240615/data
+
+
 rsync -avz --ignore-existing --exclude 'simmxs' --exclude 'mds' --exclude 'mxeval_paramcomb' stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/eng /media/annina/MyBook/back-to-computer-240615/data/s2v 
 rsync -avz --ignore-existing --exclude 'simmxs' --exclude 'mds' --exclude 'mxeval_paramcomb'  stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/ger /media/annina/MyBook/back-to-computer-240615/data/s2v
 rsync -avz --ignore-existing --exclude 'simmxs' --exclude 'mds' --exclude 'mxeval_paramcomb'  stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/s2v/eng /media/annina/MyBook/back-to-computer-240615/data_author/s2v 
@@ -458,7 +461,8 @@ rsync -avz --ignore-existing /media/annina/MyBook/back-to-computer-240615/data_a
 
 
 
-
+scp /home/annina/scripts/great_unread_nlp/src/prediction/prediction_functions.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src_byauthor/prediction
+scp /home/annina/scripts/great_unread_nlp/src/run_prediction.py stahla@euler.ethz.ch:/cluster/scratch/stahla/src_byauthor
 
 
 
