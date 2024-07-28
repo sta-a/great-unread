@@ -318,6 +318,7 @@ rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data_a
 
 ## From Cluster to harddrive
 rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data/nested_gridsearch /media/annina/MyBook/back-to-computer-240615/data
+rsync -avz --ignore-existing stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/nested_gridsearch /media/annina/MyBook/back-to-computer-240615/data_author
 
 
 rsync -avz --ignore-existing --exclude 'simmxs' --exclude 'mds' --exclude 'mxeval_paramcomb' stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/eng /media/annina/MyBook/back-to-computer-240615/data/s2v 

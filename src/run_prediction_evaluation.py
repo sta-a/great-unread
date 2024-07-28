@@ -18,6 +18,7 @@ languages = ['eng', 'ger']
 tasks = ['regression-canon']
 testing = False ###################
 data_dir = '../data'
+data_dir = '/media/annina/MyBook/back-to-computer-240615/data' ###################3
 significance_threshold = 0.1
 n_outer_folds = 5
 
