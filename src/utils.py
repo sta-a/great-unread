@@ -178,8 +178,9 @@ class DataHandler():
     '/home/annina/scripts/great_unread_nlp/data_author'
     /media/annina/MyBook/back-to-computer-240615/data
     /home/annina/scripts/great_unread_nlp/data
+    /media/annina/elements/back-to-computer-240615/data
     '''
-    def __init__(self, language=None, output_dir=None, data_type='csv', modes=None, tokens_per_chunk=1000, data_dir='/media/annina/MyBook/back-to-computer-240615/data', test=False, load_doc_paths=True, subdir=False):
+    def __init__(self, language=None, output_dir=None, data_type='csv', modes=None, tokens_per_chunk=1000, data_dir='/home/annina/scripts/great_unread_nlp/data', test=False, load_doc_paths=True, subdir=False, by_author=False):
 
         self.test = test
         self.language = language
@@ -187,6 +188,13 @@ class DataHandler():
         self.data_type = data_type
         self.modes = modes
         self.tokens_per_chunk = tokens_per_chunk
+        self.by_author = by_author
+
+        if self.by_author:
+            # Replace the last part of the path
+            new_data_dir = 'data_author'
+            self.data_dir = os.path.join(os.path.dirname(self.data_dir), new_data_dir)
+        print(f'Data Dir in {self.__class__.__name__}: {self.data_dir}')
 
         self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.setLevel(logging.DEBUG)
@@ -486,8 +494,8 @@ class TextsByAuthor(DataHandler):
     '''
     Map the filenames to the authors and count the number of texts per author.
     '''
-    def __init__(self, language, filenames=None):
-        super().__init__(language, output_dir='text_raw')
+    def __init__(self, language, filenames=None, by_author=False):
+        super().__init__(language, output_dir='text_raw', by_author=by_author)
         self.filenames = filenames
         if self.filenames is None:
             self.filenames = self.get_filenames()
@@ -1017,8 +1025,8 @@ class FeaturesLoader(DataHandler):
     '''
     Load various data frames to be used in other classes.
     '''
-    def __init__(self, language):
-        super().__init__(language, output_dir='features', data_type='csv')
+    def __init__(self, language, by_author=False):
+        super().__init__(language, output_dir='features', data_type='csv', by_author=by_author)
 
 
     def prepare_features(self, scale=False):
@@ -1039,13 +1047,3 @@ class FeaturesLoader(DataHandler):
             self.logger.debug('Returning df scaled to values between 0 and 1.')
         return df
     
-
-# # Provide the directory path and the string to search for
-# directory_path = '/home/annina/scripts/great_unread_nlp/src/'
-# search_string = 'MxSingleViz'
-# extension = ['.txt', '.py']
-# search_string_in_files(directory_path, search_string, extension, full_word=False)
-
-
-
-# %%

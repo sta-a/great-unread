@@ -20,11 +20,49 @@ import pickle
 from collections import Counter
 from scipy.stats import skew
 import os
+import seaborn as sns
+from scipy.stats import ttest_ind
 from utils import DataHandler, get_filename_from_path, get_files_in_dir, DataLoader, TextsByAuthor
 from cluster.cluster_utils import MetadataHandler
 #from hpo_functions import get_data, ColumnTransformer
 
 
+class YearByGender(DataHandler):
+    def __init__(self, language, by_author):
+        super().__init__(language, output_dir='text_statistics', data_type='png', by_author=by_author)
+
+
+    def make_plots(self):
+        mh = MetadataHandler(self.language, by_author=self.by_author)
+        df = mh.get_metadata(add_color=False)# [['canon', 'gender', 'year']]
+
+        gender_map = {0: 'Male', 1: 'Female', 2: 'Anonymous', 3: 'Both'}
+        df['gender'] = df['gender'].replace(gender_map)
+
+        male_years = df[df['gender'] == 'Male']['year']
+        female_years = df[df['gender'] == 'Female']['year']
+
+        print('Average male years: ', male_years.mean())
+        print('Average female years: ', female_years.mean())
+        # Performing the t-test
+        t_stat, p_value = ttest_ind(male_years, female_years)
+        print(f'T-statistic: {t_stat}, P-value: {p_value}')
+
+        order=['Male', 'Female']
+        if 'Anonymous' in df['gender'].values:
+            order.append('Anonymous')
+
+        # Create the boxplot
+        plt.figure(figsize=(10, 6))
+        sns.boxplot(x='gender', y='year', data=df, order=order)
+
+        # Adding title and labels
+        # plt.title('Distribution of Year by Gender')
+        plt.xlabel('Gender')
+        plt.ylabel('Year')
+
+        self.save_data(data=plt, file_name=f'year-by-gender_byauthor-{self.by_author}.png')
+        
 
 class ColorBarChart(DataHandler):
     '''
@@ -33,7 +71,7 @@ class ColorBarChart(DataHandler):
     The left and right edge of the buckets are not exaxtly 0, 0.1 ... because min and max values are not 0 and 1.
     '''
     def __init__(self, language, by_author):
-        super().__init__(language, output_dir='text_statistics', data_type='png')
+        super().__init__(language, output_dir='text_statistics', data_type='png', by_author=by_author)
         self.by_author = by_author
 
     def make_plots(self):
@@ -244,7 +282,7 @@ class PlotCanonScoresPerAuthor(DataHandler):
         # df = DataLoader(self.language).prepare_features(scale=True)
         mh = MetadataHandler(self.language)
         df = mh.get_metadata(add_color=True)# [['canon', 'gender', 'year']]
-        # author_filename_mapping = TextsByAuthor(self.language).author_filename_mapping
+        # author_filename_mapping = TextsByAuthor(self.language, by_author=False).author_filename_mapping
         # author = pd.DataFrame([(author, work) for author, works in author_filename_mapping.items() for work in works],
         #                 columns=['author', 'file_name'])
         # self.df = df.merge(author, left_index=True, right_on='file_name', validate='1:1')
@@ -462,10 +500,13 @@ if __name__ == '__main__':
 
     for language in ['eng', 'ger']:
         print('Text Statistics:')
-        by_author = True
+        by_author = False
+
+        ybg = YearByGender(language, by_author)
+        ybg.make_plots()
         
-        cbc = ColorBarChart(language, by_author)
-        cbc.make_plots()
+        # cbc = ColorBarChart(language, by_author)
+        # cbc.make_plots()
         # pyac = PlotYearAndCanon(language)
         # pyac.plot_single_var()
         # pyac.plot_two_vars()

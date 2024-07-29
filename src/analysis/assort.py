@@ -24,7 +24,7 @@ class Assort(DataHandler):
     Calculate the assortativity coefficients on networks.
     '''
     def __init__(self, language, by_author=False):
-        super().__init__(language=language, output_dir='assort', data_type='csv')
+        super().__init__(language=language, output_dir='assort', data_type='csv', by_author=by_author)
         self.by_author = by_author
         self.ih = InfoHandler(language=language, add_color=False, cmode=None, by_author=by_author)
         self.mxdir = os.path.join(self.ih.output_dir, 'sparsification')

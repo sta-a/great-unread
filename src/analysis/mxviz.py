@@ -1,5 +1,4 @@
 import pandas as pd
-import itertools
 import numpy as np
 import matplotlib
 matplotlib.use('TkAgg')
@@ -9,8 +8,6 @@ from copy import deepcopy
 from sklearn.manifold import MDS
 from mpl_toolkits.mplot3d import Axes3D
 import os
-import textwrap
-import time
 import random
 random.seed(9)
 from tqdm import tqdm
@@ -20,11 +17,10 @@ from scipy.spatial.distance import squareform
 
 import sys
 sys.path.append("..")
-from utils import DataHandler
 from .viz_utils import VizBase, ImageGrid
 from .nkviz import NkSingleVizAttr
 from cluster.create import SimMx
-from cluster.cluster_utils import Colors, MetadataHandler
+from cluster.cluster_utils import Colors
 from cluster.combinations import InfoHandler
 from typing import List
 
@@ -124,7 +120,7 @@ class MxReorder():
         # Check that there are no duplicated values
         assert len(set(ordered_fns)) == len(ordered_fns)
         ordmx = self.mx.mx.loc[ordered_fns, ordered_fns]
-        ordmx = SimMx(self.language, name='olo', mx=ordmx, normalized=True, is_sim=True, is_directed = self.mx.is_directed, is_condensed=False)
+        ordmx = SimMx(self.language, name='olo', mx=ordmx, normalized=True, is_sim=True, is_directed = self.mx.is_directed, is_condensed=False, by_author=self.by_author)
         return ordmx
 
 
@@ -224,7 +220,7 @@ class MxVizBase(VizBase):
 
     def draw_heatmap(self, ax):
         # Draw heatmap
-        ordmx = MxReorder(self.language, self.mx, self.info).order()
+        ordmx = MxReorder(self.language, self.mx, self.info, by_author=self.by_author).order()
 
         im = ax.imshow(ordmx, cmap=Colors.CMAP, interpolation='nearest')
         ax.axis('off')  # Remove the axis/grid
@@ -721,7 +717,7 @@ class S2vKeyAttrViz(ImageGrid):
             self.colnames = self.colnames + ['author']
 
         self.subdir = subdir #
-        super().__init__(language=language, by_author=by_author, output_dir='analysis_s2v', rowmajor=False, imgs_as_paths=True, subdir=self.subdir) # load_single_images is called in ImageGrid.__init__
+        super().__init__(language=language, by_author=by_author, output_dir='analysis_s2v', rowmajor=False, imgs_as_paths=True, subdir=self.subdir, by_author=self.by_author) # load_single_images is called in ImageGrid.__init__
         self.nrow = 2
         self.ncol = len(self.colnames)
 

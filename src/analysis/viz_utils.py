@@ -31,7 +31,7 @@ from PIL import Image, ImageDraw
 
 class VizBase(DataHandler):
     def __init__(self, language='eng', output_dir='analysis', cmode='nk', info=None, plttitle=None, exp=None, by_author=False):
-        super().__init__(language=language, output_dir=output_dir, data_type='png')
+        super().__init__(language=language, output_dir=output_dir, data_type='png', by_author=by_author)
         self.cmode = cmode
         self.info = info
         self.plttitle = plttitle
@@ -174,7 +174,7 @@ class VizBase(DataHandler):
 
 class ImageGrid(DataHandler):
     def __init__(self, language, attr=None, by_author=False, output_dir='analysis', imgdir='nk_singleimage', select_with_gui=False, rowmajor=True, imgs_as_paths=False, subdir=False):
-        super().__init__(language, output_dir=output_dir, data_type='png', subdir=subdir)
+        super().__init__(language, output_dir=output_dir, data_type='png', subdir=subdir, by_author=by_author)
         self.attr = attr
         self.by_author = by_author
         self.imgdir = os.path.join(self.output_dir, imgdir)
@@ -328,7 +328,7 @@ class ClusterAuthorGrid(ImageGrid):
         else:
             self.isbig = False
 
-        super().__init__(language=language, by_author=False, output_dir=output_dir, imgs_as_paths=True) # load_single_images is called in ImageGrid.__init__
+        super().__init__(language=language, by_author=False, output_dir=output_dir, imgs_as_paths=True, by_author=by_author) # load_single_images is called in ImageGrid.__init__
         self.subdir = subdir
         print('subdir after init', self.subdir)
         self.nrow = 6

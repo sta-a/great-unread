@@ -27,7 +27,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 class MetadataHandler(DataHandler):
     def __init__(self, language, by_author=False):
-        super().__init__(language, output_dir=None, data_type='png')
+        super().__init__(language, output_dir=None, data_type='png', by_author=by_author)
         self.by_author = by_author
         self.cat_attrs = ['gender', 'author', 'canon-ascat', 'year-ascat']
 
@@ -45,8 +45,7 @@ class MetadataHandler(DataHandler):
 
         canon = DataLoader(self.language).prepare_metadata(type='canon')
         canon['canon-ascat'] = canon['canon'].apply(lambda x: 0 if x < 0.333 else 1 if x < 0.666 else 2)
-        # value_counts = canon['canon-ascat'].value_counts()
-        # print(value_counts)
+
 
         if self.by_author:
             output_dir = self.create_output_dir(output_dir='title_mapping')
@@ -68,12 +67,12 @@ class MetadataHandler(DataHandler):
             canon['canon-ascat'] = canon['canon'].apply(lambda x: 0 if x < 0.333 else 1 if x < 0.666 else 2)
 
         # Load features scaled to range between 0 and 1
-        features = FeaturesLoader(self.language).prepare_features(scale=True)
+        features = FeaturesLoader(self.language, by_author=self.by_author).prepare_features(scale=True)
         # Check if all feature values are between 0 and 1 (except for nan)
         features_test = features.fillna(0)
         assert ((features_test >= 0) & (features_test <= 1) | (features_test.isin([0, 1]))).all().all()
 
-        author_filename_mapping = TextsByAuthor(self.language).author_filename_mapping
+        author_filename_mapping = TextsByAuthor(self.language, by_author=self.by_author).author_filename_mapping
         author = pd.DataFrame([(author, work) for author, works in author_filename_mapping.items() for work in works],
                         columns=['author', 'file_name'])
         author = author.set_index('file_name', inplace=False)
@@ -83,11 +82,11 @@ class MetadataHandler(DataHandler):
         year['year'] = year['file_name'].str[-4:].astype(int)
         year = year.set_index('file_name', inplace=False)
         year['year-ascat'] = year['year'].apply(lambda x: 0 if x < 1800 else 1 if x < 1850 else 2 if x < 1900 else 3)
-        # value_counts = year['year-ascat'].value_counts()
-        # print(value_counts)
+
 
         # Merge dataframes based on their indices
         df_list = [gender, author, year, canon, features]
+
         metadf = pd.DataFrame()
         for df in df_list:
             if metadf.empty:

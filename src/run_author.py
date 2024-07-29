@@ -23,7 +23,7 @@ class AuthorCombiner(DataHandler):
         self.output_dir = self.output_dir.replace('data', 'data_author')
         if not os.path.exists(self.output_dir):
             self.create_dir(self.output_dir)
-        self.tba = TextsByAuthor(self.language)
+        self.tba = TextsByAuthor(self.language, by_author=False)
 
     def get_author_path(self, cdir, author, list_of_works):
         title = self.get_title(author, list_of_works)

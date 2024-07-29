@@ -36,7 +36,7 @@ class Experiment(DataHandler):
 
     def __init__(self, language, cmode, by_author=False, output_dir='analysis'):
         assert output_dir in ['analysis', 'analysis_s2v']
-        super().__init__(language, output_dir=output_dir)
+        super().__init__(language, output_dir=output_dir, by_author=by_author)
         self.cmode = cmode
         self.by_author = by_author
 
@@ -297,14 +297,14 @@ class Experiment(DataHandler):
                     
             # Visualization is independent of cmode
             elif exp['name'] == 'top_cluster':
-                viz = ClusterAuthorGrid(self.language, cmode=self.cmode, exp=exp, te=te, by_author=self.by_author, output_dir=self.output_dir, subdir=self.subdir)
+                viz = ClusterAuthorGrid(self.language, cmode=self.cmode, exp=exp, te=te, by_author=self.by_author, output_dir=self.output_dir, subdir=self.subdir, by_author=self.by_author)
                 viz.visualize()
             else:
                 self.visualize(exp, te)
 
 
     def run_central(self, exp, te):
-        df = Central(self.language, self.cmode, exp, te).run()
+        df = Central(self.language, self.cmode, exp, te, by_author=self.by_author).run()
         centralities = df.columns
         for centrality in centralities:
             exp['evalcol'] = centrality
@@ -313,7 +313,7 @@ class Experiment(DataHandler):
 
 
     def run_clustconst(self, exp, te):
-        ClusterComparison(self.language, self.cmode, exp, te).run()
+        ClusterComparison(self.language, self.cmode, exp, te, by_author=self.by_author).run()
 
 
     def visualize(self, exp, te):
@@ -388,8 +388,8 @@ class Experiment(DataHandler):
 
 
 class ClusterComparison(DataHandler):
-    def __init__(self, language, cmode, exp, te):
-        super().__init__(language, output_dir='analysis')
+    def __init__(self, language, cmode, exp, te, by_author):
+        super().__init__(language, output_dir='analysis', by_author=by_author)
         self.cmode = cmode
         self.exp = exp
         self.te = te
@@ -547,8 +547,8 @@ class ClusterComparison(DataHandler):
 
 
 class Central(DataHandler):
-    def __init__(self, language, cmode, exp, te):
-        super().__init__(language, output_dir='analysis', data_type='pkl')
+    def __init__(self, language, cmode, exp, te, by_author):
+        super().__init__(language, output_dir='analysis', data_type='pkl', by_author=by_author)
         self.cmode = cmode
         self.exp = exp
         self.te = te

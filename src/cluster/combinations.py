@@ -27,7 +27,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 class InfoHandler(DataHandler):
     def __init__(self, language, output_dir='similarity', add_color=True, cmode=None, by_author=False):
-        super().__init__(language=language, output_dir=output_dir, data_type='csv')
+        super().__init__(language=language, output_dir=output_dir, data_type='csv', by_author=by_author)
         self.add_color = add_color
         self.cmode = cmode
         if self.cmode is not None:
@@ -121,11 +121,11 @@ class CombinationsBase(InfoHandler):
 
     def load_mxs(self):
         # Delta distance mxs
-        delta = Delta(self.language)
+        delta = Delta(self.language, by_author=self.by_author)
         all_delta = delta.load_all_data(use_kwargs_for_fn='mode', subdir=True)
 
         # D2v distance mxs
-        d2v = D2vDist(language=self.language)
+        d2v = D2vDist(language=self.language, by_author=self.by_author)
         all_d2v = d2v.load_all_data(use_kwargs_for_fn='mode', file_string=d2v.file_string, subdir=True)
 
         mxs = {**all_delta, **all_d2v}
@@ -139,10 +139,10 @@ class CombinationsBase(InfoHandler):
 
     def load_single_mx(self, mxname):
         if mxname in ['both', 'full']:
-            d2v = D2vDist(language=self.language)
+            d2v = D2vDist(language=self.language, by_author=self.by_author)
             mx = d2v.load_data(use_kwargs_for_fn='mode', file_string=d2v.file_string, subdir=True, mode=mxname)
         else:
-            delta = Delta(self.language)
+            delta = Delta(self.language, by_author=self.by_author)
             mx = delta.load_data(use_kwargs_for_fn='mode', subdir=True, mode=mxname)      
         return mx
 
@@ -167,7 +167,7 @@ class CombinationsBase(InfoHandler):
         elif self.cmode == 'nk':
             inteval = NkIntEval(combination).evaluate()
 
-        exteval = ExtEval(language=self.language, cmode=self.cmode, info=info, inteval=inteval, output_dir=self.output_dir)
+        exteval = ExtEval(language=self.language, cmode=self.cmode, info=info, inteval=inteval, output_dir=self.output_dir, by_author=self.by_author)
         
         for attr in ['cluster'] + self.colnames: # evaluate 'cluster' first
             info.add('attr', attr)
@@ -198,7 +198,7 @@ class MxCombinations(CombinationsBase):
             # When clustering embeddings, isolated nodes are ignored, and matrix of connected nodes can be too small
             if mx.mx.shape[0] > 50:
 
-                sc = MxCluster(self.language, cluster_alg, mx, output_dir=self.output_dir)
+                sc = MxCluster(self.language, cluster_alg, mx, output_dir=self.output_dir, by_author=self.by_author)
                 param_combs = sc.get_param_combinations()
 
                 for param_comb in param_combs:
@@ -236,7 +236,7 @@ class MxCombinations(CombinationsBase):
             for mx, cluster_alg in itertools.product(mxs_generator, MxCluster.ALGS.keys()):
                 print(mx.name, cluster_alg)
                 if mx.mx.shape[0] > 50:
-                    sc = MxCluster(self.language, cluster_alg, mx, output_dir=self.output_dir)
+                    sc = MxCluster(self.language, cluster_alg, mx, output_dir=self.output_dir, by_author=self.by_author)
                     param_combs = sc.get_param_combinations()
 
                     for param_comb in param_combs:
@@ -268,7 +268,7 @@ class NkCombinations(CombinationsBase):
             # substring_list = ['manhattan', 'full', 'both']
             # if any(substring in mx.name for substring in substring_list):
 
-            sparsifier = Sparsifier(self.language, mx, sparsmode, output_dir=self.output_dir)
+            sparsifier = Sparsifier(self.language, mx, sparsmode, output_dir=self.output_dir, by_author=self.by_author)
             spars_params = Sparsifier.MODES[sparsmode]
             
             for spars_param in spars_params:
@@ -279,7 +279,7 @@ class NkCombinations(CombinationsBase):
                 else:
                     for cluster_alg in  NkCluster.ALGS.keys():
                         network = NXNetwork(self.language, mx=mx)
-                        nc = NkCluster(self.language, cluster_alg, network, output_dir=self.output_dir)
+                        nc = NkCluster(self.language, cluster_alg, network, output_dir=self.output_dir, by_author=self.by_author)
                         param_combs = nc.get_param_combinations()
                         
                         for param_comb in param_combs:
@@ -302,7 +302,7 @@ class NkCombinations(CombinationsBase):
         mxs_generator = self.load_mxs()
         with open(self.combinations_path, 'w') as f:
             for mx, sparsmode in itertools.product(mxs_generator, Sparsifier.MODES.keys()):
-                sparsifier = Sparsifier(self.language, mx, sparsmode, output_dir=self.output_dir)
+                sparsifier = Sparsifier(self.language, mx, sparsmode, output_dir=self.output_dir, by_author=self.by_author)
                 spars_params = Sparsifier.MODES[sparsmode]
                 
                 for spars_param in spars_params:
@@ -310,7 +310,7 @@ class NkCombinations(CombinationsBase):
                     if filtered_nr_edges != 0: # ignore if no edges
 
                         for cluster_alg in  NkCluster.ALGS.keys():
-                            nc = NkCluster(language=self.language, cluster_alg=cluster_alg, network=None, output_dir=self.output_dir)
+                            nc = NkCluster(language=self.language, cluster_alg=cluster_alg, network=None, output_dir=self.output_dir, by_author=self.by_author)
                             param_combs = nc.get_param_combinations()
                             
                             for param_comb in param_combs:
@@ -326,7 +326,7 @@ class CombDataChecker(DataHandler):
     ger: 92 features
     '''
     def __init__(self, language, cmode, combinations_path, by_author, n_features='all', output_dir='similarity'):
-        super().__init__(language=language, output_dir=output_dir, data_type='csv')
+        super().__init__(language=language, output_dir=output_dir, data_type='csv', by_author=by_author)
         self.cmode = cmode
         self.combinations_path = combinations_path
         self.by_author = by_author
@@ -381,7 +381,7 @@ class CombDataChecker(DataHandler):
         Drop rows with duplicated info.
         Duplicated log entries can happen if the program is restarted multiple times.
         '''
-        cluster_logfile = ClusterBase(self.language, self.cmode, cluster_alg=None, output_dir=self.output_dir).logfile_path
+        cluster_logfile = ClusterBase(self.language, self.cmode, cluster_alg=None, output_dir=self.output_dir, by_author=self.by_author).logfile_path
         cdf = pd.read_csv(cluster_logfile, header=0)
         cdf = cdf.drop_duplicates(subset=['info'], keep='first')
         cdf = cdf.loc[cdf['source'] == 'clst']

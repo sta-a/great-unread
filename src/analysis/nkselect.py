@@ -19,7 +19,7 @@ class NkNetworkGrid(ImageGrid):
     Plot every network for an attribute. Select interesting networks by mouse click.
     '''
     def __init__(self, language, attr=None, by_author=False, select_with_gui=True):
-        super().__init__(language=language, attr=attr, by_author=by_author, select_with_gui=select_with_gui)
+        super().__init__(language=language, attr=attr, by_author=by_author, select_with_gui=select_with_gui, by_author=by_author)
         self.by_author = by_author
         self.nrow = 2
         self.ncol = 5
@@ -105,7 +105,7 @@ class Selector(DataHandler):
     Interesting networks are networks where canonized texts seem to be non-randomly distributed, or which have an interesting structure, or which are not dependent on the year
     '''
     def __init__(self, language, by_author=False):
-        super().__init__(language, output_dir='analysis', data_type='png')
+        super().__init__(language, output_dir='analysis', data_type='png', by_author=by_author)
         self.by_author = by_author
         self.imgdir = os.path.join(self.output_dir, 'nk_singleimage')
         self.nr_mxs = 58

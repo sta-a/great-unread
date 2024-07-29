@@ -94,8 +94,8 @@ class ExtEval(DataHandler):
     '''
     Evaluate cluster quality with an external criterion (the ground truths)
     '''
-    def __init__(self, language, cmode, info, inteval, output_dir='similarity'):
-        super().__init__(language, output_dir=output_dir)
+    def __init__(self, language, cmode, info, inteval, output_dir='similarity', by_author=False):
+        super().__init__(language, output_dir=output_dir, by_author=by_author)
         self.cmode = cmode
         self.info = info
         self.inteval = inteval
@@ -277,7 +277,7 @@ class ExtEval(DataHandler):
         df = self.info.metadf[self.info.metadf[self.info.attr].notna()]
 
         # Check that there is more than one cluster after filtering
-        cb = ClusterBase(language=self.language, cmode=self.cmode, cluster_alg=None, output_dir=self.output_dir)
+        cb = ClusterBase(language=self.language, cmode=self.cmode, cluster_alg=None, output_dir=self.output_dir, by_author=self.by_author)
         valid = cb.evaluate_clusters(df, self.info, source='eval')
 
         # Re-evaluate clustering if rows were dropped because of nan in attr column

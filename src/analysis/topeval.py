@@ -283,7 +283,7 @@ class TopEval(InfoHandler):
             X = df[info.attr].values.reshape(-1, 1)
             y_true = df['cluster'].values.ravel()
 
-            ee = ExtEval(self.language, self.cmode, info, inteval=None)
+            ee = ExtEval(self.language, self.cmode, info, inteval=None, by_author=self.by_author)
             logreg_acc, logrec_acc_balanced = ee.logreg(X, y_true, draw=True, path=self.expdir)
 
 

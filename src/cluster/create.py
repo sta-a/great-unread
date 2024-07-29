@@ -32,13 +32,13 @@ class SimMx(DataHandler):
     '''
     Class for distance/smiliarity matrices
     '''
-    def __init__(self, language, name=None, mx=None, normalized=True, is_sim=True, is_directed=False, is_condensed=False, has_dmx=True, output_dir='similarity'):
+    def __init__(self, language, name=None, mx=None, normalized=True, is_sim=True, is_directed=False, is_condensed=False, has_dmx=True, output_dir='similarity', by_author=False):
 
         # Check input
         if not is_sim and not has_dmx:
             raise ValueError('If is_sim is False, has_dmx must be True.')
 
-        super().__init__(language, output_dir)
+        super().__init__(language, output_dir, by_author=by_author)
         self.add_subdir('simmxs')
         self.name = name
         self.mx = mx
@@ -217,8 +217,8 @@ class SimMxCreatorBase(DataHandler):
     '''
     Base class for calculating distance matrices
     '''
-    def __init__(self, language, output_dir='similarity'):
-        super().__init__(language, output_dir)
+    def __init__(self, language, output_dir='similarity', by_author=False):
+        super().__init__(language, output_dir, by_author=by_author)
         self.add_subdir('simmxs')
 
     def calculate_similarity(self):
@@ -231,7 +231,7 @@ class SimMxCreatorBase(DataHandler):
         mode = kwargs.get('mode')
         mx = pairwise_distances(self.df, metric=self.calculate_similarity)
         mx = pd.DataFrame(mx, index=self.df.index, columns=self.df.index)
-        sm = SimMx(language=self.language, name=mode, mx=mx, normalized=False, is_sim=False)
+        sm = SimMx(language=self.language, name=mode, mx=mx, normalized=False, is_sim=False, by_author=self.by_author)
         sm.postprocess_mx()
         self.save_data(data=sm.mx, file_name=sm.name, subir=True, use_kwargs_for_fn='mode', pandas_kwargs={'index': True}, **kwargs)
         self.logger.debug(f'Created similarity matrix.')
@@ -243,7 +243,7 @@ class SimMxCreatorBase(DataHandler):
         '''
         mx = super().load_data(load, file_name, **kwargs)
         file_name = get_filename_from_path(self.get_file_path(file_name, **kwargs))
-        mx = SimMx(self.language, name=file_name, mx=mx, normalized=True, is_sim=True)
+        mx = SimMx(self.language, name=file_name, mx=mx, normalized=True, is_sim=True, by_author=self.by_author)
         return mx
 
     
@@ -252,8 +252,8 @@ class D2vDist(SimMxCreatorBase):
     '''
     Create similarity matrices based on doc2vec document vectors.
     '''
-    def __init__(self, language, output_dir='similarity', modes=['full', 'both']):
-        super().__init__(language, output_dir=output_dir)
+    def __init__(self, language, output_dir='similarity', modes=['full', 'both'], by_author=False):
+        super().__init__(language, output_dir=output_dir, by_author=by_author)
         self.modes = modes
         self.file_string = 'd2v'
 
@@ -278,7 +278,7 @@ class D2vDist(SimMxCreatorBase):
         mode = kwargs.get('mode')
         emb_dict = self.get_embeddings_dict(mode)
         mx = self.calculate_similarity(emb_dict)
-        sm = SimMx(language=self.language, name=mode, mx=mx, normalized=False, is_sim=True)
+        sm = SimMx(language=self.language, name=mode, mx=mx, normalized=False, is_sim=True, by_author=self.by_author)
         sm.postprocess_mx(file_string=self.file_string)
         # Scale values of cosine similarity from [-1, 1] to [0, 1]
         # mx = mx.applymap(lambda x: 0.5 * (x + 1))
@@ -421,8 +421,8 @@ class DistanceMetrics():
 
 
 class Delta(SimMxCreatorBase):
-    def __init__(self, language):
-        super().__init__(language)
+    def __init__(self, language, by_author=False):
+        super().__init__(language, by_author=by_author)
         # self.add_subdir('delta_distances')
         self.input_dir = os.path.join(self.data_dir, 'ngram_counts', self.language)
         self.input_dfs = self.load_mfw_dfs()
@@ -492,7 +492,7 @@ class Delta(SimMxCreatorBase):
         mx = self.calculate_similarity(metric, df)
         self.compare_with_stylo(mode, mx)
 
-        sm = SimMx(language=self.language, name=mode, mx=mx, normalized=False, is_sim=False)
+        sm = SimMx(language=self.language, name=mode, mx=mx, normalized=False, is_sim=False, by_author=self.by_author)
         sm.postprocess_mx()
         self.save_data(data=sm.mx, subdir=True, mode=sm.name, use_kwargs_for_fn='mode', pandas_kwargs={'index': True})
         self.logger.debug(f'Created {mode} similarity matrix.')

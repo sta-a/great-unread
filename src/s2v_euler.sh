@@ -454,6 +454,8 @@ rsync -avz --ignore-existing /media/annina/MyBook/back-to-computer-240615/data/s
 rsync -avz --ignore-existing /media/annina/MyBook/back-to-computer-240615/data_author/s2v /media/annina/elements/back-to-computer-240615/data_author
 rsync -avz --ignore-existing /media/annina/MyBook/back-to-computer-240615/data_author/analysis_s2v/eng/MxNkAnalysis /media/annina/elements/back-to-computer-240615/data_author/analysis_s2v/eng
 
+rsync -avz --ignore-existing /home/annina/Documents/thesis /media/annina/MyBook/back-to-computer-240615
+
 
 
 

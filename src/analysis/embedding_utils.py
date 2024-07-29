@@ -8,8 +8,8 @@ from tqdm import tqdm
 from itertools import product
 
 class MirroredEdgelistCreator(DataHandler):
-    def __init__(self, language, output_dir, edgelist_dir):
-        super().__init__(language, output_dir=output_dir, load_doc_paths=False)
+    def __init__(self, language, output_dir, edgelist_dir, by_author=False):
+        super().__init__(language, output_dir=output_dir, load_doc_paths=False, by_author=by_author)
         self.edgelist_dir = edgelist_dir
         self.index_mapping = pd.read_csv(os.path.join(edgelist_dir, 'index-mapping.csv'), delimiter=',')
 
@@ -56,7 +56,7 @@ class EdgelistHandler(DataHandler):
             - if 'run': embeddings for interesting networks
             - if 'params': embeddings for example networks with many parameter combinations
         '''
-        super().__init__(language, output_dir=output_dir, load_doc_paths=False)
+        super().__init__(language, output_dir=output_dir, load_doc_paths=False, by_author=by_author)
         self.mode = mode
         self.by_author = by_author
         assert self.mode in [None, 'run', 'params', 'bestparams', 'mirror']

@@ -22,7 +22,6 @@ random.seed(9)
 import sys
 sys.path.append("..")
 from utils import TextsByAuthor, DataHandler
-from .cluster_utils import MetadataHandler
 
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -86,8 +85,8 @@ class Clusters():
 class ClusterBase(DataHandler):
     ALGS = None
 
-    def __init__(self, language=None, cmode=None, cluster_alg=None, output_dir='similarity'):
-        super().__init__(language=language, output_dir=output_dir, data_type='pkl')
+    def __init__(self, language=None, cmode=None, cluster_alg=None, output_dir='similarity', by_author=False):
+        super().__init__(language=language, output_dir=output_dir, data_type='pkl', by_author=by_author)
         self.cmode = cmode
         self.cluster_alg = cluster_alg
         self.n_jobs = 1
@@ -131,7 +130,7 @@ class ClusterBase(DataHandler):
 
 
     def get_nr_authors(self):
-        return len(TextsByAuthor(self.language).nr_texts_per_author)
+        return len(TextsByAuthor(self.language, by_author=self.by_author).nr_texts_per_author)
     
 
     # def run_cluster_alg(self, method, param_comb):
@@ -243,8 +242,8 @@ class MxCluster(ClusterBase):
     }
 
 
-    def __init__(self, language=None, cluster_alg=None, mx=None, output_dir='similarity'):
-        super().__init__(language=language, cmode='mx', cluster_alg=cluster_alg, output_dir=output_dir)
+    def __init__(self, language=None, cluster_alg=None, mx=None, output_dir='similarity', by_author=False):
+        super().__init__(language=language, cmode='mx', cluster_alg=cluster_alg, output_dir=output_dir, by_author=by_author)
         self.mx = mx
 
     
@@ -296,8 +295,8 @@ class NkCluster(ClusterBase):
     }
 
 
-    def __init__(self, language, cluster_alg=None, network=None, output_dir='similarity'):
-        super().__init__(language=language, cmode='nk', cluster_alg=cluster_alg, output_dir=output_dir)
+    def __init__(self, language, cluster_alg=None, network=None, output_dir='similarity', by_author=False):
+        super().__init__(language=language, cmode='nk', cluster_alg=cluster_alg, output_dir=output_dir, by_author=by_author)
         self.network = network
         # Network can be None if class is only created to get parameter combination
         if self.network is not None:

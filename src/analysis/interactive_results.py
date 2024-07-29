@@ -28,7 +28,7 @@ class NkSingleVizHighlight(NkSingleViz):
 
 class NKHighlights(DataHandler):
     def __init__(self, language, output_dir='analysis_s2v', by_author=False):
-        super().__init__(language, output_dir=output_dir)
+        super().__init__(language, output_dir=output_dir, by_author=by_author)
         self.by_author = by_author
         self.ih = InfoHandler(language=self.language, add_color=False, cmode=None, by_author=self.by_author)
 
@@ -88,7 +88,7 @@ class InteractiveResults(DataHandler):
     Analyze results of selections with interactive plots
     '''
     def __init__(self, language, output_dir='analysis_s2v', subdir=None, by_author=False):
-        super().__init__(language, output_dir=output_dir)
+        super().__init__(language, output_dir=output_dir, by_author=by_author)
         self.by_author = by_author
         self.add_subdir(subdir)
         ih = InfoHandler(language=self.language, add_color=False, cmode=None, by_author=self.by_author)

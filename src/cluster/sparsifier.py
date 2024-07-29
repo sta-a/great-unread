@@ -28,8 +28,8 @@ class Sparsifier(DataHandler):
             'authormin': [None],
             }
       
-      def __init__(self, language=None, mx=None, mode=None, output_dir='similarity'):
-            super().__init__(language, output_dir=output_dir)
+      def __init__(self, language=None, mx=None, mode=None, output_dir='similarity', by_author=False):
+            super().__init__(language, output_dir=output_dir, by_author=by_author)
             self.mx = mx
             self.mode = mode
             self.logger = logging.getLogger(__name__)
@@ -52,22 +52,22 @@ class Sparsifier(DataHandler):
                   mx = copy.deepcopy(self.mx.mx)
                   if self.mode == 'threshold':
                         mx = self.filter_threshold(mx, spars_param)
-                        simmx = SimMx(self.language, name=self.mx.name, mx=mx, normalized=True, is_sim=True, is_directed=False)
+                        simmx = SimMx(self.language, name=self.mx.name, mx=mx, normalized=True, is_sim=True, is_directed=False, by_author=self.by_author)
                         self.logger.info(f'{self.mode} sparsification: matrix is undirected')
 
                   elif self.mode == 'authormin':
                         mx = self.filter_author_similarity(mx, by='min')
-                        simmx = SimMx(self.language, name=self.mx.name, mx=mx, normalized=True, is_sim=True, is_directed=True)
+                        simmx = SimMx(self.language, name=self.mx.name, mx=mx, normalized=True, is_sim=True, is_directed=True, by_author=self.by_author)
                         self.logger.info(f'{self.mode} sparsification: matrix is directed')
 
                   elif self.mode == 'authormax':
                         mx = self.filter_author_similarity(mx, by='max')
-                        simmx = SimMx(self.language, name=self.mx.name, mx=mx, normalized=True, is_sim=True, is_directed=True)
+                        simmx = SimMx(self.language, name=self.mx.name, mx=mx, normalized=True, is_sim=True, is_directed=True, by_author=self.by_author)
                         self.logger.info(f'{self.mode} sparsification: matrix is directed')
 
                   elif self.mode == 'simmel':
                         mx = self.filter_simmelian(mx, spars_param)
-                        simmx = SimMx(self.language, name=self.mx.name, mx=mx, normalized=True, is_sim=True, is_directed=True)
+                        simmx = SimMx(self.language, name=self.mx.name, mx=mx, normalized=True, is_sim=True, is_directed=True, by_author=self.by_author)
                         self.logger.info(f'{self.mode} sparsification: matrix is directed') # Directed with conditioned=True
 
                   with open(spmx_path, 'wb') as f:
@@ -110,7 +110,7 @@ class Sparsifier(DataHandler):
             This results in a directed weight matrix.
             '''
             directed_mx = []
-            author_filename_mapping = TextsByAuthor(self.language, filenames=mx.index).author_filename_mapping
+            author_filename_mapping = TextsByAuthor(self.language, by_author=self.by_author, filenames=mx.index).author_filename_mapping
             for _, list_of_filenames in author_filename_mapping.items():
                   author_mx = mx.loc[list_of_filenames, list_of_filenames].copy()                
                   new_rows = mx.loc[list_of_filenames].copy() 

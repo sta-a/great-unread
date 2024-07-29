@@ -1,7 +1,6 @@
 
 import sys
 sys.path.append('..')
-from utils import DataHandler
 import os
 import numpy as np
 import networkx as nx
@@ -29,8 +28,8 @@ from copy import deepcopy
 # use network env
 
 class EmbDist(D2vDist):
-    def __init__(self, language, output_dir, modes, map_nodeids_to_names=True):
-        super().__init__(language, output_dir=output_dir, modes=modes)
+    def __init__(self, language, output_dir, modes, map_nodeids_to_names=True, by_author=False):
+        super().__init__(language, output_dir=output_dir, modes=modes, by_author=by_author)
         self.file_string = output_dir
         self.map_nodeids_to_names = map_nodeids_to_names
         self.eb = EmbeddingBase(self.language, output_dir=output_dir)
@@ -60,7 +59,7 @@ class EmbLoader():
 
 
     def load_single_mx(self, mxname):
-        emdist = EmbDist(language=self.language, output_dir=self.file_string, modes=self.embedding_files, map_nodeids_to_names=self.map_nodeids_to_names)
+        emdist = EmbDist(language=self.language, output_dir=self.file_string, modes=self.embedding_files, map_nodeids_to_names=self.map_nodeids_to_names, by_author=self.by_author)
         mx = emdist.load_data(load=True, mode=mxname, use_kwargs_for_fn='mode', file_string=self.file_string, subdir=True)
         return mx
 
@@ -97,7 +96,7 @@ class EmbLoader():
 
     def load_mxs(self):
         # Load similarity matrices. If they don't exist, they are created
-        emdist = EmbDist(language=self.language, output_dir=self.file_string, modes=self.embedding_files, map_nodeids_to_names=self.map_nodeids_to_names)
+        emdist = EmbDist(language=self.language, output_dir=self.file_string, modes=self.embedding_files, map_nodeids_to_names=self.map_nodeids_to_names, by_author=self.by_author)
 
 
         total_iterations = len(self.embedding_files)
@@ -238,7 +237,7 @@ class EmbParamEvalGrid(ImageGrid):
     def __init__(self, language, combs, imgdir='singleimage', subdir_name='gridimage', by_author=False):
         self.combs = combs
         self.subdir_name = subdir_name
-        super().__init__(language, attr=None, by_author=by_author, output_dir='s2v', imgdir=imgdir, rowmajor=False)
+        super().__init__(language, attr=None, by_author=by_author, output_dir='s2v', imgdir=imgdir, rowmajor=False, by_author=by_author)
         self.ncol = 6 # 'walk-length': [3, 5, 8, 15, 30]s
         self.nrow = 3 # 'num-walks': [20, 50, 200]
         self.imgs = self.load_single_images()
@@ -288,7 +287,7 @@ class MirrorMDSGrid(ImageGrid):
     '''
     def __init__(self, language, imgdir='mx_mirror_singleimage', subdir_name='mx_mirror_gridimage', by_author=False):
         self.subdir_name = subdir_name
-        super().__init__(language, attr=None, by_author=by_author, output_dir='s2v', imgdir=imgdir, rowmajor=True)
+        super().__init__(language, attr=None, by_author=by_author, output_dir='s2v', imgdir=imgdir, rowmajor=True, by_author=by_author)
         self.ncol = 4
         self.nrow = 2
         self.imgs = self.load_single_images()
@@ -342,7 +341,7 @@ class CombineParamEvalGrids(ImageGrid):
     Cannot be done with network visualizations because then the nodes are too small to see anything.
     '''
     def __init__(self, language, imgdir='mx_gridimage', subdir='mx_gridimages_combined', by_author=False):
-        super().__init__(language, attr=None, by_author=by_author, output_dir='s2v', imgdir=imgdir, rowmajor=True)
+        super().__init__(language, attr=None, by_author=by_author, output_dir='s2v', imgdir=imgdir, rowmajor=True, by_author=by_author)
         self.ncol = 2
         self.nrow = 2 # 3 for first three dims
         # self.imgs = self.load_single_images() ##################
@@ -523,9 +522,9 @@ class RunModeParamGridPerAttr(ImageGrid):
     '''
     Place all MDS plots for the same matrix with different s2v paramn next to each other.
     '''
-    def __init__(self, language, combs, attr):
+    def __init__(self, language, combs, attr, by_author=False):
         self.combs = combs
-        super().__init__(language, attr=attr, by_author=False, output_dir='analysis_s2v', imgdir='mx_singleimage')
+        super().__init__(language, attr=attr, output_dir='analysis_s2v', imgdir='mx_singleimage', by_author=by_author)
         self.nrow = 2
         self.ncol = 2
         assert len(self.combs) == self.nrow * self.ncol
@@ -575,9 +574,9 @@ class BestparamsAttrGrid(ImageGrid):
     '''
     Place all MDS plots for the same matrix with different s2v params on top of each other, and different attributes next to each other.
     '''
-    def __init__(self, language, combs):
+    def __init__(self, language, combs, by_author=False):
         self.combs = combs
-        super().__init__(language, by_author=False, output_dir='analysis_s2v', imgdir='mx_singleimage')
+        super().__init__(language, by_author=False, output_dir='analysis_s2v', imgdir='mx_singleimage', by_author=by_author)
         self.nrow = 2
         self.ncol = 2
         self.imgs = self.load_single_images()
