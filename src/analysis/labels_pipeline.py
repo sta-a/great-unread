@@ -2,7 +2,6 @@
 # %%
 import numpy as np
 import pandas as pd
-import argparse
 import seaborn as sns
 import os
 import matplotlib.pyplot as plt
@@ -18,7 +17,6 @@ from sklearn.model_selection import KFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import cross_val_score
-from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
     accuracy_score, 
@@ -51,18 +49,22 @@ from sklearn.naive_bayes import GaussianNB
 from sklearn.ensemble import ExtraTreesClassifier, BaggingClassifier
 from xgboost import XGBClassifier
 
+import sys
+sys.path.append("..")
+from cluster.network import NXNetwork
 from cluster.combinations import InfoHandler
 from utils import DataHandler
 
-
 class LabelPredict(DataHandler):
-    def __init__(self, language, by_author=False, attr='author'):
+    def __init__(self, language, by_author=False, attr='author', test=False, simmx_path=None):
         super().__init__(language=language, output_dir='label_predict', by_author=by_author, data_type='csv')
-        self.ih = InfoHandler(language='eng', add_color=False, cmode=None, by_author=False)
+        self.ih = InfoHandler(language=self.language, add_color=False, cmode=None, by_author=self.by_author)
         self.attr = attr
+        self.test = test
         self.metadf = self.ih.metadf[self.attr]
         self.data_split_path = os.path.join(self.output_dir, f'upsampled_splits_{self.attr}.pkl')
-
+        self.simmx_path = simmx_path
+        print('nr texts', self.nr_texts)
 
     def is_symmetric(self, df):
         # Check if the DataFrame is square
@@ -71,14 +73,24 @@ class LabelPredict(DataHandler):
         assert df.index.tolist() == df.columns.tolist()
         # Check if the DataFrame is symmetric
         return (df == df.T).all().all()
-    
+
+    def get_simmx(self):
+        if self.simmx_path is None:
+            self.simmx_path = os.path.join(self.data_dir, 'similarity', self.language, 'simmxs/d2v-full.csv')
+            print('simmx path', self.simmx_path)
+            df = pd.read_csv(self.simmx_path, index_col=0)
+            # Check if the first column has a name
+            if df.index.name is None:
+                df.index.name = 'file_name'
+        elif isinstance(self.simmx_path, str) and os.path.exists(self.simmx_path) and self.simmx_path.endswith('.pkl'):
+            network = NXNetwork(self.language, path=self.simmx_path)
+            df = network.mx.mx
+        else:
+            raise ValueError(f'path cannot be loaded: {self.simmx_path}')
+        return df
 
     def get_long_format_df(self):
-        simmx_path = os.path.join(self.data_dir, 'similarity/eng/simmxs/d2v-full.csv')
-        df = pd.read_csv(simmx_path, index_col=0)
-        # Check if the first column has a name
-        if df.index.name is None:
-            df.index.name = 'file_name'
+        df = self.get_simmx()
         is_symmetric = self.is_symmetric(df)
         df = df.reset_index()
         assert 'file_name' in df.columns
@@ -98,6 +110,12 @@ class LabelPredict(DataHandler):
             # Drop symmetric duplicated pairs by keeping only (i, j) where i < j
             df['left_right'] = df.apply(lambda row: tuple(sorted([row['left'], row['right']])), axis=1)
             df = df.drop_duplicates(subset='left_right').drop(columns='left_right')
+
+
+        if is_symmetric:
+            assert len(df) == (self.nr_texts * (self.nr_texts -1))/2
+        else:
+            assert len(df) == (self.nr_texts * (self.nr_texts -1))
 
         return df, is_symmetric
 
@@ -140,7 +158,6 @@ class LabelPredict(DataHandler):
         # print(f'Point-Biserial Correlation: {corr}')
 
 
-
     def get_upsampled_splits(self):
         from imblearn.over_sampling import SMOTE # only installed in conda env networkclone
         from sklearn.model_selection import StratifiedKFold
@@ -158,11 +175,11 @@ class LabelPredict(DataHandler):
             X_train, X_test = X_train_full.iloc[train_index], X_train_full.iloc[test_index]
             y_train, y_test = y_train_full.iloc[train_index], y_train_full.iloc[test_index]
 
-
-            # Randomly sample 0.01% of the data
-            sample_size = int(len(X_train) * 0.0001) #################################################################
-            X_train = X_train.sample(n=sample_size, random_state=42)
-            y_train = y_train.loc[X_train.index]
+            if self.test:
+                # Small test sample
+                sample_size = int(len(X_train) * 0.01)
+                X_train = X_train.sample(n=sample_size, random_state=42)
+                y_train = y_train.loc[X_train.index]
 
 
             # Address the class imbalance using SMOTE
@@ -180,11 +197,9 @@ class LabelPredict(DataHandler):
 
 
     def classifier_pipeline(self):
-        print('Loading data splits...')
         with open(self.data_split_path, 'rb') as file:
             folds = pickle.load(file)
 
-        print('Initializing classifiers...')
         classifiers = {
             'Logistic Regression': LogisticRegression(n_jobs=-1),
             'Random Forest': RandomForestClassifier(n_jobs=-1),
@@ -199,7 +214,6 @@ class LabelPredict(DataHandler):
             'XGBoost': XGBClassifier(eval_metric='logloss', n_jobs=-1)
         }
 
-        print('Setting up pipelines...')
         pipelines = {}
         for name, classifier in classifiers.items():
             pipelines[name] = Pipeline(steps=[
@@ -210,7 +224,6 @@ class LabelPredict(DataHandler):
         metrics = ['Accuracy', 'Precision', 'Recall', 'F1 Score', 'ROC AUC', 'Log Loss', 'MCC']
         results = {name: {metric: [] for metric in metrics} for name in pipelines}
 
-        print('Separating the final test set...')
         X_final_test, y_final_test = folds.pop('final_test')
 
         print('Starting cross-validation...')
@@ -241,7 +254,7 @@ class LabelPredict(DataHandler):
                 print('Classification report')
                 print(classification_report(y_true=y_test, y_pred=y_pred))
 
-        print('Final test set evaluation...')
+        print('\nFinal test set evaluation...')
         final_results = {name: {} for name in pipelines}
         for name, pipeline in pipelines.items():
             print(f'Retraining {name} on the full training data...')
@@ -271,7 +284,6 @@ class LabelPredict(DataHandler):
             print('Classification report')
             print(classification_report(y_true=y_test, y_pred=y_pred))
 
-        print('Aggregating cross-validation results...')
         results_aggregated = {}
         for name, metrics in results.items():
             results_aggregated[name] = {metric: metrics[metric] for metric in metrics}
@@ -283,12 +295,11 @@ class LabelPredict(DataHandler):
         results_df.columns = [f'{metric} (Fold Metrics)' for metric in metrics] + [f'{metric} Mean' for metric in metrics] + [f'{metric} Std' for metric in metrics]
         results_df = results_df.round(3)
 
-        print('Appending final test set results...')
         final_test_df = pd.DataFrame(final_results).T
         final_test_df.columns = [f'Final Test {metric}' for metric in metrics]
         
         results_combined_df = results_df.join(final_test_df)
-        print('Final combined results:')
+        print('\nFinal combined results:')
         print(results_combined_df)
         
         self.save_data(file_name=f'pipeline_results_{self.attr}.csv', data=results_combined_df)
@@ -296,8 +307,9 @@ class LabelPredict(DataHandler):
 
 
 class LabelPredictCont(LabelPredict):
-    def __init__(self, language, by_author=False, attr=None):
+    def __init__(self, language, by_author=False, attr=None, test=False):
         super().__init__(language=language, by_author=by_author, attr=attr)
+        self.test = test
 
 
     def load_data(self):
@@ -365,7 +377,7 @@ class LabelPredictCont(LabelPredict):
                 ('regressor', regressor)
             ])
 
-        metrics = ['MAE', 'MSE', 'RMSE', 'R²']
+        metrics = ['MAE', 'MSE', 'RMSE', 'R2']
         results = {name: {metric: [] for metric in metrics} for name in pipelines}
 
 
@@ -379,11 +391,11 @@ class LabelPredictCont(LabelPredict):
             X_train, X_test = X_train_full.iloc[train_index], X_train_full.iloc[test_index]
             y_train, y_test = y_train_full.iloc[train_index], y_train_full.iloc[test_index]
 
-
-            # Randomly sample 0.01% of the data
-            sample_size = int(len(X_train) * 0.0001) #################################################################
-            X_train = X_train.sample(n=sample_size, random_state=42)
-            y_train = y_train.loc[X_train.index]
+            if self.test:
+                # Small test sample
+                sample_size = int(len(X_train) * 0.01)
+                X_train = X_train.sample(n=sample_size, random_state=42)
+                y_train = y_train.loc[X_train.index]
 
             for name, pipeline in pipelines.items():
                 pipeline.fit(X_train, y_train)
@@ -392,12 +404,12 @@ class LabelPredictCont(LabelPredict):
                 results[name]['MAE'].append(mean_absolute_error(y_test, y_pred))
                 results[name]['MSE'].append(mean_squared_error(y_test, y_pred))
                 results[name]['RMSE'].append(np.sqrt(mean_squared_error(y_test, y_pred)))
-                results[name]['R²'].append(r2_score(y_test, y_pred))
+                results[name]['R2'].append(r2_score(y_test, y_pred))
 
                 print(f'{name} - MAE: {mean_absolute_error(y_test, y_pred):.3f}, '
                     f'MSE: {mean_squared_error(y_test, y_pred):.3f}, '
                     f'RMSE: {np.sqrt(mean_squared_error(y_test, y_pred)):.3f}, '
-                    f'R²: {r2_score(y_test, y_pred):.3f}')
+                    f'R2: {r2_score(y_test, y_pred):.3f}')
                 
         final_results = {name: {} for name in pipelines}
         for name, pipeline in pipelines.items():
@@ -410,13 +422,13 @@ class LabelPredictCont(LabelPredict):
                 'MAE': mean_absolute_error(y_final_test, y_final_pred),
                 'MSE': mean_squared_error(y_final_test, y_final_pred),
                 'RMSE': np.sqrt(mean_squared_error(y_final_test, y_final_pred)),
-                'R²': r2_score(y_final_test, y_final_pred)
+                'R2': r2_score(y_final_test, y_final_pred)
             }
 
             print(f'{name} on final test set - MAE: {mean_absolute_error(y_final_test, y_final_pred):.3f}, '
                 f'MSE: {mean_squared_error(y_final_test, y_final_pred):.3f}, '
                 f'RMSE: {np.sqrt(mean_squared_error(y_final_test, y_final_pred)):.3f}, '
-                f'R²: {r2_score(y_final_test, y_final_pred):.3f}')
+                f'R2: {r2_score(y_final_test, y_final_pred):.3f}')
 
         print('Aggregating cross-validation results...')
         results_aggregated = {}
@@ -441,50 +453,3 @@ class LabelPredictCont(LabelPredict):
         self.save_data(file_name=f'pipeline_results_{self.attr}.csv', data=results_combined_df)
 
 
-
-# for language in ['eng']:
-#     for attr in ['year']:
-
-# for language in ['eng', 'ger']:
-#     for attr in ['year', 'canon']:
-#         lp = LabelPredictCont(language=language, attr=attr)
-#         # lp.data_exploration()
-#         lp.regressor_pipeline()
-
-
-
-# for language in ['eng', 'ger']:
-#     for attr in ['author', 'gender']:
-# # for language in ['eng']:
-# #     for attr in ['gender']:
-
-#         print('####Language: ', language, 'attr', attr)
-#         lp = LabelPredict(language=language, by_author=False, attr=attr)
-#         # lp.data_exploration()
-#         # lp.get_upsampled_splits() ####################
-#         lp.classifier_pipeline()
-
-
-def main(language, attr, mode):
-    if mode == 'regressor':
-        lp = LabelPredictCont(language=language, attr=attr)
-        # lp.data_exploration()
-        lp.regressor_pipeline()
-    elif mode == 'classifier':
-        print('####Language:', language, 'attr:', attr)
-        lp = LabelPredict(language=language, by_author=False, attr=attr)
-        # lp.data_exploration()
-        # lp.get_upsampled_splits() ####################
-        lp.classifier_pipeline()
-    else:
-        raise ValueError('Mode should be either "regressor" or "classifier".')
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Run regressor or classifier pipeline with specified language and attribute.')
-    parser.add_argument('--language', type=str, required=True, help='Language for the pipeline (e.g., "eng" or "ger").')
-    parser.add_argument('--attr', type=str, required=True, help='Attribute for the pipeline (e.g., "year", "canon", "author", "gender").')
-    parser.add_argument('--mode', type=str, required=True, choices=['regressor', 'classifier'], help='Mode for the pipeline (either "regressor" or "classifier").')
-
-    args = parser.parse_args()
-
-    main(args.language, args.attr, args.mode)

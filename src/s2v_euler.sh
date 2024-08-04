@@ -458,6 +458,14 @@ rsync -avz --ignore-existing /home/annina/Documents/thesis /media/annina/MyBook/
 
 
 
+rsync -avz /home/annina/scripts/great_unread_nlp/data/label_predict stahla@euler.ethz.ch:/cluster/scratch/stahla/data
+rsync -avz /home/annina/scripts/great_unread_nlp/data_author/label_predict stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author
+scp -r /home/annina/scripts/great_unread_nlp/src_label stahla@euler.ethz.ch:/cluster/scratch/stahla
+rsync -avz --ignore-existing /home/annina/scripts/great_unread_nlp/src_label  stahla@euler.ethz.ch:/cluster/scratch/stahla
+
+
+
+
 
 
 
