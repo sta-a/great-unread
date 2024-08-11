@@ -13,13 +13,6 @@ conda activate nlpplus_updated && sbatch --mem-per-cpu=10000 --time=23:58:00 --o
 
 
 
-
-
-
-
-
-
-
 ################################################### run experiments
 
 conda activate nlpplus_updated && sbatch --mem-per-cpu=100000 --time=23:58:00 --output output-eng-comb-nkexp_byauthor.txt --error error-eng-comb-nkexp_byauthor.txt --wrap="python /cluster/scratch/stahla/src_byauthor/run_cluster.py --language eng --mode nkexp --by_author"

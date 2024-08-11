@@ -18,6 +18,8 @@ print('-------------------conda nlpplus--------')
 for language in languages:
     for attr in attrs:
         for by_author in by_author_list:
+            if by_author == True and attr == 'author':
+                continue
             output_file = output_template.format(language=language, attr=attr, by_author=by_author)
             error_file = error_template.format(language=language, attr=attr, by_author=by_author)
             command = (

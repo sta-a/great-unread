@@ -19,7 +19,7 @@ class NkNetworkGrid(ImageGrid):
     Plot every network for an attribute. Select interesting networks by mouse click.
     '''
     def __init__(self, language, attr=None, by_author=False, select_with_gui=True):
-        super().__init__(language=language, attr=attr, by_author=by_author, select_with_gui=select_with_gui, by_author=by_author)
+        super().__init__(language=language, attr=attr, by_author=by_author, select_with_gui=select_with_gui)
         self.by_author = by_author
         self.nrow = 2
         self.ncol = 5

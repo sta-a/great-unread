@@ -14,15 +14,17 @@ if __name__ == '__main__':
 
     parser.add_argument('--language', type=str)
     parser.add_argument('--by_author', action='store_true')  # Boolean argument, if flag is used, by_author is set to True
+    parser.add_argument('--evalcol', type=str, default='all')  # New argument with default value 'all'
 
     args = parser.parse_args()
 
     language = args.language
     by_author = args.by_author
+    evalcol = args.evalcol
 
     print(f"Selected language: {language}")
     print(f"Is by_author: {by_author}")
-
+    print(f"Evaluation column: {evalcol}") 
 
 
 
@@ -66,15 +68,22 @@ if __name__ == '__main__':
 
     # '''
     # old code: 6 attrs for normal, 8 for by author
-    # new code: 6 attrs for normal, 7 for by author (author removed)
+    # new code: 6 attrs for normal, 7 for by author (author removed, canon-min and canon-max)
     # '''
 
     # emc.check_data(n_features=8)
 
 
     # # Create interactive MDS visualizations of embeddings
-    ex = Experiment(language=language, cmode='mx', by_author=by_author, output_dir='analysis_s2v')
-    ex.run_experiments(select_exp='singleimage_analysis')
+
+    if evalcol == 'all':
+        ex = Experiment(language=language, cmode='mx', by_author=by_author, output_dir='analysis_s2v')
+        ex.get_experiments()
+        # ex.run_experiments()
+    else:
+        ex = Experiment(language=language, cmode='mx', by_author=by_author, output_dir='analysis_s2v')
+        ex.run_experiments(select_exp=evalcol, select_exp_from_substring=True)
+
 
     # Create interactive networks
     # ex = Experiment(language=language, cmode='nk', by_author=by_author, output_dir='analysis_s2v')

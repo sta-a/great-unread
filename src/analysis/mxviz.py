@@ -33,10 +33,11 @@ class MxReorder():
 
     ORDERS = ['fn', 'olo']
 
-    def __init__(self, language, mx, info):
+    def __init__(self, language, mx, info, by_author):
         self.language = language
         self.mx = mx
         self.info = info
+        self.by_author = by_author
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.DEBUG)
 
@@ -717,7 +718,7 @@ class S2vKeyAttrViz(ImageGrid):
             self.colnames = self.colnames + ['author']
 
         self.subdir = subdir #
-        super().__init__(language=language, by_author=by_author, output_dir='analysis_s2v', rowmajor=False, imgs_as_paths=True, subdir=self.subdir, by_author=self.by_author) # load_single_images is called in ImageGrid.__init__
+        super().__init__(language=language, by_author=by_author, output_dir='analysis_s2v', rowmajor=False, imgs_as_paths=True, subdir=self.subdir) # load_single_images is called in ImageGrid.__init__
         self.nrow = 2
         self.ncol = len(self.colnames)
 

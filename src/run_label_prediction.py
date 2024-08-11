@@ -1,14 +1,20 @@
+
 # %%
 import argparse
 from analysis.labels_pipeline import LabelPredictCont, LabelPredict
 from analysis.eval_spars_mxs import SparsmxEval
 
 
-# for language in ['eng']:
-#     for by_author in [False]:
-#         for attr in ['author']:
-#             se = SparsmxEval(language=language, by_author=by_author, attr=attr)
-#             se.iterate_mxs()
+# for language in ['eng', 'ger']:
+#     for by_author in [False, True]:
+#         for attr in ['author', 'gender']:
+for language in ['eng']:
+    for by_author in [False]:
+        for attr in ['author']:
+            if by_author == True and attr == 'author':
+                continue
+            se = SparsmxEval(language=language, by_author=by_author, attr=attr)
+            se.get_measures_for_all_mxs()
 
 
 
@@ -25,11 +31,11 @@ def main(language, attr, by_author, test):
 
     if attr in cont_attrs:
         lp = LabelPredictCont(language=language, by_author=by_author, attr=attr, test=test)
-        lp.regressor_pipeline()
+        # lp.regressor_pipeline()
     elif attr in cat_attrs:
         lp = LabelPredict(language=language, by_author=by_author, attr=attr, test=test)
         # lp.data_exploration()
-        lp.get_upsampled_splits()
+        # lp.get_upsampled_splits()
         # lp.classifier_pipeline()
     else:
         raise ValueError('Attribute should be one of "year", "canon", "author", "gender".')

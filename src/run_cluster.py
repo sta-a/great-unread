@@ -44,18 +44,21 @@ if __name__ == "__main__":
     print(f"Selected mode: {mode}")
     print(f"Is by_author: {by_author}")
 
-
+    # 6 attrs for normal, 7 for by author (author removed, canon-min and canon-max)
+    n_features = 6
+    if by_author:
+        n_features = 7
 
     if mode == 'mxc':
         mxc = MxCombinations(language=language, add_color=False, by_author=by_author)
-        # mxc.evaluate_all_combinations()
-        mxc.check_data(n_features=6) # 6 features: 'gender', 'author', 'canon', 'year', 'canon-ascat', 'year-ascat'
+        mxc.evaluate_all_combinations()
+        mxc.check_data(n_features=n_features) # 6 features: 'gender', 'author', 'canon', 'year', 'canon-ascat', 'year-ascat'
 
         
     elif mode == 'nkc':
         nkc = NkCombinations(language=language, add_color=False, by_author=by_author)
-        # nkc.evaluate_all_combinations()
-        nkc.check_data(n_features=6)
+        nkc.evaluate_all_combinations()
+        nkc.check_data(n_features=n_features)
 
 
     elif mode == 'mxexp':
@@ -67,7 +70,7 @@ if __name__ == "__main__":
         # output_dir='analysis': eval scores will be taken from similarity dir
         ex = Experiment(language=language, cmode='nk', by_author=by_author, output_dir='analysis')
         exps = ex.get_experiments()
-        # ex.run_experiments()
+        ex.run_experiments()
 
 
     elif mode == 'viz':

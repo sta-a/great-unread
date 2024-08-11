@@ -122,28 +122,31 @@ class ColorBarChart(DataHandler):
 
 
 class MetadataStats(DataHandler):
-    def __init__(self, language):
-        super().__init__(language, output_dir='text_statistics', data_type='svg')
+    def __init__(self, language, by_author):
+        super().__init__(language, output_dir='text_statistics', by_author=by_author)
 
 
     def get_stats(self):
-        print(f'-------Language: {self.language}----------------------------\n')
+        print(f'\n-------Language: {self.language}----------------------------')
+        print(f'-------by_author: {self.by_author}----------------------------')
         # df = DataLoader(self.language).prepare_features(scale=True)
-        mh = MetadataHandler(self.language)
+        mh = MetadataHandler(self.language, by_author=self.by_author)
         df = mh.get_metadata(add_color=False)
+
         # Get the counts of gender
         gender_counts = df['gender'].value_counts()
-        print("Gender counts:")
-        print(gender_counts)
+        print('Gender counts:\n', gender_counts)
+        print('------------------------\n')
 
         # Get the number of different authors 
         num_authors = df['author'].nunique()
-        print(f"\nNumber of different authors: {num_authors}")
+        print(f'\nNumber of different authors: {num_authors}')
+        print('------------------------\n')
 
-        # Group the data by gender and count the distinct authors
+        # Group the data by gender and count the different authors
         author_counts = df.groupby('gender')['author'].nunique()
-        # Print the result
-        print(author_counts)
+        print('Nr different authors per gender\n', author_counts)
+        print('------------------------\n')
 
         max_year = df['year'].max()
         print(f"The highest year is: {max_year}")
@@ -486,12 +489,94 @@ class PlotYearAndCanon(DataHandler):
         print(f'Standard error: {std_err:.2f}')
 
 
+class CanonVariancePerAuthor(DataHandler):
+    def __init__(self, language):
+        super().__init__(language, output_dir='text_statistics', data_type='png')
+        self.fontsize = 12
+
+    def prepare_data(self):
+        mh = MetadataHandler(self.language, by_author=self.by_author)
+        df = mh.get_metadata(add_color=False)
+
+        # Step 1: Filter the DataFrame to keep only rows where the 'author' occurs more than once
+        df = df[df['author'].duplicated(keep=False)]
+
+        filtered_df = df[df['author'].str.contains('stevenson', case=False, na=False)]
+        print(filtered_df[['canon']])
+
+
+
+        # Group by 'author' and calculate the required statistics
+        df = df.groupby('author').agg(
+            mean = ('canon', 'mean'),
+            std_dev=('canon', 'std'),
+            min_value=('canon', 'min'),
+            max_value=('canon', 'max'),
+            diff_max_min=('canon', lambda x: x.max() - x.min()),
+            nr_texts=('canon', 'size')
+        ).reset_index()
+
+        df = df.sort_values(by=['diff_max_min', 'mean'], ascending=True)
+
+        return df
+
+    def make_plot(self):
+        df = self.prepare_data()
+        # Define bar width and positions
+        bar_width = 0.25
+        index = np.arange(len(df))
+
+        # Plot mean_value and diff_max_min
+        fig, ax1 = plt.subplots(figsize=(14, 7))
+
+        # Bar plot for mean_value
+        bars1 = ax1.bar(index - bar_width, df['mean'], bar_width, color='blue', alpha=0.5, label='Mean')
+
+        # Create a second y-axis for diff_max_min
+        ax2 = ax1.twinx()
+        bars2 = ax2.bar(index, df['diff_max_min'], bar_width, color='darkgreen', alpha=0.7, label='Diff Max-Min')
+        bars3 = ax1.bar(index + bar_width, df['std_dev'], bar_width, color='#FF6F61', label='Std Dev')
+
+        # Labels and Titles
+        ax1.set_xlabel('Author', fontsize=self.fontsize)
+        ax1.set_ylabel('Value', fontsize=self.fontsize)
+
+        # Set x-ticks to match the positions of the bars
+        ax1.set_xticks(index)
+        ax1.set_xticklabels(df['author'], rotation=90, fontsize=self.fontsize-2)
+
+        # Remove the right y-axis ticks
+        ax2.set_yticks([])
+
+        # Add a single legend for both plots
+        handles1, labels1 = ax1.get_legend_handles_labels()
+        handles2, labels2 = ax2.get_legend_handles_labels()
+        handles = handles1 + handles2
+        labels = labels1 + labels2
+
+        # Position legends in a single bounding box
+        fig.legend(handles, labels, loc='upper left', bbox_to_anchor=(0.05, 0.95), ncol=1, frameon=True)
+
+        # Increase the gap between different authors
+        # ax1.set_xlim(-bar_width, len(result) - 0.5)
+        
+        # self.save_data(data=plt, file_name='canon-variance-per-author')
+        plt.tight_layout()
+
+        # Save the figure with tight bounding box
+        path = self.get_file_path(file_name='canon-variance-per-author')
+        plt.savefig(path, bbox_inches='tight', dpi=300)
+
 
 
 
 if __name__ == '__main__':
 
     for language in ['eng', 'ger']:
+
+
+        cvpa = CanonVariancePerAuthor(language)
+        cvpa.make_plot()
 
         # pcspa = PlotCanonScoresPerAuthor(language)
         # pcspa.make_plot()
@@ -500,22 +585,22 @@ if __name__ == '__main__':
         # p.make_plot()
 
         
-        for by_author in [False, True]:
-            pass
+        # for by_author in [False, True]:
+
+        #     mdstats = MetadataStats(language, by_author=by_author)
+        #     mdstats.get_stats()
             # pyac = PlotYearAndCanon(language, by_author=by_author)
             # pyac.make_joint_plot()
             # pyac.plot_single_var()
             # pyac.plot_two_vars()
 
-            ybg = YearAndCanonByGender(language, by_author)
-            ybg.make_plots()
+            # ybg = YearAndCanonByGender(language, by_author)
+            # ybg.make_plots()
         
         # cbc = ColorBarChart(language, by_author)
         # cbc.make_plots()
 
 
-        # mdstats = MetadataStats(language)
-        # mdstats.get_stats()
 
         # ts = TextStatistics(language)
         # ts.get_longest_shortest_text()

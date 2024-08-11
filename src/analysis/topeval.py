@@ -210,6 +210,10 @@ class TopEval(InfoHandler):
             print(f'Loading eval df from dir {evaldir}')
             df = pd.read_csv(os.path.join(evaldir, f'{self.scale}_results.csv'), header=0, na_values=['NA'])
 
+            # Drop rows if they contain mirror
+            # This error can occurr if mirror files (belonging to mirror graph) were contained in the wrong directory - should be fixed now
+            df = df[~df['mxname'].str.contains('mirror')]
+
             df = self.drop_na_rows(df)
             df = self.drop_duplicated_rows(df)
             df = self.extend_sizes_col(df)

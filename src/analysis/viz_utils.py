@@ -328,7 +328,7 @@ class ClusterAuthorGrid(ImageGrid):
         else:
             self.isbig = False
 
-        super().__init__(language=language, by_author=False, output_dir=output_dir, imgs_as_paths=True, by_author=by_author) # load_single_images is called in ImageGrid.__init__
+        super().__init__(language=language, by_author=False, output_dir=output_dir, imgs_as_paths=True) # load_single_images is called in ImageGrid.__init__
         self.subdir = subdir
         print('subdir after init', self.subdir)
         self.nrow = 6

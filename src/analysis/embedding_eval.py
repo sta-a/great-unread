@@ -237,7 +237,7 @@ class EmbParamEvalGrid(ImageGrid):
     def __init__(self, language, combs, imgdir='singleimage', subdir_name='gridimage', by_author=False):
         self.combs = combs
         self.subdir_name = subdir_name
-        super().__init__(language, attr=None, by_author=by_author, output_dir='s2v', imgdir=imgdir, rowmajor=False, by_author=by_author)
+        super().__init__(language, attr=None, by_author=by_author, output_dir='s2v', imgdir=imgdir, rowmajor=False)
         self.ncol = 6 # 'walk-length': [3, 5, 8, 15, 30]s
         self.nrow = 3 # 'num-walks': [20, 50, 200]
         self.imgs = self.load_single_images()
@@ -287,7 +287,7 @@ class MirrorMDSGrid(ImageGrid):
     '''
     def __init__(self, language, imgdir='mx_mirror_singleimage', subdir_name='mx_mirror_gridimage', by_author=False):
         self.subdir_name = subdir_name
-        super().__init__(language, attr=None, by_author=by_author, output_dir='s2v', imgdir=imgdir, rowmajor=True, by_author=by_author)
+        super().__init__(language, attr=None, by_author=by_author, output_dir='s2v', imgdir=imgdir, rowmajor=True)
         self.ncol = 4
         self.nrow = 2
         self.imgs = self.load_single_images()
@@ -341,7 +341,7 @@ class CombineParamEvalGrids(ImageGrid):
     Cannot be done with network visualizations because then the nodes are too small to see anything.
     '''
     def __init__(self, language, imgdir='mx_gridimage', subdir='mx_gridimages_combined', by_author=False):
-        super().__init__(language, attr=None, by_author=by_author, output_dir='s2v', imgdir=imgdir, rowmajor=True, by_author=by_author)
+        super().__init__(language, attr=None, by_author=by_author, output_dir='s2v', imgdir=imgdir, rowmajor=True)
         self.ncol = 2
         self.nrow = 2 # 3 for first three dims
         # self.imgs = self.load_single_images() ##################
@@ -576,7 +576,7 @@ class BestparamsAttrGrid(ImageGrid):
     '''
     def __init__(self, language, combs, by_author=False):
         self.combs = combs
-        super().__init__(language, by_author=False, output_dir='analysis_s2v', imgdir='mx_singleimage', by_author=by_author)
+        super().__init__(language, output_dir='analysis_s2v', imgdir='mx_singleimage', by_author=by_author)
         self.nrow = 2
         self.ncol = 2
         self.imgs = self.load_single_images()

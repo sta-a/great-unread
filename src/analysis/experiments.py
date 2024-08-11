@@ -49,7 +49,7 @@ class Experiment(DataHandler):
 
 
 
-    def get_experiments(self, select_exp=None):
+    def get_experiments(self, select_exp=None, select_exp_from_substring=False):
         # Default values
         maxsize = 0.9
         embmxs = ['both', 'full'] # embedding-based distance matrices
@@ -73,13 +73,13 @@ class Experiment(DataHandler):
         # Different evaluation metrics for external continuous attribute
         # The boolean value indicates if high values of this metric indicate good clustering
         cont_ext_evalcols = {
-            # 'ext_silhouette': True,
-            # 'ext_davies_bouldin': False,
-            # 'ext_calinski_harabasz': True,
-            # 'avg_variance': False,
+            'ext_silhouette': True,
+            'ext_davies_bouldin': False,
+            'ext_calinski_harabasz': True,
+            'avg_variance': False,
             'weighted_avg_variance': False,
-            # 'smallest_variance': False,
-            # 'ext_wcss': False
+            'smallest_variance': False,
+            'ext_wcss': False
             }
             # 'anova_pval',
             # 'kruskal_statistic',
@@ -87,13 +87,13 @@ class Experiment(DataHandler):
 
         # Different evaluation metrics for external categorical attribute
         cat_ext_evalcols = {
-            # 'ARI': True,
-            # 'nmi': True,
-            # 'fmi': True,
-            # 'mean_purity': True,
-            # 'homogeneity': True,
-            # 'completeness': True,
-            # 'vmeasure': True,
+            'ARI': True,
+            'nmi': True,
+            'fmi': True,
+            'mean_purity': True,
+            'homogeneity': True,
+            'completeness': True,
+            'vmeasure': True,
             'ad_nmi': True, # not in evaluation files
             }
         
@@ -267,7 +267,10 @@ class Experiment(DataHandler):
             if select_exp == 'singleimage_analysis': # no others are run at the same time
                 exps = singleimage_analysis
             else:
-                exps = [x for x in exps if x['name'] == select_exp]
+                if select_exp_from_substring: # selected exp has to occurr as substring
+                    exps = [x for x in exps if select_exp in x['name']]
+                else: # selected exp has to be exact match
+                    exps = [x for x in exps if x['name'] == select_exp]
 
         for e in exps:
             print(e['name'])
@@ -275,8 +278,8 @@ class Experiment(DataHandler):
         return exps
 
 
-    def run_experiments(self, select_exp=None, ntop=30):
-        exps = self.get_experiments(select_exp)
+    def run_experiments(self, select_exp=None, select_exp_from_substring=False, ntop=30):
+        exps = self.get_experiments(select_exp, select_exp_from_substring)
         for exp in exps:
             print(f"------------------{self.cmode}, {exp['name']}-------------------\n")
             if 'ntop' not in exp:
@@ -297,7 +300,7 @@ class Experiment(DataHandler):
                     
             # Visualization is independent of cmode
             elif exp['name'] == 'top_cluster':
-                viz = ClusterAuthorGrid(self.language, cmode=self.cmode, exp=exp, te=te, by_author=self.by_author, output_dir=self.output_dir, subdir=self.subdir, by_author=self.by_author)
+                viz = ClusterAuthorGrid(self.language, cmode=self.cmode, exp=exp, te=te, by_author=self.by_author, output_dir=self.output_dir, subdir=self.subdir)
                 viz.visualize()
             else:
                 self.visualize(exp, te)

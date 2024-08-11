@@ -194,7 +194,7 @@ class DataHandler():
             # Replace the last part of the path
             new_data_dir = 'data_author'
             self.data_dir = os.path.join(os.path.dirname(self.data_dir), new_data_dir)
-        print(f'Data Dir in {self.__class__.__name__}: {self.data_dir}')
+        # print(f'Data Dir in {self.__class__.__name__}: {self.data_dir}')
 
         self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.setLevel(logging.DEBUG)

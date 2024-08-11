@@ -15,7 +15,6 @@ from sklearn.svm import SVC
 import pickle
 from sklearn.model_selection import KFold
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import cross_val_score
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
@@ -36,13 +35,12 @@ import pickle
 import pandas as pd
 import numpy as np
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression, Ridge, Lasso
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor, AdaBoostRegressor, BaggingRegressor, ExtraTreesRegressor
 from sklearn.svm import SVR
 from xgboost import XGBRegressor
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score, mean_squared_error
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.naive_bayes import GaussianNB
@@ -64,7 +62,6 @@ class LabelPredict(DataHandler):
         self.metadf = self.ih.metadf[self.attr]
         self.data_split_path = os.path.join(self.output_dir, f'upsampled_splits_{self.attr}.pkl')
         self.simmx_path = simmx_path
-        print('nr texts', self.nr_texts)
 
     def is_symmetric(self, df):
         # Check if the DataFrame is square
@@ -80,13 +77,16 @@ class LabelPredict(DataHandler):
             print('simmx path', self.simmx_path)
             df = pd.read_csv(self.simmx_path, index_col=0)
             # Check if the first column has a name
-            if df.index.name is None:
-                df.index.name = 'file_name'
         elif isinstance(self.simmx_path, str) and os.path.exists(self.simmx_path) and self.simmx_path.endswith('.pkl'):
             network = NXNetwork(self.language, path=self.simmx_path)
             df = network.mx.mx
         else:
             raise ValueError(f'path cannot be loaded: {self.simmx_path}')
+        if df.index.name is None or df.index.name != 'file_name':
+            if df.index.name != 'file_name':
+                print('old index', df.index.name)
+            df.index.name = 'file_name'
+            print('changed index name')
         return df
 
     def get_long_format_df(self):
@@ -127,9 +127,9 @@ class LabelPredict(DataHandler):
             df = df[~df['left'].str.contains('Stevenson-Grift_Robert-Louis-Fanny-van-de_The-Dynamiter_1885|Anonymous', na=False) &
                             ~df['right'].str.contains('Stevenson-Grift_Robert-Louis-Fanny-van-de_The-Dynamiter_1885|Anonymous', na=False)]
 
-        value_counts = df['equal'].value_counts()
-        print(value_counts)
-        print(f'The share of True by the share of False is: {value_counts[True] / value_counts[False]}')
+        # value_counts = df['equal'].value_counts()
+        # print(value_counts)
+        # print(f'The share of True by the share of False is: {value_counts[True] / value_counts[False]}')
         # Define features and target
         X = df[['weight']]
         y = df['equal'].astype(int)
@@ -138,6 +138,13 @@ class LabelPredict(DataHandler):
     
     def data_exploration(self):
         df, X, y = self.load_data()
+
+        print(df.describe())
+        print(df.info())
+        print(df.head())
+        print(df.corr())
+
+
         # Assuming df is your DataFrame
         # Step 1: Visualization
         sns.scatterplot(x='weight', y='equal', data=df)
@@ -217,7 +224,6 @@ class LabelPredict(DataHandler):
         pipelines = {}
         for name, classifier in classifiers.items():
             pipelines[name] = Pipeline(steps=[
-                ('scaler', StandardScaler()),
                 ('classifier', classifier)
             ])
 
@@ -373,7 +379,6 @@ class LabelPredictCont(LabelPredict):
         pipelines = {}
         for name, regressor in regressors.items():
             pipelines[name] = Pipeline(steps=[
-                ('scaler', StandardScaler()),
                 ('regressor', regressor)
             ])
 
