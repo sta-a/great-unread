@@ -21,6 +21,7 @@ from .viz_utils import VizBase
 from cluster.network import NXNetwork
 from cluster.cluster_utils import CombinationInfo
 from cluster.combinations import InfoHandler
+from .viz_utils import VizBase, ImageGrid
 import logging
 logging.basicConfig(level=logging.DEBUG)
 
@@ -132,7 +133,6 @@ class NkVizBase(VizBase):
 
     def add_positions_to_metadf(self):
         # Combine positions and metadata
-        print('call get metadf')
         self.get_metadf()
         self.df['pos'] = self.df.index.map(self.pos)
         self.df[['x', 'y']] = pd.DataFrame(self.df['pos'].tolist(), index=self.df.index)
@@ -227,7 +227,6 @@ class NkVizBase(VizBase):
                 mxname_tmp = self.info.mxname
                 
             pos_path = os.path.join(pos_dir, f'{mxname_tmp}.pkl')
-            print('pos path', os.path.join(pos_dir, f'{mxname_tmp}.pkl'))
             return pos_path
 
 
@@ -330,7 +329,6 @@ class NkKeyAttrViz(NkVizBase):
 
 
     def add_nodes_to_ax(self, ix, df, color_col, use_different_shapes=False):
-        print('df start', df.shape)
         color_col = f'{color_col}_color'
         # Draw connected components with more than 2 nodes
         df_con = df[~df.index.isin(self.nodes_removed)]
@@ -823,11 +821,12 @@ class NkSingleVizAttr(NkKeyAttrViz):
     '''
     Make single images where clusters are highlighted. Isolated nodes are shown.
     '''
-    def __init__(self, language, output_dir, info, plttitle, exp, by_author):
+    def __init__(self, language, output_dir, info, plttitle, exp, by_author, subdir='nk_singleimage_s2v', figsize=(4,4)):
         super().__init__(language, output_dir, info=info, plttitle=plttitle, exp=exp, by_author=by_author)
+        self.figsize = figsize
         self.fontsize = 15
         self.markersize = self.fontsize
-        self.add_subdir('nk_singleimage_s2v')
+        self.add_subdir(subdir)
         self.ws_left = 0.01
         self.ws_right = 0.99
         self.ws_bottom = 0.01
@@ -835,22 +834,29 @@ class NkSingleVizAttr(NkKeyAttrViz):
         self.ws_wspace = 0
         self.ws_hspace = 0
 
+
     def get_metadf(self):
         '''
         Graph comes from spmx (all nodes). info.df comes from s2v edgelist (only non-iso nodes).
         Iso nodes are missing from metadata.
         '''
-        # metadata for iso nodes
-        self.ih = InfoHandler(language=self.language, add_color=True, cmode=self.cmode, by_author=self.by_author)
-        metadf = self.ih.metadf
-        metadf = metadf[metadf.index.isin(self.nodes_removed)]
+        if self.output_dir == 'analysis_s2v':
+            # metadata for iso nodes
+            self.ih = InfoHandler(language=self.language, add_color=True, cmode=self.cmode, by_author=self.by_author)
+            metadf = self.ih.metadf
+            metadf = metadf[metadf.index.isin(self.nodes_removed)]
 
-        # df from info for connected nodes, contains cluster column
-        df = deepcopy(self.info.metadf)
-        df = pd.concat([metadf, df], axis=0, ignore_index=False, join='outer')
-        df = df.fillna('lightgray')
-        assert df.shape[0] == self.nr_texts
-        self.df = df
+            # df from info for connected nodes, contains cluster column
+            df = deepcopy(self.info.metadf)
+            df = pd.concat([metadf, df], axis=0, ignore_index=False, join='outer')
+            df = df.fillna('lightgray')
+            print('df shape', df.shape[0], 'nr texts', self.nr_texts)
+            assert df.shape[0] == self.nr_texts
+            self.df = df
+        else:
+            # Re-adding iso nodes is not necessary, they were not removed
+            df = deepcopy(self.info.metadf)
+            self.df = df
 
 
     def fill_subplots(self):
@@ -861,7 +867,6 @@ class NkSingleVizAttr(NkKeyAttrViz):
         # Cluster alg and params are only necessary for cluster
         if data_type is None:
             data_type = self.data_type
-
         if self.info.attr == 'cluster':
             file_name = f'{self.info.as_string(omit=omit)}.{data_type}'
         else:
@@ -891,7 +896,7 @@ class NkSingleVizAttr(NkKeyAttrViz):
         ncol = 1
         width_ratios = (ncol-1)*[7] + [1]
 
-        self.fig, self.axs = plt.subplots(2, ncol, figsize=(4,4), gridspec_kw={'height_ratios': [7, 2], 'width_ratios': width_ratios})      
+        self.fig, self.axs = plt.subplots(2, ncol, figsize=self.figsize, gridspec_kw={'height_ratios': [7, 2], 'width_ratios': width_ratios})      
         self.axs = np.reshape(self.axs, (2, 1)) 
 
         # for row in self.axs: 
@@ -902,3 +907,68 @@ class NkSingleVizAttr(NkKeyAttrViz):
 
         self.attrix = [0,0]
         self.subplots = [self.attrix]
+
+
+
+
+class NkS2vKeyAttrViz(ImageGrid):
+    '''
+    Replaces NkKeyAttrViz, adapted from S2vKeyAttrViz
+    Load individual images from file
+    '''
+
+    def __init__(self, language, info, plttitle, exp, by_author, subdir=None):
+        self.img_width = 1.2  * 2 # imgs are 1200 x 1400 pixels
+        self.img_height = 1.4 * 2
+        self.fontsize = 12
+        self.info = info
+        self.plttitle = plttitle
+        self.exp = exp
+        self.by_author = by_author
+        self.colnames = ['cluster', 'canon', 'gender', 'year'] 
+        if self.by_author:
+            self.colnames = self.colnames + ['canon-min', 'canon-max']
+        else: 
+            # Insert 'author' right after 'canon'
+            index = self.colnames.index('canon') + 1
+            self.colnames.insert(index, 'author')
+
+        self.subdir = subdir #
+        super().__init__(language=language, by_author=by_author, output_dir='analysis', rowmajor=False, imgs_as_paths=True, subdir=self.subdir) # load_single_images is called in ImageGrid.__init__
+        self.nrow = 2
+        self.ncol = 3
+
+
+
+
+    def get_file_path(self, vizname=None, subdir=None, **kwargs):
+        return os.path.join(self.subdir, f'{self.info.as_string(omit=["attr"])}.{self.data_type}')
+
+
+    def load_single_images(self):
+        mxname, spars = self.info.as_string().split('_')[:2]
+        self.info.spmx_path = os.path.join(self.data_dir, 'similarity', self.language, 'sparsification', f'sparsmx-{mxname}_{spars}.pkl')
+        # self.nk_attr_dir = os.path.join(self.data_dir, 'analysis', self.language, 'nk_singleimage')
+        # self.mds_attr_dir = os.path.join(self.output_dir, 'mx_singleimage')
+
+        imgs = []
+        for attr in self.colnames:
+            self.info.attr = attr
+            
+            # Set subdir so that imaes with clusters highlighted are placed in same subdir as single images from NkSingleViz
+            nkclust = NkSingleVizAttr(self.language, self.output_dir, self.info, plttitle=self.plttitle, exp=self.exp, by_author=self.by_author, subdir='nk_singleimage', figsize=(2.5*self.img_width, 2.5*self.img_height)) 
+            nkclust_path = nkclust.get_path()
+            nkclust.visualize()
+            imgs.append(nkclust_path)
+
+
+        return imgs
+
+    def get_title(self, imgpath):
+        basename = os.path.splitext(os.path.basename(imgpath))[0]
+        title = basename.split('_')[-1] # attr
+        return title
+    
+    def get_figure(self):
+        self.fig, self.axs = plt.subplots(self.nrow, self.ncol, figsize=(self.ncol*self.img_width, self.nrow*self.img_height))
+        plt.tight_layout(pad=0)

@@ -4,7 +4,6 @@
 # from analysis.s2vcreator import S2vCreator
 from analysis.embedding_eval import ParamModeEval, EmbMxCombinations, RunModeEval, BestParamAnalyis, CombineParamEvalGrids, MirrorViz, MirrorMDSGrid
 from analysis.experiments import Experiment
-from analysis.nkselect import Selector
 
 import argparse
 import os
@@ -63,8 +62,9 @@ if __name__ == '__main__':
 
 
     # # Run matrix clustering on embeddigns
-    # emc = EmbMxCombinations(language, output_dir='s2v', add_color=False, by_author=by_author, eval_only=False)
+    emc = EmbMxCombinations(language, output_dir='s2v', add_color=False, by_author=by_author, eval_only=False)
     # emc.evaluate_all_combinations()
+    emc.check_data(n_features=6)
 
     # '''
     # old code: 6 attrs for normal, 8 for by author
@@ -75,14 +75,9 @@ if __name__ == '__main__':
 
 
     # # Create interactive MDS visualizations of embeddings
-
-    if evalcol == 'all':
-        ex = Experiment(language=language, cmode='mx', by_author=by_author, output_dir='analysis_s2v')
-        ex.get_experiments()
-        # ex.run_experiments()
-    else:
-        ex = Experiment(language=language, cmode='mx', by_author=by_author, output_dir='analysis_s2v')
-        ex.run_experiments(select_exp=evalcol, select_exp_from_substring=True)
+    # Use run_experiments.py instead
+    # ex = Experiment(language=language, cmode='mx', by_author=by_author, output_dir='analysis_s2v')
+    # ex.run_experiments(select_exp=evalcol, select_exp_from_substring=True)
 
 
     # Create interactive networks

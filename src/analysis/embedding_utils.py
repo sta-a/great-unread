@@ -21,7 +21,7 @@ class MirroredEdgelistCreator(DataHandler):
 
 
         original_edgelist_path = os.path.join(self.edgelist_dir, f'{distname}.csv')
-        mirror_edgelist_path = os.path.join(self.edgelist_dir, f'{distname}-mirror.csv')
+        mirror_edgelist_path = os.path.join(self.edgelist_dir, f'{distname}-mirror.csv') ###### Create new dirs of mirror edgelists only!
         with open(original_edgelist_path, 'r') as infile, open(mirror_edgelist_path, 'w') as outfile:
             for line in infile:
                 # Strip any extra whitespace from the line and split it into parts

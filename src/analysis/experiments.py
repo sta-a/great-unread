@@ -19,7 +19,7 @@ from matplotlib.cm import ScalarMappable
 
 from utils import DataHandler
 from .mxviz import MxAttrGridViz, MxSingleViz, MxKeyAttrViz, S2vKeyAttrViz, MxSingleViz2D3D, MxSingleViz2D3DHorizontal
-from .nkviz import NkKeyAttrViz, NkAttrGridViz, NkNetworkGridkViz, SparsGridkViz, NkSingleViz
+from .nkviz import NkKeyAttrViz, NkAttrGridViz, NkNetworkGridkViz, SparsGridkViz, NkSingleViz, NkS2vKeyAttrViz
 from .interactive_viz import MxSingleViz2D3DHzAnalysis, NkSingleVizAnalysis
 from .viz_utils import ClusterAuthorGrid
 from .embedding_eval import EmbMxCombinations
@@ -193,7 +193,7 @@ class Experiment(DataHandler):
                     d = deepcopy(cdict)
                     d['name'] = d['name'] + f'_{spars}'
                     if self.cmode == 'mx' and 's2v' in self.output_dir:
-                        d['mxname'] = spars # spars method is a substring of the mxname
+                        d['mxname_spars'] = spars # spars method is a substring of the mxname
                     else:
                         d['sparsmode'] = spars # spars method is its own field in the eval df
                     newdicts.append(d)
@@ -263,7 +263,7 @@ class Experiment(DataHandler):
         # exps = all_top  + top_cluster # sparsgrid + all_nkgrid + all_attrgrid + clustconst + central
         exps = all_top  + singleimage
         
-        if select_exp is not None:
+        if select_exp is not None and select_exp !='all':
             if select_exp == 'singleimage_analysis': # no others are run at the same time
                 exps = singleimage_analysis
             else:
@@ -272,8 +272,8 @@ class Experiment(DataHandler):
                 else: # selected exp has to be exact match
                     exps = [x for x in exps if x['name'] == select_exp]
 
-        for e in exps:
-            print(e['name'])
+        # for e in exps:
+        #     print(e['name'])
 
         return exps
 
@@ -281,7 +281,7 @@ class Experiment(DataHandler):
     def run_experiments(self, select_exp=None, select_exp_from_substring=False, ntop=30):
         exps = self.get_experiments(select_exp, select_exp_from_substring)
         for exp in exps:
-            print(f"------------------{self.cmode}, {exp['name']}-------------------\n")
+            print(f"-{self.cmode}, {exp['name']}-------------------\n")
             if 'ntop' not in exp:
                 exp['ntop'] = ntop
 
@@ -368,12 +368,12 @@ class Experiment(DataHandler):
             viz = NkSingleViz(self.language, self.output_dir, exp, self.by_author)
             viz.visualize()
         elif exp['viztype'] == 'singleimage_analysis':
-            print(self.language, self.output_dir, exp, self.by_author)
             viz = NkSingleVizAnalysis(language=self.language, output_dir=self.output_dir, exp=exp, by_author=self.by_author, mc=self.mc)
             viz.visualize()
         else:
             for topk in te.get_top_combinations():
                 info, plttitle = topk
+                print(info.metadf)
                 # name of 'threshold-0%9' has changed to 'threshold-0%90' after combinations were run
                 if '0%9.' in info.spmx_path:
                     info.spmx_path = info.spmx_path.replace('0%9.', '0%90.') ##################
@@ -384,7 +384,7 @@ class Experiment(DataHandler):
                     # In Topeval, a single combination for each sparsified matrix is chosen, attributes don't matter
                     viz = NkAttrGridViz(self.language, self.output_dir, info, plttitle=plttitle, exp=exp, by_author=self.by_author)                      
                 else:
-                    viz = NkKeyAttrViz(self.language, self.output_dir, info, plttitle=plttitle, exp=exp, by_author=self.by_author)
+                    viz = NkS2vKeyAttrViz(language=self.language, info=info, plttitle=plttitle, exp=exp, by_author=self.by_author, subdir=self.subdir)
                 viz.visualize()
 
 

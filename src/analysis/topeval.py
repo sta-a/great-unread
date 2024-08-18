@@ -182,6 +182,19 @@ class TopEval(InfoHandler):
         df = df[df[colname].str.contains(pattern, na=False)]
         return df
     
+    def filter_columns_substring_spars(self, df):
+        '''
+        Filter the DataFrame based on whether the values in the 'mxname' column contain
+        the substring specified in self.exp['mxname_spars'].
+        '''
+        # Extract the substring from the list (assuming the list contains only one string)
+        substring = self.exp['mxname_spars']
+        
+        # Filter the DataFrame to keep only rows where 'mxname' contains the substring
+        df = df[df['mxname'].str.contains(substring, na=False)]
+        
+        return df
+        
 
     def filter_inteval(self, df):
         return df[df[self.exp['intcol']] >= self.exp['intthresh']]
@@ -229,6 +242,10 @@ class TopEval(InfoHandler):
                 df = df[df['sparsmode'] == self.exp['sparsmode']]
             if 'mxname' in self.exp:
                 df = self.filter_columns_substring(df, 'mxname')
+            if 'mxname_spars' in self.exp:
+                assert isinstance(self.exp['mxname_spars'], str)
+                df = self.filter_columns_substring_spars(df)
+
             if (self.exp['viztype'] == 'attrgrid' or self.exp['viztype'] == 'nkgrid'):
                 df = self.filter_unique_mxs(df)
             if 'intthresh' in self.exp:
@@ -252,8 +269,17 @@ class TopEval(InfoHandler):
         # if 'evalcol' in self.exp and 'intcol' in self.exp: ###################################
         #     self.plot_cols(df)
         
-        df = self.make_plttitle(df)
-        df_subset = df.head(1000) # save only 1000 rows
+        if not df.empty:
+            df = self.make_plttitle(df)
+        else:
+            df['plttitle'] = pd.Series(dtype='str')  # Add empty 'plttitle' column
+    
+        df_subset = df.head(1000).copy() # save only 1000 rows
+        # Create the new column 'file_info_noattr' by removing the last part after the last '_'
+        df_subset['file_info_noattr'] = df_subset['file_info'].apply(lambda x: '_'.join(x.split('_')[:-1]))
+        # Insert 'file_info_noattr' at the first position (index 0)
+        df_subset.insert(0, 'file_info_noattr', df_subset.pop('file_info_noattr'))
+
         self.save_data(data=df_subset)
         return df
 

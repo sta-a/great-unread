@@ -62,6 +62,7 @@ scp /home/annina/scripts/great_unread_nlp/data_author/analysis/ger/interesting_n
 
 scp -r /home/annina/scripts/great_unread_nlp/data_author/text_raw stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author
 scp -r /home/annina/scripts/great_unread_nlp/data_author/features stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author
+scp -r /home/annina/scripts/great_unread_nlp/data_author/features/book.csv stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/features
 scp -r /home/annina/scripts/great_unread_nlp/data_author/title_mapping stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author
 scp -r /home/annina/scripts/great_unread_nlp/data_author/canonscores stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author
 scp -r /home/annina/scripts/great_unread_nlp/data_author/corpus_corrections stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author

@@ -28,6 +28,54 @@ from cluster.cluster_utils import MetadataHandler
 #from hpo_functions import get_data, ColumnTransformer
 
 
+
+
+class YearAndCanonByLanguage(DataHandler):
+    '''
+    Create boxplots showing the distribution of year and canon by language
+    Save the plots only once, in the 'eng' subdir
+    '''
+    def __init__(self, by_author):
+        super().__init__(language='eng', output_dir='text_statistics', data_type='png', by_author=by_author)
+        self.fontsize = 30
+
+
+    def make_language_boxplots(self):
+        mh = MetadataHandler('eng', by_author=self.by_author)
+        df_eng = mh.get_metadata(add_color=False)
+        mh = MetadataHandler('ger', by_author=self.by_author)
+        df_ger = mh.get_metadata(add_color=False)
+
+        # Add a 'language' column to each dataframe
+        df_eng['language'] = 'English'
+        df_ger['language'] = 'German'
+
+        df = pd.concat([df_eng, df_ger])
+
+        for attrtup in [('year', 'Year'), ('canon', 'Canon Score')]:
+            attr, label = attrtup
+
+            eng_attrs = df[df['language'] == 'English'][attr]
+            ger_attrs = df[df['language'] == 'German'][attr]
+            print(f'Average eng {attr}: ', eng_attrs.mean())
+            print(f'Average ger {attr}: ', ger_attrs.mean())
+
+
+            # Create the boxplot
+            plt.figure(figsize=(12, 8))
+            sns.boxplot(x='language', y=attr, data=df)
+
+            # Adding title and labels
+            plt.xlabel('Language', fontsize=self.fontsize)
+            plt.ylabel(label, fontsize=self.fontsize)
+            # Changing the font size of the tick labels
+            plt.xticks(fontsize=self.fontsize - 5)
+            plt.yticks(fontsize=self.fontsize - 5)
+            self.save_data(data=plt, file_name=f'{attr}-by-language_byauthor-{self.by_author}.png')
+
+
+
+
 class YearAndCanonByGender(DataHandler):
     '''
     Create boxplots showing the distribution of year and canon by gender
@@ -37,7 +85,7 @@ class YearAndCanonByGender(DataHandler):
         self.fontsize = 30
 
 
-    def make_plots(self):
+    def make_gender_boxplots(self):
         for attrtup in [('year', 'Year'), ('canon', 'Canon Score')]:
             attr, label = attrtup
 
@@ -49,7 +97,6 @@ class YearAndCanonByGender(DataHandler):
 
             male_attrs = df[df['gender'] == 'Male'][attr]
             female_attrs = df[df['gender'] == 'Female'][attr]
-
             print(f'Average male {attr}: ', male_attrs.mean())
             print(f'Average female {attr}: ', female_attrs.mean())
             # No t-test because assumptions are not met
@@ -389,12 +436,22 @@ class PlotYearAndCanon(DataHandler):
         self.canonmin_tup = ('canon-min', 'Canon Score')
         self.canonmax_tup = ('canon-max', 'Canon Score')
 
+    def get_correlations(self):
+        mh = MetadataHandler(self.language, by_author=self.by_author)
+        df = mh.get_metadata(add_color=False)
+        rho, p_value = spearmanr(df['year'], df['canon'])
+        print('\nRho', rho, 'pval', p_value, 'by_author', self.by_author, 'language', self.language, '\n\n')
+
+        df_male = df.loc[df['gender'] == 0]
+        df_female = df.loc[df['gender'] == 1]
+        rho, p_value = spearmanr(df_male['year'], df_male['canon'])
+        print('Gendder:m, Rho', rho, 'pval', p_value, 'by_author', self.by_author, 'language', self.language, '\n\n')
+        rho, p_value = spearmanr(df_female['year'], df_female['canon'])
+        print('Gender:f Rho', rho, 'pval', p_value, 'by_author', self.by_author, 'language', self.language, '\n\n')
 
     def make_joint_plot(self):
         mh = MetadataHandler(self.language, by_author=self.by_author)
         metadf = mh.get_metadata(add_color=False)
-        rho, p_value = spearmanr(metadf['year'], metadf['canon'])
-        print('\n\nRho', rho, 'pval', p_value, 'by_author', self.by_author, 'language', self.language, '\n\n')
         metadf = metadf.rename(columns={'canon': 'Canon Score', 'year': 'Year'})
         sns.jointplot(x='Year', y='Canon Score', data=metadf, kind='scatter', marginal_kws=dict(bins=20))
         self.save_data(data=plt, file_name=f'joint-canon-year_byauthor-{self.by_author}')
@@ -498,15 +555,14 @@ class CanonVariancePerAuthor(DataHandler):
         mh = MetadataHandler(self.language, by_author=self.by_author)
         df = mh.get_metadata(add_color=False)
 
-        # Step 1: Filter the DataFrame to keep only rows where the 'author' occurs more than once
+        # keep only rows where author occurs more than once
         df = df[df['author'].duplicated(keep=False)]
 
+        # Stevenson has high deviation
         filtered_df = df[df['author'].str.contains('stevenson', case=False, na=False)]
-        print(filtered_df[['canon']])
+        print('Stevenson', filtered_df[['canon']])
 
-
-
-        # Group by 'author' and calculate the required statistics
+        # Group by 'author' and calculate statistics
         df = df.groupby('author').agg(
             mean = ('canon', 'mean'),
             std_dev=('canon', 'std'),
@@ -518,18 +574,18 @@ class CanonVariancePerAuthor(DataHandler):
 
         df = df.sort_values(by=['diff_max_min', 'mean'], ascending=True)
 
+        average_std_dev_per_author = df['std_dev'].mean()
+        print('Average standard deviation per author:', average_std_dev_per_author)
+
         return df
 
     def make_plot(self):
         df = self.prepare_data()
-        # Define bar width and positions
         bar_width = 0.25
         index = np.arange(len(df))
 
-        # Plot mean_value and diff_max_min
         fig, ax1 = plt.subplots(figsize=(14, 7))
 
-        # Bar plot for mean_value
         bars1 = ax1.bar(index - bar_width, df['mean'], bar_width, color='blue', alpha=0.5, label='Mean')
 
         # Create a second y-axis for diff_max_min
@@ -537,7 +593,6 @@ class CanonVariancePerAuthor(DataHandler):
         bars2 = ax2.bar(index, df['diff_max_min'], bar_width, color='darkgreen', alpha=0.7, label='Diff Max-Min')
         bars3 = ax1.bar(index + bar_width, df['std_dev'], bar_width, color='#FF6F61', label='Std Dev')
 
-        # Labels and Titles
         ax1.set_xlabel('Author', fontsize=self.fontsize)
         ax1.set_ylabel('Value', fontsize=self.fontsize)
 
@@ -560,10 +615,8 @@ class CanonVariancePerAuthor(DataHandler):
         # Increase the gap between different authors
         # ax1.set_xlim(-bar_width, len(result) - 0.5)
         
-        # self.save_data(data=plt, file_name='canon-variance-per-author')
         plt.tight_layout()
 
-        # Save the figure with tight bounding box
         path = self.get_file_path(file_name='canon-variance-per-author')
         plt.savefig(path, bbox_inches='tight', dpi=300)
 
@@ -571,12 +624,16 @@ class CanonVariancePerAuthor(DataHandler):
 
 
 if __name__ == '__main__':
+    # for by_author in [False, True]:
+    #     yacbl = YearAndCanonByLanguage(by_author=by_author)
+    #     yacbl.make_language_boxplots()
 
     for language in ['eng', 'ger']:
 
 
-        cvpa = CanonVariancePerAuthor(language)
-        cvpa.make_plot()
+        # cvpa = CanonVariancePerAuthor(language)
+        # cvpa.prepare_data()
+        # cvpa.make_plot()
 
         # pcspa = PlotCanonScoresPerAuthor(language)
         # pcspa.make_plot()
@@ -585,11 +642,13 @@ if __name__ == '__main__':
         # p.make_plot()
 
         
-        # for by_author in [False, True]:
+        for by_author in [False, True]:
 
-        #     mdstats = MetadataStats(language, by_author=by_author)
-        #     mdstats.get_stats()
-            # pyac = PlotYearAndCanon(language, by_author=by_author)
+            # mdstats = MetadataStats(language, by_author=by_author)
+            # mdstats.get_stats()
+
+            pyac = PlotYearAndCanon(language, by_author=by_author)
+            pyac.get_correlations()
             # pyac.make_joint_plot()
             # pyac.plot_single_var()
             # pyac.plot_two_vars()

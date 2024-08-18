@@ -171,11 +171,11 @@ class MxVizBase(VizBase):
 
         else:
             # Apply classical MDS
-            mds_2d = MDS(n_components=2, dissimilarity='precomputed', normalized_stress='auto', n_jobs=self.n_jobs, random_state=8)
+            mds_2d = MDS(n_components=2, dissimilarity='precomputed',  n_jobs=self.n_jobs, random_state=8)
             X_mds_2d = mds_2d.fit_transform(self.mx.dmx)
 
             # Apply classical MDS in 3D
-            mds_3d = MDS(n_components=3, dissimilarity='precomputed', normalized_stress='auto', n_jobs=self.n_jobs, random_state=8)
+            mds_3d = MDS(n_components=3, dissimilarity='precomputed', n_jobs=self.n_jobs, random_state=8)
             X_mds_3d = mds_3d.fit_transform(self.mx.dmx)
 
             df = pd.DataFrame({
@@ -711,11 +711,14 @@ class S2vKeyAttrViz(ImageGrid):
         self.plttitle = plttitle
         self.exp = exp
         self.by_author = by_author
-        self.colnames = ['cluster', 'year-ascat', 'year', 'gender', 'canon-ascat', 'canon'] 
+
+        self.colnames = ['cluster', 'canon', 'gender', 'year'] 
         if self.by_author:
             self.colnames = self.colnames + ['canon-min', 'canon-max']
         else: 
-            self.colnames = self.colnames + ['author']
+            # Insert 'author' right after 'canon'
+            index = self.colnames.index('canon') + 1
+            self.colnames.insert(index, 'author')
 
         self.subdir = subdir #
         super().__init__(language=language, by_author=by_author, output_dir='analysis_s2v', rowmajor=False, imgs_as_paths=True, subdir=self.subdir) # load_single_images is called in ImageGrid.__init__

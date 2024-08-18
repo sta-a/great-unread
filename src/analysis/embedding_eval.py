@@ -32,7 +32,7 @@ class EmbDist(D2vDist):
         super().__init__(language, output_dir=output_dir, modes=modes, by_author=by_author)
         self.file_string = output_dir
         self.map_nodeids_to_names = map_nodeids_to_names
-        self.eb = EmbeddingBase(self.language, output_dir=output_dir)
+        self.eb = EmbeddingBase(self.language, output_dir=output_dir, by_author=by_author)
 
 
     def get_embeddings_dict(self, mode):
