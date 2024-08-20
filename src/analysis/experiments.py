@@ -18,9 +18,9 @@ from matplotlib.cm import ScalarMappable
 
 
 from utils import DataHandler
-from .mxviz import MxAttrGridViz, MxSingleViz, MxKeyAttrViz, S2vKeyAttrViz, MxSingleViz2D3D, MxSingleViz2D3DHorizontal
+from .mxviz import MxAttrGridViz, MxSingleViz, MxKeyAttrViz, S2vKeyAttrViz, MxSingleViz2D3D, MxSingleViz2D3DHorizontal, MxSingleVizCluster
 from .nkviz import NkKeyAttrViz, NkAttrGridViz, NkNetworkGridkViz, SparsGridkViz, NkSingleViz, NkS2vKeyAttrViz
-from .interactive_viz import MxSingleViz2D3DHzAnalysis, NkSingleVizAnalysis
+# from .interactive_viz import MxSingleViz2D3DHzAnalysis, NkSingleVizAnalysis
 from .viz_utils import ClusterAuthorGrid
 from .embedding_eval import EmbMxCombinations
 from .topeval import TopEval
@@ -35,7 +35,6 @@ class Experiment(DataHandler):
 
 
     def __init__(self, language, cmode, by_author=False, output_dir='analysis'):
-        assert output_dir in ['analysis', 'analysis_s2v']
         super().__init__(language, output_dir=output_dir, by_author=by_author)
         self.cmode = cmode
         self.by_author = by_author
@@ -102,8 +101,12 @@ class Experiment(DataHandler):
             None: None,
             2: 2,
             3: 3,
-            4: 10
+            4: 10,
+            50: 100, 
+            101: 150,
+            151:200
         }
+
 
         def add_to_top(d):
             d['maxsize'] = maxsize
@@ -348,7 +351,9 @@ class Experiment(DataHandler):
                 info.add('order', 'olo')
                 if exp['viztype'] == 'attrgrid':
                     viz = MxAttrGridViz(self.language, self.output_dir, mx, info, plttitle=plttitle, exp=exp)
-                else:
+                elif exp['viztype'] == 'singleimage_extra_experimtents':
+                    viz = MxSingleVizCluster(language=self.language, output_dir=self.output_dir, mx=mx, info=info, plttitle=None, exp=exp, by_author=self.by_author)
+                else: 
                     if 's2v' in self.output_dir:
                         viz = S2vKeyAttrViz(self.language, mx, info, plttitle, exp, by_author=self.by_author, subdir=self.subdir)
                     else:

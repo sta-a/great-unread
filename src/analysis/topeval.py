@@ -230,6 +230,13 @@ class TopEval(InfoHandler):
             df = self.drop_na_rows(df)
             df = self.drop_duplicated_rows(df)
             df = self.extend_sizes_col(df)
+
+            # Remove linkage methods in hierarchical clustering that were  only defined on Euclidean distance
+            if self.cmode == 'mx':
+                mask = ~df['clst_alg_params'].str.contains('centroid|median|ward', case=False, na=False)
+                filtered_df = df[mask]
+                filtered_df = filtered_df.reset_index(drop=True)
+
             if 'maxsize' in self.exp:
                 df = self.filter_clst_sizes(df)
             if 'min_nclust' in self.exp or 'max_nclust' in self.exp:

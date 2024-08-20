@@ -18,14 +18,14 @@ languages = ['eng', 'ger']
 tasks = ['regression-canon']
 testing = False ###################
 data_dir = '../data'
-data_dir = '/media/annina/MyBook/back-to-computer-240615/data' ###################3
+data_dir = '/media/annina/elements/back-to-computer-240615/data' ###################3
 significance_threshold = 0.1
 n_outer_folds = 5
 
 # Combine predictions of outer folds for each model
+# Creates df with columsn file_name, fold_true, fold_pred, y_true, y_pred
 for language in languages:
 
-    features_dir = os.path.join(data_dir, 'features_None', language)
     gridsearch_dir = os.path.join(data_dir, 'nested_gridsearch', language)
     sentiscores_dir = os.path.join(data_dir, 'sentiscores', language)
     metadata_dir = os.path.join(data_dir, 'metadata', language)
@@ -55,10 +55,8 @@ for language in languages:
 
 # Find best model for each task
 # For regression, each label type is a separate task
-results_for_plotting = []
 for language in languages:
-
-    features_dir = os.path.join(data_dir, 'features_None', language)
+    results_for_plotting = []
     gridsearch_dir = os.path.join(data_dir, 'nested_gridsearch', language)
     sentiscores_dir = os.path.join(data_dir, 'sentiscores', language)
     metadata_dir = os.path.join(data_dir, 'metadata', language)
@@ -73,7 +71,7 @@ for language in languages:
         task_params = get_task_params(task, testing, language)
         if 'regression' in task:
             eval_metric_col = 'mean_test_corr'
-            print('regression in task')
+            print('eval_metric_col', eval_metric_col)
         else:
             eval_metric_col = 'mean_test_' + task_params['refit']
 
@@ -85,6 +83,7 @@ for language in languages:
                 print('----------------------------', language, task, label_type, features)
                 best_models = []
                 for outer_fold in range(0, n_outer_folds):
+                    # inner-cv... df contains combination details and eval metrics for each fold
                     fold_results = pd.read_csv(
                         os.path.join(gridsearch_dir, f'inner-cv_{language}_{task}_{label_type}_{features}_fold-{outer_fold}.csv'), 
                         header=0)
@@ -116,7 +115,7 @@ for language in languages:
                 eval_metric_col, 
                 n_outer_folds, 
                 significance_threshold)
-            print(best_features)
+            print('best_features', best_features)
             
             best_model_across_features.to_csv(
                 os.path.join(results_dir, f'best-inner-model_{language}_{task}_{label_type}.csv'), 
@@ -125,6 +124,7 @@ for language in languages:
                 na_rep='NaN')
 
             # Score outer cv
+            best_features = 'book' ###########################
             outer_cv_result = pd.read_csv(
                 os.path.join(results_dir, 
                 f'outer-cv-predicted_{language}_{task}_{label_type}_{best_features}.csv'), 
@@ -151,6 +151,7 @@ for language in languages:
                 results_for_plotting_dict['min_y_pred'] = y_pred.min()
                 results_for_plotting_dict['max_y_pred'] = y_pred.max()
                 results_for_plotting.append(results_for_plotting_dict)
+                print('appended toresults_for_plotting ', language, task, label_type)
             else:
                 evaluate_classification(results_dir, language, task, label_type, best_features, y_true, y_pred)
 

@@ -180,6 +180,13 @@ class MetadataStats(DataHandler):
         mh = MetadataHandler(self.language, by_author=self.by_author)
         df = mh.get_metadata(add_color=False)
 
+        # Find authors that occur only once
+        if not self.by_author:
+            author_counts = df['author'].value_counts()
+            authors_occurring_once = author_counts[author_counts == 1]
+            num_authors_occurring_once = len(authors_occurring_once)
+            print(f"Number of authors that occur only once: {num_authors_occurring_once}")
+
         # Get the counts of gender
         gender_counts = df['gender'].value_counts()
         print('Gender counts:\n', gender_counts)
@@ -644,11 +651,11 @@ if __name__ == '__main__':
         
         for by_author in [False, True]:
 
-            # mdstats = MetadataStats(language, by_author=by_author)
-            # mdstats.get_stats()
+            mdstats = MetadataStats(language, by_author=by_author)
+            mdstats.get_stats()
 
-            pyac = PlotYearAndCanon(language, by_author=by_author)
-            pyac.get_correlations()
+            # pyac = PlotYearAndCanon(language, by_author=by_author)
+            # pyac.get_correlations()
             # pyac.make_joint_plot()
             # pyac.plot_single_var()
             # pyac.plot_two_vars()
@@ -676,24 +683,12 @@ if __name__ == '__main__':
 
 
 # %%
-# task = 'regression-importances'
-# label_type = 'canon'
-# # Importances are calculated on cacb features
-# features = 'book'
-
-# data_dir = '../data'
-# canonscores_dir = os.path.join(data_dir, 'canonscores')
-# n_outer_folds = 5
-
-
-
-# %%
 # Nr reviewed texts after contradicting labels were removed: 191
 # for language in languages:
 #     # Use full features set for classification to avoid error with underrepresented classes
 #     sentiscores_dir = os.path.join(data_dir, 'sentiscores', language)
 #     metadata_dir = os.path.join(data_dir, 'metadata', language)
-#     features_dir = features_dir = os.path.join(data_dir, 'features_None', language)
+#     features_dir = features_dir = os.path.join(data_dir, 'features', language)
 #     gridsearch_dir = os.path.join(data_dir, 'nested_gridsearch', language)
 #     if not os.path.exists(gridsearch_dir):
 #         os.makedirs(gridsearch_dir, exist_ok=True)

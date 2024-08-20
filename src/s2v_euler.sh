@@ -192,7 +192,7 @@ rsync -avz --exclude 'simmxs' --exclude 'sparsification*' stahla@euler.ethz.ch:/
 rsync -avz --exclude 'simmxs' --exclude 'sparsification*' stahla@euler.ethz.ch:/cluster/scratch/stahla/data/similarity/ger /home/annina/scripts/great_unread_nlp/data/similarity
 
 
-scp -r stahla@euler.ethz.ch:/cluster/scratch/stahla/data/nested_gridsearch /home/annina/scripts/great_unread_nlp/data
+rsync -avz stahla@euler.ethz.ch:/cluster/scratch/stahla/data/nested_gridsearch /home/annina/scripts/great_unread_nlp/data
 scp -r stahla@euler.ethz.ch:/cluster/scratch/stahla/data/fold_idxs /home/annina/scripts/great_unread_nlp/data
 
 
@@ -453,12 +453,12 @@ rsync -avz --ignore-existing --exclude 'networks_to_embeddings' --exclude 'struc
 
 
 # Synchronize harddrives /media/annina/MyBook/back-to-computer-240615/data_author/analysis_s2v/eng/MxNkAnalysis
-rsync -avz /media/annina/MyBook/back-to-computer-240615 /media/annina/elements
+rsync -av /media/annina/MyBook/back-to-computer-240615 /media/annina/elements
 rsync -avz /media/annina/MyBook/back-to-computer-240615/data /media/annina/elements/back-to-computer-240615
 rsync -avz  /media/annina/MyBook/back-to-computer-240615/data_author /media/annina/elements/back-to-computer-240615
 rsync -avz /home/annina/Documents/thesis /media/annina/MyBook/back-to-computer-240615
 
-rsync -avz --ignore-existing /media/annina/elements/back-to-computer-240615 /media/annina/MyBook 
+rsync -av --ignore-existing /media/annina/elements/back-to-computer-240615 /media/annina/MyBook 
 
 
 
@@ -543,7 +543,22 @@ rsync -avz stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/analysis/ger
 
 
 
+rsync -av stahla@euler.ethz.ch:/cluster/scratch/stahla/data/analysis_s2v/eng /media/annina/elements/back-to-computer-240615/data/analysis_s2v 
+rsync -av stahla@euler.ethz.ch:/cluster/scratch/stahla/data/analysis_s2v/ger /media/annina/elements/back-to-computer-240615/data/analysis_s2v 
+rsync -av stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/analysis_s2v/eng /media/annina/elements/back-to-computer-240615/data_author/analysis_s2v 
+rsync -av stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/analysis_s2v/ger /media/annina/elements/back-to-computer-240615/data_author/analysis_s2v
+
+rsync -av stahla@euler.ethz.ch:/cluster/scratch/stahla/data/analysis/eng /media/annina/elements/back-to-computer-240615/data/analysis 
+rsync -av stahla@euler.ethz.ch:/cluster/scratch/stahla/data/analysis/ger /media/annina/elements/back-to-computer-240615/data/analysis 
+rsync -av stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/analysis/eng /media/annina/elements/back-to-computer-240615/data_author/analysis 
+rsync -av stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/analysis/ger /media/annina/elements/back-to-computer-240615/data_author/analysis 
 
 
+
+
+rsync -avz stahla@euler.ethz.ch:/cluster/scratch/stahla/data/nested_gridsearch /media/annina/MyBook/back-to-computer-240615/data
+rsync -avz stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/nested_gridsearch /media/annina/MyBook/back-to-computer-240615/data_author
+rsync -avz stahla@euler.ethz.ch:/cluster/scratch/stahla/data/nested_gridsearch /media/annina/elements/back-to-computer-240615/data
+rsync -avz stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/nested_gridsearch /media/annina/elements/back-to-computer-240615/data_author
 
 

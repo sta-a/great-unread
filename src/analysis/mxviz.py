@@ -647,11 +647,13 @@ class MxSingleViz(MxSingleViz2D3D):
 
 
 class MxSingleVizCluster(MxVizBase):
+    '''
+    Make 2D viz of attr and clusters, only used in additional experiments for thesis
+    '''
     def __init__(self, language, output_dir, mx, info, plttitle, exp, by_author):
         super().__init__(language, output_dir, mx=mx, info=info, plttitle=plttitle, exp=exp, by_author=by_author)
-        self.attr = 'cluster'
         self.markersize = 20
-        self.add_subdir('MxSingleVizCluster_delete')
+        self.add_subdir('MxSingleVizCluster')
 
 
     def get_figure(self):
@@ -661,6 +663,7 @@ class MxSingleVizCluster(MxVizBase):
         self.adjust_subplots()
 
     def fill_subplots(self):
+        print('color col', self.attr)
         self.draw_mds([0, 0], color_col=self.attr, use_different_shapes=False, s=self.markersize)
 
     def draw_mds(self, ix, color_col=None, use_different_shapes=False, s=30, edgecolor='black', linewidth=0.2):
@@ -687,16 +690,19 @@ class MxSingleVizCluster(MxVizBase):
         return self.get_file_path(file_name, subdir=True)
 
     def visualize(self, vizname='viz', omit=[]):
-        self.vizpath = self.get_path(omit=['attr'])
-        if not os.path.exists(self.vizpath):
-
-            print('################\n', self.vizpath, '\n##################3\n')
-            self.pos = self.get_mds_positions()
-            self.add_positions_to_metadf()
-            self.get_figure()
-            self.fill_subplots()
-            self.save_plot(plt)
-            # plt.show()
+        for attr in ['cluster', self.info.attr]:
+            self.attr = attr
+            self.info.attr = attr
+            self.vizpath = self.get_path() # 'cluster' is also added to vizpath
+            
+            if not os.path.exists(self.vizpath):
+                print('################\n', self.vizpath, '\n##################3\n')
+                self.pos = self.get_mds_positions()
+                self.add_positions_to_metadf()
+                self.get_figure()
+                self.fill_subplots()
+                self.save_plot(plt)
+                # plt.show()
 
 
 class S2vKeyAttrViz(ImageGrid):

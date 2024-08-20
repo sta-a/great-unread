@@ -16,6 +16,7 @@ import random
 random.seed(8)
 
 def plot_regression(results_dir, results_for_plotting):
+    print('nr elements in results_for_plotting', len(results_for_plotting))
     min_y_true = []
     max_y_true = []
     min_y_pred = []
@@ -41,13 +42,15 @@ def plot_regression(results_dir, results_for_plotting):
     print('axis limits', x_axis_limit, y_axis_limit)
 
     for d in results_for_plotting:
+        print("d['y_true']", d['y_true'].shape)
+        print("d['y_pred']", d['y_pred'].shape)
         if d['language'] == 'eng':
-            color = 'blue'
+            color = 'lightblue'
         else:
-            color = 'blue'
+            color = 'lightblue'
         fig = plt.figure(figsize = (4,4)) 
         ax = fig.add_subplot(111)
-        ax.scatter(x=d['y_true'], y=d['y_pred'], s=5, c=color, marker='o')
+        ax.scatter(x=d['y_true'], y=d['y_pred'], s=1) # use default color
         # ax.grid()
         
         # Set the lower and upper numerical bounds of the x-axis
@@ -63,11 +66,10 @@ def plot_regression(results_dir, results_for_plotting):
         #         y=y_axis_limit - 0.02,
         #         s=f'r = {correlation}{significance}', 
         #         fontsize=18)
-        ax.set_xlabel('True Scores', fontsize=15)
-        ax.set_ylabel('Predicted Scores', fontsize=15)
-        print(os.path.join(results_dir, f'plot_{d["language"]}_regression_{d["label_type"]}.png'))
+        ax.set_xlabel('True Scores', fontsize=14)
+        ax.set_ylabel('Predicted Scores', fontsize=14)
         fig.savefig(
-            os.path.join(results_dir, f'plot_{d["language"]}_regression_{d["label_type"]}.png'), 
+            os.path.join(results_dir, f'regression-true-vs-predicted-{d["label_type"]}.png'), 
             dpi=400, 
             bbox_inches='tight')
         fig.show()
@@ -77,7 +79,7 @@ def get_best_model_across_features(task, best_inner_models, eval_metric_col, n_o
     # Find feature level which has the highest mean inner cv score across folds of outer cv
     mean_score_innercv = {}
     for features, group in best_inner_models.groupby('features'):
-        # Only keep one model per inner fold since all rows belonging to the same fold have the same mean inner cv score (they are all best models)
+        # Keep only one model per inner fold since all rows belonging to the same fold have the same mean inner cv score (they are all best models)
         group = group.drop_duplicates('fold')
         mean_metric = group[eval_metric_col].mean()
         mean_score_innercv[features] = mean_metric
