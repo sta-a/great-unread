@@ -15,9 +15,8 @@ evalcols_list = [
     'completeness',
     'vmeasure',
     'ad_nmi'
-    'singleimage'
 ]
-
+# don't use 'singleimage' because it uses different viz class, making different images than those for clusters
 # Define the combinations
 languages = ['eng', 'ger']
 by_author_list = [True, False]

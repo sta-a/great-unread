@@ -134,6 +134,8 @@ class NkVizBase(VizBase):
     def add_positions_to_metadf(self):
         # Combine positions and metadata
         self.get_metadf()
+        # print(self.pos)
+        # print(self.df)
         self.df['pos'] = self.df.index.map(self.pos)
         self.df[['x', 'y']] = pd.DataFrame(self.df['pos'].tolist(), index=self.df.index)
 
@@ -224,7 +226,7 @@ class NkVizBase(VizBase):
                 # Combine the first two parts with an underscore
                 mxname_tmp = '_'.join(parts[:2])
             else:
-                mxname_tmp = self.info.mxname
+                mxname_tmp = f'{self.info.mxname}_{self.info.sparsmode}'
                 
             pos_path = os.path.join(pos_dir, f'{mxname_tmp}.pkl')
             return pos_path
@@ -833,6 +835,7 @@ class NkSingleVizAttr(NkKeyAttrViz):
         self.ws_top = 0.99
         self.ws_wspace = 0
         self.ws_hspace = 0
+        print('########################', self.info.attr, '#########################333')
 
 
     def get_metadf(self):
@@ -891,22 +894,45 @@ class NkSingleVizAttr(NkKeyAttrViz):
             # plt.show()
             plt.close()
 
+
+
    
     def get_figure(self):
         ncol = 1
-        width_ratios = (ncol-1)*[7] + [1]
+        width_ratios = [1]  # Only one column, so width ratio is irrelevant here
 
-        self.fig, self.axs = plt.subplots(2, ncol, figsize=self.figsize, gridspec_kw={'height_ratios': [7, 2], 'width_ratios': width_ratios})      
+        # Adjusting the height ratios to make the upper plot a square
+        height_ratios = [6, 1]  # Upper subplot is 6 times the height of the lower subplot
+
+        # Set figsize to 1.2 width and 1.4 height as specified
+        self.fig, self.axs = plt.subplots(2, ncol, figsize=self.figsize, gridspec_kw={'height_ratios': height_ratios, 'width_ratios': width_ratios})      
+
+        # Reshape axs to ensure it's a 2x1 array
         self.axs = np.reshape(self.axs, (2, 1)) 
 
-        # for row in self.axs: 
-        #     for ax in row:
-        #         ax.axis('off')
+        # Turn off axes for both subplots
         self.axs[0,0].axis('off')
         self.axs[1,0].axis('off')
 
-        self.attrix = [0,0]
+        # Set attribute indices for subplot referencing
+        self.attrix = [0, 0]
         self.subplots = [self.attrix]
+   
+    # def get_figure(self):
+    #     ncol = 1
+    #     width_ratios = (ncol-1)*[7] + [1]
+
+    #     self.fig, self.axs = plt.subplots(2, ncol, figsize=self.figsize, gridspec_kw={'height_ratios': [7, 2], 'width_ratios': width_ratios})      
+    #     self.axs = np.reshape(self.axs, (2, 1)) 
+
+    #     # for row in self.axs: 
+    #     #     for ax in row:
+    #     #         ax.axis('off')
+    #     self.axs[0,0].axis('off')
+    #     self.axs[1,0].axis('off')
+
+    #     self.attrix = [0,0]
+    #     self.subplots = [self.attrix]
 
 
 
@@ -940,7 +966,6 @@ class NkS2vKeyAttrViz(ImageGrid):
 
 
 
-
     def get_file_path(self, vizname=None, subdir=None, **kwargs):
         return os.path.join(self.subdir, f'{self.info.as_string(omit=["attr"])}.{self.data_type}')
 
@@ -958,6 +983,7 @@ class NkS2vKeyAttrViz(ImageGrid):
             # Set subdir so that imaes with clusters highlighted are placed in same subdir as single images from NkSingleViz
             nkclust = NkSingleVizAttr(self.language, self.output_dir, self.info, plttitle=self.plttitle, exp=self.exp, by_author=self.by_author, subdir='nk_singleimage', figsize=(2.5*self.img_width, 2.5*self.img_height)) 
             nkclust_path = nkclust.get_path()
+            print(nkclust_path)
             nkclust.visualize()
             imgs.append(nkclust_path)
 

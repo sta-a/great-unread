@@ -264,7 +264,7 @@ class Experiment(DataHandler):
             
 
         # exps = all_top  + top_cluster # sparsgrid + all_nkgrid + all_attrgrid + clustconst + central
-        exps = all_top  + singleimage
+        exps = all_top  #  + singleimage # avoid using sinlgeimage to use same image generation class for all images to get nicer images
         
         if select_exp is not None and select_exp !='all':
             if select_exp == 'singleimage_analysis': # no others are run at the same time
@@ -378,7 +378,6 @@ class Experiment(DataHandler):
         else:
             for topk in te.get_top_combinations():
                 info, plttitle = topk
-                print(info.metadf)
                 # name of 'threshold-0%9' has changed to 'threshold-0%90' after combinations were run
                 if '0%9.' in info.spmx_path:
                     info.spmx_path = info.spmx_path.replace('0%9.', '0%90.') ##################

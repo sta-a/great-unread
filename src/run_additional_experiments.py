@@ -50,8 +50,8 @@ class AnalysisMxAuthor(DataHandler):
         self.save_data(data=df, file_name=os.path.basename(self.path), subdir=True)
 
         df['plttitle'] = 'empty-plttitle'
-        # exp = {'name': self.__class__.__name__, 'ntop': 30, 'maxsize': 90, 'intthresh': 0.2, 'viztype': 'keyattr'}
-        exp = {'name': self.__class__.__name__, 'ntop': 30, 'maxsize': 90, 'intthresh': 0.2, 'viztype': 'singleimage_extra_experimtents'}
+        # exp = {'name': self.__class__.__name__, 'ntop': 30, 'maxsize': 90, 'intthresh': 0.2, 'viztype': 'keyattr'} # visualize all attrs
+        exp = {'name': self.__class__.__name__, 'ntop': 30, 'maxsize': 90, 'intthresh': 0.2, 'viztype': 'singleimage_extra_experimtents'} # make single image with author or clusters highlighted
         te = TopEval(language=self.language, output_dir='similarity', cmode='mx', exp=exp, expdir=None, df=df, by_author=self.by_author)
         experiment = Experiment(language=self.language, cmode='mx', by_author=self.by_author, output_dir=self.output_dir)
         experiment.visualize_mx(exp=exp, te=te)
@@ -228,13 +228,12 @@ for language in ['eng', 'ger']:
     #     # Save the modified DataFrame if needed
     #     df.to_csv(path)
 
-# %%
 
 # %%
 import os
 
 # Get the current directory
-current_dir = '/media/annina/MyBook/back-to-computer-240615/data/analysis/ger'
+current_dir = '/media/annina/elements/back-to-computer-240615/data/analysis_s2v/eng' # mx_topauthor_ARI_nclust-50-50
 # List to store directories and their file counts
 dir_file_counts = []
 
@@ -243,7 +242,7 @@ for item in os.listdir(current_dir):
     item_path = os.path.join(current_dir, item)
     
     # Check if the item is a directory
-    if os.path.isdir(item_path) and 'mx' in item_path and 'nclust-50' in item_path and 'author' in item_path:
+    if os.path.isdir(item_path) and 'mx' in item_path and 'nclust-50' in item_path and 'topauthor' in item_path and 'ARI' in item_path:
         # Count the number of files in the directory
         num_files = len([f for f in os.listdir(item_path) if os.path.isfile(os.path.join(item_path, f))])
         
@@ -255,4 +254,83 @@ dir_file_counts.sort(key=lambda x: x[1], reverse=True)
 
 for idx, (dir_name, file_count) in enumerate(dir_file_counts, start=1):
     print(f"{idx}. Directory: {dir_name}, Number of files: {file_count}")
+
+
+
+
+
+
+
+
+
+
+# %%
+
+import pandas as pd
+import os
+# Display the table in a format that can be copied into latex
+
+def make_latex_table(df):
+    print('\n\n\\begin{table}')
+    print('\\centering')
+    print('\\caption{}')
+    print(df.to_latex(index=False))
+    print('\\label{}')
+    print('\\end{table}')
+
+
+def extract_distance_and_sparsification(mxname):
+    parts = mxname.split('_')
+    # Extract the first part for Distance and the second part for Sparsification
+    return parts[0], parts[1]
+    return None, None
+
+
+
+
+def prepare_df(dirpath, eval_metric, int_eval_metric, topn):
+    path = os.path.join(dirpath, 'df.csv')
+    df = pd.read_csv(path)
+    # Filter out invalid linkage functions
+    mask = ~df['clst_alg_params'].str.contains('centroid|median|ward', case=False, na=False)
+    df = df[mask]
+    if 'sparsmode' in df.columns:
+        df = df[['mxname', 'sparsmode', 'clst_alg_params', eval_metric, int_eval_metric]]
+    else:
+        df = df[['mxname', 'clst_alg_params', eval_metric, int_eval_metric]]
+
+    if df['mxname'].str.contains('dimensions').any():
+        df[['Distance', 'sparsmode']] = df['mxname'].apply(lambda x: pd.Series(extract_distance_and_sparsification(x)))
+        df = df[['Distance', 'sparsmode', 'clst_alg_params', eval_metric, int_eval_metric]]
+
+    df = df.sort_values(by=eval_metric, ascending=False)
+    df = df.head(topn)
+    df['clst_alg_params'] = df['clst_alg_params'].str.replace('%', '.')
+
+
+    df = df.rename({
+        'mxname': 'Distance', 
+        'sparsmode': 'Sparsification', 
+        'clst_alg_params': 'Clst. Alg. + Params',
+        'modularity': 'Modularity',
+        'silhouette_score': 'Silhouette Score'}, inplace=False, axis='columns')
+    return df
+
+
+dirpath = '/media/annina/elements/back-to-computer-240615/data/analysis/eng/nk_topauthor_ARI_nclust-50-100' 
+dirpath = '/media/annina/elements/back-to-computer-240615/data/analysis/ger/nk_topauthor_ARI_nclust-50-100' 
+eval_metric = 'ARI'
+int_eval_metric = 'modularity'
+topn = 20
+
+
+# dirpath = '/media/annina/elements/back-to-computer-240615/data/analysis_s2v/ger/mx_topauthor_ARI_nclust-50-50' # check 50-100  - the same?
+# eval_metric = 'ARI'
+# int_eval_metric = 'silhouette_score'
+# topn = 3
+
+df = prepare_df(dirpath, eval_metric, int_eval_metric, topn)
+make_latex_table(df)
+
+
 # %%

@@ -1047,3 +1047,6 @@ class FeaturesLoader(DataHandler):
             self.logger.debug('Returning df scaled to values between 0 and 1.')
         return df
     
+
+
+# %%
