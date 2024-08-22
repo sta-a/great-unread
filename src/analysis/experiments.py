@@ -104,7 +104,10 @@ class Experiment(DataHandler):
             4: 10,
             50: 100, 
             101: 150,
-            151:200
+            # 151:200
+            # 50:50,
+            # 4:4,
+            # 10:10
         }
 
 
@@ -361,7 +364,7 @@ class Experiment(DataHandler):
                 viz.visualize(vizname)
 
 
-    def visualize_nk(self, exp, te):
+    def visualize_nk(self, exp, te, subdir=None):
         # viztypes: 'attrgrid', 'nkgrid' 'keyattr'
         if exp['viztype'] == 'nkgrid':
             viz = NkNetworkGridkViz(self.language, self.output_dir, exp, self.by_author)
@@ -378,6 +381,7 @@ class Experiment(DataHandler):
         else:
             for topk in te.get_top_combinations():
                 info, plttitle = topk
+                print('info', info.as_string())
                 # name of 'threshold-0%9' has changed to 'threshold-0%90' after combinations were run
                 if '0%9.' in info.spmx_path:
                     info.spmx_path = info.spmx_path.replace('0%9.', '0%90.') ##################
@@ -388,7 +392,9 @@ class Experiment(DataHandler):
                     # In Topeval, a single combination for each sparsified matrix is chosen, attributes don't matter
                     viz = NkAttrGridViz(self.language, self.output_dir, info, plttitle=plttitle, exp=exp, by_author=self.by_author)                      
                 else:
-                    viz = NkS2vKeyAttrViz(language=self.language, info=info, plttitle=plttitle, exp=exp, by_author=self.by_author, subdir=self.subdir)
+                    if subdir is None:
+                        subdir=self.subdir
+                    viz = NkS2vKeyAttrViz(language=self.language, info=info, plttitle=plttitle, exp=exp, by_author=self.by_author, subdir=subdir)
                 viz.visualize()
 
 

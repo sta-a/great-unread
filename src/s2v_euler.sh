@@ -570,6 +570,6 @@ rsync -av stahla@euler.ethz.ch:/cluster/scratch/stahla/data/analysis/ger /media/
 rsync -av stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/analysis/eng /media/annina/elements/back-to-computer-240615/data_author/analysis 
 rsync -av stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/analysis/ger /media/annina/elements/back-to-computer-240615/data_author/analysis 
 
-
+rsync -av stahla@euler.ethz.ch:/cluster/scratch/stahla/data/analysis/eng/nk_topcont_ext_calinski_harabasz_nclust-101-150_threshold-0%90 /media/annina/elements/back-to-computer-240615/data/analysis/eng
 
 

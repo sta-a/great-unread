@@ -967,6 +967,7 @@ class NkS2vKeyAttrViz(ImageGrid):
 
 
     def get_file_path(self, vizname=None, subdir=None, **kwargs):
+        print(self.subdir, f'{self.info.as_string(omit=["attr"])}.{self.data_type}')
         return os.path.join(self.subdir, f'{self.info.as_string(omit=["attr"])}.{self.data_type}')
 
 

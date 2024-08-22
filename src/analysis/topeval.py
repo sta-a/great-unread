@@ -220,7 +220,7 @@ class TopEval(InfoHandler):
         for scale in self.exp['dfs']:
             self.scale = scale
             evaldir = os.path.join(self.output_dir, f'{self.cmode}eval')
-            print(f'Loading eval df from dir {evaldir}')
+            print(f'----- Loading eval df from dir {evaldir}')
             df = pd.read_csv(os.path.join(evaldir, f'{self.scale}_results.csv'), header=0, na_values=['NA'])
 
             # Drop rows if they contain mirror
@@ -238,26 +238,34 @@ class TopEval(InfoHandler):
                 filtered_df = filtered_df.reset_index(drop=True)
 
             if 'maxsize' in self.exp:
+                print('------ Filtering maxsize')
                 df = self.filter_clst_sizes(df)
             if 'min_nclust' in self.exp or 'max_nclust' in self.exp:
+                print('------ Filtering nclust')
                 df = self.filter_nclust(df)
             if 'attr' in self.exp:
+                print('------ Filtering attr')
                 # df = self.filter_attribute(df)
                 df = df[df['attr'] == self.exp['attr']]
             if 'sparsmode' in self.exp: # select rows for sparsmode
+                print('------ Filtering sparsmode')
                 assert self.cmode == 'nk'
                 df = df[df['sparsmode'] == self.exp['sparsmode']]
             if 'mxname' in self.exp:
+                print('------ Filtering mxname')
                 df = self.filter_columns_substring(df, 'mxname')
             if 'mxname_spars' in self.exp:
+                print('------ Filtering mxname_spars')
                 assert isinstance(self.exp['mxname_spars'], str)
                 df = self.filter_columns_substring_spars(df)
 
             if (self.exp['viztype'] == 'attrgrid' or self.exp['viztype'] == 'nkgrid'):
                 df = self.filter_unique_mxs(df)
             if 'intthresh' in self.exp:
+                print('------ Filtering intthresh')
                 df = self.filter_inteval(df)
             if 'nclust_min' in self.exp:
+                print('------ Filtering nclust_min')
                 df = self.filter_nclust(df)
             self.dfs[self.scale] = df
     
@@ -268,6 +276,7 @@ class TopEval(InfoHandler):
             df = self.dfs[self.scale]
 
         if 'evalcol' in self.exp:
+            print(f'----- Sorting by evalcol {self.exp["evalcol"]}')
             if self.exp['high_is_best']:
                 df = df.sort_values(by=self.exp['evalcol'], ascending=False)
             else:
