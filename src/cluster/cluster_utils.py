@@ -179,7 +179,7 @@ class ShapeMap():
 
 
 class Colors():
-    CMAP = plt.cm.get_cmap('seismic', lut=10000)
+    CMAP = plt.cm.get_cmap('seismic', lut=10000) #  Spectral
     CMAP_ALT = plt.cm.get_cmap('turbo', lut=10000)
 
     def __init__(self):

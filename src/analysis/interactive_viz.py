@@ -330,7 +330,7 @@ class NkSingleVizAnalysis(NkSingleViz):
         mxs = sorted(mxs)
         for mxname in mxs:
             mxpath = os.path.join(self.mxdir, mxname)
-            self.mxname = self.clear_mxname(mxname)
+            self.mxname = self.clear_mxname(mxname) # contains mxname_sparsmode
             print('mxname', self.mxname)
             # Check if plot for last key attr has been created
             self.get_results_path(self.mxname, self.key_attrs[-1])
@@ -338,7 +338,8 @@ class NkSingleVizAnalysis(NkSingleViz):
                 print('results already exist')
             else:
                 self.get_metadf()
-                self.info = CombinationInfo(mxname=self.mxname)
+                mxname_only, sparsmode = mxname.split('_')
+                self.info = CombinationInfo(mxname=self.mxname, sparsmode=sparsmode)
 
                 i = 0
                 j = 0
@@ -371,8 +372,8 @@ class NkSingleVizAnalysis(NkSingleViz):
             assert 'label_color' not in self.df.columns
             assert self.labels == [[]]
             print('No labels were selected. No plots were saved.')
-            with open(self.results_path, 'w') as f: # Create empty file as reminder that combination has been checked
-                f.write('')
+            # with open(self.results_path, 'w') as f: # Create empty file as reminder that combination has been checked ################################
+            #     f.write('')
 
         else:
             self.get_networks()
@@ -380,8 +381,8 @@ class NkSingleVizAnalysis(NkSingleViz):
             # If points were selected, write a comment
             comment = input('Enter a comment. Must not contain any commas! ') # commas used as sep
             # self.get_networks()
-            self.write_comment_to_file(comment)
-            print('wrote comment to file')
+            # self.write_comment_to_file(comment) ###############################
+            # print('wrote comment to file')
 
 
 
@@ -402,7 +403,7 @@ class NkSingleVizAnalysis(NkSingleViz):
                 if label not in self.labels2d:
                     self.labels2d.append(label)
                     row = self.df_nocolor.loc[label].values.tolist()
-                    self.write_labels_to_file(label, row, dim='2d')
+                    # self.write_labels_to_file(label, row, dim='2d') ########################33
                     print(f'Selected: {label}')
         lasso = LassoSelector(self.axs[0, 0], onselect)
 

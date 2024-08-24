@@ -452,13 +452,6 @@ rsync -avz --ignore-existing /home/annina/scripts/great_unread_nlp/data/similari
 rsync -avz --ignore-existing --exclude 'networks_to_embeddings' --exclude 'struc2vec-master_rwpath' --exclude 'struc2vec-master_improved_paths'  /home/annina/scripts/great_unread_nlp/src/* stahla@euler.ethz.ch:/cluster/scratch/stahla/src
 
 
-# Synchronize harddrives /media/annina/MyBook/back-to-computer-240615/data_author/analysis_s2v/eng/MxNkAnalysis
-rsync -av /media/annina/MyBook/back-to-computer-240615 /media/annina/elements
-rsync -avz /media/annina/MyBook/back-to-computer-240615/data /media/annina/elements/back-to-computer-240615
-rsync -avz  /media/annina/MyBook/back-to-computer-240615/data_author /media/annina/elements/back-to-computer-240615
-rsync -avz /home/annina/Documents/thesis /media/annina/MyBook/back-to-computer-240615
-
-rsync -av --ignore-existing /media/annina/elements/back-to-computer-240615 /media/annina/MyBook 
 
 
 
@@ -545,6 +538,13 @@ rsync -av stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/analysis/ger 
 
 
 
+# Synchronize harddrives /media/annina/MyBook/back-to-computer-240615/data_author/analysis_s2v/eng/MxNkAnalysis
+rsync -av /media/annina/MyBook/back-to-computer-240615 /media/annina/elements
+rsync -avz /media/annina/MyBook/back-to-computer-240615/data /media/annina/elements/back-to-computer-240615
+rsync -avz  /media/annina/MyBook/back-to-computer-240615/data_author /media/annina/elements/back-to-computer-240615
+rsync -avz /home/annina/Documents/thesis /media/annina/MyBook/back-to-computer-240615
+
+rsync -av /media/annina/elements/back-to-computer-240615 /media/annina/MyBook 
 
 
 

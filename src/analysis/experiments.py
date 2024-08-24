@@ -20,7 +20,7 @@ from matplotlib.cm import ScalarMappable
 from utils import DataHandler
 from .mxviz import MxAttrGridViz, MxSingleViz, MxKeyAttrViz, S2vKeyAttrViz, MxSingleViz2D3D, MxSingleViz2D3DHorizontal, MxSingleVizCluster
 from .nkviz import NkKeyAttrViz, NkAttrGridViz, NkNetworkGridkViz, SparsGridkViz, NkSingleViz, NkS2vKeyAttrViz
-# from .interactive_viz import MxSingleViz2D3DHzAnalysis, NkSingleVizAnalysis
+from .interactive_viz import MxSingleViz2D3DHzAnalysis, NkSingleVizAnalysis
 from .viz_utils import ClusterAuthorGrid
 from .embedding_eval import EmbMxCombinations
 from .topeval import TopEval
@@ -29,6 +29,7 @@ from cluster.combinations import MxCombinations
 
 # import logging
 # logging.basicConfig(level=logging.DEBUG)
+
 
 
 class Experiment(DataHandler):
@@ -104,6 +105,7 @@ class Experiment(DataHandler):
             4: 10,
             50: 100, 
             101: 150,
+            2:10,#################
             # 151:200
             # 50:50,
             # 4:4,

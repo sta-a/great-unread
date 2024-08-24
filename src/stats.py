@@ -84,6 +84,115 @@ class YearAndCanonByGender(DataHandler):
         super().__init__(language, output_dir='text_statistics', data_type='png', by_author=by_author)
         self.fontsize = 30
 
+    def canon_year_correlation_by_gender(self):
+        print('------------------------')
+        print(language, by_author)
+        print('------------------------')
+
+        # Initialize a dictionary to store Spearman correlations for each gender and language
+        spearman_data = {}
+
+        mh = MetadataHandler(language, by_author=self.by_author)
+        df = mh.get_metadata(add_color=False)
+        print('Overall correlation:', spearmanr(df['canon'], df['year']))
+
+        # Replace numeric gender codes with strings
+        gender_map = {0: 'Male', 1: 'Female', 2: 'Anonymous', 3: 'Both'}
+        df['gender'] = df['gender'].replace(gender_map)
+
+        spearman_data = {}
+
+        # Calculate Spearman's rank correlation for each gender
+        for gender in ['Male', 'Female', 'Anonymous']:
+            gender_df = df[df['gender'] == gender]
+            corr, _ = spearmanr(gender_df['canon'], gender_df['year'])
+            spearman_data[gender] = corr
+
+        # Print Spearman correlations
+        for gender, corr in spearman_data.items():
+            print(f'\nSpearman\'s Rank Correlation for {gender}:')
+            print(f'  {gender}: {round(corr, 3)}')
+
+
+
+    def make_gender_means_table(self):
+        print('------------------------')
+        print(language, by_author)
+        print('------------------------')
+
+        # Initialize a dictionary to store the means for each gender
+        means_data = {}
+
+        for attrtup in [('year', 'Year'), ('canon', 'Canon Score')]:
+            attr, label = attrtup
+
+            mh = MetadataHandler(self.language, by_author=self.by_author)
+            df = mh.get_metadata(add_color=False)
+
+            gender_map = {0: 'Male', 1: 'Female', 2: 'Anonymous', 3: 'Both'}
+            df['gender'] = df['gender'].replace(gender_map)
+
+            # Filter out entries with missing values for the current attribute
+            df = df.dropna(subset=[attr])
+
+            # Calculate means by gender
+            attr_means = df.groupby('gender')[attr].mean()
+
+            # Store the means in the dictionary
+            means_data[label] = attr_means
+
+        # Convert the dictionary to a DataFrame
+        means_df = pd.DataFrame(means_data)
+        means_df['Year'] = means_df['Year'].round(1)
+        means_df['Canon Score'] = means_df['Canon Score'].round(3)
+
+        # Print the resulting table
+        print('Means of Year and Canon Scores by Gender:')
+        print(means_df)
+        print(means_df.to_latex(index=True))
+
+        return means_df
+
+    def make_gender_stripplot(self):
+        for attrtup in [('year', 'Year'), ('canon', 'Canon Score')]:
+            attr, label = attrtup
+
+            mh = MetadataHandler(self.language, by_author=self.by_author)
+            df = mh.get_metadata(add_color=False)
+
+            gender_map = {0: 'Male', 1: 'Female', 2: 'Anonymous', 3: 'Both'}
+            df['gender'] = df['gender'].replace(gender_map)
+
+            order=['Male', 'Female']
+            if 'Anonymous' in df['gender'].values:
+                order.append('Anonymous')
+
+            # Filter out entries with missing values for the current attribute
+            df = df.dropna(subset=[attr])
+
+
+            # Print means
+            attr_means = df.groupby('gender')[attr].mean().reindex(['Male', 'Female', 'Anonymous', 'Both'], fill_value=0)
+            print(f'Mean Canon Scores per {attr}:')
+            print(attr_means)
+
+            # # Creating the plot for every single value
+            # plt.figure(figsize=(12, 8))
+            # sns.stripplot(x='gender', y=attr, data=df, order=order, palette='Set2', jitter=True, size=6)
+
+            # # Adding title and labels
+            # plt.xlabel('Gender', fontsize=self.fontsize)
+            # plt.ylabel(label, fontsize=self.fontsize)
+            # # plt.title(f'{label} Distribution by Gender', fontsize=self.fontsize + 2)
+
+            # # Changing the font size of the tick labels
+            # plt.xticks(fontsize=self.fontsize - 5)
+            # plt.yticks(fontsize=self.fontsize - 5)
+
+            # # plt.show()
+            # # Save the plot
+            # self.save_data(data=plt, file_name=f'{attr}-by-gender_stripplot_byauthor-{self.by_author}.png')
+
 
     def make_gender_boxplots(self):
         for attrtup in [('year', 'Year'), ('canon', 'Canon Score')]:
@@ -652,7 +761,7 @@ if __name__ == '__main__':
         for by_author in [False, True]:
 
             mdstats = MetadataStats(language, by_author=by_author)
-            mdstats.get_stats()
+            # mdstats.get_stats()
 
             # pyac = PlotYearAndCanon(language, by_author=by_author)
             # pyac.get_correlations()
@@ -660,8 +769,11 @@ if __name__ == '__main__':
             # pyac.plot_single_var()
             # pyac.plot_two_vars()
 
-            # ybg = YearAndCanonByGender(language, by_author)
+            ybg = YearAndCanonByGender(language, by_author)
             # ybg.make_plots()
+            # ybg.make_gender_stripplot()
+            # ybg.make_gender_means_table()
+            ybg.canon_year_correlation_by_gender()
         
         # cbc = ColorBarChart(language, by_author)
         # cbc.make_plots()
