@@ -542,7 +542,7 @@ rsync -av stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/analysis/ger 
 rsync -av /media/annina/MyBook/back-to-computer-240615 /media/annina/elements
 rsync -avz /media/annina/MyBook/back-to-computer-240615/data /media/annina/elements/back-to-computer-240615
 rsync -avz  /media/annina/MyBook/back-to-computer-240615/data_author /media/annina/elements/back-to-computer-240615
-rsync -avz /home/annina/Documents/thesis /media/annina/MyBook/back-to-computer-240615
+
 
 rsync -av /media/annina/elements/back-to-computer-240615 /media/annina/MyBook 
 
@@ -571,5 +571,25 @@ rsync -av stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/analysis/eng 
 rsync -av stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/analysis/ger /media/annina/elements/back-to-computer-240615/data_author/analysis 
 
 rsync -av stahla@euler.ethz.ch:/cluster/scratch/stahla/data/analysis/eng/nk_topcont_ext_calinski_harabasz_nclust-101-150_threshold-0%90 /media/annina/elements/back-to-computer-240615/data/analysis/eng
+
+
+
+rsync -avz /home/annina/Documents/thesis /media/annina/MyBook/back-to-computer-240615
+rsync -avz /home/annina/Documents/thesis /media/annina/elements/back-to-computer-240615
+rsync -avz /home/annina/Documents/bibliography /media/annina/MyBook/back-to-computer-240615
+rsync -avz /home/annina/Documents/bibliography /media/annina/elements/back-to-computer-240615
+
+
+
+
+rsync -av stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/analysis/eng/nk_singleimage_appendix /media/annina/elements/back-to-computer-240615/data_author/analysis/eng
+rsync -av stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/analysis/ger/nk_singleimage_appendix /media/annina/elements/back-to-computer-240615/data_author/analysis/ger
+rsync -av stahla@euler.ethz.ch:/cluster/scratch/stahla/data/analysis/eng/nk_singleimage_appendix /media/annina/elements/back-to-computer-240615/data/analysis/eng
+rsync -av stahla@euler.ethz.ch:/cluster/scratch/stahla/data/analysis/ger/nk_singleimage_appendix /media/annina/elements/back-to-computer-240615/data/analysis/ger
+
+
+
+
+
 
 

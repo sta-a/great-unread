@@ -71,7 +71,7 @@ class Experiment(DataHandler):
         Top: Find combinations with highest evaluation scores
         '''
         # Different evaluation metrics for external continuous attribute
-        # The boolean value indicates if high values of this metric indicate good clustering
+        # The boolean value indicates whether a high values of this metric means good clustering
         cont_ext_evalcols = {
             'ext_silhouette': True,
             'ext_davies_bouldin': False,
@@ -101,11 +101,14 @@ class Experiment(DataHandler):
             # min and max nr clusters that are allowed
             None: None,
             2: 2,
-            3: 3,
-            4: 10,
-            50: 100, 
-            101: 150,
-            2:10,#################
+            2: 10,
+            5: 5,
+            2:5,
+            # 3: 3,
+            # 4: 10,
+            # 50: 100, 
+            # 101: 150,
+            # 10: 10,#################
             # 151:200
             # 50:50,
             # 4:4,
@@ -193,7 +196,7 @@ class Experiment(DataHandler):
         all_top = topcont + topcat + attrcont + attrcat + topcont_emb + topcat_emb
 
 
-        sparsmethods = ['threshold-0%8', 'threshold-0%90', 'threshold-0%95', 'simmel-5-10', 'simmel-3-10', 'simmel-4-6', 'simmel-7-10', 'authormax', 'authormin']
+        sparsmethods = ['simmel-5-10', 'simmel-3-10', 'simmel-4-6', 'simmel-7-10', 'threshold-0%8', 'threshold-0%90', 'threshold-0%95', 'authormax', 'authormin']
         if self.cmode == 'nk' or (self.cmode == 'mx' and 's2v' in self.output_dir):
             newdicts = []
             for spars in sparsmethods:
@@ -205,7 +208,7 @@ class Experiment(DataHandler):
                     else:
                         d['sparsmode'] = spars # spars method is its own field in the eval df
                     newdicts.append(d)
-            all_top = newdicts + all_top
+            all_top = all_top + newdicts
 
 
         '''
@@ -286,7 +289,7 @@ class Experiment(DataHandler):
         return exps
 
 
-    def run_experiments(self, select_exp=None, select_exp_from_substring=False, ntop=30):
+    def run_experiments(self, select_exp=None, select_exp_from_substring=False, ntop=40):
         exps = self.get_experiments(select_exp, select_exp_from_substring)
         for exp in exps:
             print(f"-{self.cmode}, {exp['name']}-------------------\n")

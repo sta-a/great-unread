@@ -776,6 +776,7 @@ class NkSingleViz(NkNetworkGridkViz):
         self.fontsize = 6
         self.markersize = 25
         print(self.key_attrs)
+        self.add_subdir('nk_singleimage_appendix')
         
         
     def clear_mxname(self, mxname):

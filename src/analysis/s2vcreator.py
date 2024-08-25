@@ -79,8 +79,7 @@ class S2vCreator(EmbeddingBase):
         }
         return params
 
-# dimensions-16_walklength-30_numwalks-200_windowsize-15_untillayer-5
-    def get_run_mode_params(self):
+    def get_run_mode_params(self): # dimensions-16_walklength-30_numwalks-200_windowsize-15_untillayer-5
         # Return few parameter combinations for creating the embeddings for the actual data
         params = {
             'dimensions': [16],

@@ -13,7 +13,10 @@ from sklearn.preprocessing import minmax_scale
 from copy import deepcopy
 from matplotlib.colors import to_rgba
 from scipy.stats import skew
-
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+import matplotlib.colorbar as cbar
+from matplotlib.ticker import MaxNLocator
 from utils import DataHandler, DataLoader, TextsByAuthor, FeaturesLoader
 
 import logging
@@ -361,3 +364,114 @@ class CombinationInfo:
             logging.info(f"Key '{key}' removed successfully.")
         else:
             logging.info(f"Key '{key}' not found.")
+
+
+class ColorBar(DataHandler):
+    # Create a color bar for cmap 'seismic'
+    def __init__(self, language, by_author=False):
+        super().__init__(language, output_dir='colorbar', data_type='png', by_author=by_author)
+        self.by_author = by_author
+        self.cont_attrs = ['year', 'canon']
+
+
+    def make_bar(self, attr):
+        # Simulating metadata extraction
+        mh = MetadataHandler(self.language, by_author=self.by_author)
+        metadf = mh.get_metadata()
+        original_values = metadf[attr]
+
+
+        # Create a figure and axis with a fixed size
+        fig, ax = plt.subplots(figsize=(1, 7))
+
+        # Create a colormap (e.g., 'seismic')
+        cmap = plt.cm.seismic
+
+        # Normalize the original values to the range [0, 1] for the color bar
+        norm = mpl.colors.Normalize(vmin=min(original_values), vmax=max(original_values))
+
+        # Create a colorbar using the plt.colorbar function
+        cbar_obj = plt.colorbar(plt.cm.ScalarMappable(norm=norm, cmap=cmap), cax=ax, orientation='vertical')
+
+        # Set the font size for tick labels
+        cbar_obj.ax.tick_params(labelsize=20)
+
+
+        # Adjust the number of ticks (e.g., 5)
+        cbar_obj.ax.yaxis.set_major_locator(MaxNLocator(nbins=5))  # Set the number of ticks to 5
+
+
+        # Adjust padding and layout
+        plt.subplots_adjust(left=0.1, right=0.4)  # Add padding to fit labels
+
+        # Save the color bar to a file
+        imgpath = os.path.join(self.output_dir, f'colorbar-seismic_{attr}.png')
+        plt.savefig(imgpath, bbox_inches='tight', pad_inches=0.1)
+        plt.close()
+
+    def make_bars(self):
+        for attr in self.cont_attrs:
+            self.make_bar(attr)
+
+
+    def add_both_labels(self):
+
+        # Simulating metadata extraction
+        mh = MetadataHandler(self.language, by_author=self.by_author)
+        metadf = mh.get_metadata()
+        
+        # Extract values for both 'year' and 'canon'
+        canon_values = metadf['canon']
+        year_values = metadf['year'].astype('int')
+
+        # Create a figure and axis with a fixed size
+        fig, ax = plt.subplots(figsize=(2, 7))
+
+        # Create a colormap (e.g., 'seismic')
+        cmap = plt.cm.seismic
+
+        # Normalize the canon values to the range [0, 1] for the color bar
+        norm_canon = mpl.colors.Normalize(vmin=min(canon_values), vmax=max(canon_values))
+        
+        # Create a colorbar using the plt.colorbar function
+        cbar_obj = plt.colorbar(plt.cm.ScalarMappable(norm=norm_canon, cmap=cmap), cax=ax, orientation='vertical')
+
+        # Set the font size for tick labels
+        cbar_obj.ax.tick_params(labelsize=20)
+
+        # Adjust the number of ticks (e.g., 5) for canon
+        cbar_obj.ax.yaxis.set_major_locator(MaxNLocator(nbins=5))
+
+        # Format canon labels (e.g., as rounded numbers)
+        canon_ticks = [round(v, 2) for v in np.linspace(min(canon_values), max(canon_values), 3)]
+        cbar_obj.set_ticks(canon_ticks)
+        cbar_obj.set_ticklabels([f'{tick:.2f}' for tick in canon_ticks])
+
+        # Create a second y-axis for 'year' on the right
+        ax2 = cbar_obj.ax.twinx()
+
+        canon_ticks = 3
+        # Set tick positions manually for the year axis
+        # The positions are normalized between 0 (bottom) and 1 (top)
+        tick_positions = np.linspace(0, 1, canon_ticks)  # Evenly spaced positions
+        ax2.set_ylim(0, 1)  # Set the limits to match the color bar's normalization range
+
+        # Set the year labels to match the tick positions
+        year_labels = np.linspace(min(year_values), max(year_values), canon_ticks).astype(int)
+        ax2.set_yticks(tick_positions)
+        ax2.set_yticklabels(year_labels)
+        ax2.tick_params(labelsize=20)
+
+        # Adjust padding and layout to fit both sides
+        plt.subplots_adjust(left=0.3, right=0.4)
+
+        imgpath = os.path.join(self.output_dir, f'colorbar-seismic_year_and_canon.png')
+        plt.savefig(imgpath, bbox_inches='tight', pad_inches=0.1, dpi=300)
+        plt.close()
+
+
+
+
+
+
+
