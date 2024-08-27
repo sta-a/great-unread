@@ -9,6 +9,8 @@ import difflib
 import hashlib
 from collections import Counter
 import joblib
+import shutil
+from copy import deepcopy
 import Levenshtein
 import networkx as nx
 from tqdm import tqdm
@@ -1049,4 +1051,40 @@ class FeaturesLoader(DataHandler):
     
 
 
-# %%
+
+def copy_imgs_from_harddrive(source, copy=True):
+    source = source.replace('/home/annina/Documents/thesis/data_author_latex', '/media/annina/elements/back-to-computer-240615/data_author') # path might alredy be changed from copying by hand
+    source = source.replace('/home/annina/Documents/thesis/data_latex', '/media/annina/elements/back-to-computer-240615/data')
+    source = source.replace('.', '%')
+    source = source.replace('%png', '.png') # fix error introduced in previous line
+    target = deepcopy(source)
+    target = target.replace('/media/annina/elements/back-to-computer-240615', '/home/annina/Documents/thesis')
+    if '/data/' in target:
+        target = target.replace('/data/', '/data_latex/')
+    elif '/data_author/' in target:
+        target = target.replace('/data_author/', '/data_author_latex/')
+
+    if copy:
+        target_dir = os.path.dirname(target)
+        
+        # Ensure the parent directory exists
+        if not os.path.exists(target_dir):
+            os.makedirs(target_dir)
+            print(f'Created directories for: {target}')
+        else:
+            print(f'Directories already exist for: {target}')
+        shutil.copy(source, target)
+        print(f'Copied file from {source} to {target}')
+
+        new_target_file = None
+        if '%' in target:
+            # Replace '%' with '.'
+            new_target_file = target.replace('%', '.')
+            shutil.copy(source, new_target_file)
+
+        with open('copy-files-for-thesis.sh', 'a') as copy_paths_file:
+            copy_paths_file.write(f'{source} -> {target}\n')
+
+        if new_target_file is not None:
+            target = new_target_file
+        return target

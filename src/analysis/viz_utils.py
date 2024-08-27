@@ -177,10 +177,13 @@ class ImageGrid(DataHandler):
         super().__init__(language, output_dir=output_dir, data_type='png', subdir=subdir, by_author=by_author)
         self.attr = attr
         self.by_author = by_author
-        self.imgdir = os.path.join(self.output_dir, imgdir)
+        self.imgs_as_paths = imgs_as_paths # True if imgs contains full paths, False if it contains only image names
+        if not self.imgs_as_paths:
+            self.imgdir = os.path.join(self.output_dir, imgdir)
+        else:
+            self.imgdir = None
         self.select_with_gui = select_with_gui
         self.rowmajor = rowmajor # Order in which images are filled into the grid
-        self.imgs_as_paths = imgs_as_paths # True if imgs contains full paths, False if it contains only image names
         self.key_attrs = ['author', 'canon', 'gender', 'year'] ###########
         self.nrow = 3
         self.ncol = 3

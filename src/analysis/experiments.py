@@ -104,6 +104,7 @@ class Experiment(DataHandler):
             2: 10,
             5: 5,
             2:5,
+            2:10,
             # 3: 3,
             # 4: 10,
             # 50: 100, 
@@ -289,7 +290,7 @@ class Experiment(DataHandler):
         return exps
 
 
-    def run_experiments(self, select_exp=None, select_exp_from_substring=False, ntop=40):
+    def run_experiments(self, select_exp=None, select_exp_from_substring=False, ntop=1): #set nr clusters
         exps = self.get_experiments(select_exp, select_exp_from_substring)
         for exp in exps:
             print(f"-{self.cmode}, {exp['name']}-------------------\n")

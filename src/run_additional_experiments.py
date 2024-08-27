@@ -14,7 +14,7 @@ from analysis.topeval import TopEval
 from cluster.create import D2vDist, Delta
 from cluster.cluster_utils import MetadataHandler
 from cluster.cluster_utils import ColorBar
-
+from utils import copy_imgs_from_harddrive
 
 # Some additional experiments, many of which are mentioned in the text
 # Helps evaluate the clustering results
@@ -412,69 +412,8 @@ for language in ['eng', 'ger']:
         cb.add_both_labels()
 
 # %%
-# source = f'/media/annina/elements/back-to-computer-240615/{datadir}/colorbar/{language}/colorbar-seismic_{attr}.png'
-source = '/media/annina/elements/back-to-computer-240615/data_author/analysis_s2v/ger/nk_singleimage_s2v/full_simmel-5-10_dimensions-16_walklength-30_numwalks-200_windowsize-15_untillayer-5_OPT1-True_OPT2-True_OPT3-True_dbscan-eps-0%3-minsamples-30_cluster.png'
-source = '/media/annina/elements/back-to-computer-240615/data_author/analysis_s2v/ger/nk_singleimage_s2v/full_simmel-5-10_dimensions-16_walklength-30_numwalks-200_windowsize-15_untillayer-5_OPT1-True_OPT2-True_OPT3-True_canon.png'
-source = '/media/annina/elements/back-to-computer-240615/data_author/analysis_s2v/ger/mx_singleimage_s2v/s2v-full_simmel-5-10_dimensions-16_walklength-30_numwalks-200_windowsize-15_untillayer-5_OPT1-True_OPT2-True_OPT3-True_canon.png'
-source = '/media/annina/elements/back-to-computer-240615/data/extraexp/eng/MxSingleVizCluster/both_hierarchical-nclust-50-method-complete_author.png'
-source = '/media/annina/elements/back-to-computer-240615/data/extraexp/eng/MxSingleVizCluster/both_hierarchical-nclust-50-method-complete_cluster.png'
-source = '/media/annina/elements/back-to-computer-240615/data_author/analysis/eng/nk_singleimage/braycurtis-2000_simmel-3-10_year.png'
-source = '/media/annina/elements/back-to-computer-240615/data_author/analysis/ger/nk_singleimage/manhattan-1000_simmel-3-10_year.png'
-source = '/media/annina/elements/back-to-computer-240615/data_author/analysis/eng/nk_singleimage/braycurtis-5000_simmel-3-10_year.png'
-source = '/media/annina/elements/back-to-computer-240615/data_author/analysis/ger/nk_singleimage/sqeuclidean-5000_simmel-3-10_year.png'
-source = '/home/annina/Documents/thesis/data_author_latex/analysis/ger/nk_singleimage/chebyshev-500_simmel-4-6_year.png'
-source = '/home/annina/Documents/thesis/data_author_latex/analysis/eng/nk_singleimage/full_simmel-4-6_year.png'
-source = '/home/annina/Documents/thesis/data_author_latex/analysis/eng/nk_singleimage/full_simmel-4-6_year.png'
-source = '/home/annina/Documents/thesis/data_author_latex/analysis/ger/nk_singleimage/chebyshev-1000_simmel-4-6_year.png'
-source = '/home/annina/Documents/thesis/data_author_latex/analysis/eng/nk_singleimage/argamonlinear-1000_simmel-5-10_year.png'
-source = '/home/annina/Documents/thesis/data_author_latex/analysis/ger/nk_singleimage/cosinedelta-1000_simmel-5-10_year.png'
-source = '/home/annina/Documents/thesis/data_author_latex/analysis/eng/nk_singleimage/correlation-1000_simmel-5-10_louvain-resolution-0%1_cluster.png'
-source = '/home/annina/Documents/thesis/data_author_latex/analysis/eng/nk_singleimage/correlation-1000_simmel-5-10_gender.png'
-source = '/home/annina/Documents/thesis/data_author_latex/analysis/ger/nk_singleimage/full_simmel-5-10_canon.png'
-source = '/home/annina/Documents/thesis/data_author_latex/analysis_s2v/ger/nk_singleimage_s2v/chebyshev-2000_threshold-0.8_dimensions-16_walklength-30_numwalks-200_windowsize-15_untillayer-5_OPT1-True_OPT2-True_OPT3-True_year.png'
-souce = '/home/annina/Documents/thesis/data_author_latex/analysis_s2v/ger/mx_singleimage_s2v/s2v-chebyshev-2000_threshold-0.8_dimensions-16_walklength-30_numwalks-200_windowsize-15_untillayer-5_OPT1-True_OPT2-True_OPT3-True_year.png'
-source = '/home/annina/Documents/thesis/data_author_latex/analysis_s2v/ger/nk_singleimage_s2v/chebyshev-2000_threshold-0.8_dimensions-16_walklength-30_numwalks-200_windowsize-15_untillayer-5_OPT1-True_OPT2-True_OPT3-True_canon.png'
-source = '/home/annina/Documents/thesis/data_author_latex/analysis_s2v/ger/mx_singleimage_s2v/s2v-chebyshev-2000_threshold-0.8_dimensions-16_walklength-30_numwalks-200_windowsize-15_untillayer-5_OPT1-True_OPT2-True_OPT3-True_canon.png'
-source = '/home/annina/Documents/thesis/data_author_latex/analysis_s2v/ger/mx_singleimage_s2v/s2v-chebyshev-2000_threshold-0.8_dimensions-16_walklength-30_numwalks-200_windowsize-15_untillayer-5_OPT1-True_OPT2-True_OPT3-True_year.png'
 
-import shutil
-from copy import deepcopy
-def copy_imgs_from_harddrive(source, copy=True):
-    source = source.replace('/home/annina/Documents/thesis/data_author_latex', '/media/annina/elements/back-to-computer-240615/data_author') # path might alredy be changed from copying by hand
-    source = source.replace('/home/annina/Documents/thesis/data_latex', '/media/annina/elements/back-to-computer-240615/data')
-    source = source.replace('.', '%')
-    source = source.replace('%png', '.png') # fix error introduced in previous line
-    target = deepcopy(source)
-    target = target.replace('/media/annina/elements/back-to-computer-240615', '/home/annina/Documents/thesis')
-    if '/data/' in target:
-        target = target.replace('/data/', '/data_latex/')
-    elif '/data_author/' in target:
-        target = target.replace('/data_author/', '/data_author_latex/')
 
-    if copy:
-        target_dir = os.path.dirname(target)
-        
-        # Ensure the parent directory exists
-        if not os.path.exists(target_dir):
-            os.makedirs(target_dir)
-            print(f'Created directories for: {target}')
-        else:
-            print(f'Directories already exist for: {target}')
-        shutil.copy(source, target)
-        print(f'Copied file from {source} to {target}')
-
-        new_target_file = None
-        if '%' in target:
-            # Replace '%' with '.'
-            new_target_file = target.replace('%', '.')
-            shutil.copy(source, new_target_file)
-
-        with open('copy-files-for-thesis.sh', 'a') as copy_paths_file:
-            copy_paths_file.write(f'{source} -> {target}\n')
-
-        if new_target_file is not None:
-            target = new_target_file
-        return target
 # copy_imgs_from_harddrive(source)
 
 # for language in ['eng', 'ger']:
@@ -482,9 +421,11 @@ def copy_imgs_from_harddrive(source, copy=True):
 #         source = f'/media/annina/elements/back-to-computer-240615/{datadir}/colorbar/{language}/colorbar-seismic_year_and_canon.png'
 #         copy_imgs_from_harddrive(source)
 
+# %%
+from utils import copy_imgs_from_harddrive
 
 # Function to generate LaTeX code for a figure with subfigures and write it to file
-def write_complex_latex_figure(outf, paths, distance, label, basedstr, langstr):
+def write_complex_latex_figure_authorbased(outf, paths, distance, label, basedstr, langstr):
     # LaTeX code template with paths filled using positional indexing from the list
     latex_code = outf.write(f'''
 \n\n\\subsection{{{distance.upper(), langstr, basedstr}}}\n
@@ -501,12 +442,12 @@ def write_complex_latex_figure(outf, paths, distance, label, basedstr, langstr):
         \\end{{subfigure}}
         \\begin{{subfigure}}[t]{{0.31\\textwidth}}
             \\centering
-            \\includegraphics[width=\\textwidth]{{{paths[1]}}}
+            \\includegraphics[width=\\textwidth]{{{paths[2]}}}
             \\caption{{Canon}}
         \\end{{subfigure}}
         \\begin{{subfigure}}[t]{{0.31\\textwidth}}
             \\centering
-            \\includegraphics[width=\\textwidth]{{{paths[2]}}}
+            \\includegraphics[width=\\textwidth]{{{paths[4]}}}
             \\caption{{Gender}}
         \\end{{subfigure}}
     \\end{{subfigure}}
@@ -516,12 +457,12 @@ def write_complex_latex_figure(outf, paths, distance, label, basedstr, langstr):
         \\centering
         \\begin{{subfigure}}[t]{{0.31\\textwidth}}
             \\centering
-            \\includegraphics[width=\\textwidth]{{{paths[3]}}}
+            \\includegraphics[width=\\textwidth]{{{paths[1]}}}
             \\caption{{Year}}
         \\end{{subfigure}}
         \\begin{{subfigure}}[t]{{0.31\\textwidth}}
             \\centering
-            \\includegraphics[width=\\textwidth]{{{paths[4]}}}
+            \\includegraphics[width=\\textwidth]{{{paths[3]}}}
             \\caption{{Canon}}
         \\end{{subfigure}}
         \\begin{{subfigure}}[t]{{0.31\\textwidth}}
@@ -551,19 +492,111 @@ with open('latextest', 'w') as outf:
                 if language == 'eng':
                     langst = 'English'
                 else:
-                    language = 'German'
+                    langst = 'German'
                 label = f'fig:embimgs-{distance}-{language}-byauthor-{ba}'
 
-                paths = [
-                    f'/home/annina/Documents/thesis/{data_dir}/analysis/{language}/nk_singleimage_appendix/{distance}_simmel-5-10_year.png',
-                    f'/home/annina/Documents/thesis/{data_dir}/analysis/{language}/nk_singleimage_appendix/{distance}_simmel-5-10_canon.png',
-                    f'/home/annina/Documents/thesis/{data_dir}/analysis/{language}/nk_singleimage_appendix/{distance}_simmel-5-10_gender.png',
-                    f'/home/annina/Documents/thesis/{data_dir}/analysis_s2v/{language}/mx_singleimage_s2v/{distance}_simmel-5-10_dimensions-16_walklength-30_numwalks-200_windowsize-15_untillayer-5_OPT1-True_OPT2-True_OPT3-True_year.png',
-                    f'/home/annina/Documents/thesis/{data_dir}/analysis_s2v/{language}/mx_singleimage_s2v/{distance}_simmel-5-10_dimensions-16_walklength-30_numwalks-200_windowsize-15_untillayer-5_OPT1-True_OPT2-True_OPT3-True_canon.png',
-                    f'/home/annina/Documents/thesis/{data_dir}/analysis_s2v/{language}/mx_singleimage_s2v/{distance}_simmel-5-10_dimensions-16_walklength-30_numwalks-200_windowsize-15_untillayer-5_OPT1-True_OPT2-True_OPT3-True_gender.png',
-                ]
+                paths = []
+                for attr in ['year', 'canon', 'gender', 'author']:
+                    if data_dir == 'data_author_latex' and attr == 'author':
+                        continue
+                    paths.append(f'/home/annina/Documents/thesis/{data_dir}/analysis/{language}/nk_singleimage_appendix/{distance}_simmel-5-10_{attr}.png',)
+                    paths.append(f'/home/annina/Documents/thesis/{data_dir}/analysis_s2v/{language}/mx_singleimage_s2v/s2v-{distance}_simmel-5-10_dimensions-16_walklength-30_numwalks-200_windowsize-15_untillayer-5_OPT1-True_OPT2-True_OPT3-True_{attr}.png',)
+
                 for path in paths:
                     copy_imgs_from_harddrive(path)
-                write_complex_latex_figure(outf, paths, distance, label, basedstr, langst)
+                if data_dir == 'data_author_latex':
+                    write_complex_latex_figure_authorbased(outf, paths, distance, label, basedstr, langst)
+                else:
+
+
+# %%
+# from utils import copy_imgs_from_harddrive
+# source = '/home/annina/Documents/thesis/data_author_latex/analysis_s2v/ger/mx_singleimage_s2v/s2v-chebyshev-2000_threshold-0.90_dimensions-16_walklength-30_numwalks-200_windowsize-15_untillayer-5_OPT1-True_OPT2-True_OPT3-True_canon.png'
+# copy_imgs_from_harddrive(source=source)
+# %%
+
+
+
+# %%
+# Combine all networks per spars into one plot
+from analysis.viz_utils import ImageGrid
+import os
+
+class NkImgGrid(ImageGrid):
+    def __init__(self, language, by_author=False, output_dir='extraexp', imgdir='nk_singleimage_appendix', imgs_as_paths=True):
+        super().__init__(language=language, by_author=by_author, output_dir=output_dir, imgdir=imgdir, imgs_as_paths=imgs_as_paths)
+        self.nrow = 9
+        self.ncol = 7
+        self.img_width = 1.2
+        self.img_height = 1.4
+
+    def get_title(self, imgname):
+        name = os.path.basename(imgname)
+        name = name.split('.')[0]
+        return name.split('_')[0]
+
+
+ndist = 58
+if os.path.exists('/media/annina/elements/back-to-computer-240615/data/extraexp/eng/nkimggrid/viz.png'):
+    os.remove('/media/annina/elements/back-to-computer-240615/data/extraexp/eng/nkimggrid/viz.png')
+for language in ['eng', 'ger']:
+    for datadir in ['data', 'data_author']:
+        if datadir == 'data':
+            nspars = 9
+            by_author = False
+        else:
+            nspars = 7
+            by_author = True
+        cdir = f'/media/annina/elements/back-to-computer-240615/{datadir}/analysis/{language}/nk_singleimage_appendix'
+        all_imgs = [x for x in os.listdir(cdir) if '_canon.png' in x]
+
+        for spars in ['threshold-0%8', 'threshold-0%90', 'threshold-0%95', 'authormax', 'authormin','simmel-5-10', 'simmel-3-10', 'simmel-4-6', 'simmel-7-10']:
+            print(language, datadir, spars)
+            imgs = [os.path.join(cdir, x) for x in all_imgs if spars in x]
+            nig = NkImgGrid(language, by_author=by_author, output_dir='extraexp', imgdir=None, imgs_as_paths=True)
+            nig.visualize(imgs=imgs, vizname=spars)
+
+# %%
+# Create latex figures with plots from above
+def write_latex_with_image(image_path, caption):
+    latex_content = f"""
+
+        \\begin{{figure}}[!ht]
+            \\centering
+            \\includegraphics[width=\\textwidth, height=\\textheight, keepaspectratio]{{{image_path}}}
+            \\caption{{{caption}}}
+            \\label{{fig:image1}}
+        \\end{{figure}}
+
+        """
+    return latex_content        
+
+import os
+ndist = 58
+
+with open('allnetworks.tex', 'w') as outf:
+    for language in ['eng', 'ger']:
+        if language == 'eng':
+            langst = 'English'
+        else:
+            langst = 'German'
+        for datadir in ['data', 'data_author']:
+            if datadir == 'data':
+                iba = False
+                level = 'text-based'
+            else:
+                iba = True
+                level = 'author-based'
+            print(cdir)
+            all_imgs = [x for x in os.listdir(cdir) if '_canon.png' in x]
+            for spars in ['threshold-0%8', 'threshold-0%90', 'threshold-0%95', 'authormax', 'authormin','simmel-5-10', 'simmel-3-10', 'simmel-4-6', 'simmel-7-10']:
+                if datadir == 'data_author':
+                    if spars == 'authormin' or spars == 'authormax':
+                        continue
+                path = f'/media/annina/elements/back-to-computer-240615/{datadir}/extraexp/{language}/nkimggrid/{spars}.png'
+                caption = f'All networks for {spars}, {level}, {langst}'
+                latex_content = write_latex_with_image(path, caption)
+                outf.write(latex_content)
+
 
 # %%

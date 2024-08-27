@@ -4,7 +4,7 @@ import sys
 sys.path.append("..")
 import pandas as pd
 import os
-from run_additional_experiments import copy_imgs_from_harddrive
+from utils import copy_imgs_from_harddrive
 import pandas as pd
 import os
 import re
@@ -54,7 +54,9 @@ def make_latex_table(df, caption, label, outf, language, sparsification, print_s
     outf.write('\\scriptsize\n')
     outf.write(f'\\caption{{{caption}}}\n')
     outf.write(f'\\label{{{label}}}\n')
+    outf.write(f'\\adjustbox{{margin=-2cm 0cm}}{{ % Shifts the table 2cm to the left\n')
     outf.write(df.to_latex(index=False, column_format=column_format, escape=False))
+    outf.write('}\n')
     outf.write('\\end{table}\n')
 
 
@@ -241,9 +243,62 @@ def write_latex_figure_nk(outf, clst_path_eng, attr_path_eng, clst_path_ger, att
     \\label{{{label}}}
 \\end{{figure}}\n
 """)
+    
 
 
-def prepare_latex_figure_mx(outf, attr, datadir, eval_metric, first_row, first_row_latex, level, language):
+def write_latex_figure_mx2d3d_all_attr(outf, 
+                              nk_cluster_path, nk_gender_path, nk_year_path, nk_canon_path, 
+                              mx_cluster_path, mx_gender_path, mx_year_path, mx_canon_path, 
+                              caption, fig_label):
+    # LaTeX template for the figure with 2 rows and 4 images per row
+    outf.write(f"""\n\n\\begin{{figure}}[H]
+        \\centering
+        \\begin{{tabular}}{{cccc}}
+            \\begin{{subfigure}}{{0.24\\textwidth}}
+                \\centering
+                \\includegraphics[width=\\linewidth]{{{nk_cluster_path}}}
+            \\end{{subfigure}} &
+            \\begin{{subfigure}}{{0.24\\textwidth}}
+                \\centering
+                \\includegraphics[width=\\linewidth]{{{nk_gender_path}}}
+            \\end{{subfigure}} &
+            \\begin{{subfigure}}{{0.24\\textwidth}}
+                \\centering
+                \\includegraphics[width=\\linewidth]{{{nk_year_path}}}
+            \\end{{subfigure}} &
+            \\begin{{subfigure}}{{0.24\\textwidth}}
+                \\centering
+                \\includegraphics[width=\\linewidth]{{{nk_canon_path}}}
+            \\end{{subfigure}} \\\\
+            
+            \\begin{{subfigure}}{{0.24\\textwidth}}
+                \\centering
+                \\includegraphics[width=\\linewidth]{{{mx_cluster_path}}}
+                \\caption{{Clusters}}
+            \\end{{subfigure}} &
+            \\begin{{subfigure}}{{0.24\\textwidth}}
+                \\centering
+                \\includegraphics[width=\\linewidth]{{{mx_gender_path}}}
+                \\caption{{Gender}}
+            \\end{{subfigure}} &
+            \\begin{{subfigure}}{{0.24\\textwidth}}
+                \\centering
+                \\includegraphics[width=\\linewidth]{{{mx_year_path}}}
+                \\caption{{Year}}
+            \\end{{subfigure}} &
+            \\begin{{subfigure}}{{0.24\\textwidth}}
+                \\centering
+                \\includegraphics[width=\\linewidth]{{{mx_canon_path}}}
+                \\caption{{Canon}}
+            \\end{{subfigure}} \\\\
+        \\end{{tabular}}
+        \\caption{{{caption}}}
+        \\label{{{fig_label}}}
+    \\end{{figure}}\n
+    """)
+
+
+def prepare_latex_figure_mx(outf, attr, datadir, eval_metric, first_row, first_row_latex, level, language, sparsification, include_all_attr=False):
     if datadir == 'data':
         by_author = 'text-based'
         is_by_author = False
@@ -260,13 +315,17 @@ def prepare_latex_figure_mx(outf, attr, datadir, eval_metric, first_row, first_r
     if '%' in sparsstr:
         sparsstr = sparsstr.replace('%', '.')
 
+    keyattrs = ['gender', 'year', 'canon']
+
     paths = {}
     paths['nk_clst'] = f"/media/annina/elements/back-to-computer-240615/{datadir}/analysis_s2v/{language}/nk_singleimage_s2v/{first_row['mxname']}_{first_row['clst_alg_params']}_cluster.png"
-    paths['nk_attr'] = f"/media/annina/elements/back-to-computer-240615/{datadir}/analysis_s2v/{language}/nk_singleimage_s2v/{first_row['mxname']}_{attr}.png"
     paths['mx_clst'] = f"/media/annina/elements/back-to-computer-240615/{datadir}/analysis_s2v/{language}/mx_singleimage_s2v/{first_row['mxname']}_{first_row['clst_alg_params']}.png"
-    paths['mx_attr'] = f"/media/annina/elements/back-to-computer-240615/{datadir}/analysis_s2v/{language}/mx_singleimage_s2v/s2v-{first_row['mxname']}_{attr}.png"
+
+    for keyattr in keyattrs:
+        paths[f'nk_{keyattr}'] = f"/media/annina/elements/back-to-computer-240615/{datadir}/analysis_s2v/{language}/nk_singleimage_s2v/{first_row['mxname']}_{keyattr}.png"
+        paths[f'mx_{keyattr}'] = f"/media/annina/elements/back-to-computer-240615/{datadir}/analysis_s2v/{language}/mx_singleimage_s2v/s2v-{first_row['mxname']}_{keyattr}.png"
     caption = f"Best combination for \\inquotes{{{attr}}}. Distance \\dist{{{mxnamestr}}}, sparsified with \\sparsname{{{sparsstr}}}, {first_row_latex['Alg + Params']}, {eval_metric} = {first_row[eval_metric]}, {langstr}. Groups of size 1 are colored gray."
-    fig_label = f'fig:s2v-{level}-{attr}-{eval_metric}-isbyauthor-{is_by_author}'
+    fig_label = f'fig:s2v-{level}-{attr}-{eval_metric}-{language}-isbyauthor-{is_by_author}'
 
     for pathname, source in paths.items():
         target = copy_imgs_from_harddrive(source, copy=True)
@@ -279,14 +338,19 @@ def prepare_latex_figure_mx(outf, attr, datadir, eval_metric, first_row, first_r
     elif 'avg_variance' in caption:
         caption = caption.replace('avg_variance', 'average variance')
 
-    write_latex_figure_mx2d3d(outf, paths['nk_clst'], paths['nk_attr'], paths['mx_clst'], paths['mx_attr'], caption, fig_label, attr)
-    return fig_label
+    if sparsification is not None:
+        fig_label = f"{fig_label}_{sparsification.replace('%', '.')}"
+
+    if not include_all_attr:
+        write_latex_figure_mx2d3d(outf, paths['nk_clst'], paths[f'nk_{attr}'], paths['mx_clst'], paths[f'mx_{attr}'], caption, fig_label, attr)
+    else:
+        write_latex_figure_mx2d3d_all_attr(outf, paths['nk_clst'], paths['nk_gender'], paths['nk_year'], paths['nk_canon'], 
+                                        paths['mx_clst'], paths['mx_gender'], paths['mx_year'], paths['mx_canon'], 
+                                        caption, fig_label)
 
 
 
-
-
-def prepare_latex_figure_networks(outf, attr, datadir, eval_metric, first_rows, first_rows_latex, level): 
+def prepare_latex_figure_networks(outf, attr, datadir, eval_metric, first_rows, first_rows_latex, level, sparsification): 
     if datadir == 'data':
         by_author = 'text-based'
         is_by_author = False
@@ -311,6 +375,8 @@ def prepare_latex_figure_networks(outf, attr, datadir, eval_metric, first_rows, 
     captions['ger'] = f"Distance \\dist{{{first_rows['ger']['mxname']}}}, sparsified with \\sparsname{{{sparsstr_ger}}}, {first_rows_latex['ger']['Alg + Params']}, {eval_metric} = {first_rows['ger'][eval_metric]}, German"
     caption_fullfig = f'Best combination for \\inquotes{{{attr}}} on networks. Groups of size 1 are colored gray.'
     fig_label = f'fig:{level}-{attr}-{eval_metric}-isbyauthor-{is_by_author}'
+    if sparsification is not None:
+        fig_label = f"{fig_label}_{sparsification.replace('%', '.')}"
 
     for pathname, source in paths.items():
         target = copy_imgs_from_harddrive(source, copy=True)
@@ -335,7 +401,7 @@ import os
 import pandas as pd
 with open('latex/tables_for_latex.txt', 'w') as outf:
     # for attr in ['author', 'gender']:
-    for attr in ['gender']:
+    for attr in ['canon']:
         # for level in ['mx', 'nk']:
         for level in ['mx']:
             for datadir in ['data_author']:
@@ -392,7 +458,7 @@ with open('latex/tables_for_latex.txt', 'w') as outf:
                                     extra_path_str = f'_{sparsification}'
 
                                 # path = f'/media/annina/elements/back-to-computer-240615/data_author/analysis/{language}/nk_topgender_ARI_nclust-2-2'
-                                path = f'/media/annina/elements/back-to-computer-240615/{datadir}/{output_dir}/{language}/{level}_top{attr}_{eval_metric}_nclust-2-5{extra_path_str}'
+                                path = f'/media/annina/elements/back-to-computer-240615/{datadir}/{output_dir}/{language}/{level}_top{attr}_{eval_metric}_nclust-2-10{extra_path_str}'
                                 print(path)
                                 df = pd.read_csv(os.path.join(path, 'df.csv'))
                                 if df.empty:
@@ -427,6 +493,8 @@ with open('latex/tables_for_latex.txt', 'w') as outf:
                                 first_rows[language] = first_row
 
                                 tab_caption, tab_label = build_caption(attr, level, datadir, language, eval_metric, output_dir)
+                                if sparsification is not None:
+                                    tab_label = f"{tab_label}_{sparsification.replace('%', '.')}"
                                 tab_labels[language] = tab_label
                                 df = prepare_df(path=path, eval_metric=eval_metric, int_eval_metric=int_eval_metric, topn=topn, sort_eval_ascending=sort_eval_ascending)
 
@@ -437,12 +505,16 @@ with open('latex/tables_for_latex.txt', 'w') as outf:
                                 make_latex_table(df,tab_caption, tab_label, outf, language, sparsification, print_sparsification=True)
 
                                 if output_dir == 'analysis_s2v' and make_latex_figure:
-                                    fig_label = prepare_latex_figure_mx(outf, attr, datadir, eval_metric, first_row, first_row_latex, level, language)
+                                    if attr == 'gender' or attr == 'canon':
+                                        prepare_latex_figure_mx(outf, attr, datadir, eval_metric, first_row, first_row_latex, level, language, sparsification, include_all_attr=True)
+                                    else:
+                                        prepare_latex_figure_mx(outf, attr, datadir, eval_metric, first_row, first_row_latex, level, language, sparsification)
+
 
 
                                 
                             if make_latex_figure and level == 'nk' and no_df_empty:
-                                fig_label = prepare_latex_figure_networks(outf, attr, datadir, eval_metric, first_rows, first_rows_latex, level)
+                                fig_label = prepare_latex_figure_networks(outf, attr, datadir, eval_metric, first_rows, first_rows_latex, level, sparsification)
                                 outf.write(f"\n\n The top combinations are shown in Tables \\ref{{{tab_labels['eng']}}} and \\ref{{{tab_labels['ger']}}}, and Figure \\ref{{{fig_label}}} shows the single best combination for each language.\n\n")
 
 
