@@ -412,9 +412,10 @@ for language in ['eng', 'ger']:
         cb.add_both_labels()
 
 # %%
+from utils import copy_imgs_from_harddrive
 
-
-# copy_imgs_from_harddrive(source)
+source = '/media/annina/elements/back-to-computer-240615/data_author/analysis/eng/NkAnalysis/argamonquadratic-5000_simmel-3-10_canon_nk.png'
+copy_imgs_from_harddrive(source)
 
 # for language in ['eng', 'ger']:
 #     for datadir in ['data', 'data_author']:
@@ -423,12 +424,13 @@ for language in ['eng', 'ger']:
 
 # %%
 from utils import copy_imgs_from_harddrive
+from results_to_latex import write_latex_figure_mx2d3d_all_attr
 
 # Function to generate LaTeX code for a figure with subfigures and write it to file
 def write_complex_latex_figure_authorbased(outf, paths, distance, label, basedstr, langstr):
     # LaTeX code template with paths filled using positional indexing from the list
     latex_code = outf.write(f'''
-\n\n\\subsection{{{distance.upper(), langstr, basedstr}}}\n
+\n\n\\subsection{{\\dist{{{distance}}}, {langstr}, {basedstr}}}\n
 \\begin{{figure}}[H]
     \\centering
     \\captionsetup[subfigure]{{labelformat=empty}} % Suppress automatic subfigure labeling for this figure only
@@ -438,17 +440,14 @@ def write_complex_latex_figure_authorbased(outf, paths, distance, label, basedst
         \\begin{{subfigure}}[t]{{0.31\\textwidth}}
             \\centering
             \\includegraphics[width=\\textwidth]{{{paths[0]}}}
-            \\caption{{Year}}
+        \\end{{subfigure}}
+        \\begin{{subfigure}}[t]{{0.31\\textwidth}}
+            \\centering
+            \\includegraphics[width=\\textwidth]{{{paths[1]}}}
         \\end{{subfigure}}
         \\begin{{subfigure}}[t]{{0.31\\textwidth}}
             \\centering
             \\includegraphics[width=\\textwidth]{{{paths[2]}}}
-            \\caption{{Canon}}
-        \\end{{subfigure}}
-        \\begin{{subfigure}}[t]{{0.31\\textwidth}}
-            \\centering
-            \\includegraphics[width=\\textwidth]{{{paths[4]}}}
-            \\caption{{Gender}}
         \\end{{subfigure}}
     \\end{{subfigure}}
 
@@ -457,21 +456,21 @@ def write_complex_latex_figure_authorbased(outf, paths, distance, label, basedst
         \\centering
         \\begin{{subfigure}}[t]{{0.31\\textwidth}}
             \\centering
-            \\includegraphics[width=\\textwidth]{{{paths[1]}}}
+            \\includegraphics[width=\\textwidth]{{{paths[3]}}}
+            \\caption{{Gender}}
+        \\end{{subfigure}}
+        \\begin{{subfigure}}[t]{{0.31\\textwidth}}
+            \\centering
+            \\includegraphics[width=\\textwidth]{{{paths[4]}}}
             \\caption{{Year}}
         \\end{{subfigure}}
         \\begin{{subfigure}}[t]{{0.31\\textwidth}}
             \\centering
-            \\includegraphics[width=\\textwidth]{{{paths[3]}}}
+            \\includegraphics[width=\\textwidth]{{{paths[5]}}}
             \\caption{{Canon}}
         \\end{{subfigure}}
-        \\begin{{subfigure}}[t]{{0.31\\textwidth}}
-            \\centering
-            \\includegraphics[width=\\textwidth]{{{paths[5]}}}
-            \\caption{{Gender}}
-        \\end{{subfigure}}
     \\end{{subfigure}}
-    \\caption{{Distance \\dist{{{distance}}}, sparsified with \\sparsname{{simmel-5-10}}}}
+    \\caption{{Distance \\dist{{{distance}}}, sparsified with \\sparsname{{simmel-5-10}}, {langstr}, {basedstr}}}
     \\label{{{label}}}
 \\end{{figure}}
 ''')
@@ -479,9 +478,9 @@ def write_complex_latex_figure_authorbased(outf, paths, distance, label, basedst
 
 
 # Write the generated LaTeX code to the specified file path
-with open('latextest', 'w') as outf:
-    for data_dir in ['data_latex', 'data_author_latex']:
-        if data_dir == 'data_latex':
+with open('latexemb', 'w') as outf:
+    for data_dir in ['data', 'data_author']:
+        if data_dir == 'data':
             ba = False
             basedstr = 'text-based'
         else:
@@ -490,30 +489,36 @@ with open('latextest', 'w') as outf:
         for distance in ['full', 'both']:
             for language in ['eng', 'ger']:
                 if language == 'eng':
-                    langst = 'English'
+                    langstr = 'English'
                 else:
-                    langst = 'German'
+                    langstr = 'German'
                 label = f'fig:embimgs-{distance}-{language}-byauthor-{ba}'
 
                 paths = []
-                for attr in ['year', 'canon', 'gender', 'author']:
-                    if data_dir == 'data_author_latex' and attr == 'author':
+                for attr in ['author', 'gender', 'year', 'canon']:
+                    if data_dir == 'data_author' and attr == 'author':
                         continue
-                    paths.append(f'/home/annina/Documents/thesis/{data_dir}/analysis/{language}/nk_singleimage_appendix/{distance}_simmel-5-10_{attr}.png',)
-                    paths.append(f'/home/annina/Documents/thesis/{data_dir}/analysis_s2v/{language}/mx_singleimage_s2v/s2v-{distance}_simmel-5-10_dimensions-16_walklength-30_numwalks-200_windowsize-15_untillayer-5_OPT1-True_OPT2-True_OPT3-True_{attr}.png',)
+                    path = f'/media/annina/elements/back-to-computer-240615/{data_dir}/analysis/{language}/nk_singleimage_appendix/{distance}_simmel-5-10_{attr}.png'
+                    path = copy_imgs_from_harddrive(path)
+                    # /media/annina/elements/back-to-computer-240615/data/analysis/eng
+                    paths.append(path)
+                for attr in ['author', 'gender', 'year', 'canon']:
+                    if data_dir == 'data_author' and attr == 'author':
+                        continue
+                    path = f'/media/annina/elements/back-to-computer-240615/{data_dir}/analysis_s2v/{language}/mx_singleimage_s2v/s2v-{distance}_simmel-5-10_dimensions-16_walklength-30_numwalks-200_windowsize-15_untillayer-5_OPT1-True_OPT2-True_OPT3-True_{attr}.png'
+                    path = copy_imgs_from_harddrive(path)
+                    paths.append(path)
 
-                for path in paths:
-                    copy_imgs_from_harddrive(path)
-                if data_dir == 'data_author_latex':
-                    write_complex_latex_figure_authorbased(outf, paths, distance, label, basedstr, langst)
+                if data_dir == 'data_author':
+                    write_complex_latex_figure_authorbased(outf, paths, distance, label, basedstr, langstr)
                 else:
-
-
-# %%
-# from utils import copy_imgs_from_harddrive
-# source = '/home/annina/Documents/thesis/data_author_latex/analysis_s2v/ger/mx_singleimage_s2v/s2v-chebyshev-2000_threshold-0.90_dimensions-16_walklength-30_numwalks-200_windowsize-15_untillayer-5_OPT1-True_OPT2-True_OPT3-True_canon.png'
-# copy_imgs_from_harddrive(source=source)
-# %%
+                    caption = f'Distance \\dist{{{distance}}}, sparsified with \\sparsname{{simmel-5-10}}, {langstr}, {basedstr}'
+                    print(caption)
+                    outf.write(f'''\n\n\\subsection{{\\dist{{{distance}}}, {langstr}, {basedstr}}}\n''')
+                    write_latex_figure_mx2d3d_all_attr(outf, 
+                                                paths[0], paths[1], paths[2], paths[3], 
+                                                paths[4], paths[5], paths[6], paths[7], 
+                                                caption, label)
 
 
 
@@ -525,8 +530,8 @@ import os
 class NkImgGrid(ImageGrid):
     def __init__(self, language, by_author=False, output_dir='extraexp', imgdir='nk_singleimage_appendix', imgs_as_paths=True):
         super().__init__(language=language, by_author=by_author, output_dir=output_dir, imgdir=imgdir, imgs_as_paths=imgs_as_paths)
-        self.nrow = 9
-        self.ncol = 7
+        self.nrow = 8
+        self.ncol = 8
         self.img_width = 1.2
         self.img_height = 1.4
 
@@ -539,8 +544,8 @@ class NkImgGrid(ImageGrid):
 ndist = 58
 if os.path.exists('/media/annina/elements/back-to-computer-240615/data/extraexp/eng/nkimggrid/viz.png'):
     os.remove('/media/annina/elements/back-to-computer-240615/data/extraexp/eng/nkimggrid/viz.png')
-for language in ['eng', 'ger']:
-    for datadir in ['data', 'data_author']:
+for language in ['eng']:
+    for datadir in ['data']:
         if datadir == 'data':
             nspars = 9
             by_author = False
@@ -551,10 +556,13 @@ for language in ['eng', 'ger']:
         all_imgs = [x for x in os.listdir(cdir) if '_canon.png' in x]
 
         for spars in ['threshold-0%8', 'threshold-0%90', 'threshold-0%95', 'authormax', 'authormin','simmel-5-10', 'simmel-3-10', 'simmel-4-6', 'simmel-7-10']:
+            if datadir == 'data_author':
+                if spars == 'authormin' or spars == 'authormax':
+                    continue
             print(language, datadir, spars)
             imgs = [os.path.join(cdir, x) for x in all_imgs if spars in x]
             nig = NkImgGrid(language, by_author=by_author, output_dir='extraexp', imgdir=None, imgs_as_paths=True)
-            nig.visualize(imgs=imgs, vizname=spars)
+            nig.visualize(imgs=imgs, vizname=spars.replace('%', '-'))
 
 # %%
 # Create latex figures with plots from above
@@ -565,7 +573,6 @@ def write_latex_with_image(image_path, caption):
             \\centering
             \\includegraphics[width=\\textwidth, height=\\textheight, keepaspectratio]{{{image_path}}}
             \\caption{{{caption}}}
-            \\label{{fig:image1}}
         \\end{{figure}}
 
         """
@@ -574,7 +581,7 @@ def write_latex_with_image(image_path, caption):
 import os
 ndist = 58
 
-with open('allnetworks.tex', 'w') as outf:
+with open('allnetworks.txt', 'w') as outf:
     for language in ['eng', 'ger']:
         if language == 'eng':
             langst = 'English'
@@ -587,16 +594,103 @@ with open('allnetworks.tex', 'w') as outf:
             else:
                 iba = True
                 level = 'author-based'
-            print(cdir)
-            all_imgs = [x for x in os.listdir(cdir) if '_canon.png' in x]
             for spars in ['threshold-0%8', 'threshold-0%90', 'threshold-0%95', 'authormax', 'authormin','simmel-5-10', 'simmel-3-10', 'simmel-4-6', 'simmel-7-10']:
                 if datadir == 'data_author':
                     if spars == 'authormin' or spars == 'authormax':
                         continue
-                path = f'/media/annina/elements/back-to-computer-240615/{datadir}/extraexp/{language}/nkimggrid/{spars}.png'
-                caption = f'All networks for {spars}, {level}, {langst}'
+                path = f"/media/annina/elements/back-to-computer-240615/{datadir}/extraexp/{language}/nkimggrid/{spars.replace('%', '-')}.png"
+                caption = f"All networks for {spars.replace('%', '.')}, {level}, {langst}"
                 latex_content = write_latex_with_image(path, caption)
                 outf.write(latex_content)
 
+
+# %%
+# %%
+from utils import copy_imgs_from_harddrive
+source = '/home/annina/Documents/thesis/data_author_latex/analysis_s2v/ger/mx_singleimage_s2v/s2v-chebyshev-2000_threshold-0.90_dimensions-16_walklength-30_numwalks-200_windowsize-15_untillayer-5_OPT1-True_OPT2-True_OPT3-True_canon.png'
+source = ''
+source = '/home/annina/Documents/thesis/data/s2v/eng/mx_mirror_singleimage/full_simmel-7-10-mirror_dimensions-16_walklength-30_numwalks-200_windowsize-15_untillayer-5_OPT1-True_OPT2-True_OPT3-True.png'
+copy_imgs_from_harddrive(source=source)
+
+# %%
+from utils import copy_imgs_from_harddrive
+imgspaths = ['/home/annina/Documents/thesis/data/s2v/eng/mx_mirror_singleimage/full_simmel-7-10-mirror_dimensions-16_walklength-30_numwalks-200_windowsize-15_untillayer-5_OPT1-True_OPT2-True_OPT3-True.png', '/home/annina/Documents/thesis/data_author/s2v/eng/mx_mirror_singleimage/full_simmel-7-10-mirror_dimensions-16_walklength-30_numwalks-200_windowsize-15_untillayer-5_OPT1-True_OPT2-True_OPT3-True.png', '/home/annina/Documents/thesis/data/s2v/eng/nk_mx_singleimage/full_simmel-7-10_dimensions-16_walklength-30_numwalks-200_windowsize-15_untillayer-5_OPT1-True_OPT2-True_OPT3-True-withisonodes.png', '/home/annina/Documents/thesis/data/s2v/eng/mx_singleimage/full_simmel-7-10_dimensions-16_walklength-30_numwalks-200_windowsize-15_untillayer-5_OPT1-True_OPT2-True_OPT3-True-withisonodes.png']
+imgspaths = ['/home/annina/Documents/thesis/data_author/s2v/eng/mx_mirror_singleimage/full_simmel-7-10-mirror_dimensions-16_walklength-30_numwalks-200_windowsize-15_untillayer-5_OPT1-True_OPT2-True_OPT3-True.png']
+imgspaths = ['/media/annina/elements/back-to-computer-240615/data_author/analysis/eng/nk_singleimage/braycurtis-2000_simmel-3-10_year.png']
+imgspaths = [
+    "/home/annina/Documents/thesis/data/text_statistics/eng/year_byauthor-False.png",
+    "/home/annina/Documents/thesis/data/text_statistics/ger/year_byauthor-False.png",
+    "/home/annina/Documents/thesis/data/text_statistics/eng/canon_byauthor-False.png",
+    "/home/annina/Documents/thesis/data/text_statistics/ger/canon_byauthor-False.png",
+    "/home/annina/scripts/great_unread_nlp/data/text_statistics/eng/canon-variance-per-author.png",
+    "/home/annina/scripts/great_unread_nlp/data/text_statistics/ger/canon-variance-per-author.png",
+    "/home/annina/Documents/thesis/data/text_statistics/eng/canon-by-language_byauthor-False.png",
+    "/home/annina/Documents/thesis/data/text_statistics/eng/canon-by-gender_byauthor-False.png",
+    "/home/annina/Documents/thesis/data/text_statistics/ger/canon-by-gender_byauthor-False.png",
+    "/home/annina/scripts/great_unread_nlp/data/text_statistics/eng/year-by-language_byauthor-False.png",
+    "/home/annina/Documents/thesis/data/text_statistics/eng/year-by-gender_byauthor-False.png",
+    "/home/annina/Documents/thesis/data/text_statistics/ger/year-by-gender_byauthor-False.png",
+    "/home/annina/Documents/thesis/data/text_statistics/eng/joint-canon-year_byauthor-False.png",
+    "/home/annina/Documents/thesis/data/text_statistics/ger/joint-canon-year_byauthor-False.png",
+    "/home/annina/Documents/thesis/data/text_statistics/eng/chunks-per-doc.png",
+    "/home/annina/Documents/thesis/data/text_statistics/ger/chunks-per-doc.png",
+    "/home/annina/Documents/thesis/data/text_statistics/eng/tokens-per-chunk-shortest-longest.png",
+    "/home/annina/Documents/thesis/data/text_statistics/eng/tokens-per-chunk-average-stddev.png",
+    "/home/annina/Documents/thesis/data/text_statistics/ger/tokens-per-chunk-shortest-longest.png",
+    "/home/annina/Documents/thesis/data/text_statistics/ger/tokens-per-chunk-average-stddev.png",
+    "/home/annina/scripts/great_unread_nlp/data/text_statistics/eng/canonscores_per_author_and_year.png",
+    "/home/annina/scripts/great_unread_nlp/data/text_statistics/ger/canonscores_per_author_and_year.png",
+    "/home/annina/scripts/great_unread_nlp/data/text_statistics/eng/canonscores_per_author.png",
+    "/home/annina/scripts/great_unread_nlp/data/text_statistics/ger/canonscores_per_author.png"
+]
+
+imgspaths = [
+    '/home/annina/Documents/thesis/data_author/text_statistics/eng/year_byauthor-True.png',
+    '/home/annina/Documents/thesis/data_author/text_statistics/ger/year_byauthor-True.png',
+    '/home/annina/Documents/thesis/data_author/text_statistics/eng/canon_byauthor-True.png',
+    '/home/annina/Documents/thesis/data_author/text_statistics/ger/canon_byauthor-True.png',
+    '/home/annina/Documents/thesis/data_author/text_statistics/eng/canon-by-language_byauthor-True.png',
+    '/home/annina/Documents/thesis/data_author/text_statistics/eng/canon-by-gender_byauthor-True.png',
+    '/home/annina/Documents/thesis/data_author/text_statistics/ger/canon-by-gender_byauthor-True.png',
+    '/home/annina/scripts/great_unread_nlp/data_author/text_statistics/eng/year-by-language_byauthor-True.png',
+    '/home/annina/Documents/thesis/data_author/text_statistics/eng/year-by-gender_byauthor-True.png',
+    '/home/annina/Documents/thesis/data_author/text_statistics/ger/year-by-gender_byauthor-True.png',
+    '/home/annina/Documents/thesis/data_author/text_statistics/eng/joint-canon-year_byauthor-True.png',
+    '/home/annina/Documents/thesis/data_author/text_statistics/ger/joint-canon-year_byauthor-True.png'
+]
+
+imgspaths = ['/home/annina/scripts/great_unread_nlp/data/text_statistics/eng/year-by-language_byauthor-False.png', ]
+
+for i in imgspaths:
+    copy_imgs_from_harddrive(source=i)
+
+
+
+
+
+# %%
+from utils import copy_imgs_from_harddrive
+
+
+
+# param grid images
+sparslist = ["threshold-0%8", "threshold-0%90", "threshold-0%95", "authormin", "authormax", "simmel-4-6", "simmel-3-10", "simmel-5-10", "simmel-7-10"]
+wllist = [3,5,8,15,30,60]
+
+imgspaths = []
+for language in ['eng', 'ger']:
+    for datadir in ['data', 'data_author']:
+        for spars in sparslist:
+            if datadir == 'data_author' and spars == 'authormin' or datadir == 'data_author' and spars == 'authormax':
+                continue
+            for wl in wllist:
+                mxpath = f'/home/annina/Documents/thesis/{datadir}/s2v/{language}/mx_singleimage/full_{spars}_dimensions-16_walklength-{wl}_numwalks-200_windowsize-15_untillayer-5_OPT1-True_OPT2-True_OPT3-True.png'
+                nkpath = f'/home/annina/Documents/thesis/{datadir}/s2v/{language}/singleimage/full_{spars}_dimensions-16_walklength-30_numwalks-200_windowsize-15_untillayer-5_OPT1-True_OPT2-True_OPT3-True.png'
+                imgspaths.append(mxpath)
+                imgspaths.append(nkpath)
+
+
+for i in imgspaths:
+    copy_imgs_from_harddrive(source=i)
 
 # %%

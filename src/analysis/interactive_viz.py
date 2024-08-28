@@ -250,6 +250,7 @@ class MxSingleViz2D3DHzAnalysis(MxSingleViz2D3DHorizontal):
 
 
     def write_labels_to_file(self, label, row, dim):
+        print(self.results_path)
         with open(self.results_path, 'a') as f:
             # add class counter to keep track of which points is in which cluster
             f.write(f"{self.mxname},,{self.curr_attr},{dim},{self.class_counter},{label},{','.join(map(str, row))}\n") # extra comma for comment column
@@ -264,6 +265,7 @@ class MxSingleViz2D3DHzAnalysis(MxSingleViz2D3DHorizontal):
 
     def write_comment_to_file(self, comment=','):
         comment = comment.replace(',', '.') # replace commas because they are used as seperators in the csv
+        print(self.results_path)
         with open(self.results_path, 'a') as f:
             ncols = self.df_nocolor.shape[1]
             commas = (ncols+3) * ','
@@ -282,24 +284,23 @@ class MxSingleViz2D3DHzAnalysis(MxSingleViz2D3DHorizontal):
         for mx in self.mc.load_mxs():
             self.mx = mx
             self.mxname = mx.name
-            print('mxname', self.mxname)
-            print('mx dimensions', self.mx.mx.shape)
-            # Check if results for last key attr has been created
-            # This is faster than adding the positions and then checking the paths
-            self.get_results_path(self.mxname, self.key_attrs[-1])
-            if os.path.exists(self.results_path):
-                print('results already exist', self.results_path)
-            else:
-                self.pos = self.get_mds_positions()
-                self.add_positions_to_metadf()
-                # self.write_header()
+            if 'manhattan-1000_simmel-7-10' in self.mxname:
+                # Check if results for last key attr has been created
+                # This is faster than adding the positions and then checking the paths
+                self.get_results_path(self.mxname, self.key_attrs[-1])
+                if os.path.exists(self.results_path):
+                    print('results already exist', self.results_path)
+                else:
+                    self.pos = self.get_mds_positions()
+                    self.add_positions_to_metadf()
+                    # self.write_header()
 
-                for curr_attr in self.key_attrs: # + ['noattr']:
-                    self.curr_attr = curr_attr
-                    self.vizpath = self.get_file_path(f'{self.mxname}_{self.curr_attr}', subdir=True)
-                    self.get_results_path(self.mxname, self.curr_attr) # recreate the path in case there is more than one key_attr
-                    self.get_figure()
-                    self.fill_subplots(self.curr_attr)
+                    for curr_attr in self.key_attrs: # + ['noattr']:
+                        self.curr_attr = curr_attr
+                        self.vizpath = self.get_file_path(f'{self.mxname}_{self.curr_attr}', subdir=True)
+                        self.get_results_path(self.mxname, self.curr_attr) # recreate the path in case there is more than one key_attr
+                        self.get_figure()
+                        self.fill_subplots(self.curr_attr)
 
 
 
@@ -331,7 +332,7 @@ class NkSingleVizAnalysis(NkSingleViz):
         for mxname in mxs:
             mxpath = os.path.join(self.mxdir, mxname)
             self.mxname = self.clear_mxname(mxname) # contains mxname_sparsmode
-            print('mxname', self.mxname)
+            # print('mxname', self.mxname)
             # Check if plot for last key attr has been created
             self.get_results_path(self.mxname, self.key_attrs[-1])
             if os.path.exists(self.results_path):
@@ -381,8 +382,8 @@ class NkSingleVizAnalysis(NkSingleViz):
             # If points were selected, write a comment
             comment = input('Enter a comment. Must not contain any commas! ') # commas used as sep
             # self.get_networks()
-            # self.write_comment_to_file(comment) ###############################
-            # print('wrote comment to file')
+            self.write_comment_to_file(comment) ###############################
+            print('wrote comment to file')
 
 
 
@@ -403,7 +404,7 @@ class NkSingleVizAnalysis(NkSingleViz):
                 if label not in self.labels2d:
                     self.labels2d.append(label)
                     row = self.df_nocolor.loc[label].values.tolist()
-                    # self.write_labels_to_file(label, row, dim='2d') ########################33
+                    self.write_labels_to_file(label, row, dim='2d') ########################33
                     print(f'Selected: {label}')
         lasso = LassoSelector(self.axs[0, 0], onselect)
 
@@ -502,6 +503,7 @@ class NkSingleVizAnalysis(NkSingleViz):
 
     def write_labels_to_file(self, label, row, dim):
         with open(self.results_path, 'a') as f:
+            print(self.results_path)
             # add class counter to keep track of which points is in which cluster
             f.write(f"{self.mxname},,{self.curr_attr},{dim},{self.class_counter},{label},{','.join(map(str, row))}\n") # extra comma for comment column
 
@@ -512,6 +514,7 @@ class NkSingleVizAnalysis(NkSingleViz):
 
     def write_comment_to_file(self, comment=','):
         comment = comment.replace(',', '.') # replace commas because they are used as seperators in the csv
+        print(self.results_path)
         with open(self.results_path, 'a') as f:
             ncols = self.df_nocolor.shape[1]
             commas = (ncols+3) * ','

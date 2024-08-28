@@ -75,7 +75,7 @@ def update_clst_alg_param(value):
     elif 'louvain' in value:
         value = f'{parts[0]}, res {parts[-1]}'
     elif 'alpa' in value:
-        value = 'lp'
+        value = 'alp'
     elif 'dbscan' in value:
         value = f'{parts[0]}, {parts[1]} {parts[2]}, {parts[3]} {parts[4]}'
     return value  # If not in the right format, return the value unchanged
@@ -130,6 +130,8 @@ def prepare_df(path, eval_metric, int_eval_metric, topn=None, sort_eval_ascendin
         'silhouette_score': 'Silhouette',
         'weighted_avg_variance': 'Weighted Av Var',
         'avg_variance': 'Av Variance',
+        'smallest_variance': 'Smallest Var',
+        'ext_wcss': 'WCSS'
         }, inplace=False, axis='columns')
     return df
 
@@ -159,6 +161,10 @@ def build_caption(attr, level, datadir, language, eval_metric, output_dir):
         eval_metric = 'average variance'
     if eval_metric == 'vmeasure':
         eval_metric = 'V-measure'
+    if eval_metric == 'smallest_variance':
+        eval_metric = 'smallest variance'
+    if eval_metric == 'ext_wcss':
+        eval_metric = 'WCSS'        
     if output_dir == 'analysis':
         tab_caption = f'Top combinations for \\inquotes{{{attr}}} on {mx_or_nk} using {eval_metric}, {by_author}, {lang_string}'
     else:
@@ -298,6 +304,7 @@ def write_latex_figure_mx2d3d_all_attr(outf,
     """)
 
 
+
 def prepare_latex_figure_mx(outf, attr, datadir, eval_metric, first_row, first_row_latex, level, language, sparsification, include_all_attr=False):
     if datadir == 'data':
         by_author = 'text-based'
@@ -337,6 +344,10 @@ def prepare_latex_figure_mx(outf, attr, datadir, eval_metric, first_row, first_r
         caption = caption.replace('weighted_avg_variance', 'weighted average variance')
     elif 'avg_variance' in caption:
         caption = caption.replace('avg_variance', 'average variance')
+    elif 'smallest_variance' in caption:
+        caption = caption.replace('smallest_variance', 'smallest variance')
+    elif 'ext_wcss' in caption:
+        caption = caption.replace('ext_wcss', 'WCSS')
 
     if sparsification is not None:
         fig_label = f"{fig_label}_{sparsification.replace('%', '.')}"
@@ -440,7 +451,7 @@ with open('latex/tables_for_latex.txt', 'w') as outf:
                                     eval_metric = 'vmeasure' ########################### vmeasure
                                     sort_eval_ascending = False
                                 else:
-                                    eval_metric = 'avg_variance'
+                                    eval_metric = 'avg_variance' ###################3
                                     sort_eval_ascending = True
                                 
 
@@ -458,7 +469,7 @@ with open('latex/tables_for_latex.txt', 'w') as outf:
                                     extra_path_str = f'_{sparsification}'
 
                                 # path = f'/media/annina/elements/back-to-computer-240615/data_author/analysis/{language}/nk_topgender_ARI_nclust-2-2'
-                                path = f'/media/annina/elements/back-to-computer-240615/{datadir}/{output_dir}/{language}/{level}_top{attr}_{eval_metric}_nclust-2-10{extra_path_str}'
+                                path = f'/media/annina/elements/back-to-computer-240615/{datadir}/{output_dir}/{language}/{level}_top{attr}_{eval_metric}_nclust-2-5{extra_path_str}'
                                 print(path)
                                 df = pd.read_csv(os.path.join(path, 'df.csv'))
                                 if df.empty:

@@ -1059,6 +1059,7 @@ def copy_imgs_from_harddrive(source, copy=True):
     source = source.replace('%png', '.png') # fix error introduced in previous line
     target = deepcopy(source)
     target = target.replace('/media/annina/elements/back-to-computer-240615', '/home/annina/Documents/thesis')
+    target = target.replace('/home/annina/scripts/great_unread_nlp', '/home/annina/Documents/thesis')
     if '/data/' in target:
         target = target.replace('/data/', '/data_latex/')
     elif '/data_author/' in target:
