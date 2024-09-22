@@ -338,29 +338,31 @@ class NkSingleVizAnalysis(NkSingleViz):
             if os.path.exists(self.results_path):
                 print('results already exist')
             else:
-                self.get_metadf()
-                mxname_only, sparsmode = mxname.split('_')
-                self.info = CombinationInfo(mxname=self.mxname, sparsmode=sparsmode)
+                print(self.mxname)
+                if self.mxname == 'argamonlinear-1000_threshold-0%95':
+                    self.get_metadf()
+                    mxname_only, sparsmode = mxname.split('_')
+                    self.info = CombinationInfo(mxname=self.mxname, sparsmode=sparsmode)
 
-                i = 0
-                j = 0
-                self.get_figure()
-                
-                self.network = NXNetwork(self.language, path=mxpath)
-                self.graph = self.network.graph
+                    i = 0
+                    j = 0
+                    self.get_figure()
+                    
+                    self.network = NXNetwork(self.language, path=mxpath)
+                    self.graph = self.network.graph
 
-                if (self.graph.number_of_edges() > 0):
-                    self.global_vmax, self.global_vmin = self.get_cmap_params()
-                    self.get_graphs()
-                    self.get_positions()
-                    self.add_positions_to_metadf()
-                    self.subplots = [[i, j]]
-                    self.add_edges()
-                    for curr_attr in self.key_attrs:
-                        self.info.attr = curr_attr
-                        self.curr_attr = curr_attr
-                        self.fill_subplots()
-                plt.close()
+                    if (self.graph.number_of_edges() > 0):
+                        self.global_vmax, self.global_vmin = self.get_cmap_params()
+                        self.get_graphs()
+                        self.get_positions()
+                        self.add_positions_to_metadf()
+                        self.subplots = [[i, j]]
+                        self.add_edges()
+                        for curr_attr in self.key_attrs:
+                            self.info.attr = curr_attr
+                            self.curr_attr = curr_attr
+                            self.fill_subplots()
+                    plt.close()
 
 
     def fill_subplots(self):

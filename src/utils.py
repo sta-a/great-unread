@@ -177,7 +177,6 @@ class DataHandler():
     '''
     Base class for creating, saving, and loading data.
     
-    '/home/annina/scripts/great_unread_nlp/data_author'
     /media/annina/MyBook/back-to-computer-240615/data
     /home/annina/scripts/great_unread_nlp/data
     /media/annina/elements/back-to-computer-240615/data

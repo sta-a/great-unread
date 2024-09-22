@@ -659,8 +659,8 @@ imgspaths = [
     '/home/annina/Documents/thesis/data_author/text_statistics/ger/joint-canon-year_byauthor-True.png'
 ]
 
-imgspaths = ['/home/annina/scripts/great_unread_nlp/data/text_statistics/eng/year-by-language_byauthor-False.png', ]
-
+imgspaths = ['/home/annina/scripts/great_unread_nlp/data/text_statistics/eng/year-by-language_byauthor-False.png', '/home/annina/scripts/great_unread_nlp/data_author/text_statistics/eng/year-by-language_byauthor-True.png', '/home/annina/scripts/great_unread_nlp/data/text_statistics/eng/canonscores_per_author_and_year.png', '/home/annina/scripts/great_unread_nlp/data/text_statistics/ger/canonscores_per_author_and_year.png', '/home/annina/scripts/great_unread_nlp/data/text_statistics/eng/canonscores_per_author.png', '/home/annina/scripts/great_unread_nlp/data/text_statistics/ger/canonscores_per_author.png']
+imgspaths = ['/media/annina/elements/back-to-computer-240615/data_author/analysis/ger/NkAnalysis/full_simmel-5-10_canon_nk.png', '/media/annina/elements/back-to-computer-240615/data_author/analysis/eng/NkAnalysis/argamonlinear-1000_threshold-0%95_canon_nk.png', '/media/annina/elements/back-to-computer-240615/data_author/analysis/eng/NkAnalysis/argamonquadratic-5000_simmel-3-10_canon_nk.png', '/media/annina/elements/back-to-computer-240615/data_author/analysis/eng/NkAnalysis/correlation-1000_simmel-5-10_canon_nk.png']
 for i in imgspaths:
     copy_imgs_from_harddrive(source=i)
 
@@ -693,4 +693,34 @@ for language in ['eng', 'ger']:
 for i in imgspaths:
     copy_imgs_from_harddrive(source=i)
 
+
 # %%
+# Make 2D MDS for position clustering where attributes are highlighted
+# Only used for thesis presentation
+from analysis.mxviz import MxSingleViz, MxSingleViz2dSingleAttr
+from analysis.embedding_eval import EmbMxCombinations
+from cluster.combinations import InfoHandler
+
+# info for gender position slide
+info_path = '/media/annina/elements/back-to-computer-240615/data_author/s2v/ger/mxcomb/info-chebyshev-2000_threshold-0%8_dimensions-16_walklength-30_numwalks-200_windowsize-15_untillayer-5_OPT1-True_OPT2-True_OPT3-True_dbscan-eps-0%3-minsamples-10.pkl'
+ih = InfoHandler(language='ger', output_dir='s2v', add_color=True, cmode='mx', by_author=True)
+info = ih.load_info('chebyshev-2000_threshold-0%8_dimensions-16_walklength-30_numwalks-200_windowsize-15_untillayer-5_OPT1-True_OPT2-True_OPT3-True_dbscan-eps-0%3-minsamples-10')
+metadf = ih.merge_dfs(ih.metadf, info.clusterdf)
+metadf = ih.mh.add_cluster_color_and_shape(metadf)
+info.add('metadf', metadf)
+exp = {'name': 'MxSingleViz2dSingleAttr_test'}
+mc = EmbMxCombinations(language='ger', by_author=True)
+mx = mc.load_single_mx(mxname=info.mxname)
+for attr in ['gender', 'cluster']:
+    info.attr = attr
+    mv = MxSingleViz2dSingleAttr(language='ger', output_dir='analysis_s2v', exp=exp, by_author=True, mc=mc, info=info, mx=mx)
+    mv.visualize()
+
+
+
+# %%
+exp = {'name': 'MxSingleViz_test'}
+for language in ['eng', 'ger']:
+    mc = EmbMxCombinations(language=language, by_author=True)
+    # mv = MxSingleViz(language=language, output_dir='analysis_s2v', exp=exp, by_author=True, mc=mc)
+    # mv.visualize()

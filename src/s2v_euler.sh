@@ -403,7 +403,20 @@ rsync -avz --ignore-existing /media/annina/MyBook/back-to-computer-240615/data/s
 rsync -avz --ignore-existing /media/annina/MyBook/back-to-computer-240615/data_author/s2v/eng/mxcomb stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/s2v/eng
 rsync -avz --ignore-existing /media/annina/MyBook/back-to-computer-240615/data_author/s2v/ger/mxcomb stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/s2v/ger
 
+rsync -avz --ignore-existing /media/annina/elements/back-to-computer-240615/data/s2v/eng/mxcomb stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/eng
+rsync -avz --ignore-existing /media/annina/elements/back-to-computer-240615/data/s2v/ger/mxcomb stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/ger
+rsync -avz --ignore-existing /media/annina/elements/back-to-computer-240615/data_author/s2v/eng/mxcomb stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/s2v/eng
+rsync -avz --ignore-existing /media/annina/elements/back-to-computer-240615/data_author/s2v/ger/mxcomb stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/s2v/ger
 
+rsync -avz --ignore-existing /media/annina/elements/back-to-computer-240615/data/s2v/eng/embeddings/*dimensions-16_walklength-30_numwalks-200_windowsize-15_untillayer-5_OPT1-True_OPT2-True_OPT3-True.embeddings stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/eng/embeddings
+rsync -avz --ignore-existing /media/annina/elements/back-to-computer-240615/data/s2v/ger/embeddings/*dimensions-16_walklength-30_numwalks-200_windowsize-15_untillayer-5_OPT1-True_OPT2-True_OPT3-True.embeddings stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/ger/embeddings
+rsync -avz --ignore-existing /media/annina/elements/back-to-computer-240615/data_author/s2v/eng/embeddings/*dimensions-16_walklength-30_numwalks-200_windowsize-15_untillayer-5_OPT1-True_OPT2-True_OPT3-True.embeddings stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/s2v/eng/embeddings  
+rsync -avz --ignore-existing /media/annina/elements/back-to-computer-240615/data_author/s2v/ger/embeddings/*dimensions-16_walklength-30_numwalks-200_windowsize-15_untillayer-5_OPT1-True_OPT2-True_OPT3-True.embeddings stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/s2v/ger/embeddings
+
+rsync -avz --ignore-existing /media/annina/elements/back-to-computer-240615/data/s2v/eng/mx_log_clst.txt stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/eng
+rsync -avz --ignore-existing /media/annina/elements/back-to-computer-240615/data/s2v/ger/mx_log_clst.txt stahla@euler.ethz.ch:/cluster/scratch/stahla/data/s2v/ger
+rsync -avz --ignore-existing /media/annina/elements/back-to-computer-240615/data_author/s2v/eng/mx_log_clst.txt stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/s2v/eng
+rsync -avz --ignore-existing /media/annina/elements/back-to-computer-240615/data_author/s2v/ger/mx_log_clst.txt stahla@euler.ethz.ch:/cluster/scratch/stahla/data_author/s2v/ger
 
 
 

@@ -504,6 +504,7 @@ class MxSingleViz2D3D(MxVizBase):
             mxname = mx.name
             # Check if plot for last key attr has been created
             vizpath_test = self.get_file_path(f'{mxname}_{self.key_attrs[-1]}', subdir=True)
+            print('MxSingleViz2D3D vizpath',  vizpath_test)
 
             if not os.path.exists(vizpath_test):
                 print(vizpath_test)
@@ -600,6 +601,7 @@ class MxSingleViz2d3dSingleAttr(MxSingleViz2D3D):
 
     def visualize(self, vizname=''): # vizname for compatibility
         self.vizpath = self.get_file_path()
+        print(self.vizpath)
         if not os.path.exists(self.vizpath):
             self.pos = self.get_mds_positions()
             self.add_positions_to_metadf()
@@ -610,6 +612,34 @@ class MxSingleViz2d3dSingleAttr(MxSingleViz2D3D):
                 self.save_plot(plt, plt_kwargs={'dpi': 200})
                 plt.close()
 
+class MxSingleViz2dSingleAttr(MxSingleViz2d3dSingleAttr): #########################################
+    # Combination of MxSingleViz2d3dSingleAttr with get_figure and draw_mds methods from MxSingleViz
+    # Makes 2d MDS for position clustering, for attrs and clusters
+    def __init__(self, language, output_dir, exp, by_author, mc, info, mx):
+        super().__init__(language, output_dir, exp, by_author, mc, info, mx)
+        self.add_subdir('MxSingleViz2dSingleAttr_test')
+
+    def get_figure(self):
+        self.fig, self.axs = plt.subplots(1, 1, figsize=(4, 4))
+        self.axs = np.reshape(self.axs, (1, 1))
+        self.axs[0, 0].axis('off')
+        self.adjust_subplots()
+
+
+    def draw_mds(self, ix, color_col=None, use_different_shapes=False, s=30, edgecolor='black', linewidth=0.2):
+        scatter_kwargs = {'s': s, 'edgecolor': edgecolor, 'linewidth': linewidth}
+        color_col = f'{color_col}_color'
+        
+        df = self.df.copy() # Avoid chained assingment warning
+        # Iterate through shapes because only one shape can be passed at a time, no lists
+        if not use_different_shapes:
+            df['clst_shape'] = 'o'
+        shapes = df['clst_shape'].unique()
+
+        for shape in shapes:
+            sdf = df[df['clst_shape'] == shape]
+            kwargs = {'c': sdf[color_col], 'marker': shape, **scatter_kwargs}
+            self.axs[ix[0], ix[1]].scatter(x=sdf['X_mds_2d_0'], y=sdf['X_mds_2d_1'], **kwargs)
 
 
 class MxSingleViz(MxSingleViz2D3D):
@@ -617,10 +647,12 @@ class MxSingleViz(MxSingleViz2D3D):
     Create a single plot per matrix, with a 2d visualization.
     For s2v, the different network positions should be clearly distinguishable in 2D.
     For each matrix, a seperate plot for each key attribute is created.
+    This class is only used for thesis presentation
     '''
     def __init__(self, language, output_dir, exp, by_author, mc):
         super().__init__(language, output_dir, exp, by_author, mc)
         self.markersize = 20
+        self.add_subdir('MxSingleViz_test')
 
     def get_figure(self):
         self.fig, self.axs = plt.subplots(1, 1, figsize=(4, 4))

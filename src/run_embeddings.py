@@ -3,7 +3,7 @@
 
 # from analysis.s2vcreator import S2vCreator
 from analysis.embedding_eval import ParamModeEval, EmbMxCombinations, RunModeEval, BestParamAnalyis, CombineParamEvalGrids, MirrorViz, MirrorMDSGrid
-from analysis.experiments import Experiment
+# from analysis.experiments import Experiment
 
 import argparse
 import os
@@ -62,8 +62,8 @@ if __name__ == '__main__':
 
 
     # # Run matrix clustering on embeddigns
-    emc = EmbMxCombinations(language, output_dir='s2v', add_color=False, by_author=by_author, eval_only=False)
-    # emc.evaluate_all_combinations()
+    emc = EmbMxCombinations(language, output_dir='s2v', add_color=False, by_author=by_author, eval_only=True) ####################### eval_only
+    emc.evaluate_all_combinations()
     emc.check_data(n_features=6)
 
     # '''

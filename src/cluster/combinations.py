@@ -92,9 +92,9 @@ class CombinationsBase(InfoHandler):
 
         if self.eval_only:
             if self.cmode == 'nk':
-                raise NotImplementedError('eval_only is has not been implemented for "nk".')
-            else:
-                raise NotImplementedError('eval_only is only partially implemented for "mx". modularity expects different format for clusters than df.')
+                raise NotImplementedError('eval_only is has not been implemented for "nk". modularity expects different format for clusters than df.')
+            # else:
+            #     raise NotImplementedError('eval_only is only partially implemented for "mx". ')
         if self.eval_only:
             dc = CombDataChecker(language=self.language, cmode=self.cmode, combinations_path=self.combinations_path, by_author=self.by_author, output_dir=self.output_dir)
             cdf = dc.prepare_clst_log()
@@ -163,7 +163,7 @@ class CombinationsBase(InfoHandler):
         pinfo = deepcopy(info)
 
         if self.cmode == 'mx':
-            inteval = MxIntEval(combination).evaluate()
+            inteval = MxIntEval(combination, eval_only=self.eval_only).evaluate()
         elif self.cmode == 'nk':
             inteval = NkIntEval(combination).evaluate()
 
@@ -191,11 +191,10 @@ class MxCombinations(CombinationsBase):
 
 
     def create_combinations(self):
-        s = time.time()
         mxs_generator = self.load_mxs()
         for mx, cluster_alg in itertools.product(mxs_generator, MxCluster.ALGS.keys()):
 
-            # When clustering embeddings, isolated nodes are ignored, and matrix of connected nodes can be too small
+            # When clustering on embeddings, isolated nodes are ignored, and matrix of connected nodes can be too small
             if mx.mx.shape[0] > 50:
 
                 sc = MxCluster(self.language, cluster_alg, mx, output_dir=self.output_dir, by_author=self.by_author)
@@ -205,13 +204,14 @@ class MxCombinations(CombinationsBase):
                     info = CombinationInfo(mxname=mx.name, cluster_alg=cluster_alg, param_comb=param_comb)
 
                     if self.eval_only:
-                        if info.as_string() in self.cluster_log_info:
+                        if info.as_string() in self.cluster_log_info: #  invalid clusterings
                             continue
                         else:
                             info = self.load_info(info.as_string())
-                            metadf = self.merge_dfs(self.metadf, info['clusterdf'])
+                            metadf = self.merge_dfs(self.metadf, info.clusterdf)
                             info.add('metadf', metadf)
-                            combination = [None, None, info]
+                            combination = [mx, info.clusterdf, info]
+                            yield combination
                     else:
                         pickle_path = self.get_pickle_path(info.as_string())              
                         if os.path.exists(pickle_path):
@@ -234,14 +234,14 @@ class MxCombinations(CombinationsBase):
 
         with open(self.combinations_path, 'w') as f:
             for mx, cluster_alg in itertools.product(mxs_generator, MxCluster.ALGS.keys()):
-                print(mx.name, cluster_alg)
+                # print(mx.name, cluster_alg)
                 if mx.mx.shape[0] > 50:
                     sc = MxCluster(self.language, cluster_alg, mx, output_dir=self.output_dir, by_author=self.by_author)
                     param_combs = sc.get_param_combinations()
 
                     for param_comb in param_combs:
                         info = CombinationInfo(mxname=mx.name, cluster_alg=cluster_alg, param_comb=param_comb)
-                        print(info.as_string())
+                        # print(info.as_string())
                         f.write(info.as_string() + '\n')
                 else:
                     # These matrices are too small to run clustering
@@ -293,6 +293,7 @@ class NkCombinations(CombinationsBase):
                                 metadf = self.merge_dfs(self.metadf, clusters.df)
                                 info.add('metadf', metadf)
                                 info.add('clusterdf', clusters.df)
+                                info.add('initial_clusts', clusters.initial_clusts)
                                 combination = [network, clusters, info]
 
                                 yield combination
