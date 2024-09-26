@@ -13,7 +13,7 @@ from analysis.experiments import Experiment
 from analysis.topeval import TopEval
 from cluster.create import D2vDist, Delta
 from cluster.cluster_utils import MetadataHandler
-from cluster.cluster_utils import ColorBar
+from cluster.cluster_utils import ColorBar, ColorBarHz
 from utils import copy_imgs_from_harddrive
 
 # Some additional experiments, many of which are mentioned in the text
@@ -21,6 +21,18 @@ from utils import copy_imgs_from_harddrive
 # Check combinations with the highest nr of clusters for recovering author
 # Analysis, mx
 
+# %%
+from cluster.cluster_utils import ColorBar, ColorBarHz
+
+for language in ['eng', 'ger']:
+    for byauthor in [False, True]:
+        cb = ColorBarHz(language, byauthor)
+        cb.make_bars()
+        cb.add_both_labels()
+
+
+
+# %%
 
 
 def extend_sizes_col(df):
@@ -717,10 +729,45 @@ for attr in ['gender', 'cluster']:
     mv.visualize()
 
 
+from analysis.mxviz import MxSingleViz, MxSingleViz2dSingleAttr
+from analysis.embedding_eval import EmbMxCombinations
+from cluster.combinations import InfoHandler
+# info for gender position slide
+info_path = '/media/annina/elements/back-to-computer-240615/data_author/s2v/ger/mxcomb/info-burrows-5000_threshold-0%95_dimensions-16_walklength-30_numwalks-200_windowsize-15_untillayer-5_OPT1-True_OPT2-True_OPT3-True_dbscan-eps-0%1-minsamples-5.pkl'
+ih = InfoHandler(language='ger', output_dir='s2v', add_color=True, cmode='mx', by_author=True)
+info = ih.load_info('burrows-5000_threshold-0%95_dimensions-16_walklength-30_numwalks-200_windowsize-15_untillayer-5_OPT1-True_OPT2-True_OPT3-True_dbscan-eps-0%1-minsamples-5')
+metadf = ih.merge_dfs(ih.metadf, info.clusterdf)
+metadf = ih.mh.add_cluster_color_and_shape(metadf)
+info.add('metadf', metadf)
+exp = {'name': 'MxSingleViz2dSingleAttr_test'}
+mc = EmbMxCombinations(language='ger', by_author=True)
+mx = mc.load_single_mx(mxname=info.mxname)
+for attr in ['canon', 'cluster']:
+    info.attr = attr
+    mv = MxSingleViz2dSingleAttr(language='ger', output_dir='analysis_s2v', exp=exp, by_author=True, mc=mc, info=info, mx=mx)
+    mv.visualize()
+
 
 # %%
-exp = {'name': 'MxSingleViz_test'}
-for language in ['eng', 'ger']:
-    mc = EmbMxCombinations(language=language, by_author=True)
-    # mv = MxSingleViz(language=language, output_dir='analysis_s2v', exp=exp, by_author=True, mc=mc)
-    # mv.visualize()
+# Make network plots with clusters and attrs highlighted, but optimized for presentation
+from analysis.nkviz import NkS2vKeyAttrViz
+from cluster.combinations import InfoHandler
+
+combs = {'full_simmel-5-10_louvain-resolution-0%01': ['eng', False, 25],
+        #  'full_simmel-3-10_louvain-resolution-0%01': ['eng', False, 25],
+        #  'braycurtis-2000_simmel-3-10_louvain-resolution-1': ['eng', True, 60], 
+        #  'correlation-1000_simmel-5-10_louvain-resolution-0%1': ['eng', True, 60], 
+        #  'full_simmel-5-10_louvain-resolution-1': ['ger', True, 60],
+         'argamonquadratic-5000_simmel-3-10_louvain-resolution-1': ['eng', True,90]}
+
+for comb_name, comb_list in combs.items():
+    language, by_author, markersize = comb_list
+    ih = InfoHandler(language=language, output_dir='similarity', add_color=True, cmode='nk', by_author=by_author)
+    info = ih.load_info(comb_name)
+    metadf = ih.merge_dfs(ih.metadf, info.clusterdf)
+    metadf = ih.mh.add_cluster_color_and_shape(metadf)
+    info.add('metadf', metadf)
+    exp = {'name': 'NkS2vKeyAttrVizPresentation'}
+    nv = NkS2vKeyAttrViz(language, info, plttitle=None, exp=exp, by_author=by_author, presentation_mode=True, markersize=markersize)
+
+# %%

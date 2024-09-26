@@ -20,7 +20,7 @@ from matplotlib.cm import ScalarMappable
 from utils import DataHandler
 from .mxviz import MxAttrGridViz, MxSingleViz, MxKeyAttrViz, S2vKeyAttrViz, MxSingleViz2D3D, MxSingleViz2D3DHorizontal, MxSingleVizCluster
 from .nkviz import NkKeyAttrViz, NkAttrGridViz, NkNetworkGridkViz, SparsGridkViz, NkSingleViz, NkS2vKeyAttrViz
-from .interactive_viz import MxSingleViz2D3DHzAnalysis, NkSingleVizAnalysis
+from .interactive_viz import MxSingleViz2D3DHzAnalysis, NkSingleVizAnalysis, MxSingleViz2DAnalysis
 from .viz_utils import ClusterAuthorGrid
 from .embedding_eval import EmbMxCombinations
 from .topeval import TopEval
@@ -253,6 +253,7 @@ class Experiment(DataHandler):
         sparsgrid = [{'name': 'sparsgrid', 'viztype': 'sparsgrid', 'attr': 'canon'}]
         singleimage = [{'name': 'singleimage', 'viztype': 'singleimage', 'attr': 'canon'}]
         singleimage_analysis = [{'name': 'singleimage_analysis', 'viztype': 'singleimage_analysis', 'attr': 'canon'}] # interactively select points in plot
+        singleimage_analysis_2d_mds = [{'name': 'singleimage_analysis_2d_mds', 'viztype': 'singleimage_analysis_2d_mds', 'attr': 'canon'}] # interactively select points in plot
 
         # Make single images where clusters are highlighted
         # cat df, author attr don't matter, one combination is chosen
@@ -278,6 +279,8 @@ class Experiment(DataHandler):
         if select_exp is not None and select_exp !='all':
             if select_exp == 'singleimage_analysis': # no others are run at the same time
                 exps = singleimage_analysis
+            if select_exp == 'singleimage_analysis_2d_mds': # no others are run at the same time
+                exps = singleimage_analysis_2d_mds
             else:
                 if select_exp_from_substring: # selected exp has to occurr as substring
                     exps = [x for x in exps if select_exp in x['name']]
@@ -299,7 +302,7 @@ class Experiment(DataHandler):
 
             self.add_subdir(f"{self.cmode}_{exp['name']}")
 
-            if (exp['viztype'] == 'nkgrid') or (exp['viztype'] == 'sparsgrid') or (exp['viztype'] == 'singleimage') or (exp['viztype'] == 'singleimage_analysis'):
+            if (exp['viztype'] == 'nkgrid') or (exp['viztype'] == 'sparsgrid') or (exp['viztype'] == 'singleimage') or (exp['viztype'] == 'singleimage_analysis') or (exp['viztype'] == 'singleimage_analysis_2d_mds'):
                 te = None
             else:
                 te = TopEval(self.language, output_dir=self.mc.output_dir, cmode=self.cmode, exp=exp, expdir=self.subdir, by_author=self.by_author)
@@ -350,6 +353,9 @@ class Experiment(DataHandler):
             viz.visualize()
         elif exp['viztype'] == 'singleimage_analysis':
             viz = MxSingleViz2D3DHzAnalysis(self.language, self.output_dir, exp, self.by_author, self.mc)
+            viz.visualize()
+        elif exp['viztype'] == 'singleimage_analysis_2d_mds': # for presentation only
+            viz = MxSingleViz2DAnalysis(self.language, self.output_dir, exp, self.by_author, self.mc)
             viz.visualize()
         else:
             for topk in te.get_top_combinations():

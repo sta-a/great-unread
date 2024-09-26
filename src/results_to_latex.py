@@ -24,7 +24,7 @@ def make_latex_table(df, caption, label, outf, language, sparsification, print_s
     else:
         new_row.loc[0, 'Dist'] = r'\textbf{German}'
     print(new_row)
-    df = pd.concat([new_row, df]).reset_index(drop=True)
+    # df = pd.concat([new_row, df]).reset_index(drop=True)
 
     df = df[dfcols]
     print(df)
@@ -470,6 +470,7 @@ with open('latex/tables_for_latex.txt', 'w') as outf:
 
                                 # path = f'/media/annina/elements/back-to-computer-240615/data_author/analysis/{language}/nk_topgender_ARI_nclust-2-2'
                                 path = f'/media/annina/elements/back-to-computer-240615/{datadir}/{output_dir}/{language}/{level}_top{attr}_{eval_metric}_nclust-2-5{extra_path_str}'
+                                path = '/media/annina/elements/back-to-computer-240615/data_author/analysis_s2v/eng/mx_topcanon_avg_variance_nclust-2-5_threshold-0%95'
                                 print(path)
                                 df = pd.read_csv(os.path.join(path, 'df.csv'))
                                 if df.empty:
@@ -508,16 +509,16 @@ with open('latex/tables_for_latex.txt', 'w') as outf:
                                     tab_label = f"{tab_label}_{sparsification.replace('%', '.')}"
                                 tab_labels[language] = tab_label
                                 df = prepare_df(path=path, eval_metric=eval_metric, int_eval_metric=int_eval_metric, topn=topn, sort_eval_ascending=sort_eval_ascending)
+                                print(df)
 
                                 first_row_latex = df.iloc[0].to_dict()
                                 first_rows_latex[language] = first_row_latex
                                 outf.write('%------------------------------------------------------------------------\n')
-
                                 make_latex_table(df,tab_caption, tab_label, outf, language, sparsification, print_sparsification=True)
 
                                 if output_dir == 'analysis_s2v' and make_latex_figure:
                                     if attr == 'gender' or attr == 'canon':
-                                        prepare_latex_figure_mx(outf, attr, datadir, eval_metric, first_row, first_row_latex, level, language, sparsification, include_all_attr=True)
+                                        prepare_latex_figure_mx(outf, attr, datadir, eval_metric, m, first_row_latex, level, language, sparsification, include_all_attr=True)
                                     else:
                                         prepare_latex_figure_mx(outf, attr, datadir, eval_metric, first_row, first_row_latex, level, language, sparsification)
 

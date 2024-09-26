@@ -824,11 +824,11 @@ class NkSingleVizAttr(NkKeyAttrViz):
     '''
     Make single images where clusters are highlighted. Isolated nodes are shown.
     '''
-    def __init__(self, language, output_dir, info, plttitle, exp, by_author, subdir='nk_singleimage_s2v', figsize=(4,4)):
+    def __init__(self, language, output_dir, info, plttitle, exp, by_author, subdir='nk_singleimage_s2v', figsize=(4,4), markersize=15):
         super().__init__(language, output_dir, info=info, plttitle=plttitle, exp=exp, by_author=by_author)
         self.figsize = figsize
         self.fontsize = 15
-        self.markersize = self.fontsize
+        self.markersize = markersize
         self.add_subdir(subdir)
         self.ws_left = 0.01
         self.ws_right = 0.99
@@ -895,8 +895,6 @@ class NkSingleVizAttr(NkKeyAttrViz):
             # plt.show()
             plt.close()
 
-
-
    
     def get_figure(self):
         ncol = 1
@@ -919,23 +917,6 @@ class NkSingleVizAttr(NkKeyAttrViz):
         self.attrix = [0, 0]
         self.subplots = [self.attrix]
    
-    # def get_figure(self):
-    #     ncol = 1
-    #     width_ratios = (ncol-1)*[7] + [1]
-
-    #     self.fig, self.axs = plt.subplots(2, ncol, figsize=self.figsize, gridspec_kw={'height_ratios': [7, 2], 'width_ratios': width_ratios})      
-    #     self.axs = np.reshape(self.axs, (2, 1)) 
-
-    #     # for row in self.axs: 
-    #     #     for ax in row:
-    #     #         ax.axis('off')
-    #     self.axs[0,0].axis('off')
-    #     self.axs[1,0].axis('off')
-
-    #     self.attrix = [0,0]
-    #     self.subplots = [self.attrix]
-
-
 
 
 class NkS2vKeyAttrViz(ImageGrid):
@@ -944,10 +925,11 @@ class NkS2vKeyAttrViz(ImageGrid):
     Load individual images from file
     '''
 
-    def __init__(self, language, info, plttitle, exp, by_author, subdir=None):
+    def __init__(self, language, info, plttitle, exp, by_author, subdir=None, presentation_mode=False, markersize=15):
         self.img_width = 1.2  * 2 # imgs are 1200 x 1400 pixels
         self.img_height = 1.4 * 2
         self.fontsize = 12
+        self.markersize = markersize
         self.info = info
         self.plttitle = plttitle
         self.exp = exp
@@ -961,6 +943,7 @@ class NkS2vKeyAttrViz(ImageGrid):
             self.colnames.insert(index, 'author')
 
         self.subdir = subdir #
+        self.presentation_mode = presentation_mode # Use different class to make visualizations for thesis presentation
         super().__init__(language=language, by_author=by_author, output_dir='analysis', rowmajor=False, imgs_as_paths=True, subdir=self.subdir) # load_single_images is called in ImageGrid.__init__
         self.nrow = 2
         self.ncol = 3
@@ -983,7 +966,10 @@ class NkS2vKeyAttrViz(ImageGrid):
             self.info.attr = attr
             
             # Set subdir so that imaes with clusters highlighted are placed in same subdir as single images from NkSingleViz
-            nkclust = NkSingleVizAttr(self.language, self.output_dir, self.info, plttitle=self.plttitle, exp=self.exp, by_author=self.by_author, subdir='nk_singleimage', figsize=(2.5*self.img_width, 2.5*self.img_height)) 
+            if not self.presentation_mode:
+                nkclust = NkSingleVizAttr(self.language, self.output_dir, self.info, plttitle=self.plttitle, exp=self.exp, by_author=self.by_author, subdir='nk_singleimage', figsize=(2.5*self.img_width, 2.5*self.img_height), markersize=self.markersize) 
+            else:
+                nkclust = NkSingleVizAttrPresentation(self.language, self.output_dir, self.info, plttitle=self.plttitle, exp=self.exp, by_author=self.by_author, figsize=(2.5*self.img_width, 2.5*self.img_height), markersize=self.markersize) 
             nkclust_path = nkclust.get_path()
             print(nkclust_path)
             nkclust.visualize()
@@ -1000,3 +986,63 @@ class NkS2vKeyAttrViz(ImageGrid):
     def get_figure(self):
         self.fig, self.axs = plt.subplots(self.nrow, self.ncol, figsize=(self.ncol*self.img_width, self.nrow*self.img_height))
         plt.tight_layout(pad=0)
+
+
+class NkSingleVizAttrPresentation(NkSingleVizAttr):
+    '''
+    The same as NkSingleVizAttr, but images are optimized for presentation.
+    This class is only used for the thesis presentation.
+    '''
+    def __init__(self, language, output_dir, info, plttitle, exp, by_author, subdir='nk_singleimage_presentation', figsize=(4,4), markersize=60):
+        super().__init__(language, output_dir, info, plttitle, exp, by_author, subdir, figsize)
+        self.markersize = markersize
+
+    def visualize(self, vizname='viz', omit=[]):
+        # Copy method to overwrite image if it already exists
+        self.vizpath = self.get_path()
+        self.get_graphs()
+        self.get_positions()
+        self.add_positions_to_metadf()
+
+        self.get_figure()
+        self.adjust_subplots()
+        self.add_edges()
+
+        self.fill_subplots()
+        self.save_plot(plt)
+        # plt.show()
+        plt.close()
+
+
+    def save_plot(self, plt, plt_kwargs={'dpi': 600}):
+        # Copy method to set dpi
+        self.save_data(data=plt, data_type=self.data_type, file_name=None, file_path=self.vizpath, plt_kwargs=plt_kwargs)
+
+
+    def draw_nodes(self, graph, ax, df, color_col, use_different_shapes=True, node_size=None, edgecolors='black', margins=None):
+        # Copy method to set linewidths param
+        # Iterate through shapes because only one shape can be passed at a time, no lists
+        if use_different_shapes:
+            shapes = df['clst_shape'].unique()
+        else:
+            shapes = ['o']
+            df = df.copy() # Avoid chained assingment warning
+            df['clst_shape'] = 'o'
+
+        if node_size is None:
+            node_size = self.markersize
+
+
+        for shape in shapes:
+            sdf = df[df['clst_shape'] == shape]
+            nx.draw_networkx_nodes(graph,
+                                self.pos, 
+                                ax=ax,
+                                nodelist=sdf.index.tolist(), 
+                                node_shape=shape,
+                                node_color=sdf[color_col],
+                                node_size=node_size,
+                                edgecolors=edgecolors,
+                                linewidths=0.5,
+                                margins=margins)
+                 

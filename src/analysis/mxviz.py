@@ -612,9 +612,13 @@ class MxSingleViz2d3dSingleAttr(MxSingleViz2D3D):
                 self.save_plot(plt, plt_kwargs={'dpi': 200})
                 plt.close()
 
-class MxSingleViz2dSingleAttr(MxSingleViz2d3dSingleAttr): #########################################
-    # Combination of MxSingleViz2d3dSingleAttr with get_figure and draw_mds methods from MxSingleViz
-    # Makes 2d MDS for position clustering, for attrs and clusters
+
+class MxSingleViz2dSingleAttr(MxSingleViz2d3dSingleAttr):
+    '''
+    Combination of MxSingleViz2d3dSingleAttr with get_figure and draw_mds methods copied from MxSingleViz
+    Makes 2d MDS for position clustering, for attrs and clusters
+    This class is only used for the thesis presentation.
+    '''
     def __init__(self, language, output_dir, exp, by_author, mc, info, mx):
         super().__init__(language, output_dir, exp, by_author, mc, info, mx)
         self.add_subdir('MxSingleViz2dSingleAttr_test')
@@ -647,7 +651,7 @@ class MxSingleViz(MxSingleViz2D3D):
     Create a single plot per matrix, with a 2d visualization.
     For s2v, the different network positions should be clearly distinguishable in 2D.
     For each matrix, a seperate plot for each key attribute is created.
-    This class is only used for thesis presentation
+    This class is only used for the thesis presentation.
     '''
     def __init__(self, language, output_dir, exp, by_author, mc):
         super().__init__(language, output_dir, exp, by_author, mc)

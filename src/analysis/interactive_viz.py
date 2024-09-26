@@ -61,6 +61,7 @@ class NkSingleVizAttrAnalysis(NkSingleVizAttr):
             print('generated network')
 
 
+
 class MxSingleViz2D3DHzAnalysis(MxSingleViz2D3DHorizontal):
     def __init__(self, language, output_dir, exp, by_author, mc, info=None):
         super().__init__(language, output_dir, exp, by_author, mc, info=None)
@@ -284,7 +285,8 @@ class MxSingleViz2D3DHzAnalysis(MxSingleViz2D3DHorizontal):
         for mx in self.mc.load_mxs():
             self.mx = mx
             self.mxname = mx.name
-            if 'manhattan-1000_simmel-7-10' in self.mxname:
+            print(self.mxname)
+            if 'argamonquadratic-5000_simmel-3-10' in self.mxname:
                 # Check if results for last key attr has been created
                 # This is faster than adding the positions and then checking the paths
                 self.get_results_path(self.mxname, self.key_attrs[-1])
@@ -304,6 +306,111 @@ class MxSingleViz2D3DHzAnalysis(MxSingleViz2D3DHorizontal):
 
 
 
+class MxSingleViz2DAnalysis(MxSingleViz2D3DHzAnalysis):
+    '''
+    The same as MxSingleViz2D3DHzAnalysis, but creates only 2d MDS.
+    get_figure method copied from MxSingleViz
+    This class is only used for thesis presentation
+    '''
+    def __init__(self, language, output_dir, exp, by_author, mc, info=None):
+        super().__init__(language, output_dir, exp, by_author, mc, info=None)
+        self.add_subdir('MxSingleViz2DHzAnalysis_test')
+
+    def get_figure(self):
+        self.fig, self.axs = plt.subplots(1, 1, figsize=(4, 4))
+        self.axs = np.reshape(self.axs, (1, 1))
+        self.axs[0, 0].axis('off')
+        self.adjust_subplots()
+
+
+    def draw_mds(self, ix, color_col=None, use_different_shapes=False, s=30, edgecolor='black', linewidth=0.2):
+            self.labels = []
+            self.labels2d = []
+            self.class_counter = 0
+            self.get_interactive_plots(ix, color_col, use_different_shapes, s, edgecolor, linewidth)
+
+            if 'label_color' not in self.df.columns:
+                assert len(self.labels) == 0, 'There are labels but no label_color column. Network button was not pressed.'
+                print('No labels were selected. No plots were saved.')
+                with open(self.results_path, 'w') as f: # Create empty file as reminder that combination has been checked
+                    f.write('')
+            else:
+                # Create MDS plots where selected points are highlighted
+                self.get_figure() # recreate figure
+                # super().draw_mds(ix=ix, color_col='label', use_different_shapes=use_different_shapes, s=s, edgecolor=edgecolor, linewidth=linewidth)
+                scatter_kwargs = {'s': s, 'edgecolor': edgecolor, 'linewidth': linewidth}
+                color_col = f'label_color'
+                sdf = self.df.copy() # Avoid chained assingment warning
+                kwargs = {'c': sdf[color_col], 'marker': 'o', **scatter_kwargs}
+                self.axs[ix[0], ix[1]].scatter(x=sdf['X_mds_2d_0'], y=sdf['X_mds_2d_1'], **kwargs)
+                self.save_plot(plt, plt_kwargs={'dpi': 600})
+                plt.close()
+
+    
+    def get_interactive_plots(self, ix, color_col, use_different_shapes, s, edgecolor, linewidth):            
+
+        scatter_kwargs = {'s': s, 'edgecolor': edgecolor, 'linewidth': linewidth}
+        color_col = f'{color_col}_color'
+        
+        sdf = self.df.copy() # Avoid chained assingment warning
+        kwargs = {'c': sdf[color_col], 'marker': 'o', **scatter_kwargs}
+        
+        # 2D plot
+        scatter_2d = self.axs[ix[0], ix[1]].scatter(x=sdf['X_mds_2d_0'], y=sdf['X_mds_2d_1'], **kwargs)
+
+        # Lasso selector for selecting multiple points
+        def on_select_2d(verts):
+            path = Path(verts)
+            ind = np.nonzero(path.contains_points(sdf[['X_mds_2d_0', 'X_mds_2d_1']]))[0]
+            for i in ind:
+                label = sdf.index[i]
+                if label not in self.labels2d:
+                    self.labels2d.append(label)
+                    row = self.df_nocolor.loc[label].values.tolist()
+                    self.write_labels_to_file(label, row, dim='2d')
+                    print(f'Selected: {label}')
+
+        print('Lasso selector for 2D plots. Make sure line is closed!')
+        lasso_2d = LassoSelector(self.axs[ix[0], ix[1]], on_select_2d)
+
+        # Button to trigger network generation
+        ax_button = plt.axes([0.81, 0.01, 0.1, 0.075])  # position: [left, bottom, width, height]
+        button = Button(ax_button, 'Generate Network')
+        button.on_clicked(self.on_button_click)
+
+        ax_class_button = plt.axes([0.81, 0.09, 0.1, 0.075])
+        button_class = Button(ax_class_button, 'New')
+        button_class.on_clicked(self.on_class_button_click)
+
+        ax_reset_button = plt.axes([0, 0.01, 0.02, 0.03])
+        button_reset = Button(ax_reset_button, 'Reset')
+        button_reset.on_clicked(self.on_reset_button_click)
+
+        # create a non-maximized window with the size of a maximized one
+        mng = plt.get_current_fig_manager()
+        mng.resize(*mng.window.maxsize())
+
+
+        # Pop up window can be closed with ctrl+Q+Q
+        plt.gcf().canvas.mpl_connect('close_event', self.on_close)
+
+        self.fig.suptitle(self.mxname)
+        plt.show()
+        
+    def on_button_click(self, event):
+        self.labels.append(list(set(self.labels2d))) # combine lists
+        print('clicked button network')
+        self.get_networks()
+
+    def on_class_button_click(self, event):
+        self.labels.append(list(set(self.labels2d)))
+        self.labels2d = []
+        self.class_counter += 1
+
+    def on_reset_button_click(self, event):
+        self.labels = []
+        self.labels2d = []
+        os.remove(self.results_path)
 
 
 class NkSingleVizAnalysis(NkSingleViz):

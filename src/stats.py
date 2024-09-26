@@ -543,7 +543,6 @@ class PlotCanonScoresPerAuthorByYearAndGender(PlotCanonScoresPerAuthor):
         self.save_data(data=plt, file_name='canonscores_per_author_and_year')
 
 
-
 class PlotYearAndCanon(DataHandler):
     def __init__(self, language, by_author=False):
         super().__init__(language, output_dir='text_statistics', data_type='png', by_author=by_author)
@@ -662,6 +661,45 @@ class PlotYearAndCanon(DataHandler):
         print(f'Standard error: {std_err:.2f}')
 
 
+class PlotYearAndCanonPresentation(PlotYearAndCanon):
+    '''
+    This class is only used for thesis presentation.
+    '''
+    def __init__(self, language, by_author=False):
+        super().__init__(language, by_author=by_author)
+        self.canontup = ('canon', 'Canonization Score')
+
+    def plot_single_var(self):
+        if not self.by_author:
+            plotlist = [self.yeartup, self.canontup]
+        else:
+            plotlist = [self.yeartup, self.canontup]
+
+        for attr, yaxis_title in plotlist:
+            mh = MetadataHandler(self.language, by_author=self.by_author)
+            metadf = mh.get_metadata(add_color=False)
+            print(metadf.shape)
+            df = metadf.sort_values(by=attr, ascending=True)
+
+            fig, ax = plt.subplots(figsize=(6, 5))
+            ax.scatter(df.index, df[attr], s=3)
+
+            ax.set_xlabel('Number of Texts', fontsize=16)  # Increase x-axis label size
+            ax.set_ylabel(yaxis_title, fontsize=16)        # Increase y-axis label size
+            ax.grid(True, linestyle='--', alpha=0.5)
+
+            max_text_index = len(df)
+            text_ticks = list(range(0, max_text_index + 1, 100))
+            ax.set_xticks(text_ticks)
+            ax.set_xticklabels([str(t) for t in text_ticks], fontsize=14)  # Increase x-tick label size
+
+            # Set size for y-axis tick labels
+            ax.tick_params(axis='y', labelsize=14)  # Increase y-tick label size
+
+            self.save_data(data=plt, file_name=f'{attr}_byauthor-{self.by_author}_presentation')
+
+
+
 class CanonVariancePerAuthor(DataHandler):
     def __init__(self, language):
         super().__init__(language, output_dir='text_statistics', data_type='png')
@@ -760,7 +798,7 @@ if __name__ == '__main__':
         
         for by_author in [False, True]:
 
-            mdstats = MetadataStats(language, by_author=by_author)
+            # mdstats = MetadataStats(language, by_author=by_author)
             # mdstats.get_stats()
 
             # pyac = PlotYearAndCanon(language, by_author=by_author)
@@ -769,11 +807,14 @@ if __name__ == '__main__':
             # pyac.plot_single_var()
             # pyac.plot_two_vars()
 
-            ybg = YearAndCanonByGender(language, by_author)
+            pyac = PlotYearAndCanonPresentation(language, by_author=by_author)
+            pyac.plot_single_var()
+
+            # ybg = YearAndCanonByGender(language, by_author)
             # ybg.make_plots()
             # ybg.make_gender_stripplot()
             # ybg.make_gender_means_table()
-            ybg.canon_year_correlation_by_gender()
+            # ybg.canon_year_correlation_by_gender()
         
         # cbc = ColorBarChart(language, by_author)
         # cbc.make_plots()
