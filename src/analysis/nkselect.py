@@ -101,8 +101,10 @@ class SparsGrid(NkNetworkGrid):
 
 class Selector(DataHandler):
     '''
-    Write names of interesting networks to file
-    Interesting networks are networks where canonized texts seem to be non-randomly distributed, or which have an interesting structure, or which are not dependent on the year
+    This class was not used, its original intent was to select interesting networks for which struc2vec embeddings would be created.
+    it is easier to create struc2vec embeddings for all networks instead of only for a preselected set.
+    Interesting networks are networks where canonized texts seem to be non-randomly distributed, or which have an interesting structure, or which are not dependent on the year. 
+    The names of these networks are written to file.
     '''
     def __init__(self, language, by_author=False):
         super().__init__(language, output_dir='analysis', data_type='png', by_author=by_author)

@@ -10,7 +10,6 @@ import os
 import argparse
 
 from cluster.combinations import MxCombinations, NkCombinations
-from helpers import remove_directories
 from analysis.experiments import Experiment
 from analysis.nkselect import NkNetworkGrid, SparsGrid, Selector
 

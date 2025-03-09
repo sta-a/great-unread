@@ -1,11 +1,16 @@
 
 # %%
+
+'''
+This script processes text replacement values from different files and writes them to a single CSV file, which is the basis for preprocessing in the next step. 
+The character 'ƒ' is used as a seperator because it is not used in any of the texts.
+'''
 import re
 import pandas as pd
 import os
 
 separator = 'ƒ' # special separator that is not contained in to_replace strings
-output_file = '/home/annina/scripts/great_unread_nlp/data/preprocess/replacement_values.csv'
+output_file = '../../data/preprocess/replacement_values.csv'
 
 
 # Use raw text to write \n 
@@ -39,7 +44,7 @@ more_lines = r"""
     Edgeworth_Maria_The-Modern-Griselda_1804ƒi*ƒiƒ0
     Amory_Thomas_The-Life-of-John-Buncle_1756ƒ628.ƒ'628,'ƒ0
     """
-# ƒƒ''ƒ0
+
 
 # Split the string into lines and remove leading/trailing whitespace
 more_lines = [line.strip() for line in more_lines.strip().split('\n')]
@@ -103,8 +108,8 @@ sys.path.append("..")
 from utils import search_string_in_files
 
 # Define the paths to the directories
-dir1 = '/home/annina/scripts/great_unread_nlp/data/corpus_corrections'
-dir2 = '/home/annina/scripts/great_unread_nlp/data/preprocess'
+dir1 = '../../data/corpus_corrections'
+dir2 = '../../data/preprocess'
 
 for lang in ['eng', 'ger']:
     # Define the filenames
@@ -135,7 +140,7 @@ for lang in ['eng', 'ger']:
 
 
     # Check if old filesnams are in preprocessing script
-    directory_path = '/home/annina/scripts/great_unread_nlp/src/'
+    directory_path = '..'
     search_string = ''
     extensions = ['.py']
     for value in df1['metadata-fn']:

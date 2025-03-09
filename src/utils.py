@@ -1,4 +1,7 @@
 # %%
+'''
+This file contains the main classes for loading and handling data, plus some helper functions.
+'''
 import os
 import re
 from pathlib import Path
@@ -176,12 +179,8 @@ def search_string_in_files(directory, search_string, extensions, full_word=False
 class DataHandler():
     '''
     Base class for creating, saving, and loading data.
-    
-    /media/annina/MyBook/back-to-computer-240615/data
-    /home/annina/scripts/great_unread_nlp/data
-    /media/annina/elements/back-to-computer-240615/data
     '''
-    def __init__(self, language=None, output_dir=None, data_type='csv', modes=None, tokens_per_chunk=1000, data_dir='/media/annina/elements/back-to-computer-240615/data', test=False, load_doc_paths=True, subdir=False, by_author=False):
+    def __init__(self, language=None, output_dir=None, data_type='csv', modes=None, tokens_per_chunk=1000, data_dir='../data', test=False, load_doc_paths=True, subdir=False, by_author=False):
 
         self.test = test
         self.language = language
@@ -195,7 +194,6 @@ class DataHandler():
             # Replace the last part of the path
             new_data_dir = 'data_author'
             self.data_dir = os.path.join(os.path.dirname(self.data_dir), new_data_dir)
-        # print(f'Data Dir in {self.__class__.__name__}: {self.data_dir}')
 
         self.logger = logging.getLogger(self.__class__.__name__)
         self.logger.setLevel(logging.DEBUG)
@@ -1048,43 +1046,3 @@ class FeaturesLoader(DataHandler):
             self.logger.debug('Returning df scaled to values between 0 and 1.')
         return df
     
-
-
-
-def copy_imgs_from_harddrive(source, copy=True):
-    source = source.replace('/home/annina/Documents/thesis/data_author_latex', '/media/annina/elements/back-to-computer-240615/data_author') # path might alredy be changed from copying by hand
-    source = source.replace('/home/annina/Documents/thesis/data_latex', '/media/annina/elements/back-to-computer-240615/data')
-    source = source.replace('.', '%')
-    source = source.replace('%png', '.png') # fix error introduced in previous line
-    target = deepcopy(source)
-    target = target.replace('/media/annina/elements/back-to-computer-240615', '/home/annina/Documents/thesis')
-    target = target.replace('/home/annina/scripts/great_unread_nlp', '/home/annina/Documents/thesis')
-    if '/data/' in target:
-        target = target.replace('/data/', '/data_latex/')
-    elif '/data_author/' in target:
-        target = target.replace('/data_author/', '/data_author_latex/')
-
-    if copy:
-        target_dir = os.path.dirname(target)
-        
-        # Ensure the parent directory exists
-        if not os.path.exists(target_dir):
-            os.makedirs(target_dir)
-            print(f'Created directories for: {target}')
-        else:
-            print(f'Directories already exist for: {target}')
-        shutil.copy(source, target)
-        print(f'Copied file from {source} to {target}')
-
-        new_target_file = None
-        if '%' in target:
-            # Replace '%' with '.'
-            new_target_file = target.replace('%', '.')
-            shutil.copy(source, new_target_file)
-
-        with open('copy-files-for-thesis.sh', 'a') as copy_paths_file:
-            copy_paths_file.write(f'{source} -> {target}\n')
-
-        if new_target_file is not None:
-            target = new_target_file
-        return target

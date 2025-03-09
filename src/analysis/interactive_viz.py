@@ -1,4 +1,9 @@
 # %%
+'''
+These classes create interactive visualizations of networks and MDS plots on which interesting points can be selected using the mouse. 
+The selected data points are written to file and can be further analyzed.
+The classes are called from withing experiments.py, where the selection is treated as one of the experiments.
+'''
 from copy import deepcopy
 import os
 import matplotlib
@@ -25,7 +30,6 @@ class NkSingleVizAttrAnalysis(NkSingleVizAttr):
         self.cmode = cmode
         self.markersize = 20
         self.subdir = subdir
-        print('created NkSingleVizAttrAnalysis')
 
     def get_metadf(self):
         df = self.info.metadf

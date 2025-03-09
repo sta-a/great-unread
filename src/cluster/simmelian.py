@@ -4,14 +4,15 @@ import matplotlib.pyplot as plt
 
 import time
 import numpy as np
+import random
+random.seed(42)
 
 from copy import deepcopy
 import pandas as pd
-import numpy as np
 
 import sys
 sys.path.append("..")
-from helpers import create_simmx
+
 
 class Simmelian():
     '''
@@ -237,8 +238,42 @@ class Simmelian():
 
 
 
+def create_simmx(size=5):
+    np.random.seed(42)
+    random.seed(42)
+
+    # Create a symmetric matrix with random values between 0 and 1
+    lower_triangle = np.tril(np.random.rand(size, size), k=-1)
+    upper_triangle = lower_triangle.T
+    symmetric_matrix = lower_triangle + upper_triangle
+
+    # Set diagonal elements to 1
+    np.fill_diagonal(symmetric_matrix, 0)  ######### no self-loops
+
+
+    # Create a Pandas DataFrame
+    nr_digits = len(str(size))
+    columns = [f'col{str(i).zfill(nr_digits)}' for i in range(0, size)]
+    index = columns
+
+    df = pd.DataFrame(data=symmetric_matrix, columns=columns, index=index)
+    
+    # Set percentage of entries to 0
+    zero_percent = 0
+    i1 = random.choices(range(size), k=int(size*size * (zero_percent / 100)))
+    i2 = random.choices(range(size), k=int(size*size * (zero_percent / 100)))
+    for i1,i2 in zip(i1,i2):
+        if i1!=i2:
+            df.iloc[i1,i2] = 0
+            df.iloc[i2,i1] = 0
+
+    print('symmetric: ', df.equals(df.T))
+    # Display the DataFrame
+    return df.round(3)
+
 def check_visone():
-    dirpath = '/home/annina/scripts/great_unread_nlp/data/similarity/eng/visone-backbones/'
+    # Compare the output of the class implemented here to these created with Visone
+    dirpath = '../../data/similarity/eng/visone-backbones/'
     minimx = False
     conditioned = True
     if minimx:
