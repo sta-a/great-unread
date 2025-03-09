@@ -5,7 +5,7 @@ import os
 import re
 from spellchecker import SpellChecker
 
-data_dir = '/home/annina/scripts/great_unread_nlp/data/manually_corrected_texts'
+data_dir = '../../data/manually_corrected_texts'
 input_dir = os.path.join(data_dir, 'koenigstochter')
 output_dir = os.path.join(data_dir, 'ger')
 file_name = 'Ebers_George_Eine-aegyptische-Koenigstocher_1864.txt'

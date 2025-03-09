@@ -52,7 +52,7 @@ class NkVizBase(VizBase):
             if self.graph is None:
                 cluster_path_string = '/cluster/scratch/stahla/data'
                 if (cluster_path_string in info.spmx_path) and ('cluster/scratch/stahla' not in os.getcwd()):
-                    info.spmx_path = info.spmx_path.replace(cluster_path_string, '/home/annina/scripts/great_unread_nlp/data')
+                    info.spmx_path = info.spmx_path.replace(cluster_path_string, '../../data')
                 self.network = NXNetwork(self.language, path=info.spmx_path)
                 self.graph = self.network.graph
                 # print(f'Loaded graph from sparsmatrix at {info.spmx_path}')

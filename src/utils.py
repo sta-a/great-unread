@@ -879,7 +879,7 @@ class DataLoader(DataHandler):
     def __init__(self, language):
         # Data dir is fixed because dfs use file names of single texts
         # There is no author-based version of the metadata files
-        super().__init__(language, output_dir=None, data_type='csv', data_dir='/home/annina/scripts/great_unread_nlp/data') # Cannot be data_author!!
+        super().__init__(language, output_dir=None, data_type='csv', data_dir='../data') # Cannot be data_author!!
 
 
     def prepare_canon_df(self, fn_mapping):

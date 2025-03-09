@@ -1,5 +1,8 @@
 
 # %%
+'''
+Functions for rewriting similarity matrices as edgelists as input for creating s2v embeddings.
+'''
 
 import pandas as pd
 import os
@@ -46,8 +49,8 @@ class NoedgesLoader(DataHandler):
 
 
 def main_attributes_crosstable():
-    eng = '/home/annina/scripts/great_unread_nlp/data/similarity/eng/metadf.csv'
-    ger = '/home/annina/scripts/great_unread_nlp/data/similarity/ger/metadf.csv'
+    eng = '../../data/similarity/eng/metadf.csv'
+    ger = '../../data/similarity/ger/metadf.csv'
     df = pd.read_csv(ger, header=0)
     correlation = df['year'].corr(df['canon'])
 
@@ -120,7 +123,7 @@ def load_spmx_from_pkl(spmx_path):
 
 
 def info_to_mx_and_edgelist():
-    outdir = '/home/annina/scripts/great_unread_nlp/src/networks_to_embeddings'
+    outdir = '../networks_to_embeddings'
     d = {'eng': 'sqeuclidean-2000_simmel-3-10_louvain-resolution-0%1', 'ger': 'full_simmel-3-10_louvain-resolution-0%01'} # info strings for interesting combinations
     for language, info in d.items():
         ih = InfoHandler(language=language, add_color=False, cmode='nk')
@@ -133,7 +136,7 @@ def info_to_mx_and_edgelist():
 
         cluster_path_string = '/cluster/scratch/stahla/data'
         if (cluster_path_string in info.spmx_path) and ('cluster/scratch/stahla' not in os.getcwd()):
-            info.spmx_path = info.spmx_path.replace(cluster_path_string, '/home/annina/scripts/great_unread_nlp/data')
+            info.spmx_path = info.spmx_path.replace(cluster_path_string, '/../../data')
 
 
         spmx_path = info.spmx_path
@@ -164,7 +167,7 @@ def info_to_mx_and_edgelist():
 
 
 
-def pklmxs_to_edgelist(params):
+def pklmxs_to_edgelist(params, by_author):
     '''
     Rewrite all sparsified matrices, which are in pkl format, as edge lists. Map string indices to numbers.
     exclude_iso_nodes: if True, isolated nodes are not in the edgelist.
@@ -172,11 +175,13 @@ def pklmxs_to_edgelist(params):
     spars_dir, exclude_iso_nodes, map_index_to_int, sep = params
     print(spars_dir, exclude_iso_nodes, sep)
 
+    data_dir ='data'
+    if by_author:
+        data_dir ='data_author'
+
     for language in ['eng', 'ger']:
-        # indir = f'/home/annina/scripts/great_unread_nlp/data/similarity/{language}/sparsification'
-        # outdir = f'/home/annina/scripts/great_unread_nlp/data/similarity/{language}/{spars_dir}'
-        indir = f'/home/annina/scripts/great_unread_nlp/data_author/similarity/{language}/sparsification'
-        outdir = f'/home/annina/scripts/great_unread_nlp/data_author/similarity/{language}/{spars_dir}'
+        indir = f'../../{data_dir}/similarity/{language}/sparsification'
+        outdir = f'../../{data_dir}/similarity/{language}/{spars_dir}'
         if not os.path.exists(outdir):
             os.mkdir(outdir)
 
@@ -231,10 +236,3 @@ def pklmxs_to_edgelist(params):
             index_mapping.to_csv(os.path.join(outdir, f'index-mapping.csv'), header=True, index=False)
 
 
-params = [('sparsification_edgelists', False, True, ','), ('sparsification_edgelists_s2v', True, True, ' '), ('sparsification_edgelists_labels', False, False, ',')]
-
-# for p in params:
-#     pklmxs_to_edgelist(p)
-
-
- # %%

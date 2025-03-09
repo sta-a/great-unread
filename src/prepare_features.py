@@ -14,7 +14,7 @@ from feature_extraction.process_rawtext import Tokenizer, ChunkHandler, Sentence
 
 class FeaturePreparer(DataHandler):
     '''
-    Extract basic features that take a while to process before extracting the final features.
+    Extract basic features that take a while to process before extracting the more complex features.
     This is not necessary, since all data preparation steps are also called from the feature extraction script, but it is convenient.
     '''
     def __init__(self, language):
