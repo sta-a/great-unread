@@ -18,7 +18,7 @@ from scipy.spatial.distance import squareform
 import sys
 sys.path.append("..")
 from .viz_utils import VizBase, ImageGrid
-from .nkviz import NkSingleVizAttr
+from .nkviz import NkSingleVizAttr, NkSingleVizAttrPresentation
 from cluster.create import SimMx
 from cluster.cluster_utils import Colors
 from cluster.combinations import InfoHandler
@@ -619,9 +619,10 @@ class MxSingleViz2dSingleAttr(MxSingleViz2d3dSingleAttr):
     Makes 2d MDS for position clustering, for attrs and clusters
     This class is only used for the thesis presentation.
     '''
-    def __init__(self, language, output_dir, exp, by_author, mc, info, mx):
+    def __init__(self, language, output_dir, exp, by_author, mc, info, mx, markersize=40):
         super().__init__(language, output_dir, exp, by_author, mc, info, mx)
-        self.add_subdir('MxSingleViz2dSingleAttr_test')
+        self.markersize = markersize # size of scatter points
+        self.add_subdir('MxSingleViz2d3dSingleAttr')
 
     def get_figure(self):
         self.fig, self.axs = plt.subplots(1, 1, figsize=(4, 4))
@@ -644,6 +645,20 @@ class MxSingleViz2dSingleAttr(MxSingleViz2d3dSingleAttr):
             sdf = df[df['clst_shape'] == shape]
             kwargs = {'c': sdf[color_col], 'marker': shape, **scatter_kwargs}
             self.axs[ix[0], ix[1]].scatter(x=sdf['X_mds_2d_0'], y=sdf['X_mds_2d_1'], **kwargs)
+
+    def visualize(self, vizname=''):
+        # Copy method so that images are always created, even if vizpath exists
+        self.vizpath = self.get_file_path()
+        print(self.vizpath)
+        # if not os.path.exists(self.vizpath):
+        self.pos = self.get_mds_positions()
+        self.add_positions_to_metadf()
+
+        for curr_attr in [self.attr]:
+            self.get_figure()
+            self.fill_subplots(curr_attr)
+            self.save_plot(plt, plt_kwargs={'dpi': 600})
+            plt.close()
 
 
 class MxSingleViz(MxSingleViz2D3D):
@@ -819,3 +834,39 @@ class S2vKeyAttrViz(ImageGrid):
     def get_figure(self):
         self.fig, self.axs = plt.subplots(self.nrow, self.ncol, figsize=(self.ncol*self.img_width, self.nrow*self.img_height), gridspec_kw={'height_ratios': [1, 2]})
         plt.tight_layout(pad=0)
+
+
+class S2vKeyAttrVizPresentation(S2vKeyAttrViz):
+    '''
+    This class makes networks corresponding to position MDS plots.
+    This class is only used for the thesis presentation.
+    '''
+    def __init__(self, language, mx, info, plttitle, exp, by_author, subdir=None, markersize=15):
+        self.markersize = markersize
+        super().__init__(language, mx, info, plttitle, exp, by_author, subdir)
+        print('S2vKeyAttrVizPresentation metadt', self.info.metadf)
+
+    def load_single_images(self):
+        mxname, spars = self.info.as_string().split('_')[:2]
+        self.info.spmx_path = os.path.join(self.data_dir, 'similarity', self.language, 'sparsification', f'sparsmx-{mxname}_{spars}.pkl')
+        # self.nk_attr_dir = os.path.join(self.data_dir, 'analysis', self.language, 'nk_singleimage')
+        # self.mds_attr_dir = os.path.join(self.output_dir, 'mx_singleimage')
+
+        imgs = []
+        for attr in self.colnames:
+            self.info.attr = attr
+
+            nkclust = NkSingleVizAttrPresentation(self.language, self.output_dir, self.info, plttitle=self.plttitle, exp=self.exp, by_author=self.by_author, markersize=self.markersize)
+            nkclust_path = nkclust.get_path()
+            print(nkclust_path)
+            nkclust.visualize()
+            imgs.append(nkclust_path)
+
+            # Already handled outside of class
+            mdsclust = MxSingleViz2dSingleAttr(self.language, self.output_dir, self.exp, self.by_author, mc=None, info=self.info, mx=self.mx, markersize=self.markersize)
+            mdsclust.visualize()
+            mxclust_path = mdsclust.get_file_path()
+            print(mxclust_path)
+            imgs.append(mxclust_path)
+
+        return imgs

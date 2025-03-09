@@ -1,5 +1,11 @@
 
 # %%
+'''
+These classes are for further analyzing and visualizing the interactive selections made using the classes in interactive_viz.py
+These manal analyses were not important for the final results in the thesis.
+'''
+
+
 import pandas as pd
 from copy import deepcopy
 import os
@@ -27,6 +33,7 @@ class NkSingleVizHighlight(NkSingleViz):
     
 
 class NKHighlights(DataHandler):
+    # Highlight interesting nodes
     def __init__(self, language, output_dir='analysis_s2v', by_author=False):
         super().__init__(language, output_dir=output_dir, by_author=by_author)
         self.by_author = by_author
@@ -76,7 +83,7 @@ class NKHighlights(DataHandler):
         return df
     
 high = NKHighlights('eng', by_author=True)
-# high.mds_eng_tips()$
+# high.mds_eng_tips()
 high.nk_eng_centralwhite()
 
 
@@ -218,11 +225,6 @@ class InteractiveResults(DataHandler):
 
 
 
-
-
-
-
-
     def load_data(self):
         df = pd.read_csv(self.results_path, header=0, index_col=None, sep=',')
         print('df original', df.shape)
@@ -264,4 +266,29 @@ class InteractiveResults(DataHandler):
     #         print(mxname, spars, spmx_path)
     #         info = CombinationInfo(mxname=mxname, sparsmode=spars, spmx_path=spmx_path)
 
+##################################################################################################
+
+# import argparse
+# import os
+
+# if __name__ == '__main__':
+#     parser = argparse.ArgumentParser()
+
+#     parser.add_argument('--language', type=str)
+#     parser.add_argument('--by_author', action='store_true')  # Boolean argument, if flag is used, by_author is set to True
+
+#     args = parser.parse_args()
+
+#     language = args.language
+#     by_author = args.by_author
+
+#     print(f"Selected language: {language}")
+#     print(f"Is by_author: {by_author}")
+
+
+# subdirs = ['MxNkAnalysis', 'NkAnalysis']
+# for language in ['eng']:
+#     for subdir in ['MxNkAnalysis']:
+#         ir = InteractiveResults(language=language, subdir=subdir, by_author=True)
+#         ir.filter_df()
 

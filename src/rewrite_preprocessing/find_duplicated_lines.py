@@ -9,8 +9,6 @@ import multiprocessing
 
 import difflib
 from utils import DataHandler, get_filename_from_path
-path = '/home/annina/Downloads/JCLS2022_Modeling-and-Predicting-Lit-Reception/corpora/ENG/Forrester_Andrew_The-Female-Detective_1864.txt'
-path = '/home/annina/scripts/great_unread_nlp/data/corpus_corrections/manually_corrected_texts/eng/Forrester_Andrew_The-Female-Detective_1864.txt'
 
 class DupSentencesFinder(DataHandler):
     def __init__(self, language):
@@ -80,8 +78,7 @@ class DupSentencesFinder(DataHandler):
     
     def create_data(self, **kwargs):
         doc_path = kwargs['doc_path']
-        path = '/home/annina/scripts/great_unread_nlp/data/text_tokenized'
-        # 'Wieland_Christoph-Martin_Geschichte-des-weisen-Danischmed_1795.txt' ###########################
+        path = '../data/text_tokenized'
         path = os.path.join(path, self.language)
 
         filename = os.path.basename(doc_path)

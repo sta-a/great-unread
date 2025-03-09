@@ -34,10 +34,4 @@ if __name__ == '__main__':
 
 
     ex = Experiment(language=language, by_author=by_author, output_dir=output_dir, cmode=cmode)
-    ex.run_experiments(select_exp='singleimage_analysis_2d_mds', select_exp_from_substring=False)
-    # topgender_vmeasure_nclust-2-5_threshold-0%8'
-
-    # /media/annina/elements/back-to-computer-240615/data/analysis_s2v/eng/mx_topauthor_ARI_nclust-50-50_simmel-5-10
-    # /media/annina/elements/back-to-computer-240615/data/analysis/eng/topyear-ascat_mean_purity_nclust-151-200
-    # 
-    # topauthor_ARI_nclust-50-100
+    ex.run_experiments()

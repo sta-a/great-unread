@@ -9,13 +9,15 @@ import subprocess
 import time
 import shutil
 from .embedding_utils import EmbeddingBase
-'''
-random_walks.txt and log file: paths are not set properly, find where they are stored and delete manually!!!
-make sure that pickle dirs are not shared if struc2vec is run several times at the same time!
-struc2vec cannot be run several times at the same time because of  random_walks.txt and log file
-'''
+
 
 class S2vCreator(EmbeddingBase):
+    '''
+    This class creates S2V embeddings for different parameter combinations.
+    It is written to be conveniently run on a cluster.
+    The struc2vec code can be found at https://github.com/leoribeiro/struc2vec/tree/master
+    The script expects the struc2vec code to be stored as a zip file (struc2vec-master.zip).
+    '''
     def __init__(self, language, mode=None, by_author=False):
         if mode == 'mirror':
             edgelist_dir='sparsification_edgelists_s2v_mirror'
@@ -38,31 +40,6 @@ class S2vCreator(EmbeddingBase):
             'OPT3': ['True']
         }
         return params
-
-    # def get_params_mode_params(self):
-    #     # Return many different parameter combinations for parameter selection
-    #     params = {
-    #         'dimensions': [32, 64, 128],
-    #         'walk-length': [3, 5, 8, 15],
-    #         'num-walks': [20, 50, 200],
-    #         'window-size': [3, 5, 10, 15] ###################################
-    #     }
-    #     return params
-    
-
-    # def get_run_mode_params(self):
-    #     # Return few parameter combinations for creating the embeddings for the actual data
-    #     params = {
-    #         'dimensions': [32],
-    #         'walk-length': [15, 30],
-    #         'num-walks': [200],
-    #         'window-size': [3, 15, 30],
-    #         'until-layer': [5],
-    #         'OPT1': ['True'],
-    #         'OPT2': ['True'],
-    #         'OPT3': ['True']
-    #     }
-    #     return params
 
 
     def get_mirror_mode_params(self):
@@ -166,10 +143,10 @@ class S2vCreator(EmbeddingBase):
 
         parent_dir = os.path.dirname(self.data_dir)
         src_dir = os.path.join(parent_dir, 'src')
-        s2v_dir = os.path.join(src_dir, 'struc2vec-master_rwpath')
+        s2v_dir = os.path.join(src_dir, 'struc2vec-master')
         s2v_pkl = os.path.join(s2v_dir, 'pickles')
         s2v_script = os.path.join(s2v_dir, 'src', 'main.py')
-        s2v_zip_path = os.path.join(parent_dir, 'src', 'struc2vec-master_rwpath.zip')
+        s2v_zip_path = os.path.join(parent_dir, 'src', 'struc2vec-master.zip')
 
         self.delete_dirs(src_dir, s2v_dir, s2v_zip_path, s2v_pkl)
         self.delete_files(src_dir, s2v_dir, parent_dir)

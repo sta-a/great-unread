@@ -16,10 +16,11 @@ logging.basicConfig(level=logging.DEBUG)
 
 class TopEval(InfoHandler):
     '''
-    Filter evaluation files for different experiments.
-    -df: a filtered evaluation file. Must contain column 'file_info'
-        Df can be precomputed and passed to TopEval to use methods, or is calculated by TopEval
+    This class filters the evaluation files for different experiments.
+    The filtering criteria are stored in the experiment dict.
     '''
+
+    # df can be precomputed and passed to TopEval to use methods, or is calculated by TopEval
     def __init__(self, language, output_dir, cmode, exp, expdir, df=None, by_author=False):
         super().__init__(language=language, output_dir=output_dir, add_color=True, cmode=cmode, by_author=by_author)
         self.cmode = cmode
